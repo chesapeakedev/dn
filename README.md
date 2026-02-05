@@ -4,14 +4,10 @@
 can also be used as a tool & subagent by other agents that can use tools. `dn`
 increases your throughput as an individual contributor.
 
-## Installing
-
 ## Prerequisites
 
-- [Deno](https://deno.com/) installed and available in PATH
-- [opencode](https://opencode.dev/) optionally installed for opencode mode
-- [Cursor CLI (`agent`)](https://cursor.com/docs/cli/installation) optionally
-  installed for cursor mode
+- [Deno](https://deno.com/) to run `dn` as a script or compile it for local
+  installation
 - [GitHub CLI (`gh`)](https://cli.github.com/) installed and authenticated (for
   Github integration)
 - Git or [Sapling](https://sapling-scm.com/) installed (for managing local
@@ -30,6 +26,36 @@ a GitHub token. Preferred options are:
 For CI and scripts, set `GITHUB_TOKEN` with a Personal Access Token
 (fine-grained PAT recommended). See
 [docs/authentication.md](docs/authentication.md) for details.
+
+## Setting Up Agents
+
+`dn` invokes an agent to plan & perform work. `dn` supports opencode (default)
+and Cursor agents.
+
+### OpenCode (Default)
+
+1. Install: https://opencode.dev/
+2. Use (default mode):
+   ```bash
+   dn prep <issue_url>
+   dn loop --plan-file plans/issue-123.plan.md
+   ```
+
+### Cursor CLI
+
+1. Install: https://cursor.com/docs/cli/installation
+2. Authenticate: `agent auth`
+3. Enable Cursor mode:
+   ```bash
+   # Per command
+   dn prep --cursor <issue_url>
+   dn loop --cursor --plan-file plans/issue-123.plan.md
+
+   # Or environment variable
+   export CURSOR_ENABLED=1
+   dn prep <issue_url>
+   dn loop --plan-file plans/issue-123.plan.md
+   ```
 
 ## Usage
 
