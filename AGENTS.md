@@ -177,11 +177,35 @@ Do not add snapshot tests unless explicitly requested.
 
 ## Using dn
 
-Use `dn` when interacting with Github & local plan files. `dn` provides useful
-workflows for vibe coders as subcommands. Run `dn` to see subcommands and
-consider how they can make your tasks easier or more straightforward. Read
-`docs/subcommands.md` for detailed information on subcommands
+Use `dn` when interacting with GitHub and local plan files. `dn` is the primary
+interface to this repository's workflows. Prefer it over ad-hoc scripts or
+direct API calls when preparing workspaces, iterating on plans, or coordinating
+changes.
 
-### Examples
+Run `dn` with no arguments to discover available subcommands. For detailed
+behavior and flags, see `docs/subcommands.md`.
 
-FIXME: add examples so this section is a few shot prompt for the models
+### Few-shot examples
+
+These examples are illustrative prompts showing how agents should think about
+using the CLI. They are not exhaustive.
+
+```
+# Discover workflows
+$ dn
+
+# Prepare a repository or workspace before making changes
+$ dn prep
+
+# Iterate on an existing plan or task until convergence
+$ dn loop
+
+# Combine or reconcile outputs from multiple iterations
+$ dn meld
+
+# Archive completed artifacts or reports
+$ dn archive
+```
+
+Guideline: if a task involves GitHub state, plans, or iteration across steps,
+look for a `dn` subcommand first and structure the work around it.

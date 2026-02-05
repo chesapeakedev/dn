@@ -507,34 +507,33 @@ function hasKickstartSection(content: string): boolean {
 /**
  * Generates the kickstart section content.
  */
-function generateKickstartSection(
-  relativeKickstartPath: string,
-): string {
-  return `## Using Kickstart
+function generateKickstartSection(): string {
+  return `## Using dn
 
-This repository uses kickstart to implement GitHub issues. When working as an agent, you can use kickstart as a subagent to implement issues end-to-end.
+Use \`dn\` when interacting with Github & local plan files. \`dn\` provides useful
+workflows for vibe coders as subcommands. Run \`dn\` to see subcommands and
+consider how they can make your tasks easier or more straightforward. Read
+\`docs/subcommands.md\` for detailed information on subcommands.
 
-### Basic Usage
+### Examples
 
-\`\`\`bash
-${relativeKickstartPath} <issue_url>
 \`\`\`
+# Discover available workflows
+dn
 
-### AWP Mode (Automatic Branch, Commit, PR)
+# Prepare a repository before making changes
+dn prep
 
-\`\`\`bash
-${relativeKickstartPath} --awp <issue_url>
+# Iterate on a plan until convergence
+dn loop
+
+# Combine or reconcile multiple iterations
+dn meld
+
+# Archive completed artifacts
+dn archive
 \`\`\`
-
-### How Kickstart Works
-
-1. **Plan Phase**: Analyzes the issue and creates an implementation plan (read-only)
-2. **Implement Phase**: Applies changes to the codebase
-3. **Linting**: Runs linting to improve code quality
-4. **Artifacts**: Updates AGENTS.md with project guidelines
-5. **VCS** (AWP mode): Creates branch, commits, and opens draft PR
-
-Kickstart automatically includes AGENTS.md and project configuration files in prompts, ensuring code follows project conventions.`;
+`;
 }
 
 /**
@@ -547,10 +546,10 @@ Kickstart automatically includes AGENTS.md and project configuration files in pr
  */
 function mergeAgentsMd(
   baseContent: string,
-  relativeKickstartPath: string,
+  _relativeKickstartPath: string,
 ): string {
   const structure = parseAgentsMd(baseContent);
-  const kickstartSection = generateKickstartSection(relativeKickstartPath);
+  const kickstartSection = generateKickstartSection();
   let result = baseContent;
 
   // Update Cursor / Copilot Rules section if it exists but doesn't mention kickstart
@@ -668,14 +667,12 @@ function isMinimalAgentsMd(content: string): boolean {
  * Generates a minimal AGENTS.md template with kickstart info.
  * Used as fallback when opencode init is not available.
  */
-function generateMinimalTemplate(
-  relativeKickstartPath: string,
-): string {
+function generateMinimalTemplate(): string {
   return `# AGENTS.md
 
 This file provides instructions for agentic coding agents operating in this repository.
 
-${generateKickstartSection(relativeKickstartPath)}`;
+${generateKickstartSection()}`;
 }
 
 /**
@@ -708,7 +705,7 @@ export async function generateAgentsMd(
       baseContent = existingAgentsMd;
     } else {
       // Fallback to minimal template
-      return generateMinimalTemplate(relativeKickstartPath);
+      return generateMinimalTemplate();
     }
   } else {
     // Use existing content as base
