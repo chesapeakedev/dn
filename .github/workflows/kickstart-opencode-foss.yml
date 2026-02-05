@@ -1,0 +1,100 @@
+name: Kickstart (opencode, FOSS)
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  reject-untrusted:
+    if: >
+      github.event.label.name == 'opencode awp' &&
+      !(github.event.sender.association == 'OWNER' ||
+        github.event.sender.association == 'MEMBER' ||
+        github.event.sender.association == 'COLLABORATOR')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain maintainer-only label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: "Thanks for the request! The `opencode awp` label can only be used by project maintainers because it consumes paid tokens. A maintainer can re-apply the label if they decide to proceed."
+            });
+
+  kickstart:
+    if: >
+      github.event.label.name == 'opencode awp' &&
+      (github.event.sender.association == 'OWNER' ||
+       github.event.sender.association == 'MEMBER' ||
+       github.event.sender.association == 'COLLABORATOR')
+    runs-on: ubuntu-latest
+    outputs:
+      issue_number: ${{ steps.issue.outputs.number }}
+      issue_url: ${{ steps.issue.outputs.url }}
+      success: ${{ steps.kickstart.outputs.success }}
+      pr_url: ${{ steps.kickstart.outputs.pr_url }}
+      output: ${{ steps.kickstart.outputs.output }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v1
+        with:
+          deno-version: ">=2.6.3"
+
+      - name: Capture issue metadata
+        id: issue
+        run: |
+          echo "url=${{ github.event.issue.html_url }}" >> $GITHUB_OUTPUT
+          echo "number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+
+      - name: Run dn kickstart (opencode AWP)
+        id: kickstart
+        env:
+          IS_OPEN_SOURCE: "true"
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          NO_COLOR: "1"
+        run: |
+          OUTPUT=$(dn --awp --opencode "${{ github.event.issue.html_url }}" 2>&1) || EXIT_CODE=$?
+
+          PR_URL=$(echo "$OUTPUT" | grep -oP 'PR created: \K[^\s]+' || true)
+
+          echo "output<<EOF" >> $GITHUB_OUTPUT
+          echo "$OUTPUT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          if [ -n "$PR_URL" ]; then
+            echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
+            echo "success=true" >> $GITHUB_OUTPUT
+          else
+            echo "success=false" >> $GITHUB_OUTPUT
+          fi
+
+          exit ${EXIT_CODE:-0}
+
+  comment:
+    needs: kickstart
+    if: always() && needs.kickstart.result != 'skipped'
+    uses: dn-actions/.github/workflows/kickstart-comment.yml@v1
+    with:
+      issue_number: ${{ needs.kickstart.outputs.issue_number }}
+      issue_url: ${{ needs.kickstart.outputs.issue_url }}
+      kickstart_title: opencode
+      trigger_source: issue_label
+      label_name: opencode awp
+      labeler: ${{ github.event.sender.login }}
+      success: ${{ needs.kickstart.outputs.success }}
+      pr_url: ${{ needs.kickstart.outputs.pr_url }}
+      output: ${{ needs.kickstart.outputs.output }}
+    secrets: inherit

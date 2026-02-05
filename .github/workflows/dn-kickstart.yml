@@ -1,0 +1,61 @@
+name: dn kickstart
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  reject-untrusted:
+    if: >
+      github.event.comment.body == '/dn kickstart' &&
+      !(github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'MEMBER' ||
+        github.event.comment.author_association == 'COLLABORATOR')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain maintainer-only command
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: "Thanks for the suggestion! `/dn kickstart` can only be run by project maintainers because it consumes paid tokens. A maintainer can re-run this command if they decide to proceed."
+            })
+
+  kickstart:
+    if: >
+      startsWith(github.event.comment.body, '/dn kickstart') &&
+      (github.event.comment.author_association == 'OWNER' ||
+       github.event.comment.author_association == 'MEMBER' ||
+       github.event.comment.author_association == 'COLLABORATOR')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apply kickstart label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.comment.body.trim();
+            const parts = body.split(/\s+/);
+
+            // Default to cursor if no mode specified
+            let mode = 'cursor';
+            if (parts.length >= 3) {
+              if (parts[2] === 'opencode' || parts[2] === 'cursor') {
+                mode = parts[2];
+              }
+            }
+
+            const label = `${mode} awp`;
+
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: [label]
+            });
