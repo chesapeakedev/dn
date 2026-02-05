@@ -34,6 +34,7 @@ function showUsage(): void {
   console.error("  dn prep [options] <issue_url_or_number>");
   console.error("  dn loop [options] --plan-file <path>");
   console.error("  dn fixup [options] <pr_url>");
+  console.error("  dn glance [options]");
   console.error("  dn meld [options] <source> [source ...]");
   console.error("  dn archive [options] <plan_file.plan.md>\n");
   console.error("Subcommands:");
@@ -52,6 +53,9 @@ function showUsage(): void {
   );
   console.error(
     "  fixup        Address PR feedback locally (fetch comments, plan, implement)",
+  );
+  console.error(
+    "  glance       Project velocity overview",
   );
   console.error(
     "  meld         Merge and trim markdown sources (local paths and/or GitHub issue URLs)",

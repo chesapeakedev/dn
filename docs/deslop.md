@@ -8,7 +8,8 @@ Remove technical debt using `deslop.mk` to verify the existence of slop. Run
 ## Phase 1: Automated Discovery
 
 - Type errors, `any` types, missing type annotations
-- Missing return types on exported functions (omit when `void` or `Promise<void>`)
+- Missing return types on exported functions (omit when `void` or
+  `Promise<void>`)
 - Unsafe non-null assertions or undocumented `!`
 - Unsafe or incorrect type assertions
 - Lint warnings, unused variables, dead code

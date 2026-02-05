@@ -61,7 +61,8 @@ Guidelines aligned with https://jsr.io/docs/publishing-packages:
   - Every exported function, class, and type has a TSDoc comment
   - Comments describe _behavior and guarantees_, not implementation
   - Examples are short, correct, and copy-pasteable
-  - Public symbols without behavior-focused TSDoc should be treated as incomplete
+  - Public symbols without behavior-focused TSDoc should be treated as
+    incomplete
 - README and docs stay in sync
   - Public behavior changes require updating `docs/README.md`
   - New public APIs should be mentioned with a minimal example

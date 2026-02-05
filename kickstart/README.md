@@ -6,6 +6,7 @@ optional Cursor IDE integration. Plan files are stored in the `plans/` directory
 and can be continued across multiple runs.
 
 **Key Features:**
+
 - **Two-phase execution**: Plan (read-only) → Implement (code changes)
 - **Completion detection**: Automatically checks acceptance criteria checklists
 - **Continuation prompts**: Generates prompts for incomplete work
@@ -98,7 +99,8 @@ flowchart TD
 - Plan files persist in `plans/` directory for reference
 - You handle git operations manually
 - No VCS required
-- **Completion Detection**: Automatically checks acceptance criteria after implementation
+- **Completion Detection**: Automatically checks acceptance criteria after
+  implementation
 
 If the plan file exists, you'll be prompted:
 
@@ -113,7 +115,8 @@ If the plan file exists, you'll be prompted:
 - Plan files are included in commits and PRs
 - Automatically handles branches, commits, and PRs
 - Requires Git or Sapling
-- **Completion Detection**: Automatically checks acceptance criteria after implementation
+- **Completion Detection**: Automatically checks acceptance criteria after
+  implementation
 
 When running in AWP mode, you'll be prompted:
 
@@ -155,28 +158,36 @@ When running in AWP mode, you'll be prompted:
 
 ### Positional Arguments
 
-- `<issue_url_or_number>`: Full GitHub issue URL or an issue number for the current repository (optional if `ISSUE` environment variable is set)
+- `<issue_url_or_number>`: Full GitHub issue URL or an issue number for the
+  current repository (optional if `ISSUE` environment variable is set)
   - Full URL format: `https://github.com/owner/repo/issues/123`
-  - Issue number shorthand: `123` or `#123` (infers URL from current repo remote)
-  - If the URL points to a different repository than the current workspace, kickstart exits with an error
+  - Issue number shorthand: `123` or `#123` (infers URL from current repo
+    remote)
+  - If the URL points to a different repository than the current workspace,
+    kickstart exits with an error
   - The script fetches the issue using GitHub's GraphQL API
 
 ## Environment Variables
 
-- `GITHUB_TOKEN`: **Optional (CI/scripts)** - GitHub Personal Access Token for API authentication
-  - Preferred: use GitHub CLI (`gh auth login`) or run `dn auth` for browser login; no env var needed
+- `GITHUB_TOKEN`: **Optional (CI/scripts)** - GitHub Personal Access Token for
+  API authentication
+  - Preferred: use GitHub CLI (`gh auth login`) or run `dn auth` for browser
+    login; no env var needed
   - For CI (e.g. GitHub Actions), set to `${{ secrets.GITHUB_TOKEN }}`
-  - Fine-grained PATs recommended when using a token. Example: `GITHUB_TOKEN=ghp_xxx ./kickstart <issue_url_or_number>`
+  - Fine-grained PATs recommended when using a token. Example:
+    `GITHUB_TOKEN=ghp_xxx ./kickstart <issue_url_or_number>`
   - See [docs/authentication.md](../docs/authentication.md) for all options
 
 - `WORKSPACE_ROOT`: Root directory of the workspace (where config files are
   located)
   - Default: Current working directory (`Deno.cwd()`)
   - Use this when running the script from a different directory
-  - Example: `WORKSPACE_ROOT=/path/to/workspace ./kickstart <issue_url_or_number>`
+  - Example:
+    `WORKSPACE_ROOT=/path/to/workspace ./kickstart <issue_url_or_number>`
 
 - `ISSUE`: GitHub issue URL or issue number (alternative to positional argument)
-  - Example: `ISSUE=https://github.com/owner/repo/issues/123 ./kickstart` or `ISSUE=123 ./kickstart`
+  - Example: `ISSUE=https://github.com/owner/repo/issues/123 ./kickstart` or
+    `ISSUE=123 ./kickstart`
 
 - `SAVE_CTX`: Set to `"1"` to preserve debug files in the temp directory on
   success
@@ -192,7 +203,8 @@ When running in AWP mode, you'll be prompted:
 - `OPENCODE_TIMEOUT_MS`: Timeout for opencode execution in milliseconds
   - Default: 600000 (10 minutes)
   - Increase if operations are expected to take longer
-  - Example: `OPENCODE_TIMEOUT_MS=3600000 ./kickstart <issue_url_or_number>` (1 hour)
+  - Example: `OPENCODE_TIMEOUT_MS=3600000 ./kickstart <issue_url_or_number>` (1
+    hour)
 
 ## Configuration Files
 
@@ -282,13 +294,16 @@ existing plan. When continuing:
 
 After the implement phase, kickstart automatically:
 
-1. **Parses Acceptance Criteria**: Reads the plan file's Acceptance Criteria section
+1. **Parses Acceptance Criteria**: Reads the plan file's Acceptance Criteria
+   section
 2. **Counts Completion**: Tracks how many checkboxes are marked `[x]` vs `[ ]`
-3. **Reports Status**: Shows completion progress and provides continuation instructions
+3. **Reports Status**: Shows completion progress and provides continuation
+   instructions
 
 #### Completion Status
 
 Kickstart reports completion status:
+
 ```
 📊 Completion Status: 3/5 acceptance criteria completed
 ⚠️  Plan is incomplete. 2 item(s) remaining.
@@ -298,6 +313,7 @@ Kickstart reports completion status:
 
 For incomplete plans, kickstart shows the plan file location and provides
 instructions for continuing:
+
 ```
 ℹ️  Plan file updated: plans/my-feature.plan.md
 ℹ️  To continue this work, run: dn loop --plan-file plans/my-feature.plan.md
@@ -328,7 +344,8 @@ artifacts to improve code quality and enable better tooling integration:
 
 - The implement phase updates the Acceptance Criteria checklist in the plan file
 - Plan file remains in `plans/` directory for reference
-- For incomplete plans, continuation prompts are generated (see Completion Detection section)
+- For incomplete plans, continuation prompts are generated (see Completion
+  Detection section)
 
 ### 2. Linting (Non-blocking)
 
@@ -390,7 +407,8 @@ CURSOR_ENABLED=1 ./kickstart https://github.com/owner/repo/issues/123
 
 ## GitHub Actions Integration
 
-Kickstart can be run in GitHub Actions workflows to automatically process issues and create pull requests. Two workflows are available:
+Kickstart can be run in GitHub Actions workflows to automatically process issues
+and create pull requests. Two workflows are available:
 
 - **`kickstart-opencode.yml`**: Uses the opencode agent harness
 - **`kickstart-cursor.yml`**: Uses the Cursor CLI agent harness
@@ -398,8 +416,10 @@ Kickstart can be run in GitHub Actions workflows to automatically process issues
 ### Workflow Triggers
 
 Both workflows support:
+
 - **`workflow_dispatch`**: Manual trigger with `issue_url` input
-- **`issues.labeled`**: Automatically triggers when an issue is labeled with **`cursor awp`** (Cursor workflow) or **`opencode awp`** (opencode workflow)
+- **`issues.labeled`**: Automatically triggers when an issue is labeled with
+  **`cursor awp`** (Cursor workflow) or **`opencode awp`** (opencode workflow)
 
 ### Required Setup
 
@@ -408,7 +428,7 @@ Both workflows support:
    - opencode (for opencode workflow)
    - Cursor CLI (for Cursor workflow)
 
-2. **Environment Variables**: 
+2. **Environment Variables**:
    - `GITHUB_TOKEN`: Automatically set to `${{ secrets.GITHUB_TOKEN }}`
    - `CURSOR_API_KEY`: Required for Cursor workflow (add to repository secrets)
 
@@ -420,13 +440,15 @@ Both workflows support:
 ### Example Usage
 
 **Manual Trigger (workflow_dispatch):**
+
 1. Go to Actions → Kickstart (opencode) or Kickstart (Cursor)
 2. Click "Run workflow"
 3. Enter the issue URL
 4. Click "Run workflow"
 
-**Issue Label Trigger:**
-Add **`cursor awp`** to run the Cursor workflow, or **`opencode awp`** to run the opencode workflow. The triggered workflow will:
+**Issue Label Trigger:** Add **`cursor awp`** to run the Cursor workflow, or
+**`opencode awp`** to run the opencode workflow. The triggered workflow will:
+
 1. Extract the issue URL from the issue
 2. Run kickstart with AWP mode
 3. Create a PR
@@ -435,6 +457,7 @@ Add **`cursor awp`** to run the Cursor workflow, or **`opencode awp`** to run th
 ### Workflow Output
 
 After execution, the workflow posts a comment on the issue with:
+
 - Execution timestamp
 - Trigger source (workflow_dispatch or issue_label)
 - Status (success/failure)
@@ -443,26 +466,35 @@ After execution, the workflow posts a comment on the issue with:
 
 ### Branch Naming and Force Push
 
-Kickstart creates branches with a `kickstart/` prefix (e.g., `kickstart/issue_123_add-feature`). This prefix identifies auto-generated branches where force push is expected behavior for retries.
+Kickstart creates branches with a `kickstart/` prefix (e.g.,
+`kickstart/issue_123_add-feature`). This prefix identifies auto-generated
+branches where force push is expected behavior for retries.
 
-When a workflow fails after creating a branch (e.g., PR creation fails), retrying the workflow will force push to the existing branch using `--force-with-lease`. This is safe because:
+When a workflow fails after creating a branch (e.g., PR creation fails),
+retrying the workflow will force push to the existing branch using
+`--force-with-lease`. This is safe because:
+
 - The branch is auto-generated and tied to a specific issue
 - No one should be collaborating on these kickstart branches
 - A retry should replace the failed attempt
 
 ### PR Creation Permissions
 
-To allow GitHub Actions to create pull requests, enable this in your repository settings:
+To allow GitHub Actions to create pull requests, enable this in your repository
+settings:
 
 1. Go to **Settings** → **Actions** → **General**
 2. Scroll to **Workflow permissions**
 3. Enable **Allow GitHub Actions to create and approve pull requests**
 
-Without this setting, you'll see: `GitHub Actions is not permitted to create or approve pull requests`
+Without this setting, you'll see:
+`GitHub Actions is not permitted to create or approve pull requests`
 
 ### Self-Hosted Runners
 
-For self-hosted runners, see [`docs/self-hosted-runner-setup.md`](../docs/self-hosted-runner-setup.md) for setup instructions.
+For self-hosted runners, see
+[`docs/self-hosted-runner-setup.md`](../docs/self-hosted-runner-setup.md) for
+setup instructions.
 
 ### Example Workflow Snippet
 

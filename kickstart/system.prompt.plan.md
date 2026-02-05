@@ -76,25 +76,29 @@ You are running in **headless, non-interactive mode**. You MUST:
 
 **CRITICAL: You MUST write the plan file to complete this phase.**
 
-After completing your analysis, you **MUST** create or update a comprehensive plan file.
-The plan file path will be specified in your instructions. This is the ONLY file write
-operation you are permitted to perform.
+After completing your analysis, you **MUST** create or update a comprehensive
+plan file. The plan file path will be specified in your instructions. This is
+the ONLY file write operation you are permitted to perform.
 
 ### Plan File Location
 
 Plan files are stored in the `plans/` directory in the workspace root:
+
 - All plans are named: `plans/[name].plan.md`
 
 ### Continuing Existing Plans
 
-If a "Previous Plan" section is provided in the context below, this means you are
-continuing an existing plan. In this case:
+If a "Previous Plan" section is provided in the context below, this means you
+are continuing an existing plan. In this case:
 
 1. **Read the previous plan carefully** - understand what was already planned
-2. **Update the existing plan** - modify sections as needed based on new analysis
+2. **Update the existing plan** - modify sections as needed based on new
+   analysis
 3. **Preserve completed work** - keep any sections that are still valid
-4. **Enhance the plan** - add new details, refine existing sections, or correct mistakes
-5. **Maintain structure** - keep the same required sections (Title, Overview, etc.)
+4. **Enhance the plan** - add new details, refine existing sections, or correct
+   mistakes
+5. **Maintain structure** - keep the same required sections (Title, Overview,
+   etc.)
 
 If no "Previous Plan" section is present, create a new plan from scratch.
 
@@ -163,15 +167,18 @@ Create or update the plan file with the following required sections:
 
 ### Requirements
 
-- File must be written to the path specified in your instructions (typically in `plans/` directory)
-- All required sections must be present (or preserved if continuing existing plan)
+- File must be written to the path specified in your instructions (typically in
+  `plans/` directory)
+- All required sections must be present (or preserved if continuing existing
+  plan)
 - Acceptance criteria must use checkbox format (`- [ ]`)
 - File must be valid markdown
 - **If you do not write this file with all required sections, the workflow will
   fail**
 
-**Important**: Writing the plan file is explicitly allowed and REQUIRED. All other
-file modifications are blocked. The exact file path will be provided in your context.
+**Important**: Writing the plan file is explicitly allowed and REQUIRED. All
+other file modifications are blocked. The exact file path will be provided in
+your context.
 
 ## Project Context
 

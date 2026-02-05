@@ -50,9 +50,9 @@ The workflow file needs these permissions to create branches and PRs:
 
 ```yaml
 permissions:
-  contents: write      # Push branches
+  contents: write # Push branches
   pull-requests: write # Create PRs
-  issues: write        # Comment on issues
+  issues: write # Comment on issues
 ```
 
 Example workflow (`.github/workflows/kickstart-cursor.yml`):
@@ -64,7 +64,7 @@ on:
   workflow_dispatch:
     inputs:
       issue_url:
-        description: 'GitHub issue URL to process'
+        description: "GitHub issue URL to process"
         required: true
         type: string
   issues:

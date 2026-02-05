@@ -28,12 +28,10 @@ Sign in to GitHub in the browser (device flow). The token is cached so
 `dn kickstart`, `dn glance`, etc. can use it without re-prompting:
 
 ```bash
-
 ```
 
 Requires `DN_GITHUB_DEVICE_CLIENT_ID` (or `GITHUB_DEVICE_CLIENT_ID`) set to your
-GitHub OAuth App client ID. See
-[`docs/authentication.md`](authentication.md).
+GitHub OAuth App client ID. See [`docs/authentication.md`](authentication.md).
 
 ## `dn glance` — Project velocity & reports
 
@@ -49,8 +47,8 @@ analysis across a repository:
 # One-shot: collect and render
 ```
 
-`dn glance` uses the same cached GitHub authentication as other subcommands.
-See `dn glance --help` for available formats, time ranges, and filters.
+`dn glance` uses the same cached GitHub authentication as other subcommands. See
+`dn glance --help` for available formats, time ranges, and filters.
 
 ## `dn prep` — Plan phase only
 
@@ -100,8 +98,8 @@ Options include `--list, -l <path>`, `--output, -o <path>`, `--cursor, -c`, and
 
 ## `dn archive` — Derive a commit message from a plan file
 
-Reads a plan file and prints a commit message (summary + body). With `--yolo`, it
-commits staged files with that message and deletes the plan file:
+Reads a plan file and prints a commit message (summary + body). With `--yolo`,
+it commits staged files with that message and deletes the plan file:
 
 ```bash
 # Print derived commit message

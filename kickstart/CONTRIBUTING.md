@@ -1,10 +1,12 @@
 # Contributing to Kickstart
 
-This document describes the internal workings of kickstart, including how system prompts, plan files, and prompt assembly function.
+This document describes the internal workings of kickstart, including how system
+prompts, plan files, and prompt assembly function.
 
 ## System Prompts
 
-Kickstart uses two system prompt files that define the behavior of the AI agent during different phases:
+Kickstart uses two system prompt files that define the behavior of the AI agent
+during different phases:
 
 ### System Prompt Files
 
@@ -14,7 +16,8 @@ Kickstart uses two system prompt files that define the behavior of the AI agent 
    - Defines the structure and format of plan files
    - Includes instructions for continuing existing plans
 
-2. **`system.prompt.implement.md`** - Used during the implement phase (code changes)
+2. **`system.prompt.implement.md`** - Used during the implement phase (code
+   changes)
    - Instructs the agent to implement the planned changes
    - Allows file modifications within the workspace
    - Emphasizes minimal, focused changes
@@ -22,16 +25,20 @@ Kickstart uses two system prompt files that define the behavior of the AI agent 
 
 ### System Prompt Loading
 
-System prompts are embedded in the compiled binary using Deno's `--include` flag during compilation. This ensures:
+System prompts are embedded in the compiled binary using Deno's `--include` flag
+during compilation. This ensures:
+
 - Prompts are always available, even when running the compiled binary
 - No external file dependencies at runtime
 - Consistent behavior across different environments
 
-The orchestrator loads prompts from the embedded files and writes them to temporary files for use with opencode.
+The orchestrator loads prompts from the embedded files and writes them to
+temporary files for use with opencode.
 
 ## Plan Files
 
-Kickstart manages plan files in a `plans/` directory in the workspace root. The directory is automatically created if it doesn't exist.
+Kickstart manages plan files in a `plans/` directory in the workspace root. The
+directory is automatically created if it doesn't exist.
 
 ### Plan File Locations
 
@@ -42,11 +49,13 @@ Kickstart manages plan files in a `plans/` directory in the workspace root. The 
 ### Plan File Behavior
 
 **Normal Mode:**
+
 - Prompts for plan name
 - If file exists, prompts whether to continue existing plan or start new
 - Supports iterative development where you refine plans over multiple runs
 
 **AWP Mode:**
+
 - Prompts for plan name (suggests branch/bookmark name if available)
 - Creates named plan files for inclusion in PRs
 - Provides clear record of what was planned and implemented
@@ -59,7 +68,8 @@ Plan files contain:
 - **Overview**: Brief description
 - **Issue Context**: Issue number, description, labels
 - **Implementation Plan**: Detailed breakdown
-- **Acceptance Criteria**: Checklist with checkboxes (`- [ ]`) - **MUST be updated by implement agent**
+- **Acceptance Criteria**: Checklist with checkboxes (`- [ ]`) - **MUST be
+  updated by implement agent**
 - **Code Pointers**: Specific files and locations
 - **Notes**: Assumptions and considerations
 
@@ -81,7 +91,8 @@ Plan files contain:
 
 ### Benefits
 
-- **Cursor Integration**: Cursor IDE can read the plan file and track progress via checklists
+- **Cursor Integration**: Cursor IDE can read the plan file and track progress
+  via checklists
 - **Documentation**: Provides structured information about the implementation
 - **Debugging**: Historical record of what was planned vs. what was implemented
 - **Git Tracking**: Can be committed to git for version history
@@ -93,8 +104,10 @@ The script combines multiple sources into a single prompt file:
 
 1. **System prompt** (`system.prompt.plan.md` or `system.prompt.implement.md`)
 2. **Project guidelines** (`AGENTS.md` from project root, if it exists)
-3. **Project configuration** (`deno.json` or `package.json` from project root, if it exists)
-4. **Previous plan** (plan phase only, if continuing existing plan) - Existing plan content
+3. **Project configuration** (`deno.json` or `package.json` from project root,
+   if it exists)
+4. **Previous plan** (plan phase only, if continuing existing plan) - Existing
+   plan content
 5. **Plan output** (implement phase only) - Output from plan phase
 6. **Issue context** (from GitHub API or local file)
 
@@ -117,4 +130,5 @@ Issue body/description here...
 - label2
 ```
 
-When using a local file, the script attempts to parse issue number and title from a header in the format `# Issue #123: Title`.
+When using a local file, the script attempts to parse issue number and title
+from a header in the format `# Issue #123: Title`.

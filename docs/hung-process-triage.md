@@ -1,6 +1,7 @@
 # Hung Process Triage on macOS
 
-FIXME: integrate the advice of this document into @CONTRIBUTING.md and delete this file
+FIXME: integrate the advice of this document into @CONTRIBUTING.md and delete
+this file
 
 This document describes tools and techniques for debugging hung processes on
 macOS.

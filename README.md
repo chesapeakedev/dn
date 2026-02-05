@@ -72,6 +72,7 @@ Usage:
   dn prep [options] <issue_url_or_number>
   dn loop [options] --plan-file <path>
   dn fixup [options] <pr_url>
+  dn glance [options]
   dn meld [options] <source> [source ...]
   dn archive [options] <plan_file.plan.md>
 
@@ -82,6 +83,7 @@ Subcommands:
   prep         Run plan phase only (creates plan file)
   loop         Run loop phase only (requires plan file from prep)
   fixup        Address PR feedback locally (fetch comments, plan, implement)
+  glance       Project velocity overview
   meld         Merge and trim markdown sources (local paths and/or GitHub issue URLs)
   archive      Derive commit message from plan file; --yolo to commit and delete plan
 

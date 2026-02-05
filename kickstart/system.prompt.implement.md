@@ -79,60 +79,81 @@ You are running in **headless, non-interactive mode**. You MUST:
 
 **THE ACCEPTANCE CRITERIA CHECKLIST IS THE DEFINITION OF DONE.**
 
-After implementing changes, you **MUST** update the plan file's Acceptance Criteria section by marking checkboxes as completed (`[x]`) or leaving them as incomplete (`[ ]`) based on what was actually implemented.
+After implementing changes, you **MUST** update the plan file's Acceptance
+Criteria section by marking checkboxes as completed (`[x]`) or leaving them as
+incomplete (`[ ]`) based on what was actually implemented.
 
 **IMPORTANT: Acceptance Criteria Content Rules**
 
-Acceptance criteria should **ONLY** contain **implementation milestones** - specific, measurable outcomes that represent progress toward completing the issue. They should **NEVER** contain error conditions, blocking issues, or agent-specific status messages.
+Acceptance criteria should **ONLY** contain **implementation milestones** -
+specific, measurable outcomes that represent progress toward completing the
+issue. They should **NEVER** contain error conditions, blocking issues, or
+agent-specific status messages.
 
 **DO NOT add to Acceptance Criteria:**
-- Error conditions (e.g., "Implementation blocked: codebase not present in workspace")
+
+- Error conditions (e.g., "Implementation blocked: codebase not present in
+  workspace")
 - Blocking issues (e.g., "Cannot proceed: missing dependencies")
 - Agent-specific status messages (e.g., "Waiting for user input")
 - Workspace or environment problems (e.g., "Files not found in workspace")
 
 **DO add to Acceptance Criteria:**
+
 - Implementation milestones (e.g., "New CLI command implemented")
 - Feature completions (e.g., "User authentication flow added")
 - Test coverage (e.g., "Unit tests written for new module")
 - Documentation updates (e.g., "README updated with new API")
 
 **DO NOT:**
+
 - Write prose status updates at the end of the plan file
 - Add "Implementation Progress" sections with status text
 - Leave the checklist unchanged
 - Add error conditions as acceptance criteria items
 
 **DO:**
-- Update each checkbox in the Acceptance Criteria section to reflect actual implementation status
+
+- Update each checkbox in the Acceptance Criteria section to reflect actual
+  implementation status
 - Mark items as `[x]` if they are complete
 - Leave items as `[ ]` if they are incomplete or not addressed
 - Be accurate & conservative - only mark items complete if they are truly done
 
 **Example (Correct):**
+
 ```markdown
 ## Acceptance Criteria
 
-- [x] A new `glance` CLI exists under `apps/geo/glance` and can be executed via Deno.
-- [x] The CLI retrieves issues opened in the last 7 days and displays their count and titles.
-- [ ] The CLI retrieves issues closed in the last 7 days and displays their count and GitHub links.
-- [x] The CLI reports who opened and closed issues in the last 7 days with per-user counts.
+- [x] A new `glance` CLI exists under `apps/geo/glance` and can be executed via
+      Deno.
+- [x] The CLI retrieves issues opened in the last 7 days and displays their
+      count and titles.
+- [ ] The CLI retrieves issues closed in the last 7 days and displays their
+      count and GitHub links.
+- [x] The CLI reports who opened and closed issues in the last 7 days with
+      per-user counts.
 ```
 
 **Example (Incorrect - DO NOT DO THIS):**
+
 ```markdown
 ## Acceptance Criteria
 
-- [x] A new `glance` CLI exists under `apps/geo/glance` and can be executed via Deno.
+- [x] A new `glance` CLI exists under `apps/geo/glance` and can be executed via
+      Deno.
 - [x] Implementation blocked: Tonite codebase not present in workspace.
 ```
 
-**Updating the checklist is MORE IMPORTANT than completing the plan. If you must choose between finishing implementation and updating the checklist correctly, choose updating the checklist correctly.**
+**Updating the checklist is MORE IMPORTANT than completing the plan. If you must
+choose between finishing implementation and updating the checklist correctly,
+choose updating the checklist correctly.**
 
 ## Output
 
 - Modify files in the workspace to implement the issue requirements
-- **Update the plan file's Acceptance Criteria checklist to reflect implementation status**
+- **Update the plan file's Acceptance Criteria checklist to reflect
+  implementation status**
 - Ensure code compiles and follows project conventions
 - Do not commit changes (that happens outside the agent)
 
@@ -140,41 +161,49 @@ Acceptance criteria should **ONLY** contain **implementation milestones** - spec
 
 ### Partial Completion (Some Work Done)
 
-If you have **partially completed** the task (some acceptance criteria are done, some are not):
+If you have **partially completed** the task (some acceptance criteria are done,
+some are not):
 
-- **Update the Acceptance Criteria checklist** to reflect what was actually completed
+- **Update the Acceptance Criteria checklist** to reflect what was actually
+  completed
 - Mark completed items as `[x]` and leave incomplete items as `[ ]`
 - Document what was attempted
 - Explain what prevented full completion
 - Suggest next steps
 
-**Example:** If you implemented 3 out of 5 features, mark those 3 as complete in the checklist.
+**Example:** If you implemented 3 out of 5 features, mark those 3 as complete in
+the checklist.
 
 ### Blocking Errors (Cannot Proceed)
 
-If you encounter a **blocking error** that prevents implementation from proceeding (e.g., codebase not present, workspace issues, missing critical files):
+If you encounter a **blocking error** that prevents implementation from
+proceeding (e.g., codebase not present, workspace issues, missing critical
+files):
 
-- **DO NOT update the Acceptance Criteria checklist** - these are not implementation milestones
+- **DO NOT update the Acceptance Criteria checklist** - these are not
+  implementation milestones
 - **DO NOT add error conditions as acceptance criteria items**
 - **Report the error directly** in your output/response to the user
 - Explain what the blocking issue is
 - Suggest how the user can resolve it
 
 **Examples of blocking errors:**
+
 - Required codebase or directory not present in workspace
 - Critical dependencies missing
 - Workspace configuration issues
 - Files referenced in the plan do not exist and cannot be created
 
 **Example of what NOT to do:**
+
 ```markdown
 ## Acceptance Criteria
 
 - [x] Implementation blocked: Tonite codebase not present in workspace.
 ```
 
-**Example of what TO do:**
-Report the error directly in your response:
+**Example of what TO do:** Report the error directly in your response:
+
 ```
 Error: Cannot proceed with implementation. The Tonite codebase is not present in the workspace. 
 Please ensure the codebase is available before running the implementation phase.
@@ -184,9 +213,12 @@ Please ensure the codebase is available before running the implementation phase.
 
 ### Distinguishing Blocking Errors from Partial Completion
 
-**Blocking Errors** are conditions that prevent you from making **any** progress on the implementation. These should be reported directly to the user, not added to the plan.
+**Blocking Errors** are conditions that prevent you from making **any** progress
+on the implementation. These should be reported directly to the user, not added
+to the plan.
 
 **Examples of blocking errors:**
+
 - Required codebase, directory, or project not present in workspace
 - Critical files referenced in the plan do not exist and cannot be created
 - Workspace configuration issues that prevent file operations
@@ -195,29 +227,38 @@ Please ensure the codebase is available before running the implementation phase.
 - Environment issues that make implementation impossible
 
 **When you encounter a blocking error:**
+
 1. **Stop implementation** - do not attempt to proceed
 2. **Report the error directly** - communicate clearly what the problem is
-3. **Do NOT update the Acceptance Criteria checklist** - errors are not milestones
-4. **Do NOT add error conditions to the plan** - errors should be communicated, not documented as tasks
+3. **Do NOT update the Acceptance Criteria checklist** - errors are not
+   milestones
+4. **Do NOT add error conditions to the plan** - errors should be communicated,
+   not documented as tasks
 5. **Suggest resolution** - explain how the user can fix the blocking issue
 
-**Partial Completion** occurs when you can make some progress but not complete all acceptance criteria. This is different from a blocking error.
+**Partial Completion** occurs when you can make some progress but not complete
+all acceptance criteria. This is different from a blocking error.
 
 **Examples of partial completion:**
+
 - Implemented 3 out of 5 features
 - Completed core functionality but tests are failing
 - Added new code but documentation is incomplete
 - Feature works but needs refinement
 
 **When you have partial completion:**
-1. **Update the Acceptance Criteria checklist** - mark what's done as `[x]`, leave incomplete as `[ ]`
+
+1. **Update the Acceptance Criteria checklist** - mark what's done as `[x]`,
+   leave incomplete as `[ ]`
 2. **Document what was accomplished** - explain what was implemented
 3. **Explain what remains** - clarify what still needs to be done
 4. **Suggest next steps** - provide guidance for continuing the work
 
 ### Key Principle
 
-**Errors are communication, not tasks.** If the plan cannot be implemented due to an error, present the error to the user directly. Do not treat errors as acceptance criteria or implementation milestones.
+**Errors are communication, not tasks.** If the plan cannot be implemented due
+to an error, present the error to the user directly. Do not treat errors as
+acceptance criteria or implementation milestones.
 
 ---
 

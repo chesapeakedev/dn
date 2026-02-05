@@ -30,7 +30,9 @@ technical debt. Some loose guidelines that may be helpful:
 - **TypeScript is mandatory** - no `any` allowed
 - **Formatting** - use `make fmt` to avoid thinking about it
 - **Type Checking & Linting** - use `make lint`; we accept 0 linter issues
-- **Public APIs must be documented** - any exported function, class, or type intended for reuse must include behavior-focused TSDoc describing guarantees and error behavior
+- **Public APIs must be documented** - any exported function, class, or type
+  intended for reuse must include behavior-focused TSDoc describing guarantees
+  and error behavior
 
 See [AGENTS.md](AGENTS.md) for an understanding of what the agents are
 instructed to do. Many times the advice generalizes

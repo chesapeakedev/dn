@@ -1,6 +1,8 @@
 # Making Kickstart Faster by Self-Hosting
 
-This document describes how to set up a self-hosted GitHub Actions runner on Debian-based Linux distributions (Ubuntu, Pop!\_OS) to run Kickstart workflows on your own hardware.
+This document describes how to set up a self-hosted GitHub Actions runner on
+Debian-based Linux distributions (Ubuntu, Pop!\_OS) to run Kickstart workflows
+on your own hardware.
 
 ## Introduction & Use Case
 
@@ -14,7 +16,10 @@ infrastructure. This can be useful for:
 
 ## Overview
 
-Self-hosted runners allow Kickstart to run closer to your hardware, reducing queue time and giving you full control over the execution environment. The instructions below are generic across Debian-based distributions and are suitable for long-running, always-on runners.
+Self-hosted runners allow Kickstart to run closer to your hardware, reducing
+queue time and giving you full control over the execution environment. The
+instructions below are generic across Debian-based distributions and are
+suitable for long-running, always-on runners.
 
 ## Hardware Requirements
 
