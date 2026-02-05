@@ -9,10 +9,7 @@
 
 import type { KickstartConfig, LoopPhaseResult } from "../kickstart/lib.ts";
 import { runLoopPhase } from "../kickstart/lib.ts";
-import {
-  fetchIssueFromUrl,
-  parseIssueFromFile as _parseIssueFromFile,
-} from "../sdk/github/issue.ts";
+import { fetchIssueFromUrl } from "../sdk/github/issue.ts";
 import type { IssueData } from "../sdk/github/issue.ts";
 
 /**
@@ -155,8 +152,7 @@ export async function handleLoop(args: string[]): Promise<void> {
     );
 
     // Create a temp directory for this run
-    const _workspaceRoot = config.workspaceRoot ||
-      Deno.env.get("WORKSPACE_ROOT") || Deno.cwd();
+    // FIXME: replace geo-opencode with dn-{mode id}
     const tmpDir = await Deno.makeTempDir({ prefix: "geo-opencode-" });
     const planOutputPath = `${tmpDir}/plan_output.txt`;
 

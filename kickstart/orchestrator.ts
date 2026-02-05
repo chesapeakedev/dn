@@ -2,11 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { IssueData } from "../sdk/github/issue.ts";
-import {
-  fetchIssueFromUrl,
-  parseIssueFromFile as _parseIssueFromFile,
-  writeIssueContext,
-} from "../sdk/github/issue.ts";
+import { fetchIssueFromUrl, writeIssueContext } from "../sdk/github/issue.ts";
 import type { GitContext } from "../sdk/github/vcs.ts";
 import {
   checkForChanges,

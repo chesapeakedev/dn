@@ -11,7 +11,6 @@
 import type { IssueData } from "../sdk/github/issue.ts";
 import {
   fetchIssueFromUrl,
-  parseIssueFromFile as _parseIssueFromFile,
   resolveIssueUrlInput,
   writeIssueContext,
 } from "../sdk/github/issue.ts";
@@ -22,15 +21,12 @@ import {
 import type { GitContext } from "../sdk/github/vcs.ts";
 import {
   checkForChanges,
-  cleanupBranch as _cleanupBranch,
-  commitAndPush as _commitAndPush,
   detectVcs,
   prepareVcsStateInteractive,
 } from "../sdk/github/vcs.ts";
 import { runCursorAgent } from "../sdk/github/cursorAgent.ts";
 import { assembleCombinedPrompt } from "../sdk/github/prompt.ts";
 import { runOpenCode } from "../sdk/github/opencode.ts";
-import { createPR as _createPR } from "../sdk/github/github.ts";
 import { createCursorRule, generateAgentsMd } from "./artifacts.ts";
 import {
   formatError,
@@ -38,7 +34,6 @@ import {
   formatStep,
   formatSuccess,
   formatWarning,
-  printSeparator as _printSeparator,
 } from "./output.ts";
 import { $ } from "$dax";
 

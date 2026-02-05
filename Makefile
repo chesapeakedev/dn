@@ -1,3 +1,5 @@
+SHELL := bash
+
 # deslop checks
 include deslop.mk
 
@@ -27,10 +29,10 @@ precommit: ; deno task precommit
 tests: ; deno test --allow-run --allow-env=NODE_ENV
 configure: install
 publish: ; deno task publish
-
 # sync your local changes with trunk, rebasing trunk under your work
 # leaves branches alone
-sync: ; $(MAKE) -C .. sync
+sync: ./repo_sync.sh
+	$(SHELL) ./repo_sync.sh
 
 # compile & install dn locally for the current user
 TARGET_DIR=~/.local/bin
