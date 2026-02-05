@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * @dn/sdk - Unified SDK for the dn monorepo
+ * @chesapeake/dn - Unified SDK for the dn monorepo
  *
  * This package combines authentication utilities and GitHub/VCS utilities
  * into a single SDK for use across applications.
@@ -10,13 +10,13 @@
  * @example
  * ```typescript
  * // Import auth utilities
- * import { AuthHandler, createAuthHandler } from "@dn/sdk/auth";
+ * import { AuthHandler, createAuthHandler } from "@chesapeake/dn/auth";
  *
  * // Import GitHub utilities
- * import { fetchIssueFromUrl, detectVcs } from "@dn/sdk/github";
+ * import { fetchIssueFromUrl, detectVcs } from "@chesapeake/dn/github";
  *
  * // Or import everything
- * import * as sdk from "@dn/sdk";
+ * import * as sdk from "@chesapeake/dn";
  * ```
  *
  * @module

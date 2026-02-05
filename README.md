@@ -1,7 +1,10 @@
 # dn
 
 `dn` is a CLI for running structured, agent-assisted development workflows. `dn`
-can also be used as a tool & subagent by other agents that can use tools.
+can also be used as a tool & subagent by other agents that can use tools. `dn`
+increases your throughput as an individual contributor.
+
+## Installing
 
 ## Prerequisites
 

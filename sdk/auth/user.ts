@@ -1,7 +1,6 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
-/// <reference lib="deno.unstable" />
 import type { Session, User, UserInfo } from "./types.ts";
 import { getSessionFromCookie } from "./session.ts";
 // BaseUser type - inline definition to avoid cross-package dependency

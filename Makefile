@@ -26,6 +26,7 @@ lint: ; deno task typecheck && deno task lint
 precommit: ; deno task precommit
 tests: ; deno test --allow-run --allow-env=NODE_ENV
 configure: install
+publish: ; deno task publish
 
 # sync your local changes with trunk, rebasing trunk under your work
 # leaves branches alone
