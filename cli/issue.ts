@@ -264,6 +264,7 @@ async function handleCreate(args: string[]): Promise<void> {
   let title: string | null = null;
   let body: string | null = null;
   let bodyFile: string | null = null;
+  let bodyStdin = false;
   const labels: string[] = [];
   let json = false;
 
@@ -271,10 +272,15 @@ async function handleCreate(args: string[]): Promise<void> {
     const arg = args[i];
     if (arg === "--title" && i + 1 < args.length) {
       title = args[++i];
-    } else if (arg === "--body" && i + 1 < args.length) {
-      body = args[++i];
+    } else if (arg === "--body") {
+      console.error(
+        "Error: --body is not supported. Use --body-file or --body-stdin",
+      );
+      Deno.exit(1);
     } else if (arg === "--body-file" && i + 1 < args.length) {
       bodyFile = args[++i];
+    } else if (arg === "--body-stdin") {
+      bodyStdin = true;
     } else if (arg === "--label" && i + 1 < args.length) {
       labels.push(args[++i]);
     } else if (arg === "--json") {
@@ -291,7 +297,11 @@ async function handleCreate(args: string[]): Promise<void> {
     Deno.exit(1);
   }
 
-  // Read body from file if specified
+  if ((bodyFile ? 1 : 0) + (bodyStdin ? 1 : 0) > 1) {
+    console.error("Error: Use only one of --body-file or --body-stdin");
+    Deno.exit(1);
+  }
+
   if (bodyFile) {
     try {
       body = await Deno.readTextFile(bodyFile);
@@ -303,6 +313,9 @@ async function handleCreate(args: string[]): Promise<void> {
       );
       Deno.exit(1);
     }
+  } else if (bodyStdin) {
+    const buffer = await new Response(Deno.stdin.readable).arrayBuffer();
+    body = new TextDecoder().decode(new Uint8Array(buffer));
   }
 
   const { owner, repo } = await getCurrentRepoFromRemote();
@@ -352,6 +365,7 @@ async function handleEdit(args: string[]): Promise<void> {
   let title: string | undefined;
   let body: string | undefined;
   let bodyFile: string | null = null;
+  let bodyStdin = false;
   const addLabels: string[] = [];
   let json = false;
 
@@ -359,10 +373,15 @@ async function handleEdit(args: string[]): Promise<void> {
     const arg = args[i];
     if (arg === "--title" && i + 1 < args.length) {
       title = args[++i];
-    } else if (arg === "--body" && i + 1 < args.length) {
-      body = args[++i];
+    } else if (arg === "--body") {
+      console.error(
+        "Error: --body is not supported. Use --body-file or --body-stdin",
+      );
+      Deno.exit(1);
     } else if (arg === "--body-file" && i + 1 < args.length) {
       bodyFile = args[++i];
+    } else if (arg === "--body-stdin") {
+      bodyStdin = true;
     } else if (arg === "--add-label" && i + 1 < args.length) {
       addLabels.push(args[++i]);
     } else if (arg === "--json") {
@@ -387,7 +406,10 @@ async function handleEdit(args: string[]): Promise<void> {
     Deno.exit(1);
   }
 
-  // Read body from file if specified
+  if ((bodyFile ? 1 : 0) + (bodyStdin ? 1 : 0) > 1) {
+    console.error("Error: Use only one of --body-file or --body-stdin");
+    Deno.exit(1);
+  }
   if (bodyFile) {
     try {
       body = await Deno.readTextFile(bodyFile);
@@ -399,6 +421,9 @@ async function handleEdit(args: string[]): Promise<void> {
       );
       Deno.exit(1);
     }
+  } else if (bodyStdin) {
+    const buffer = await new Response(Deno.stdin.readable).arrayBuffer();
+    body = new TextDecoder().decode(new Uint8Array(buffer));
   }
 
   if (!title && !body && addLabels.length === 0) {
@@ -433,8 +458,8 @@ function showEditHelp(): void {
   console.log("  <number>              Issue number\n");
   console.log("Options:");
   console.log("  --title <title>       New title");
-  console.log("  --body <body>         New body");
   console.log("  --body-file <path>    Read body from file");
+  console.log("  --body-stdin          Read body from stdin");
   console.log("  --add-label <name>    Add label (repeatable)");
   console.log("  --json                Output as JSON");
   console.log("  --help, -h            Show this help message\n");
@@ -595,14 +620,20 @@ async function handleComment(args: string[]): Promise<void> {
   let issueRef: string | null = null;
   let body: string | null = null;
   let bodyFile: string | null = null;
+  let bodyStdin = false;
   let json = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === "--body" && i + 1 < args.length) {
-      body = args[++i];
+    if (arg === "--body") {
+      console.error(
+        "Error: --body is not supported. Use --body-file or --body-stdin",
+      );
+      Deno.exit(1);
     } else if (arg === "--body-file" && i + 1 < args.length) {
       bodyFile = args[++i];
+    } else if (arg === "--body-stdin") {
+      bodyStdin = true;
     } else if (arg === "--json") {
       json = true;
     } else if (arg === "--help" || arg === "-h") {
@@ -625,7 +656,10 @@ async function handleComment(args: string[]): Promise<void> {
     Deno.exit(1);
   }
 
-  // Read body from file if specified
+  if ((bodyFile ? 1 : 0) + (bodyStdin ? 1 : 0) > 1) {
+    console.error("Error: Use only one of --body-file or --body-stdin");
+    Deno.exit(1);
+  }
   if (bodyFile) {
     try {
       body = await Deno.readTextFile(bodyFile);
@@ -637,11 +671,16 @@ async function handleComment(args: string[]): Promise<void> {
       );
       Deno.exit(1);
     }
+  } else if (bodyStdin) {
+    const buffer = await new Response(Deno.stdin.readable).arrayBuffer();
+    body = new TextDecoder().decode(new Uint8Array(buffer));
   }
 
   if (!body) {
-    console.error("Error: --body or --body-file required");
-    console.error("\nUsage: dn issue comment <number> --body <text>");
+    console.error("Error: --body-file or --body-stdin required");
+    console.error(
+      "\nUsage: dn issue comment <number> --body-file <path> | --body-stdin",
+    );
     Deno.exit(1);
   }
 
@@ -663,8 +702,8 @@ function showCommentHelp(): void {
   console.log("Arguments:");
   console.log("  <number>              Issue number\n");
   console.log("Options:");
-  console.log("  --body <text>         Comment body (required)");
   console.log("  --body-file <path>    Read body from file");
+  console.log("  --body-stdin          Read body from stdin");
   console.log("  --json                Output as JSON");
   console.log("  --help, -h            Show this help message\n");
   console.log("Examples:");

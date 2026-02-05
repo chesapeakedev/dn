@@ -4,6 +4,7 @@ SHELL := bash
 include deslop.mk
 
 .PHONY: \
+	fmt \
 	lint \
 	precommit \
 	configure \
@@ -24,7 +25,8 @@ include deslop.mk
 	publish \
 	bump_patch bump_minor bump_major
 
-lint: ; deno task typecheck && deno task lint
+fmt: ; deno fmt
+lint: fmt ; deno task typecheck && deno task lint
 precommit: ; deno task precommit
 tests: ; NODE_ENV=dev deno test --allow-run --allow-env=NODE_ENV
 configure: install
