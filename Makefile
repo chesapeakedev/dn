@@ -18,7 +18,9 @@ include deslop.mk
 	pr_from_issue \
 	pr_test \
 	kickstart \
-	glance
+	glance \
+	publish \
+	bump_patch bump_minor bump_major
 
 lint: ; deno task typecheck && deno task lint
 precommit: ; deno task precommit
@@ -65,3 +67,28 @@ repo_stats: tokei
 		-e *.json \
 		-e **/node_modules .
 tokei: ; hash tokei || cargo install tokei
+
+# Version bumping targets
+bump_patch:
+	@current=$$(grep -o '"version": "[^"]*"' deno.json | cut -d'"' -f4); \
+	major=$$(echo $$current | cut -d'.' -f1); \
+	minor=$$(echo $$current | cut -d'.' -f2); \
+	patch=$$(echo $$current | cut -d'.' -f3); \
+	new_version="$${major}.$${minor}.$$((patch + 1))"; \
+	sed -i '' "s/\"version\": \"$$current\"/\"version\": \"$$new_version\"/" deno.json; \
+	echo "Bumped version from $$current to $$new_version"
+
+bump_minor:
+	@current=$$(grep -o '"version": "[^"]*"' deno.json | cut -d'"' -f4); \
+	major=$$(echo $$current | cut -d'.' -f1); \
+	minor=$$(echo $$current | cut -d'.' -f2); \
+	new_version="$${major}.$$((minor + 1)).0"; \
+	sed -i '' "s/\"version\": \"$$current\"/\"version\": \"$$new_version\"/" deno.json; \
+	echo "Bumped version from $$current to $$new_version"
+
+bump_major:
+	@current=$$(grep -o '"version": "[^"]*"' deno.json | cut -d'"' -f4); \
+	major=$$(echo $$current | cut -d'.' -f1); \
+	new_version="$$((major + 1)).0.0"; \
+	sed -i '' "s/\"version\": \"$$current\"/\"version\": \"$$new_version\"/" deno.json; \
+	echo "Bumped version from $$current to $$new_version"
