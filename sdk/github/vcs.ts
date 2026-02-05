@@ -135,7 +135,7 @@ function promptUseCurrentOrNew(
   const vcsTerm = vcs === "sapling" ? "bookmark" : "branch";
   console.log(`\nCurrent ${vcsTerm}: ${currentBranch}`);
   const input = prompt(
-    `Use current ${vcsTerm} [${currentBranch}] or create new one? (u/n, default: n): `,
+    `Use current ${vcsTerm} [${currentBranch}]? (y/N): `,
   );
 
   // Default to creating new if empty or invalid input
@@ -144,8 +144,7 @@ function promptUseCurrentOrNew(
   }
 
   const normalized = input.trim().toLowerCase();
-  return normalized === "u" || normalized === "use" || normalized === "y" ||
-    normalized === "yes";
+  return normalized === "y" || normalized === "yes";
 }
 
 /**

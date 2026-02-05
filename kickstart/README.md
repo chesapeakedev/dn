@@ -120,9 +120,9 @@ If the plan file exists, you'll be prompted:
 
 When running in AWP mode, you'll be prompted:
 
-1. **Use current branch/bookmark or create new?**
-   - Type `u` (or `use`, `y`, `yes`) to use the current branch/bookmark
-   - Type `n` (or press Enter) to create a new one (default)
+1. **Use current branch/bookmark?**
+   - Type `y` (or `yes`) to use the current branch/bookmark
+   - Press Enter or type `n` to create a new one (default)
 
 2. **If creating new: Branch/bookmark name**
    - A suggested name is generated from the issue:
