@@ -47,13 +47,16 @@ When filling empty sections:
 
 ## Output Format
 
-Return ONLY the complete updated issue body as raw markdown. Do not include:
+Return ONLY the updated sections as raw markdown. Do not include:
 
 - Code fences or markdown code blocks around the output
 - Explanations or commentary
-- Anything other than the updated issue body
+- Content above the first `##` section (no frontmatter)
+- Any text before the first section header
 
-The output should be ready to be used as the new issue body directly.
+Your output should start directly with the first `##` section header and include
+all sections. The output will be concatenated with the original frontmatter, so
+you must only output the sections portion.
 
 ## Example
 

@@ -1500,16 +1500,23 @@ export async function fillEmptyIssueSections(
 
     try {
       // Write issue context
+      // Extract only the sections part (without frontmatter) to send to LLM
+      const originalSectionsOnly = parsed.sections
+        .map((s) => `${s.header}\n${s.content}`)
+        .join("\n\n");
+
       let issueContext = `# Issue #${issueData.number}: ${issueData.title}\n\n`;
       issueContext += `## Empty Sections to Fill\n\n`;
       for (const section of emptySections) {
-        issueContext += `- ${
+        issueContext += `-${
           section.header.replace("## ", "")
         } (currently empty)\n`;
       }
-      issueContext += `\n## Current Issue Body\n\n`;
+      issueContext += `\n## Current Issue Sections\n\n`;
+      issueContext +=
+        "Only fill the empty sections. Preserve section headers exactly.\n\n";
       issueContext += "```markdown\n";
-      issueContext += issueData.body;
+      issueContext += originalSectionsOnly;
       issueContext += "\n```\n";
 
       await Deno.writeTextFile(issueContextPath, issueContext);
@@ -1546,41 +1553,40 @@ export async function fillEmptyIssueSections(
         };
       }
 
-      // Extract the updated issue body from stdout
-      // The LLM should output just the markdown, but we need to clean it
-      let updatedBody = result.stdout.trim();
+      // Extract the updated sections from stdout
+      // The LLM should output just the sections, but we need to clean it
+      let llmOutput = result.stdout.trim();
 
       // Remove any markdown code fences if the LLM wrapped the output
       if (
-        updatedBody.startsWith("```markdown") || updatedBody.startsWith("```md")
+        llmOutput.startsWith("```markdown") || llmOutput.startsWith("```md")
       ) {
-        updatedBody = updatedBody.replace(/^```(?:markdown|md)?\n/, "").replace(
+        llmOutput = llmOutput.replace(/^```(?:markdown|md)?\n/, "").replace(
           /\n```$/,
           "",
         );
-      } else if (updatedBody.startsWith("```")) {
-        updatedBody = updatedBody.replace(/^```\n/, "").replace(/\n```$/, "");
+      } else if (llmOutput.startsWith("```")) {
+        llmOutput = llmOutput.replace(/^```\n/, "").replace(/\n```$/, "");
       }
 
-      // Step 4: Verify the update
-      console.log(formatStep(4, "Verifying changes..."));
-      const verification = verifyIssueUpdate(parsed, updatedBody);
+      // Step 4: Reassemble and verify
+      console.log(formatStep(4, "Reassembling issue body..."));
 
-      if (!verification.valid) {
-        console.error(formatError("Verification failed:"));
-        for (const error of verification.errors) {
-          console.error(`  - ${error}`);
+      // Strip any frontmatter from LLM output (in case it included text before ##)
+      const llmLines = llmOutput.split("\n");
+      let firstSectionIndex = 0;
+      for (let i = 0; i < llmLines.length; i++) {
+        if (llmLines[i].match(/^##\s+/)) {
+          firstSectionIndex = i;
+          break;
         }
-        return {
-          updated: false,
-          body: issueData.body,
-          filledSections: [],
-          skippedSections: nonEmptySections.map((s) => s.header),
-          error: `Verification failed: ${verification.errors.join("; ")}`,
-        };
       }
+      const sectionsOnly = llmLines.slice(firstSectionIndex).join("\n");
 
-      console.log(formatSuccess("Verification passed"));
+      // Reassemble: original frontmatter + sections from LLM
+      const updatedBody = parsed.frontmatter
+        ? parsed.frontmatter + "\n\n" + sectionsOnly
+        : sectionsOnly;
 
       // Parse the updated body to see which sections were filled
       const updatedParsed = parseIssueBody(updatedBody);
@@ -1590,6 +1596,32 @@ export async function fillEmptyIssueSections(
           return original?.isEmpty && !s.isEmpty;
         })
         .map((s) => s.header);
+
+      // Simple verification: check all original sections are present
+      const missingSections = parsed.sections
+        .filter((s) =>
+          !updatedParsed.sections.find((u) => u.header === s.header)
+        );
+
+      if (missingSections.length > 0) {
+        console.error(formatError("Verification failed:"));
+        console.error(
+          `  - Missing sections: ${
+            missingSections.map((s) => s.header).join(", ")
+          }`,
+        );
+        return {
+          updated: false,
+          body: issueData.body,
+          filledSections: [],
+          skippedSections: nonEmptySections.map((s) => s.header),
+          error: `Verification failed: Missing sections - ${
+            missingSections.map((s) => s.header).join(", ")
+          }`,
+        };
+      }
+
+      console.log(formatSuccess("Reassembly complete"));
 
       // Step 5: Update the issue (if not dry run)
       if (dryRun) {
