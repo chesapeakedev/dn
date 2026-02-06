@@ -257,21 +257,92 @@ any changes.
 `dn` can be used in CI to automate planning, validation, or reporting steps.
 Because it is a single static binary (or Deno entrypoint), setup is minimal.
 
-Example GitHub Actions step:
-
-FIXME: add Cursor or ChatGPT authentication setup to the example
+Below is a complete workflow that triggers when an issue is labeled, runs
+`dn kickstart` with Cursor, and posts the results back as a comment. This
+pattern shows proper permissions, Deno setup, API key handling, and output
+capture.
 
 ```yaml
-- name: Run dn prep
-  run: |
-    deno run --allow-all cli/main.ts prep \
-      https://github.com/org/repo/issues/123
-  env:
-    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+name: Kickstart with dn
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  kickstart:
+    if: github.event.label.name == 'cursor awp'
+    runs-on: ubuntu-latest
+    outputs:
+      pr_url: ${{ steps.kickstart.outputs.pr_url }}
+      success: ${{ steps.kickstart.outputs.success }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v1
+        with:
+          deno-version: ">=2.6.3"
+
+      - name: Run dn kickstart
+        id: kickstart
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          IS_OPEN_SOURCE: "true"
+          NO_COLOR: "1"
+        run: |
+          OUTPUT=$(dn --awp --cursor "${{ github.event.issue.html_url }}" 2>&1) || EXIT_CODE=$?
+
+          PR_URL=$(echo "$OUTPUT" | grep -oP 'PR created: \K[^\s]+' || true)
+
+          if [ -n "$PR_URL" ]; then
+            echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
+            echo "success=true" >> $GITHUB_OUTPUT
+          else
+            echo "success=false" >> $GITHUB_OUTPUT
+          fi
+
+          exit ${EXIT_CODE:-0}
+
+      - name: Comment results on issue
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prUrl = '${{ steps.kickstart.outputs.pr_url }}';
+            const success = '${{ steps.kickstart.outputs.success }}' === 'true';
+
+            const body = success
+              ? `✅ Kickstart completed! PR created: ${prUrl}`
+              : `❌ Kickstart failed. Check the workflow logs for details.`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });
 ```
 
-In CI, authentication should be provided via `GITHUB_TOKEN` or a fine-grained
-PAT. Interactive auth commands like `dn auth` are not suitable for CI.
+Key points for CI usage:
+
+- **Authentication**: Provide `GITHUB_TOKEN` via secrets; `dn auth` is not
+  suitable for CI.
+- **Agent APIs**: When using agents like Cursor or OpenCode, set their API keys
+  as repository secrets (e.g., `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`).
+- **Permissions**: Ensure the workflow has `contents: write` for creating
+  branches/commits and `pull-requests: write` for opening PRs.
+- **Outputs**: Capture `dn` output to extract PR URLs and post feedback to the
+  triggering issue.
 
 ## Public API Stability
 
