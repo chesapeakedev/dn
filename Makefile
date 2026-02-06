@@ -28,7 +28,12 @@ include deslop.mk
 fmt: ; deno fmt
 lint: fmt ; deno task typecheck && deno task lint
 precommit: ; deno task precommit
-tests: ; NODE_ENV=dev deno test --allow-run --allow-env=NODE_ENV
+# NOTE: We use --allow-env instead of --allow-env=NODE_ENV because npm packages
+# like graphql access process.env.NODE_ENV at module load time. Deno's scoped
+# env permissions don't work correctly with npm packages - the graphql package
+# checks `process.env.NODE_ENV === 'production'` at import time, which throws
+# NotCapable even with --allow-env=NODE_ENV. See: denoland/deno#28125
+tests: ; NODE_ENV=dev deno test --allow-run --allow-env
 configure: install
 publish: ; deno task publish
 # sync your local changes with trunk, rebasing trunk under your work
