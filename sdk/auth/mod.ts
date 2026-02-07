@@ -31,23 +31,39 @@ export {
 } from "./session.ts";
 
 // GitHub OAuth
-// Internal: exposed via AuthHandler only
+export {
+  exchangeCodeForGitHubToken,
+  getGitHubUser,
+  handleGitHubAuth,
+  handleGitHubCallback,
+} from "./github.ts";
 
 // Google OAuth
-// Internal: exposed via AuthHandler only
+export {
+  exchangeCodeForGoogleToken,
+  getGoogleUser,
+  handleGoogleAuth,
+  handleGoogleCallback,
+} from "./google.ts";
 
 // User management
-// Internal: HTTP handlers are not part of the public SDK
+export { createOrGetUser } from "./user.ts";
 
 // Chat
-// Internal
+export { chatHandler } from "./chat.ts";
 
 // KV utilities
-// Internal
+export { handleKvOperation } from "./kv.ts";
 
 import type { AuthConfig } from "./types.ts";
-import { handleGitHubAuth, handleGitHubCallback } from "./github.ts";
-import { handleGoogleAuth, handleGoogleCallback } from "./google.ts";
+import {
+  handleGitHubAuth as _handleGitHubAuth,
+  handleGitHubCallback as _handleGitHubCallback,
+} from "./github.ts";
+import {
+  handleGoogleAuth as _handleGoogleAuth,
+  handleGoogleCallback as _handleGoogleCallback,
+} from "./google.ts";
 import { handleGetUser, handleLogout } from "./user.ts";
 
 /**
@@ -78,7 +94,7 @@ export class AuthHandler {
         }),
       );
     }
-    return handleGitHubAuth(req, this.kv, this.config.github, this.config);
+    return _handleGitHubAuth(req, this.kv, this.config.github, this.config);
   }
 
   /**
@@ -97,7 +113,7 @@ export class AuthHandler {
         }),
       );
     }
-    return handleGitHubCallback(req, this.kv, this.config.github, this.config);
+    return _handleGitHubCallback(req, this.kv, this.config.github, this.config);
   }
 
   /**
@@ -116,7 +132,7 @@ export class AuthHandler {
         }),
       );
     }
-    return handleGoogleAuth(req, this.kv, this.config.google, this.config);
+    return _handleGoogleAuth(req, this.kv, this.config.google, this.config);
   }
 
   /**
@@ -135,7 +151,7 @@ export class AuthHandler {
         }),
       );
     }
-    return handleGoogleCallback(req, this.kv, this.config.google, this.config);
+    return _handleGoogleCallback(req, this.kv, this.config.google, this.config);
   }
 
   /**

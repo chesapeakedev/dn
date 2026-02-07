@@ -1,7 +1,6 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
-/// <reference lib="deno.unstable" />
 import { handleKvOperation } from "./kv.ts";
 
 /**
