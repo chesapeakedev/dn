@@ -10,6 +10,7 @@
 
 import type { KickstartConfig, PlanPhaseResult } from "../kickstart/lib.ts";
 import { fillEmptyIssueSections, runPlanPhase } from "../kickstart/lib.ts";
+import { isGitHubIssueUrl } from "../sdk/meld/mod.ts";
 
 /**
  * Extended config for prep command including update-issue mode
@@ -20,11 +21,24 @@ interface PrepConfig extends KickstartConfig {
   dryRun: boolean;
 }
 
+const ISSUE_NUMBER_PATTERN = /^#?\d+$/;
+
+function classifyInput(input: string): {
+  issueUrl: string | null;
+  contextMarkdownPath?: string;
+} {
+  const trimmed = input.trim();
+  if (isGitHubIssueUrl(trimmed) || ISSUE_NUMBER_PATTERN.test(trimmed)) {
+    return { issueUrl: trimmed, contextMarkdownPath: undefined };
+  }
+  return { issueUrl: null, contextMarkdownPath: trimmed };
+}
+
 /**
  * Parses prep-specific arguments
  */
 function parseArgs(args: string[]): PrepConfig {
-  let issueUrl: string | null = null;
+  let input: string | null = null;
   let planName: string | null = null;
   let savePlan = false;
   let workspaceRoot: string | undefined = undefined;
@@ -35,7 +49,7 @@ function parseArgs(args: string[]): PrepConfig {
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === "--issue-url" && i + 1 < args.length) {
-      issueUrl = args[++i];
+      input = args[++i];
     } else if (arg === "--plan-name" && i + 1 < args.length) {
       planName = args[++i];
     } else if (arg === "--save-plan") {
@@ -51,25 +65,28 @@ function parseArgs(args: string[]): PrepConfig {
     } else if (arg === "--help" || arg === "-h") {
       showHelp();
       Deno.exit(0);
-    } else if (!arg.startsWith("--") && !issueUrl) {
-      issueUrl = arg;
+    } else if (!arg.startsWith("--") && !input) {
+      input = arg;
     }
   }
 
-  // Fallback to environment variable for issue URL
-  if (!issueUrl) {
-    issueUrl = Deno.env.get("ISSUE") || null;
+  if (!input) {
+    input = Deno.env.get("ISSUE") || null;
   }
 
-  // Check environment variable for Cursor (overrides CLI flag if not set)
+  const { issueUrl, contextMarkdownPath } = input
+    ? classifyInput(input)
+    : { issueUrl: null as string | null, contextMarkdownPath: undefined };
+
   if (!cursorEnabled) {
     cursorEnabled = Deno.env.get("CURSOR_ENABLED") === "1";
   }
 
   return {
-    awp: false, // Prep phase doesn't use AWP mode
+    awp: false,
     cursorEnabled,
     issueUrl,
+    contextMarkdownPath,
     saveCtx: false,
     savePlan: savePlan || planName !== null,
     savedPlanName: planName,
@@ -85,7 +102,15 @@ function parseArgs(args: string[]): PrepConfig {
 function showHelp(): void {
   console.log("dn prep - Run plan phase or update issue description\n");
   console.log("Usage:");
-  console.log("  dn prep [options] <issue_url_or_number>\n");
+  console.log(
+    "  dn prep [options] <issue_url_or_number_or_markdown_file>\n",
+  );
+  console.log(
+    "Argument: GitHub issue URL, issue number for current repo, or path to a .md file.",
+  );
+  console.log(
+    "A path to a markdown file uses that file as context for the plan phase (no GitHub fetch).\n",
+  );
   console.log("Modes:");
   console.log("  Default mode:    Run plan phase (Steps 1-3 of kickstart)");
   console.log(
@@ -93,7 +118,7 @@ function showHelp(): void {
   );
   console.log("Options:");
   console.log(
-    "  --issue-url <url>         GitHub issue URL or issue number for current repo",
+    "  --issue-url <url>         GitHub issue URL, issue number, or path to markdown file",
   );
   console.log(
     "  --plan-name <name>        Plan name (prompts if not provided)",
@@ -116,7 +141,7 @@ function showHelp(): void {
   console.log("Environment variables:");
   console.log("  WORKSPACE_ROOT            Workspace root directory");
   console.log(
-    "  ISSUE                     GitHub issue URL or issue number (alternative to positional arg)",
+    "  ISSUE                     Issue URL, issue number, or path to markdown file (alternative to positional)",
   );
   console.log(
     "  CURSOR_ENABLED            Set to '1' to use Cursor agent instead of opencode\n",
@@ -125,6 +150,7 @@ function showHelp(): void {
   console.log("  # Run plan phase with opencode");
   console.log("  dn prep https://github.com/owner/repo/issues/123");
   console.log("  dn prep 123");
+  console.log("  dn prep docs/spec.md");
   console.log("  dn prep --issue-url <url> --plan-name my-feature");
   console.log("");
   console.log("  # Run plan phase with Cursor agent");
@@ -144,18 +170,49 @@ function showHelp(): void {
  * Handles the prep subcommand
  */
 export async function handlePrep(args: string[]): Promise<void> {
-  const config = parseArgs(args);
+  let config = parseArgs(args);
 
-  if (!config.issueUrl) {
-    console.error(
-      "Error: Either provide an issue URL as argument or set ISSUE environment variable",
-    );
-    console.error("\nUse 'dn prep --help' for usage information.");
-    Deno.exit(1);
+  if (config.updateIssue) {
+    if (!config.issueUrl) {
+      console.error(
+        "Error: --update-issue requires an issue URL or issue number (not a markdown file path).",
+      );
+      console.error("\nUse 'dn prep --help' for usage information.");
+      Deno.exit(1);
+    }
+  } else {
+    if (!config.issueUrl && !config.contextMarkdownPath) {
+      console.error(
+        "Error: Provide an issue URL, issue number, or path to a markdown file (or set ISSUE).",
+      );
+      console.error("\nUse 'dn prep --help' for usage information.");
+      Deno.exit(1);
+    }
   }
 
-  // Handle --update-issue mode
-  if (config.updateIssue) {
+  if (config.contextMarkdownPath) {
+    try {
+      const resolved = await Deno.realPath(config.contextMarkdownPath);
+      const stat = await Deno.stat(resolved);
+      if (!stat.isFile) {
+        console.error(`Error: Not a file: ${config.contextMarkdownPath}`);
+        Deno.exit(1);
+      }
+      config = { ...config, contextMarkdownPath: resolved };
+    } catch (e) {
+      if (e instanceof Deno.errors.NotFound) {
+        console.error(
+          `Error: Markdown file not found: ${config.contextMarkdownPath}`,
+        );
+      } else {
+        console.error(e instanceof Error ? e.message : String(e));
+      }
+      Deno.exit(1);
+    }
+  }
+
+  // Handle --update-issue mode (issueUrl already validated above)
+  if (config.updateIssue && config.issueUrl) {
     try {
       const workspaceRoot = config.workspaceRoot ||
         Deno.env.get("WORKSPACE_ROOT") || Deno.cwd();

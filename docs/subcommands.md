@@ -55,17 +55,22 @@ analysis across a repository:
 Runs only the plan phase (steps 1–3: resolve issue, VCS prep, plan phase):
 
 ```bash
-# Create a plan file
+# Create a plan file from a GitHub issue
+dn prep https://github.com/owner/repo/issues/123
+dn prep 123
 
-# Issue number shorthand (infers URL from current repo remote)
+# Create a plan file from a local markdown file (no GitHub fetch)
+dn prep docs/spec.md
 
 # With a specific plan name
+dn prep --plan-name my-feature https://github.com/owner/repo/issues/123
 ```
 
-The issue argument may be a full GitHub issue URL or an issue number for the
-current repository. If the URL points to a different repository than the current
-workspace, prep exits with an error. The plan file path is printed for use with
-`dn loop`.
+The argument may be a full GitHub issue URL, an issue number for the current
+repository, or a path to a markdown file. When a markdown file path is given,
+prep uses that file as context for the plan phase (no GitHub fetch). If an issue
+URL points to a different repository than the current workspace, prep exits with
+an error. The plan file path is printed for use with `dn loop`.
 
 ## `dn loop` — Loop phase only
 
@@ -80,20 +85,32 @@ validate):
 
 Note: `dn loop` requires a plan file created by `dn prep`.
 
-## `dn meld` — Merge and normalize markdown sources
+## `dn meld` — Merge sources and run plan phase
 
-Merges multiple markdown sources (local files and/or GitHub issue URLs) into a
-single DRY document with an Acceptance Criteria section:
+Merges one or more markdown sources (local files and/or GitHub issue URLs) into
+a single DRY document with an Acceptance Criteria section, then runs the plan
+phase (prep) using that content as context. The merged markdown is not written
+to a file unless you pass `--output`; by default it is used only as context for
+the plan phase and a plan file is produced.
 
 ```bash
-# Merge files to stdout
+# Single source: local file or issue URL
+dn meld plan.md
+dn meld https://github.com/owner/repo/issues/123
 
-# From a newline-separated list, write to file
+# Multiple sources; plan phase runs at the end
+dn meld a.md b.md
+dn meld -l sources.txt
 
-# Cursor mode: add YAML frontmatter (name, overview, todos, isProject)
+# Write merged markdown to a file (also used as context)
+dn meld a.md b.md -o plans/merged.md --plan-name merged
+
+# Cursor mode: frontmatter + Cursor agent for plan phase
+dn meld a.md https://github.com/owner/repo/issues/123 --cursor
 ```
 
-Options include `--list, -l <path>`, `--output, -o <path>`, `--cursor, -c`, and
+Options include `--list, -l <path>`, `--output, -o <path>`,
+`--plan-name <name>`, `--workspace-root <path>`, `--cursor, -c`, and
 `--opencode`. See `dn meld --help` for details.
 
 ## `dn archive` — Derive a commit message from a plan file

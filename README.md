@@ -76,7 +76,7 @@ Usage:
   dn auth
   dn issue <subcommand> [options]
   dn kickstart [options] <issue_url_or_number>
-  dn prep [options] <issue_url_or_number>
+  dn prep [options] <issue_url_or_number_or_markdown_file>
   dn loop [options] --plan-file <path>
   dn fixup [options] <pr_url>
   dn glance [options]
@@ -87,11 +87,11 @@ Subcommands:
   auth         Sign in to GitHub in the browser (caches token for dn)
   issue        Manage GitHub issues (list, show, create, edit, close, reopen, comment)
   kickstart    Run full kickstart workflow (plan + implement)
-  prep         Run plan phase only (creates plan file)
+  prep         Run plan phase only (from issue URL, number, or .md file)
   loop         Run loop phase only (requires plan file from prep)
   fixup        Address PR feedback locally (fetch comments, plan, implement)
   glance       Project velocity overview
-  meld         Merge and trim markdown sources (local paths and/or GitHub issue URLs)
+  meld         Merge sources and run plan phase (one or more .md paths and/or issue URLs)
   archive      Derive commit message from plan file; --yolo to commit and delete plan
 
 Use 'dn <subcommand> --help' for subcommand-specific options.
@@ -133,16 +133,13 @@ Typical flow:
 
 - Collect requirements IRL or in conversation with a model
 - Create a `plans/*.plan.md` file in your repo
-- `dn kickstart` using a plan file via env var
-
-Example: FIXME: is this not possible with `dn kickstart`?
+- `dn loop` using a plan file via env var
 
 ```bash
 # Create a plan from a local markdown file
 dn prep ./notes/feature.md
 
 # Run the implementation loop using the generated plan
-# (equivalent to --plan-file)
 PLAN=plans/feature.plan.md dn loop
 ```
 
@@ -191,26 +188,29 @@ existing agile ceremonies.
 It's common on large projects to create duplicate work in the team's ticket
 tracking system. Software engineers working across the stack commonly pull
 issues together to maximize the value created when modifying a system component.
-`dn meld` is designed to enhance this workflow, pulling context from multiple
-sources into a single plan file. Then, this plan file can be developed
-collaboratively by multiple developers & their coding assistants.
+`dn meld` merges one or more sources into a single DRY document and then runs
+the plan phase (prep) using that content as context, producing a plan file. The
+merged markdown is not written to a file unless you pass `--output`.
 
 Sources can be:
 
 - Local markdown files
 - GitHub issue URLs
-- A mix of both
+- A mix of both (one or more)
 
 Example:
 
 ```bash
+# Merge issues and a local doc; plan phase runs at the end and prints the plan path
 dn meld \
   https://github.com/org/repo/issues/101 \
   https://github.com/org/repo/issues/102 \
-  docs/background.md \
-  > combined.md
+  docs/background.md
 
-dn prep combined.md
+# Optionally write merged markdown to a file and set plan name
+dn meld -o plans/combined.md --plan-name combined \
+  https://github.com/org/repo/issues/101 \
+  docs/background.md
 ```
 
 This is especially useful for large efforts that evolve across multiple

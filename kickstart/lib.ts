@@ -298,8 +298,10 @@ export interface KickstartConfig {
   awp: boolean;
   /** Whether to enable Cursor IDE integration */
   cursorEnabled: boolean;
-  /** Issue URL to fetch */
+  /** Issue URL to fetch (mutually exclusive with contextMarkdownPath) */
   issueUrl: string | null;
+  /** Path to markdown file to use as issue context (e.g. from meld); skips fetch */
+  contextMarkdownPath?: string;
   /** Whether to save context files on success */
   saveCtx: boolean;
   /** Whether to force a named plan to be saved */
@@ -785,7 +787,10 @@ export async function runPlanPhase(
   try {
     // Step 1: Resolve issue context
     console.log(formatStep(1, "Resolving issue context..."));
-    if (config.issueUrl) {
+    if (config.contextMarkdownPath) {
+      issueContextPathFinal = config.contextMarkdownPath;
+      issueData = null;
+    } else if (config.issueUrl) {
       const issueUrl = await resolveIssueUrlInput(config.issueUrl);
       issueData = await fetchIssueFromUrl(issueUrl);
       const currentRepo = await getCurrentRepoFromRemote();
@@ -800,11 +805,13 @@ export async function runPlanPhase(
       issueContextPathFinal = `${tmpDir}/issue-context.md`;
       await writeIssueContext(issueData, issueContextPathFinal);
     } else {
-      throw new Error("No issue URL provided");
+      throw new Error(
+        "No issue URL or context path provided. Set issueUrl or contextMarkdownPath.",
+      );
     }
 
-    // Step 2: Prepare VCS state (only in awp mode)
-    if (config.awp) {
+    // Step 2: Prepare VCS state (only in awp mode, requires issue data)
+    if (config.awp && issueData !== null) {
       console.log(formatStep(2, "Preparing VCS state..."));
       gitContext = await prepareVcsStateInteractive(issueData);
     }
@@ -903,8 +910,11 @@ export async function runPlanPhase(
       console.error(planResult.stderr || "(empty)");
       console.error("\n=== Plan Phase STDOUT ===");
       console.error(planResult.stdout || "(empty)");
+      const hint = (planResult.stderr || "").includes("resource_exhausted")
+        ? " (often rate limit or quota from the AI backend—retry later or check API limits)"
+        : "";
       throw new Error(
-        `Plan phase failed with exit code ${planResult.code}`,
+        `Plan phase failed with exit code ${planResult.code}${hint}`,
       );
     }
 

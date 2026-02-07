@@ -283,11 +283,20 @@ export async function runOpenCode(
     }
 
     // Display output based on TTY mode
+    const exitCode = result.code ?? 0;
     if (ttyMode) {
       // TTY mode: Show elapsed time, then display captured output
-      console.log(
-        `\n✅ ${phase} phase completed in ${formatElapsedTime(elapsed)}`,
-      );
+      if (exitCode === 0) {
+        console.log(
+          `\n✅ ${phase} phase completed in ${formatElapsedTime(elapsed)}`,
+        );
+      } else {
+        console.error(
+          `\n❌ ${phase} phase failed (exit code ${exitCode}) after ${
+            formatElapsedTime(elapsed)
+          }`,
+        );
+      }
       console.log(""); // Blank line for readability
 
       if (result.stdout) {

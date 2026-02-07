@@ -866,8 +866,11 @@ export async function runOrchestrator(
       console.error(planResult.stderr || "(empty)");
       console.error("\n=== Plan Phase STDOUT ===");
       console.error(planResult.stdout || "(empty)");
+      const hint = (planResult.stderr || "").includes("resource_exhausted")
+        ? " (often rate limit or quota from the AI backend—retry later or check API limits)"
+        : "";
       throw new Error(
-        `Plan phase failed with exit code ${planResult.code}`,
+        `Plan phase failed with exit code ${planResult.code}${hint}`,
       );
     }
 

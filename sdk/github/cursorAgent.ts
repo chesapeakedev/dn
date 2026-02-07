@@ -132,10 +132,19 @@ export async function runCursorAgent(
 
   const elapsed = Date.now() - startTime;
 
+  const exitCode = result.code ?? 0;
   if (ttyMode) {
-    console.log(
-      `\n✅ ${phase} phase completed in ${formatElapsedTime(elapsed)}`,
-    );
+    if (exitCode === 0) {
+      console.log(
+        `\n✅ ${phase} phase completed in ${formatElapsedTime(elapsed)}`,
+      );
+    } else {
+      console.error(
+        `\n❌ ${phase} phase failed (exit code ${exitCode}) after ${
+          formatElapsedTime(elapsed)
+        }`,
+      );
+    }
     console.log("");
     if (result.stdout) {
       console.log(result.stdout);
