@@ -75,7 +75,7 @@ deno run --allow-all cli/main.ts <subcommand> [options]
 Usage:
   dn auth
   dn issue <subcommand> [options]
-  dn kickstart [options] <issue_url_or_number>
+  dn kickstart [options] <issue_url_or_number_or_markdown_file>
   dn prep [options] <issue_url_or_number_or_markdown_file>
   dn loop [options] --plan-file <path>
   dn fixup [options] <pr_url>
@@ -86,7 +86,7 @@ Usage:
 Subcommands:
   auth         Sign in to GitHub in the browser (caches token for dn)
   issue        Manage GitHub issues (list, show, create, edit, close, reopen, comment)
-  kickstart    Run full kickstart workflow (plan + implement)
+  kickstart    Run full kickstart workflow (from issue URL, number, or .md file)
   prep         Run plan phase only (from issue URL, number, or .md file)
   loop         Run loop phase only (requires plan file from prep)
   fixup        Address PR feedback locally (fetch comments, plan, implement)

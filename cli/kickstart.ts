@@ -9,16 +9,28 @@
 
 import type { KickstartConfig } from "../kickstart/lib.ts";
 import { runFullKickstart } from "../kickstart/lib.ts";
+import { isGitHubIssueUrl } from "../sdk/meld/mod.ts";
+
+const ISSUE_NUMBER_PATTERN = /^#?\d+$/;
+
+function classifyInput(input: string): {
+  issueUrl: string | null;
+  contextMarkdownPath?: string;
+} {
+  const trimmed = input.trim();
+  if (isGitHubIssueUrl(trimmed) || ISSUE_NUMBER_PATTERN.test(trimmed)) {
+    return { issueUrl: trimmed, contextMarkdownPath: undefined };
+  }
+  return { issueUrl: null, contextMarkdownPath: trimmed };
+}
 
 /**
  * Parses kickstart-specific arguments
  */
-function parseArgs(
-  args: string[],
-): KickstartConfig & { issueUrl: string | null } {
+function parseArgs(args: string[]): KickstartConfig {
+  let input: string | null = null;
   let awp = false;
   let cursorEnabled = false;
-  let issueUrl: string | null = null;
   let savePlan = false;
   let savedPlanName: string | null = null;
   let workspaceRoot: string | undefined = undefined;
@@ -38,15 +50,18 @@ function parseArgs(
     } else if (arg === "--help" || arg === "-h") {
       showHelp();
       Deno.exit(0);
-    } else if (!arg.startsWith("--") && !issueUrl) {
-      issueUrl = arg;
+    } else if (!arg.startsWith("--") && !input) {
+      input = arg;
     }
   }
 
-  // Fallback to environment variable for issue URL
-  if (!issueUrl) {
-    issueUrl = Deno.env.get("ISSUE") || null;
+  if (!input) {
+    input = Deno.env.get("ISSUE") || null;
   }
+
+  const { issueUrl, contextMarkdownPath } = input
+    ? classifyInput(input)
+    : { issueUrl: null as string | null, contextMarkdownPath: undefined };
 
   if (!cursorEnabled) {
     cursorEnabled = Deno.env.get("CURSOR_ENABLED") === "1";
@@ -58,6 +73,7 @@ function parseArgs(
     awp,
     cursorEnabled,
     issueUrl,
+    contextMarkdownPath,
     saveCtx,
     savePlan,
     savedPlanName,
@@ -72,7 +88,13 @@ function showHelp(): void {
   console.log("dn kickstart - Run full kickstart workflow\n");
   console.log("Usage:");
   console.log(
-    "  dn kickstart [options] <issue_url_or_number>\n",
+    "  dn kickstart [options] <issue_url_or_number_or_markdown_file>\n",
+  );
+  console.log(
+    "Argument: GitHub issue URL, issue number for current repo, or path to a .md file.",
+  );
+  console.log(
+    "A path to a markdown file uses that file as context (no GitHub fetch). AWP is not used when context is from a file.\n",
   );
   console.log("Options:");
   console.log(
@@ -86,7 +108,7 @@ function showHelp(): void {
   console.log("Environment variables:");
   console.log("  WORKSPACE_ROOT           Workspace root directory");
   console.log(
-    "  ISSUE                    GitHub issue URL or issue number (alternative to positional arg)",
+    "  ISSUE                    Issue URL, issue number, or path to markdown file (alternative to positional)",
   );
   console.log("  SAVE_CTX                 Set to '1' to preserve debug files");
   console.log(
@@ -95,6 +117,7 @@ function showHelp(): void {
   console.log("Examples:");
   console.log("  dn kickstart https://github.com/owner/repo/issues/123");
   console.log("  dn kickstart 123");
+  console.log("  dn kickstart docs/spec.md");
   console.log("  dn kickstart --awp --cursor <issue_url_or_number>");
   console.log("  ISSUE=<issue_url_or_number> dn kickstart");
 }
@@ -103,14 +126,35 @@ function showHelp(): void {
  * Handles the kickstart subcommand
  */
 export async function handleKickstart(args: string[]): Promise<void> {
-  const config = parseArgs(args);
+  let config = parseArgs(args);
 
-  if (!config.issueUrl) {
+  if (!config.issueUrl && !config.contextMarkdownPath) {
     console.error(
-      "Error: Either provide an issue URL as argument or set ISSUE environment variable",
+      "Error: Provide an issue URL, issue number, or path to a markdown file (or set ISSUE).",
     );
     console.error("\nUse 'dn kickstart --help' for usage information.");
     Deno.exit(1);
+  }
+
+  if (config.contextMarkdownPath) {
+    try {
+      const resolved = await Deno.realPath(config.contextMarkdownPath);
+      const stat = await Deno.stat(resolved);
+      if (!stat.isFile) {
+        console.error(`Error: Not a file: ${config.contextMarkdownPath}`);
+        Deno.exit(1);
+      }
+      config = { ...config, contextMarkdownPath: resolved };
+    } catch (e) {
+      if (e instanceof Deno.errors.NotFound) {
+        console.error(
+          `Error: Markdown file not found: ${config.contextMarkdownPath}`,
+        );
+      } else {
+        console.error(e instanceof Error ? e.message : String(e));
+      }
+      Deno.exit(1);
+    }
   }
 
   try {

@@ -1370,6 +1370,7 @@ export async function runFullKickstart(
     awp: config.awp,
     cursorEnabled: config.cursorEnabled,
     issueUrl: config.issueUrl,
+    contextMarkdownPath: config.contextMarkdownPath,
     saveCtx: config.saveCtx,
     savePlan: config.savePlan,
     savedPlanName: config.savedPlanName,

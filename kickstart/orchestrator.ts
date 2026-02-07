@@ -160,8 +160,10 @@ export interface OrchestratorConfig {
   awp: boolean;
   /** Whether to enable Cursor IDE integration (creates .cursor/rules/kickstart.mdc) */
   cursorEnabled: boolean;
-  /** Issue URL to fetch */
+  /** Issue URL to fetch (mutually exclusive with contextMarkdownPath) */
   issueUrl: string | null;
+  /** Path to markdown file to use as issue context (e.g. from CLI); skips fetch */
+  contextMarkdownPath?: string;
   /** Whether to save context files on success */
   saveCtx: boolean;
   /** Whether to force a named plan to be saved */
@@ -749,16 +751,21 @@ export async function runOrchestrator(
   try {
     // Step 1: Resolve issue context
     console.log(formatStep(1, "Resolving issue context..."));
-    if (issueUrl) {
+    if (config.contextMarkdownPath) {
+      issueContextPathFinal = config.contextMarkdownPath;
+      issueData = null;
+    } else if (issueUrl) {
       issueData = await fetchIssueFromUrl(issueUrl);
       issueContextPathFinal = `${tmpDir}/issue-context.md`;
       await writeIssueContext(issueData, issueContextPathFinal);
     } else {
-      throw new Error("No issue URL provided");
+      throw new Error(
+        "No issue URL or context path provided. Set issueUrl or contextMarkdownPath.",
+      );
     }
 
-    // Step 2: Prepare VCS state (only in awp mode)
-    if (awp) {
+    // Step 2: Prepare VCS state (only in awp mode, requires issue data)
+    if (awp && issueData !== null) {
       console.log(formatStep(2, "Preparing VCS state..."));
       gitContext = await prepareVcsStateInteractive(issueData);
       vcsType = gitContext.vcs;

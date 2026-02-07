@@ -9,18 +9,25 @@ Runs the complete kickstart workflow (plan + implement phases):
 
 ```bash
 # Default mode: Apply changes locally
+dn kickstart https://github.com/owner/repo/issues/123
+dn kickstart 123
 
-# Issue number shorthand (infers URL from current repo remote)
+# From a local markdown file (no GitHub fetch; AWP not used)
+dn kickstart docs/spec.md
 
 # AWP mode: Full workflow with branches and PR
+dn kickstart --awp https://github.com/owner/repo/issues/123
 
 # With Cursor integration
+dn kickstart --cursor https://github.com/owner/repo/issues/123
 ```
 
-The issue argument may be a full GitHub issue URL or an issue number for the
-current repository. If the URL points to a different repository than the current
-workspace, kickstart exits with an error. See `dn kickstart --help` for all
-options.
+The argument may be a full GitHub issue URL, an issue number for the current
+repository, or a path to a markdown file. When a markdown file path is given,
+kickstart uses that file as context (no GitHub fetch) and runs plan + implement;
+AWP (branches, commits, PR) is not used when context is from a file. If an issue
+URL points to a different repository than the current workspace, kickstart exits
+with an error. See `dn kickstart --help` for all options.
 
 ## `dn auth` — Sign in to GitHub
 
