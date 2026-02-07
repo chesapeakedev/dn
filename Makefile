@@ -1,5 +1,12 @@
 SHELL := bash
 
+# Detect OS for sed compatibility (macOS uses BSD sed, Linux uses GNU sed)
+ifeq ($(shell uname),Darwin)
+    SED_INPLACE := sed -i ''
+else
+    SED_INPLACE := sed -i
+endif
+
 # deslop checks
 include deslop.mk
 
@@ -85,7 +92,7 @@ bump_patch:
 	minor=$$(echo $$current | cut -d'.' -f2); \
 	patch=$$(echo $$current | cut -d'.' -f3); \
 	new_version="$${major}.$${minor}.$$((patch + 1))"; \
-	sed -i '' "s/\"version\": \"$$current\"/\"version\": \"$$new_version\"/" deno.json; \
+	$(SED_INPLACE) "s/\"version\": \"$$current\"/\"version\": \"$$new_version\"/" deno.json; \
 	echo "Bumped version from $$current to $$new_version"
 
 bump_minor:
@@ -93,12 +100,12 @@ bump_minor:
 	major=$$(echo $$current | cut -d'.' -f1); \
 	minor=$$(echo $$current | cut -d'.' -f2); \
 	new_version="$${major}.$$((minor + 1)).0"; \
-	sed -i '' "s/\"version\": \"$$current\"/\"version\": \"$$new_version\"/" deno.json; \
+	$(SED_INPLACE) "s/\"version\": \"$$current\"/\"version\": \"$$new_version\"/" deno.json; \
 	echo "Bumped version from $$current to $$new_version"
 
 bump_major:
 	@current=$$(grep -o '"version": "[^"]*"' deno.json | cut -d'"' -f4); \
 	major=$$(echo $$current | cut -d'.' -f1); \
 	new_version="$$((major + 1)).0.0"; \
-	sed -i '' "s/\"version\": \"$$current\"/\"version\": \"$$new_version\"/" deno.json; \
+	$(SED_INPLACE) "s/\"version\": \"$$current\"/\"version\": \"$$new_version\"/" deno.json; \
 	echo "Bumped version from $$current to $$new_version"

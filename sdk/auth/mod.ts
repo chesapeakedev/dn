@@ -22,7 +22,13 @@ export type {
 } from "./types.ts";
 
 // Session management
-// Internal: session primitives are not part of the stable SDK contract
+export {
+  createSessionCookie,
+  deleteSession,
+  extractSessionId,
+  getSessionFromCookie,
+  storeSession,
+} from "./session.ts";
 
 // GitHub OAuth
 // Internal: exposed via AuthHandler only
