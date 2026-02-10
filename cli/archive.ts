@@ -8,7 +8,7 @@
  * With --yolo: commits staged files with that message, then deletes the plan file.
  */
 
-import { commitStaged, deriveCommitMessage } from "../sdk/archive/mod.ts";
+import { commitStaged, deriveCommitMessage } from "../sdk/mod.ts";
 
 interface ArchiveArgs {
   planFilePath: string;

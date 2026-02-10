@@ -18,18 +18,16 @@ import {
   addIssueComment,
   closeIssue,
   createIssue,
+  type CreateIssueOptions,
   getCurrentRepoFromRemote,
   getIssueWithComments,
+  type IssueListItem,
+  type IssueWithComments,
   listIssues,
   reopenIssue,
   updateIssue,
-} from "../sdk/github/mod.ts";
-import type {
-  CreateIssueOptions,
-  IssueListItem,
-  IssueWithComments,
-  UpdateIssueOptions,
-} from "../sdk/github/mod.ts";
+  type UpdateIssueOptions,
+} from "../sdk/mod.ts";
 
 // ============================================================================
 // Helpers

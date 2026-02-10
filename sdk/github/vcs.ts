@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { $ } from "$dax";
-import { formatSummary } from "../archive/mod.ts";
+import { formatSummary } from "../archive/format.ts";
 import type { IssueData } from "./issue.ts";
 
 /**

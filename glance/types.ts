@@ -5,8 +5,9 @@
  * Types for the glance CLI tool.
  */
 
-// Re-export shared types from sdk/github for backward compatibility
-export type { Commit, Issue } from "../sdk/github/mod.ts";
+// Import types from sdk/github for use and re-export
+import type { Commit, Issue } from "../sdk/mod.ts";
+export type { Commit, Issue };
 
 export interface UserActivity {
   username: string;
@@ -16,9 +17,9 @@ export interface UserActivity {
 }
 
 export interface VelocityData {
-  issuesOpened: import("../sdk/github/mod.ts").Issue[];
-  issuesClosed: import("../sdk/github/mod.ts").Issue[];
-  commits: import("../sdk/github/mod.ts").Commit[];
+  issuesOpened: Issue[];
+  issuesClosed: Issue[];
+  commits: Commit[];
   userActivity: UserActivity[];
   weekStart: Date;
   weekEnd: Date;

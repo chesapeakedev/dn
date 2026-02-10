@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { UserActivity } from "./types.ts";
-import type { Commit, Issue } from "../sdk/github/mod.ts";
+import type { Commit, Issue } from "../sdk/mod.ts";
 import {
   fetchCommits as fetchCommitsGql,
   fetchIssuesClosed as fetchIssuesClosedGql,
   fetchIssuesOpened as fetchIssuesOpenedGql,
   getCurrentRepoFromRemote,
-} from "../sdk/github/mod.ts";
+} from "../sdk/mod.ts";
 
 /**
  * Get the current repository owner and name.

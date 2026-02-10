@@ -12,11 +12,11 @@ import { runPlanPhase } from "../kickstart/lib.ts";
 import {
   deduplicateBlocks,
   ensureAcceptanceCriteriaSection,
+  type MeldMode,
   mergeMarkdown,
   normalizeMarkdown,
   resolveSource,
-} from "../sdk/meld/mod.ts";
-import type { MeldMode } from "../sdk/meld/mod.ts";
+} from "../sdk/mod.ts";
 
 interface MeldArgs {
   sources: string[];
