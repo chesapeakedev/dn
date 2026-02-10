@@ -298,6 +298,8 @@ export interface KickstartConfig {
   awp: boolean;
   /** Whether to enable Cursor IDE integration */
   cursorEnabled: boolean;
+  /** Whether to allow cross-repository operations */
+  allowCrossRepo: boolean;
   /** Issue URL to fetch (mutually exclusive with contextMarkdownPath) */
   issueUrl: string | null;
   /** Path to markdown file to use as issue context (e.g. from meld); skips fetch */
@@ -796,8 +798,20 @@ export async function runPlanPhase(
         currentRepo.owner.toLowerCase() !== issueData.owner.toLowerCase() ||
         currentRepo.repo.toLowerCase() !== issueData.repo.toLowerCase()
       ) {
-        throw new Error(
-          `Issue URL points to a different repository (${issueData.owner}/${issueData.repo}) than the current workspace (${currentRepo.owner}/${currentRepo.repo}). Kickstart only supports implementing issues from the current repository.`,
+        if (!config.allowCrossRepo) {
+          throw new Error(
+            `Issue URL points to a different repository (${issueData.owner}/${issueData.repo}) than the current workspace (${currentRepo.owner}/${currentRepo.repo}). Use --allow-cross-repo to enable cross-repository operations.`,
+          );
+        }
+        if (config.awp) {
+          throw new Error(
+            `Cross-repository operations are not supported with AWP mode. AWP involves VCS operations that require the issue and current workspace to be in the same repository.`,
+          );
+        }
+        console.log(
+          formatWarning(
+            `Cross-repository operation: Implementing issue from ${issueData.owner}/${issueData.repo} in workspace ${currentRepo.owner}/${currentRepo.repo}`,
+          ),
         );
       }
       issueContextPathFinal = `${tmpDir}/issue-context.md`;

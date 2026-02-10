@@ -5,7 +5,7 @@ authentication, see the project README.
 
 ## `dn kickstart` — Full workflow
 
-Runs the complete kickstart workflow (plan + implement phases):
+Runs complete kickstart workflow (plan + implement phases):
 
 ```bash
 # Default mode: Apply changes locally
@@ -18,6 +18,9 @@ dn kickstart docs/spec.md
 # AWP mode: Full workflow with branches and PR
 dn kickstart --awp https://github.com/owner/repo/issues/123
 
+# Cross-repository workflow (implement issue from different repo)
+dn kickstart --allow-cross-repo https://github.com/private-org/backend-api/issues/123
+
 # With Cursor integration
 dn kickstart --cursor https://github.com/owner/repo/issues/123
 ```
@@ -25,9 +28,22 @@ dn kickstart --cursor https://github.com/owner/repo/issues/123
 The argument may be a full GitHub issue URL, an issue number for the current
 repository, or a path to a markdown file. When a markdown file path is given,
 kickstart uses that file as context (no GitHub fetch) and runs plan + implement;
-AWP (branches, commits, PR) is not used when context is from a file. If an issue
-URL points to a different repository than the current workspace, kickstart exits
-with an error. See `dn kickstart --help` for all options.
+AWP (branches, commits, PR) is not used when context is from a file.
+
+### Cross-Repository Operations
+
+By default, kickstart only supports implementing issues from the current
+repository to ensure VCS operations work correctly. To implement issues from a
+different repository, use `--allow-cross-repo`:
+
+- **Allowed**: Cross-repo operations without AWP mode
+- **Blocked**: Cross-repo operations with AWP mode (branches, commits, PRs)
+
+Cross-repo workflows are useful when you write tickets in a private repository
+but implement the functionality in a public repository. The changes are applied
+to your current workspace, not the target repository.
+
+See `dn kickstart --help` for all options.
 
 ## `dn auth` — Sign in to GitHub
 
@@ -69,15 +85,28 @@ dn prep 123
 # Create a plan file from a local markdown file (no GitHub fetch)
 dn prep docs/spec.md
 
+# Cross-repository plan (issue from different repo)
+dn prep --allow-cross-repo https://github.com/private-org/backend-api/issues/123
+
 # With a specific plan name
 dn prep --plan-name my-feature https://github.com/owner/repo/issues/123
 ```
 
 The argument may be a full GitHub issue URL, an issue number for the current
 repository, or a path to a markdown file. When a markdown file path is given,
-prep uses that file as context for the plan phase (no GitHub fetch). If an issue
-URL points to a different repository than the current workspace, prep exits with
-an error. The plan file path is printed for use with `dn loop`.
+prep uses that file as context for the plan phase (no GitHub fetch).
+
+### Cross-Repository Operations
+
+By default, prep only supports issues from the current repository. Use
+`--allow-cross-repo` to create plans for issues from other repositories:
+
+- **Use Case**: Write tickets in private repo, implement in public repo
+- **Safety**: Shows warning about cross-repo operation
+- **Output**: Plan file created in current workspace context
+- **Next Step**: Use `dn loop` with the generated plan file
+
+The plan file path is printed for use with `dn loop`.
 
 ## `dn loop` — Loop phase only
 

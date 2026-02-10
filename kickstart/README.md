@@ -142,7 +142,13 @@ When running in AWP mode, you'll be prompted:
 
 - `--awp`: Enable AWP mode (full workflow with branches, commits, and PR
   creation)
-  - Without this flag, the script runs in default mode (local changes only)
+  - Without this flag, script runs in default mode (local changes only)
+
+- `--allow-cross-repo`: Allow implementing issues from different repositories
+  - **Not compatible with AWP mode**: Cross-repo operations require `--no-awp`
+  - **Use case**: Write tickets in private repo, implement in public repo
+  - **Safety**: Shows warning about cross-repo operation
+  - Changes are applied to current workspace, not target repository
 
 - `--cursor` or `-c`: Enable Cursor IDE integration
   - Creates `.cursor/rules/kickstart.mdc` for subagent integration
@@ -161,8 +167,8 @@ When running in AWP mode, you'll be prompted:
   - Full URL format: `https://github.com/owner/repo/issues/123`
   - Issue number shorthand: `123` or `#123` (infers URL from current repo
     remote)
-  - If the URL points to a different repository than the current workspace,
-    kickstart exits with an error
+  - Cross-repo URLs require `--allow-cross-repo` flag (see Cross-Repository
+    Workflows section below)
   - The script fetches the issue using GitHub's GraphQL API
 
 ## Environment Variables
@@ -203,6 +209,57 @@ When running in AWP mode, you'll be prompted:
   - Increase if operations are expected to take longer
   - Example: `OPENCODE_TIMEOUT_MS=3600000 ./kickstart <issue_url_or_number>` (1
     hour)
+
+## Cross-Repository Workflows
+
+### Overview
+
+Cross-repository workflows allow you to implement issues from one repository
+while working in another. This is useful when you:
+
+- Write tickets in a private repository but implement in a public repository
+- Need to reference issues from multiple repositories
+- Work with separate repos for documentation and implementation
+
+### Usage
+
+```bash
+# Cross-repo plan phase (allowed)
+dn prep --allow-cross-repo https://github.com/private-org/specs/issues/123
+
+# Cross-repo full workflow (allowed, no AWP)
+dn kickstart --allow-cross-repo https://github.com/private-org/specs/issues/123
+
+# Cross-repo with AWP (BLOCKED - not supported)
+dn kickstart --allow-cross-repo --awp https://github.com/private-org/specs/issues/123
+# Error: Cross-repository operations are not supported with AWP mode
+```
+
+### Safety Considerations
+
+- **Workspace Context**: Changes are applied to your current workspace, not the
+  target repository
+- **Manual Git Operations**: You must manually create PRs/submit changes to the
+  target repository
+- **Permissions**: Ensure you have read access to the target repository
+- **AWP Restriction**: AWP mode is blocked because it involves VCS operations
+  that assume same-repo context
+
+### Example Workflow
+
+```bash
+# 1. Create plan from private repo issue
+dn prep --allow-cross-repo https://github.com/my-org/private-tickets/issues/42
+
+# 2. Continue implementation 
+dn loop --plan-file plans/feature-name.plan.md
+
+# 3. Manually commit and create PR in target repository
+git add .
+git commit -m "Implement feature from private ticket #42"
+git push origin feature-branch
+# Create PR manually in target repository
+```
 
 ## Configuration Files
 

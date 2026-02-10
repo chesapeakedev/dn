@@ -166,6 +166,7 @@ export async function handleMeld(args: string[]): Promise<void> {
     const result = await runPlanPhase({
       awp: false,
       cursorEnabled: mode === "cursor",
+      allowCrossRepo: false,
       issueUrl: null,
       contextMarkdownPath: contextPath,
       saveCtx: false,

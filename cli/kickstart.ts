@@ -31,6 +31,7 @@ function parseArgs(args: string[]): KickstartConfig {
   let input: string | null = null;
   let awp = false;
   let cursorEnabled = false;
+  let allowCrossRepo = false;
   let savedPlanName: string | null = null;
   let workspaceRoot: string | undefined = undefined;
 
@@ -40,6 +41,8 @@ function parseArgs(args: string[]): KickstartConfig {
       awp = true;
     } else if (arg === "--cursor" || arg === "-c") {
       cursorEnabled = true;
+    } else if (arg === "--allow-cross-repo") {
+      allowCrossRepo = true;
     } else if (arg === "--saved-plan" && i + 1 < args.length) {
       savedPlanName = args[++i];
     } else if (arg === "--workspace-root" && i + 1 < args.length) {
@@ -69,6 +72,7 @@ function parseArgs(args: string[]): KickstartConfig {
   return {
     awp,
     cursorEnabled,
+    allowCrossRepo,
     issueUrl,
     contextMarkdownPath,
     saveCtx,
@@ -95,6 +99,9 @@ function showHelp(): void {
   console.log("Options:");
   console.log(
     "  --awp                    Enable AWP mode (branches, commits, PRs)",
+  );
+  console.log(
+    "  --allow-cross-repo       Allow implementing issues from different repositories",
   );
   console.log("  --cursor, -c              Enable Cursor IDE integration");
   console.log("  --saved-plan <name>      Use a specific plan name");

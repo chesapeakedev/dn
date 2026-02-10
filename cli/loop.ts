@@ -48,6 +48,7 @@ function parseArgs(
   return {
     awp: false, // Loop phase doesn't use AWP mode
     cursorEnabled,
+    allowCrossRepo: false,
     issueUrl: null,
     saveCtx: false,
     savedPlanName: null,

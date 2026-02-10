@@ -68,6 +68,7 @@ function parseArgs(args: string[]): FixupConfig {
   return {
     awp: false,
     cursorEnabled,
+    allowCrossRepo: false,
     issueUrl: null,
     saveCtx: false,
     savedPlanName: null,

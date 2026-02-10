@@ -44,6 +44,7 @@ function parseArgs(args: string[]): PrepConfig {
   let updateIssue = false;
   let dryRun = false;
   let cursorEnabled = false;
+  let allowCrossRepo = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -59,6 +60,8 @@ function parseArgs(args: string[]): PrepConfig {
       dryRun = true;
     } else if (arg === "--cursor" || arg === "-c") {
       cursorEnabled = true;
+    } else if (arg === "--allow-cross-repo") {
+      allowCrossRepo = true;
     } else if (arg === "--help" || arg === "-h") {
       showHelp();
       Deno.exit(0);
@@ -82,6 +85,7 @@ function parseArgs(args: string[]): PrepConfig {
   return {
     awp: false,
     cursorEnabled,
+    allowCrossRepo,
     issueUrl,
     contextMarkdownPath,
     saveCtx: false,
@@ -121,6 +125,9 @@ function showHelp(): void {
   );
 
   console.log("  --workspace-root <path>   Workspace root directory");
+  console.log(
+    "  --allow-cross-repo        Allow implementing issues from different repositories",
+  );
   console.log(
     "  --cursor, -c              Use Cursor agent instead of opencode",
   );
