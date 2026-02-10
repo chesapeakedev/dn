@@ -169,7 +169,6 @@ export async function handleMeld(args: string[]): Promise<void> {
       issueUrl: null,
       contextMarkdownPath: contextPath,
       saveCtx: false,
-      savePlan: planName !== null,
       savedPlanName: planName,
       workspaceRoot,
     });

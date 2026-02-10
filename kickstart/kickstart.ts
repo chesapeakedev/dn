@@ -34,14 +34,12 @@ function parseArgs(): {
   awp: boolean;
   cursorEnabled: boolean;
   issueUrl: string | null;
-  savePlan: boolean;
   savedPlanName: string | null;
 } {
   const args = Deno.args;
   let awp = false;
   let cursorEnabled = false;
   let issueUrl: string | null = null;
-  let savePlan = false;
   let savedPlanName: string | null = null;
 
   for (let i = 0; i < args.length; i++) {
@@ -50,8 +48,6 @@ function parseArgs(): {
       awp = true;
     } else if (arg === "--cursor" || arg === "-c") {
       cursorEnabled = true;
-    } else if (arg === "--save-plan") {
-      savePlan = true;
     } else if (arg === "--saved-plan" && i + 1 < args.length) {
       savedPlanName = args[++i];
     } else if (!arg.startsWith("--") && !issueUrl) {
@@ -70,7 +66,7 @@ function parseArgs(): {
     cursorEnabled = Deno.env.get("CURSOR_ENABLED") === "1";
   }
 
-  return { awp, cursorEnabled, issueUrl, savePlan, savedPlanName };
+  return { awp, cursorEnabled, issueUrl, savedPlanName };
 }
 
 /**
@@ -102,7 +98,7 @@ function parseArgs(): {
  * On failure, preserves debug files in a temp directory for inspection.
  */
 async function main() {
-  const { awp, cursorEnabled, issueUrl, savePlan, savedPlanName } = parseArgs();
+  const { awp, cursorEnabled, issueUrl, savedPlanName } = parseArgs();
   const saveCtx = Deno.env.get("SAVE_CTX") === "1";
 
   if (!issueUrl) {
@@ -118,7 +114,6 @@ async function main() {
     console.error("\n  # AWP mode: Full workflow with branches and PR");
     console.error("  ./kickstart --awp <issue_url>");
     console.error("\n  # Plan management flags");
-    console.error("  ./kickstart --save-plan <issue_url>  # Force named plan");
     console.error(
       "  ./kickstart --saved-plan <name> <issue_url>  # Use specific plan name",
     );
@@ -146,7 +141,6 @@ async function main() {
     cursorEnabled,
     issueUrl,
     saveCtx,
-    savePlan,
     savedPlanName,
   };
 

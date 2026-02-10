@@ -304,8 +304,6 @@ export interface KickstartConfig {
   contextMarkdownPath?: string;
   /** Whether to save context files on success */
   saveCtx: boolean;
-  /** Whether to force a named plan to be saved */
-  savePlan: boolean;
   /** Specific plan name to use */
   savedPlanName: string | null;
   /** Workspace root directory (defaults to cwd) */
@@ -1372,7 +1370,6 @@ export async function runFullKickstart(
     issueUrl: config.issueUrl,
     contextMarkdownPath: config.contextMarkdownPath,
     saveCtx: config.saveCtx,
-    savePlan: config.savePlan,
     savedPlanName: config.savedPlanName,
   };
 

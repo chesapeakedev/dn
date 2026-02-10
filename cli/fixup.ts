@@ -70,7 +70,6 @@ function parseArgs(args: string[]): FixupConfig {
     cursorEnabled,
     issueUrl: null,
     saveCtx: false,
-    savePlan: false,
     savedPlanName: null,
     workspaceRoot,
     prUrl,

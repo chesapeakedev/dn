@@ -27,7 +27,6 @@ Deno.test("kickstart command shows help", async () => {
 
     assert(result.stdout.includes("dn kickstart"));
     assert(result.stdout.includes("--plan-name"));
-    assert(result.stdout.includes("--save-plan"));
     assert(result.stdout.includes("--iterations"));
     assert(result.success);
   } finally {
@@ -111,7 +110,7 @@ This is a test feature request for the kickstart command. It should create a sim
   }
 });
 
-Deno.test("kickstart command creates plan file with --save-plan", async () => {
+Deno.test("kickstart command creates plan file", async () => {
   const testRepo = await createProjectTestRepo();
 
   try {
@@ -126,11 +125,10 @@ A simple feature to test plan creation.
       issueContent,
     );
 
-    // Run kickstart with save-plan but dry-run implementation
+    // Run kickstart with dry-run implementation
     const result = await runDnCommand([
       "kickstart",
       "simple-feature.md",
-      "--save-plan",
       "--plan-name",
       "simple-feature",
       "--dry-run",

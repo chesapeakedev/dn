@@ -93,7 +93,7 @@ Deno.test("validate git state", async () => {
 
   try {
     // Run command that creates files
-    await runDnCommand(["prep", "issue.md", "--save-plan"], {
+    await runDnCommand(["prep", "issue.md"], {
       cwd: testRepo.path,
     });
 
@@ -153,7 +153,6 @@ Deno.test("prep command creates plan file", async () => {
     const result = await runDnCommand([
       "prep",
       "issue.md",
-      "--save-plan",
       "--plan-name",
       "test",
     ], { cwd: testRepo.path });
@@ -291,7 +290,7 @@ await Deno.stat(`${testRepo.path}/output.md`); // Should succeed
 Make test names clear and specific:
 
 ```typescript
-Deno.test("prep command creates plan file with --save-plan option", async () => {
+Deno.test("prep command creates plan file", async () => {
   // Test implementation
 });
 ```

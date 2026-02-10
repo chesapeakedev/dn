@@ -148,11 +148,9 @@ When running in AWP mode, you'll be prompted:
   - Creates `.cursor/rules/kickstart.mdc` for subagent integration
   - Can also be set via `CURSOR_ENABLED=1` environment variable
 
-- `--save-plan`: Force a named plan to be saved (prompts for name)
+- `--saved-plan <name>`: Use a specific plan name (no prompt)
   - Creates a named plan file in `plans/` directory
   - Useful for creating persistent plans that can be referenced later
-
-- `--saved-plan <name>`: Use a specific plan name (no prompt)
   - Creates or updates a plan file at `plans/<name>.plan.md`
   - Useful for CI environments or when you want to specify the plan name upfront
 

@@ -166,8 +166,6 @@ export interface OrchestratorConfig {
   contextMarkdownPath?: string;
   /** Whether to save context files on success */
   saveCtx: boolean;
-  /** Whether to force a named plan to be saved */
-  savePlan: boolean;
   /** Specific plan name to use (if provided via --saved-plan) */
   savedPlanName: string | null;
 }

@@ -50,7 +50,6 @@ function parseArgs(
     cursorEnabled,
     issueUrl: null,
     saveCtx: false,
-    savePlan: false,
     savedPlanName: null,
     workspaceRoot,
     planFilePath,

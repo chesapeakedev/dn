@@ -31,7 +31,6 @@ function parseArgs(args: string[]): KickstartConfig {
   let input: string | null = null;
   let awp = false;
   let cursorEnabled = false;
-  let savePlan = false;
   let savedPlanName: string | null = null;
   let workspaceRoot: string | undefined = undefined;
 
@@ -41,8 +40,6 @@ function parseArgs(args: string[]): KickstartConfig {
       awp = true;
     } else if (arg === "--cursor" || arg === "-c") {
       cursorEnabled = true;
-    } else if (arg === "--save-plan") {
-      savePlan = true;
     } else if (arg === "--saved-plan" && i + 1 < args.length) {
       savedPlanName = args[++i];
     } else if (arg === "--workspace-root" && i + 1 < args.length) {
@@ -75,7 +72,6 @@ function parseArgs(args: string[]): KickstartConfig {
     issueUrl,
     contextMarkdownPath,
     saveCtx,
-    savePlan,
     savedPlanName,
     workspaceRoot,
   };
@@ -101,7 +97,6 @@ function showHelp(): void {
     "  --awp                    Enable AWP mode (branches, commits, PRs)",
   );
   console.log("  --cursor, -c              Enable Cursor IDE integration");
-  console.log("  --save-plan              Force a named plan to be saved");
   console.log("  --saved-plan <name>      Use a specific plan name");
   console.log("  --workspace-root <path>  Workspace root directory");
   console.log("  --help, -h               Show this help message\n");

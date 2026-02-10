@@ -40,7 +40,6 @@ function classifyInput(input: string): {
 function parseArgs(args: string[]): PrepConfig {
   let input: string | null = null;
   let planName: string | null = null;
-  let savePlan = false;
   let workspaceRoot: string | undefined = undefined;
   let updateIssue = false;
   let dryRun = false;
@@ -52,8 +51,6 @@ function parseArgs(args: string[]): PrepConfig {
       input = args[++i];
     } else if (arg === "--plan-name" && i + 1 < args.length) {
       planName = args[++i];
-    } else if (arg === "--save-plan") {
-      savePlan = true;
     } else if (arg === "--workspace-root" && i + 1 < args.length) {
       workspaceRoot = args[++i];
     } else if (arg === "--update-issue" || arg === "--fill-template") {
@@ -88,7 +85,6 @@ function parseArgs(args: string[]): PrepConfig {
     issueUrl,
     contextMarkdownPath,
     saveCtx: false,
-    savePlan: savePlan || planName !== null,
     savedPlanName: planName,
     workspaceRoot,
     updateIssue,
@@ -123,7 +119,7 @@ function showHelp(): void {
   console.log(
     "  --plan-name <name>        Plan name (prompts if not provided)",
   );
-  console.log("  --save-plan               Force a named plan to be saved");
+
   console.log("  --workspace-root <path>   Workspace root directory");
   console.log(
     "  --cursor, -c              Use Cursor agent instead of opencode",

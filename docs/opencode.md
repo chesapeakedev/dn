@@ -112,7 +112,6 @@ Creates a plan file from a GitHub issue or local markdown source.
 - `dryRun` (optional): Preview changes without updating the issue
 - `cursor` (optional): Add Cursor-compatible YAML frontmatter
 - `planName` (optional): Custom plan name (without .plan.md extension)
-- `savePlan` (optional): Save plan to file (default: true)
 - `workspaceRoot` (optional): Custom workspace root directory
 
 **Examples:**

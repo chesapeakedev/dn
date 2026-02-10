@@ -27,7 +27,6 @@ Deno.test("prep command shows help", async () => {
 
     assert(result.stdout.includes("dn prep"));
     assert(result.stdout.includes("--plan-name"));
-    assert(result.stdout.includes("--save-plan"));
     assert(result.success);
   } finally {
     await cleanupTestRepo(testRepo);
@@ -60,7 +59,7 @@ Deno.test("prep command fails with invalid issue number", async () => {
   }
 });
 
-Deno.test("prep command creates plan file with --save-plan", async () => {
+Deno.test("prep command creates plan file", async () => {
   const testRepo = await createProjectTestRepo();
 
   try {
@@ -84,7 +83,6 @@ Some implementation notes here.
     const result = await runDnCommand([
       "prep",
       "test-issue.md",
-      "--save-plan",
       "--plan-name",
       "test-plan",
     ], { cwd: testRepo.path });
@@ -167,7 +165,6 @@ Testing workspace root option.
     const result = await runDnCommand([
       "prep",
       "test-issue.md",
-      "--save-plan",
       "--plan-name",
       "test-plan",
       "--workspace-root",
@@ -241,7 +238,6 @@ Testing plan name validation.
     await runDnCommand([
       "prep",
       "test-issue.md",
-      "--save-plan",
       "--plan-name",
       "invalid/name",
     ], {
@@ -275,7 +271,6 @@ Testing git state changes.
     const result = await runDnCommand([
       "prep",
       "test-issue.md",
-      "--save-plan",
       "--plan-name",
       "test-plan",
     ], { cwd: testRepo.path });
