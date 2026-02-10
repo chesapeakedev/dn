@@ -30,6 +30,7 @@ include deslop.mk
 	kickstart \
 	glance \
 	publish \
+	test_subcommands \
 	bump_patch bump_minor bump_major
 
 fmt: ; deno fmt
@@ -84,6 +85,12 @@ repo_stats: tokei
 		-e *.json \
 		-e **/node_modules .
 tokei: ; hash tokei || cargo install tokei
+
+# Run subcommand tests (for local manual testing only)
+# NOTE: This should only be run locally to conserve tokens. These tests
+# create temporary git repositories and run dn CLI commands in isolation.
+# They are useful for manual testing but should not be run in CI pipelines.
+test_subcommands: ; deno test cli/test_*.ts --allow-all
 
 # Version bumping targets
 bump_patch:
