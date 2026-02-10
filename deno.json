@@ -5,6 +5,15 @@
   "exports": {
     ".": "./sdk/mod.ts"
   },
+  "publish": {
+    "include": [
+      "LICENSE",
+      "README.md",
+      "sdk/**/*.ts",
+      "docs/**/*.md",
+      "docs/img/**"
+    ]
+  },
   "tasks": {
     "dev": "deno run --watch cli/main.ts",
     "lint": "deno lint **/*.ts",
