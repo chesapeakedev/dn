@@ -59,18 +59,14 @@ and Cursor agents.
 
 ## Usage
 
-Compile and install the `dn` binary with `make install`, or run directly with
-Deno:
+Install `dn` from JSR using Deno:
 
 ```bash
-# Install to ~/.local/bin
-make install
+# Install from JSR (recommended)
+deno install --global jsr:@chesapeake/dn
 
-# Add to PATH (add to your shell profile in .bashrc or .zshrc)
-export PATH="$HOME/.local/bin:$PATH"
-
-# Or run directly with Deno
-deno run --allow-all cli/main.ts <subcommand> [options]
+# Or run directly without installing
+deno run --allow-all jsr:@chesapeake/dn <subcommand> [options]
 
 Usage:
   dn auth

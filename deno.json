@@ -12,6 +12,10 @@
       "sdk/**/*.ts",
       "docs/**/*.md",
       "docs/img/**"
+    ],
+    "exclude": [
+      "docs/deslop.md",
+      "docs/hung-process-triage.md"
     ]
   },
   "tasks": {
