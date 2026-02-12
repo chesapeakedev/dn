@@ -1,10 +1,27 @@
 # dn
 
-`dn` is a CLI for running structured, agent-assisted development workflows. `dn`
-can also be used as a tool & subagent by other agents that can use tools. `dn`
-increases your throughput as an individual contributor.
+`dn` is a CLI for running structured, agent-assisted development workflows.
+Written in Deno, `dn` can additionally be used as a subagent or tool by other
+agent harnesses like opencode and cursor. the goal of `dn` is to increase your
+velocity as an individual contributor. We have an additional subgoal to make the
+CLI accessible enough for product managers and other non-swe roles
 
-## Prerequisites
+`dn` is centered around plan files. Plan files are created, edited, and
+implemented collaboratively inside the git repo. `dn` contains various commands
+to amend github issues using plan file content. `dn` integrates deeply with
+Github, expecting users to focus their energy writing exhaustive, well written
+Github issues. Well written tickets are what give `dn` the ability to provide
+useful context to the agent you are already using.
+
+We think plan files are a high-impact strategy for model agnostic file system
+context. Teams already understand how to handle markdown as part of their
+current change management process (github), so having teammates record markdown
+in the repo is an easy way to share "isomorphic" markdown - markdown content
+that benefits both the teammates & the models they use.
+
+## Getting Started
+
+`dn` requires the following in your local development environment.
 
 - [Deno](https://deno.com/) to run `dn` as a script or compile it for local
   installation
@@ -12,52 +29,6 @@ increases your throughput as an individual contributor.
   Github integration)
 - Git or [Sapling](https://sapling-scm.com/) installed (for managing local
   commits)
-
-### GitHub authentication
-
-Most subcommands that interact with GitHub (`kickstart`, `prep`, `glance`) need
-a GitHub token. Preferred options are:
-
-- **GitHub CLI**: Install [GitHub CLI](https://cli.github.com/) and run
-  `gh auth login`; no token or env var needed.
-- **Browser**: Run `dn auth` once; sign in in the browser; the token is cached
-  for future runs.
-
-For CI and scripts, set `GITHUB_TOKEN` with a Personal Access Token
-(fine-grained PAT recommended). See
-[docs/authentication.md](docs/authentication.md) for details.
-
-## Setting Up Agents
-
-`dn` invokes an agent to plan & perform work. `dn` supports opencode (default)
-and Cursor agents.
-
-### OpenCode (Default)
-
-1. Install: https://opencode.dev/
-2. Use (default mode):
-   ```bash
-   dn prep <issue_url>
-   dn loop --plan-file plans/issue-123.plan.md
-   ```
-
-### Cursor CLI
-
-1. Install: https://cursor.com/docs/cli/installation
-2. Authenticate: `agent auth`
-3. Enable Cursor mode:
-   ```bash
-   # Per command
-   dn prep --cursor <issue_url>
-   dn loop --cursor --plan-file plans/issue-123.plan.md
-
-   # Or environment variable
-   export CURSOR_ENABLED=1
-   dn prep <issue_url>
-   dn loop --plan-file plans/issue-123.plan.md
-   ```
-
-## Usage
 
 Install `dn` from JSR using Deno:
 
@@ -93,43 +64,87 @@ Subcommands:
 Use 'dn <subcommand> --help' for subcommand-specific options.
 ```
 
+### GitHub authentication
+
+Most subcommands that interact with GitHub (`kickstart`, `prep`, `glance`) need
+a GitHub token. Preferred options are:
+
+- **GitHub CLI**: Install [GitHub CLI](https://cli.github.com/) and run
+  `gh auth login`; no token or env var needed.
+- **Browser**: Run `dn auth` once; sign in in the browser; the token is cached
+  for future runs.
+
+For CI and scripts, set `GITHUB_TOKEN` with a Personal Access Token
+(fine-grained PAT recommended). See
+[docs/authentication.md](docs/authentication.md) for details.
+
+## Setting Up Agents
+
+`dn` invokes an agent to perform work, performing predefined workflows,
+sometimes chainable. `dn` supports opencode (default) and Cursor agents.
+
+### OpenCode (Default)
+
+1. Install: https://opencode.dev/
+2. Use (default mode):
+   ```bash
+   dn prep <issue_url>
+   dn loop --plan-file plans/issue-123.plan.md
+   ```
+
+### Cursor CLI
+
+1. Install: https://cursor.com/docs/cli/installation
+2. Authenticate: `agent auth`
+3. Enable Cursor mode:
+   ```bash
+   # Per command
+   dn prep --cursor <issue_url>
+   dn loop --cursor --plan-file plans/issue-123.plan.md
+
+   # Or environment variable
+   export CURSOR_ENABLED=1
+   dn prep <issue_url>
+   dn loop --plan-file plans/issue-123.plan.md
+   ```
+
+## Detailed Usage
+
 Detailed documentation for all subcommands has moved to
 [`docs/subcommands.md`](docs/subcommands.md). In general, `dn --help` should
 give you enough info the navigate the CLI. The rest of this document focuses on
 in-depth usage. Kickstart has its own detailed documentation, see
-[kickstart/README.md](kickstart/README.md).
+[kickstart/README.md](kickstart/README.md). For programmatic usage and
+integration details, see [`docs/api.md`](docs/api.md).
 
-`dn` is centered around plan files. By convention, plan files are markdown files
-with the suffix `plan.md` (e.g. `build-feature.plan.md`). Currently, we store
-them in a top level directory `plans` in the user's repository.
+### More on Plan Files
+
+By convention, plan files are markdown files with the suffix `plan.md` (e.g.
+`build-feature.plan.md`). Currently, we store them in a top level directory
+`plans` in the user's repository.
 
 `dn` intentionally lacks a conversational or "session-based" style. Memory
 systems in popular frontier models are very good, but they aren't collaborative.
 `dn` is focused on augmenting users in their SDLC, and modern software workflows
 are extremely collaborative.
 
-We think plan files are a high-impact strategy for model agnostic file system
-context. Teams already understand how to handle markdown as part of their
-current change management process (github), so having teammates record markdown
-in the repo is an easy way to share "isomorphic" markdown - markdown content
-that benefits both the teammates & the models they use.
+As a user, you're encouraged to continue to use your main agent harness
+directly. `dn` augments this flow. All existing frontier models & harnesses use
+some form of a plan file, so we do our best to make them useful to popular tools
+in an agnostic way. Mostly this works, but there is last mile polish, handled by
+`--opencode` and `--cursor` flags
 
-Context other than file system is important, but early work on `dn` was focused
-on plan files
-
-## CLI Usage
-
-### Basic Usage without Github
+### Basic CLI Usage without Github
 
 Without connecting to Github, the CLI can be used to manage local plan files and
-make changes against the local workspace based on their content. Use this mode
+make changes against your local workspace based on their content. Use this mode
 when you want structured planning and execution but you're not using Github.
 
 Typical flow:
 
-- Collect requirements IRL or in conversation with a model
+- Collect requirements with your existing process
 - Create a `plans/*.plan.md` file in your repo
-- `dn loop` using a plan file via env var
+- `dn loop` using a plan file via environment variable
 
 ```bash
 # Create a plan from a local markdown file
@@ -138,9 +153,6 @@ dn prep ./notes/feature.md
 # Run the implementation loop using the generated plan
 PLAN=plans/feature.plan.md dn loop
 ```
-
-In this mode, `dn` never talks to GitHub. All context comes from your working
-tree and the plan file on disk.
 
 ### Basic Usage with Github
 
@@ -151,13 +163,15 @@ your local workspace.
 
 Typical flow:
 
-- Start from an existing GitHub issue.
-- Run `kickstart` for an end-to-end experience, or `prep` + `loop` separately.
-- Commit changes and update the issue or PR as needed.
+- Start from an existing GitHub issue
+- Run `kickstart` for an end-to-end experience, or `prep` + `loop` separately
+- Create a pull request adhering to your team's existing flow
 
 Example (all-in-one):
 
 ```bash
+# read repo issues 123 content and build a local plan file from it. Then,
+# execute the plan against your local repo
 dn kickstart https://github.com/org/repo/issues/123
 ```
 
@@ -175,9 +189,9 @@ dn loop --plan-file plans/issue-123.plan.md
 ```
 
 Using explicit phases makes the planning artifact visible and reviewable before
-any code is written. In real world scenarios, it's beneficial to edit plan
-output as a group when possible. These artifacts can be reviewed in your
-existing agile ceremonies.
+any code is written. For larger tasks, it's beneficial to edit plan output as a
+group when possible. These artifacts can be reviewed in your existing agile
+ceremonies.
 
 ### Melding Issues into a Plan
 
@@ -248,7 +262,7 @@ dn archive plans/issue-123.plan.md --yolo
 Without `--yolo`, `archive` prints the suggested commit message without making
 any changes.
 
-### Using the CLI in Github Actions
+### Using `dn` in Github Actions
 
 `dn` can be used in CI to automate planning, validation, or reporting steps.
 Because it is a single static binary (or Deno entrypoint), setup is minimal.
@@ -329,7 +343,7 @@ jobs:
             });
 ```
 
-Key points for CI usage:
+Considerations for Usage in CI:
 
 - **Authentication**: Provide `GITHUB_TOKEN` via secrets; `dn auth` is not
   suitable for CI.
@@ -339,112 +353,3 @@ Key points for CI usage:
   branches/commits and `pull-requests: write` for opening PRs.
 - **Outputs**: Capture `dn` output to extract PR URLs and post feedback to the
   triggering issue.
-
-## Public API Stability
-
-`dn` exposes both a CLI and a programmatic SDK. The SDK is published on
-**jsr.io** and follows explicit API stability rules:
-
-- **Stable APIs**: Symbols exported from `@dn/sdk` top-level namespaces (for
-  example `auth` and `github`) are considered stable across minor versions.
-- **Behavior-focused contracts**: All public symbols are documented with TSDoc
-  that describes behavior, guarantees, and error conditions rather than
-  implementation details.
-- **No accidental exports**: Internal helpers, low-level primitives, and
-  workflow-specific utilities are intentionally not part of the public API and
-  may change without notice.
-- **Breaking changes**: Changes to stable APIs follow semantic versioning and
-  are avoided unless strongly justified.
-
-Consumers should rely only on documented, exported symbols and avoid deep or
-internal imports, which are not supported as part of the public contract.
-
-### Minimal SDK Usage
-
-```ts
-import { auth, github } from "@dn/sdk";
-
-// Create a stable auth handler
-const authHandler = auth.createAuthHandler(kv, {
-  github: {
-    clientId: "GITHUB_CLIENT_ID",
-    clientSecret: "GITHUB_CLIENT_SECRET",
-  },
-});
-
-// Use stable GitHub utilities
-const issue = await github.fetchIssueFromUrl(
-  "https://github.com/org/repo/issues/123",
-);
-```
-
-### Using the Programmatic SDK in Github Actions
-
-The SDK can be used directly when you need tighter control than the CLI
-provides, such as embedding `dn` capabilities into custom automation.
-
-Below is a complete GitHub Actions example that installs Deno, runs a small
-TypeScript script using the `@dn/sdk`, and posts a useful summary derived from
-an issue. This pattern works well for CI checks, reporting, or automation that
-needs structured access to GitHub data.
-
-A Github Actions script could enforce policy (for example, blocking closed or
-labeled issues) by failing the job with a thrown error.
-
-FIXME: this example is not useful because this same workflow can easily be done
-with `gh` and some bash
-
-```yaml
-name: dn-sdk-example
-
-on:
-  workflow_dispatch:
-    inputs:
-      issue_url:
-        description: "GitHub issue URL to analyze"
-        required: true
-        default: "https://github.com/org/repo/issues/123"
-
-jobs:
-  analyze-issue:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Install Deno
-        uses: denoland/setup-deno@v1
-        with:
-          deno-version: v2.x
-
-      - name: Run dn SDK script
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          deno run --allow-net --allow-env <<'EOF'
-          import { github } from "@dn/sdk";
-
-          const issueUrl = Deno.env.get("ISSUE_URL") ?? "${{ inputs.issue_url }}";
-
-          const issue = await github.fetchIssueFromUrl(issueUrl);
-
-          // Example: emit a short, structured summary for CI logs
-          console.log("Issue summary:");
-          console.log("- Title:", issue.title);
-          console.log("- State:", issue.state);
-          console.log("- Author:", issue.author.login);
-          console.log("- Labels:", issue.labels.map(l => l.name).join(", "));
-          console.log("- Comments:", issue.commentCount);
-
-          // Fail the job if the issue is closed or labeled as blocked
-          const blockedLabels = new Set(["blocked", "do-not-merge"]);
-          const hasBlockedLabel = issue.labels.some(l => blockedLabels.has(l.name));
-
-          if (issue.state === "closed" || hasBlockedLabel) {
-            throw new Error("Issue is not actionable for CI automation");
-          }
-          EOF
-```
-
-Avoid interactive auth flows like `dn auth` in CI; always rely on environment
-variables or injected secrets.
