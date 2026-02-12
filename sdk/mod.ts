@@ -7,18 +7,6 @@
  * This package combines authentication utilities, GitHub/VCS utilities,
  * archive utilities, and meld utilities into a single SDK.
  *
- * @example
- * ```typescript
- * // Import auth utilities
- * import { AuthHandler, createAuthHandler, getSessionFromCookie } from "@chesapeake/dn";
- *
- * // Import GitHub utilities
- * import { fetchIssueFromUrl, detectVcs } from "@chesapeake/dn";
- *
- * // Or import everything
- * import * as sdk from "@chesapeake/dn";
- * ```
- *
  * @module
  */
 
