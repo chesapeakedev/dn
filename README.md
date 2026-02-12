@@ -30,14 +30,13 @@ that benefits both the teammates & the models they use.
 - Git or [Sapling](https://sapling-scm.com/) installed (for managing local
   commits)
 
-Install `dn` from JSR using Deno:
+Install `dn` from the source repository:
 
 ```bash
-# Install from JSR (recommended)
-deno install --global jsr:@chesapeake/dn
-
-# Or run directly without installing
-deno run --allow-all jsr:@chesapeake/dn <subcommand> [options]
+# Clone the repository and run make install
+git clone https://github.com/chesapeake/dn.git
+cd dn
+make install
 
 Usage:
   dn auth

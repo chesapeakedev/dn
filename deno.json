@@ -5,19 +5,10 @@
   "exports": {
     ".": "./sdk/mod.ts"
   },
-  "bin": {
-    "dn": "./cli/main.ts"
-  },
-  "installer": {
-    "permissions": {
-      "allow-all": true
-    }
-  },
   "publish": {
     "include": [
       "LICENSE",
       "README.md",
-      "cli/**/*.ts",
       "sdk/**/*.ts",
       "docs/**/*.md",
       "docs/img/**"
