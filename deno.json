@@ -1,14 +1,23 @@
 {
   "name": "@chesapeake/dn",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "dn cli",
   "exports": {
     ".": "./sdk/mod.ts"
+  },
+  "bin": {
+    "dn": "./cli/main.ts"
+  },
+  "installer": {
+    "permissions": {
+      "allow-all": true
+    }
   },
   "publish": {
     "include": [
       "LICENSE",
       "README.md",
+      "cli/**/*.ts",
       "sdk/**/*.ts",
       "docs/**/*.md",
       "docs/img/**"
