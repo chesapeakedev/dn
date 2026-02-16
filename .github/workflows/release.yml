@@ -37,7 +37,7 @@ jobs:
           deno compile \
             --allow-all \
             --config deno.json \
-            --target ${{ matrix.target }}
+            --target ${{ matrix.target }} \
             -o ${{ matrix.binary-name }} \
             cli/main.ts
 
