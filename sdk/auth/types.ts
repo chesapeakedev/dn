@@ -32,15 +32,39 @@ export interface Session {
  */
 export interface OAuthState {
   expiresAt: number;
+  /** GitHub App installation ID captured during the setup redirect, if any. */
+  installationId?: string;
+}
+
+/**
+ * Result returned by {@linkcode validateGitHubCallback} on success.
+ * Contains the resolved user and access token so the consumer can
+ * create a session without duplicating token-exchange logic.
+ */
+export interface GitHubCallbackResult {
+  user: User;
+  accessToken: string;
 }
 
 /**
  * GitHub OAuth configuration
+ *
+ * When {@linkcode appSlug} is provided, the auth entry point redirects users
+ * through the GitHub App installation flow before OAuth, allowing them to
+ * install the app on an organization. The slug is the URL-friendly name from
+ * `https://github.com/apps/<slug>`.
  */
 export interface GitHubOAuthConfig {
   clientId: string;
   clientSecret: string;
   redirectUri: string;
+  /**
+   * GitHub App slug (URL-friendly name) used to build the installation URL.
+   * When set, "Sign in with GitHub" redirects to the app installation page
+   * before continuing with OAuth. Callers can bypass installation by passing
+   * `?flow=oauth_only` on the auth entry request.
+   */
+  appSlug?: string;
 }
 
 /**

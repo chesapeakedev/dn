@@ -18,6 +18,7 @@
 export type {
   AuthConfig,
   ChatMessage,
+  GitHubCallbackResult,
   GitHubOAuthConfig,
   GoogleOAuthConfig,
   OAuthProvider,
@@ -42,7 +43,11 @@ export {
   getGitHubUser,
   handleGitHubAuth,
   handleGitHubCallback,
+  handleGitHubSetup,
+  initiateGitHubAuth,
+  validateGitHubCallback,
 } from "./auth/github.ts";
+export type { InitiateGitHubAuthOptions } from "./auth/github.ts";
 
 // Google OAuth
 export {
@@ -71,6 +76,7 @@ import type { AuthConfig as _AuthConfig } from "./auth/types.ts";
 import {
   handleGitHubAuth as _handleGitHubAuth,
   handleGitHubCallback as _handleGitHubCallback,
+  handleGitHubSetup as _handleGitHubSetup,
 } from "./auth/github.ts";
 import {
   handleGoogleAuth as _handleGoogleAuth,
@@ -129,6 +135,30 @@ export class AuthHandler {
       );
     }
     return _handleGitHubCallback(req, this.kv, this.config.github, this.config);
+  }
+
+  /**
+   * Handles the GitHub App **Setup URL** redirect after installation.
+   *
+   * Register the route serving this handler as the GitHub App's *Setup URL*.
+   * After the user installs the app, GitHub redirects here; the handler
+   * validates the OAuth state and continues to the standard authorize URL.
+   *
+   * Guarantees:
+   * - Returns an HTTP redirect to the OAuth authorize URL on success.
+   * - Returns a 400 JSON error when the state is missing, invalid, or expired.
+   * - Returns a 500 JSON error when GitHub OAuth is not configured.
+   */
+  handleGitHubSetup(req: Request): Promise<Response> {
+    if (!this.config.github) {
+      return Promise.resolve(
+        new Response(JSON.stringify({ error: "GitHub OAuth not configured" }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    }
+    return _handleGitHubSetup(req, this.kv, this.config.github);
   }
 
   /**
