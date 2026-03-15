@@ -21,6 +21,8 @@ import { handleLoop } from "./loop.ts";
 import { handleMeld } from "./meld.ts";
 import { handlePrep } from "./prep.ts";
 import { handleGlance } from "./glance.ts";
+import { handleTodo } from "./todo.ts";
+import { handleTidy } from "./tidy.ts";
 
 /**
  * Shows usage information
@@ -36,7 +38,9 @@ function showUsage(): void {
   console.error("  dn fixup [options] <pr_url>");
   console.error("  dn glance [options]");
   console.error("  dn meld [options] <source> [source ...]");
-  console.error("  dn archive [options] <plan_file.plan.md>\n");
+  console.error("  dn archive [options] <plan_file.plan.md>");
+  console.error("  dn todo done [ref]");
+  console.error("  dn tidy\n");
   console.error("Subcommands:");
   console.error(
     "  auth         Sign in to GitHub in the browser (caches token for dn)",
@@ -61,7 +65,13 @@ function showUsage(): void {
     "  meld         Merge and trim markdown sources (local paths and/or GitHub issue URLs)",
   );
   console.error(
-    "  archive      Derive commit message from plan file; --yolo to commit and delete plan\n",
+    "  archive      Derive commit message from plan file; --yolo to commit and delete plan",
+  );
+  console.error(
+    "  todo         Manage prioritized task list (~/.dn/todo.md); 'done' marks item and closes issue",
+  );
+  console.error(
+    "  tidy         Groom todo list: re-fetch issues, re-score, update ~/.dn/todo.md\n",
   );
   console.error(
     "Use 'dn <subcommand> --help' for subcommand-specific options.",
@@ -111,6 +121,12 @@ async function main(): Promise<void> {
       break;
     case "glance":
       await handleGlance(subcommandArgs);
+      break;
+    case "todo":
+      await handleTodo(subcommandArgs);
+      break;
+    case "tidy":
+      await handleTidy(subcommandArgs);
       break;
     case "--help":
     case "-h":

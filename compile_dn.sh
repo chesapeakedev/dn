@@ -17,6 +17,7 @@ echo "    - ${KICKSTART_DIR}/system.prompt.plan.md"
 echo "    - ${KICKSTART_DIR}/system.prompt.implement.md"
 echo "    - ${KICKSTART_DIR}/system.prompt.merge.md"
 echo "    - ${KICKSTART_DIR}/system.prompt.fixup.md"
+echo "    - ${KICKSTART_DIR}/system.prompt.score.md"
 echo ""
 
 cd "${DN_REPO_ROOT}"
@@ -28,6 +29,7 @@ deno compile \
   --include "${KICKSTART_DIR}/system.prompt.implement.md" \
   --include "${KICKSTART_DIR}/system.prompt.merge.md" \
   --include "${KICKSTART_DIR}/system.prompt.fixup.md" \
+  --include "${KICKSTART_DIR}/system.prompt.score.md" \
   -o "${DN_REPO_ROOT}/${OUTPUT_NAME}" \
   "${DN_REPO_ROOT}/cli/main.ts"
 

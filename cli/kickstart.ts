@@ -9,7 +9,19 @@
 
 import type { KickstartConfig } from "../kickstart/lib.ts";
 import { runFullKickstart } from "../kickstart/lib.ts";
+import { runScoring } from "../kickstart/score.ts";
 import { isGitHubIssueUrl } from "../sdk/meld/mod.ts";
+import {
+  firstUnchecked,
+  readTodoList,
+  type TodoItem,
+  writeTodoList,
+} from "../sdk/todo/todo.ts";
+import { fetchIssueFromUrl } from "../sdk/github/issue.ts";
+import {
+  getCurrentRepoFromRemote,
+  listIssues,
+} from "../sdk/github/github-gql.ts";
 
 const ISSUE_NUMBER_PATTERN = /^#?\d+$/;
 
@@ -124,6 +136,113 @@ function showHelp(): void {
   console.log("  ISSUE=<issue_url_or_number> dn kickstart");
 }
 
+function promptYesNo(message: string, defaultNo = true): boolean {
+  const suffix = defaultNo ? " (y/n): " : " (y/n): ";
+  const answer = prompt(message + suffix)?.trim().toLowerCase();
+  if (!answer) return !defaultNo;
+  return answer === "y" || answer === "yes";
+}
+
+/**
+ * No-ticket flow: suggest from todo list or search repo, then return config for the chosen ref.
+ */
+async function runNoTicketFlow(
+  config: KickstartConfig,
+): Promise<KickstartConfig | null> {
+  if (!promptYesNo("No ticket given. Suggest a task from your list?")) {
+    console.error(
+      "Pass an issue URL, issue number, or path to a markdown file (or set ISSUE).",
+    );
+    return null;
+  }
+
+  const workspaceRoot = config.workspaceRoot ??
+    Deno.env.get("WORKSPACE_ROOT") ?? Deno.cwd();
+  let list = await readTodoList();
+  let suggested = firstUnchecked(list);
+
+  if (!suggested) {
+    if (
+      !promptYesNo("List is empty. Search this repo for a ticket to suggest?")
+    ) {
+      console.error("Add items to ~/.dn/todo.md or pass a ticket.");
+      return null;
+    }
+    const { owner, repo } = await getCurrentRepoFromRemote();
+    const issues = await listIssues(owner, repo, { state: "open", limit: 5 });
+    const withBodies = await Promise.all(
+      issues.map(async (i) => {
+        const data = await fetchIssueFromUrl(i.url);
+        return { ref: i.url, title: data.title, body: data.body };
+      }),
+    );
+    const planPaths: { ref: string; title: string }[] = [];
+    try {
+      const plansDir = `${workspaceRoot}/plans`;
+      const dir = await Deno.readDir(plansDir);
+      for await (const e of dir) {
+        if (e.isFile && e.name.endsWith(".plan.md")) {
+          const path = `plans/${e.name}`;
+          const content = await Deno.readTextFile(`${plansDir}/${e.name}`)
+            .catch(() => "");
+          const titleMatch = content.match(/^#\s+(.+)$/m);
+          planPaths.push({
+            ref: path,
+            title: titleMatch ? titleMatch[1] : path,
+          });
+        }
+      }
+    } catch {
+      // no plans dir
+    }
+
+    const scoring = await runScoring(
+      workspaceRoot,
+      withBodies,
+      planPaths,
+      config.cursorEnabled,
+    );
+    const scoredItems: TodoItem[] = scoring.scored
+      .filter((s) => !s.disqualified && s.score != null)
+      .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+      .map((s) => {
+        const issue = withBodies.find((i) => i.ref === s.ref) ??
+          planPaths.find((p) => p.ref === s.ref);
+        return {
+          checked: false,
+          score: s.score,
+          ref: s.ref,
+          title: issue?.title ?? s.reason,
+        };
+      });
+    list = {
+      meta: {
+        repo: `${owner}/${repo}`,
+        updated: new Date().toISOString().slice(0, 10),
+      },
+      items: scoredItems,
+    };
+    await writeTodoList(list);
+    suggested = firstUnchecked(list);
+  }
+
+  if (!suggested) {
+    console.error(
+      "No suggested task. Add items to ~/.dn/todo.md or pass a ticket.",
+    );
+    return null;
+  }
+
+  const ref = suggested.ref;
+  if (!promptYesNo(`Proceed with ${ref}?`)) {
+    console.error("Cancelled.");
+    return null;
+  }
+
+  const { issueUrl, contextMarkdownPath } = classifyInput(ref);
+  return { ...config, issueUrl: issueUrl ?? null, contextMarkdownPath };
+}
+
 /**
  * Handles the kickstart subcommand
  */
@@ -131,11 +250,9 @@ export async function handleKickstart(args: string[]): Promise<void> {
   let config = parseArgs(args);
 
   if (!config.issueUrl && !config.contextMarkdownPath) {
-    console.error(
-      "Error: Provide an issue URL, issue number, or path to a markdown file (or set ISSUE).",
-    );
-    console.error("\nUse 'dn kickstart --help' for usage information.");
-    Deno.exit(1);
+    const resolved = await runNoTicketFlow(config);
+    if (!resolved) Deno.exit(1);
+    config = resolved;
   }
 
   if (config.contextMarkdownPath) {

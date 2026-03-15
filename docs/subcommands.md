@@ -45,6 +45,50 @@ to your current workspace, not the target repository.
 
 See `dn kickstart --help` for all options.
 
+### Kickstart without a ticket (suggest from list)
+
+If you omit the issue URL/number and don’t set `ISSUE`, kickstart will offer to
+suggest a task from your prioritized list (`~/.dn/todo.md`). If the list is
+empty, it can search the current repo for open issues (and `plans/*.plan.md`),
+score them, write the list, then suggest the first. This supports a
+**multi-ticket workflow**: run `dn kickstart` repeatedly (answer “y” to suggest
+and proceed) to work through the list. See
+[Todo list and multi-ticket workflow](todo-and-workflow.md) for the recommended
+flow.
+
+## `dn todo` — Prioritized task list
+
+Manages the user-level list at `~/.dn/todo.md` (issues and plan paths,
+optionally scored).
+
+```bash
+# Mark first unchecked item done (and close GitHub issue if applicable)
+dn todo done
+
+# Mark a specific ref done (issue number, URL, or path)
+dn todo done 42
+dn todo done https://github.com/owner/repo/issues/42
+dn todo done plans/auth.plan.md
+```
+
+When the ref is a GitHub issue, the issue is closed with a comment. Use this
+after you’ve finished a ticket (e.g. PR merged) to keep the list and GitHub in
+sync. See [Todo list and multi-ticket workflow](todo-and-workflow.md).
+
+## `dn tidy` — Refresh and re-score the list
+
+From a repo with a GitHub remote, fetches recent open issues and optional
+`plans/*.plan.md`, scores them (Fibonacci readiness), and updates
+`~/.dn/todo.md`. Use at the start of a session to seed or refresh the list. If
+the scorer suggests merging issues, you’ll be prompted before any GitHub writes.
+
+```bash
+dn tidy
+dn tidy --limit 10
+```
+
+See [Todo list and multi-ticket workflow](todo-and-workflow.md).
+
 ## `dn auth` — Sign in to GitHub
 
 Sign in to GitHub in the browser (device flow). The token is cached so
