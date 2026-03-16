@@ -9,8 +9,10 @@
 
 import type { KickstartConfig, LoopPhaseResult } from "../kickstart/lib.ts";
 import { runLoopPhase } from "../kickstart/lib.ts";
+import { getCurrentRepoFromRemote } from "../sdk/github/github-gql.ts";
 import { fetchIssueFromUrl } from "../sdk/github/issue.ts";
 import type { IssueData } from "../sdk/github/issue.ts";
+import { promptAndAddToTodoList } from "../sdk/todo/todo.ts";
 
 /**
  * Parses loop-specific arguments
@@ -171,6 +173,25 @@ export async function handleLoop(args: string[]): Promise<void> {
     if (result.continuationPromptPath) {
       console.log(`\nContinuation prompt: ${result.continuationPromptPath}`);
     }
+
+    let title: string | undefined;
+    try {
+      const planContent = await Deno.readTextFile(config.planFilePath);
+      const titleMatch = planContent.match(/^#\s+(.+)$/m);
+      title = titleMatch ? titleMatch[1].trim() : undefined;
+    } catch {
+      title = undefined;
+    }
+    const repo = await getCurrentRepoFromRemote().then(
+      (r) => `${r.owner}/${r.repo}`,
+    ).catch(() => undefined);
+    await promptAndAddToTodoList(
+      [{ ref: config.planFilePath, title }],
+      {
+        repo,
+        updated: new Date().toISOString().slice(0, 10),
+      },
+    );
 
     Deno.exit(0);
   } catch (error) {

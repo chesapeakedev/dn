@@ -11,6 +11,8 @@
 import type { KickstartConfig, PlanPhaseResult } from "../kickstart/lib.ts";
 import { fillEmptyIssueSections, runPlanPhase } from "../kickstart/lib.ts";
 import { isGitHubIssueUrl } from "../sdk/meld/mod.ts";
+import { getCurrentRepoFromRemote } from "../sdk/github/github-gql.ts";
+import { promptAndAddToTodoList } from "../sdk/todo/todo.ts";
 
 /**
  * Extended config for prep command including update-issue mode
@@ -266,6 +268,25 @@ export async function handlePrep(args: string[]): Promise<void> {
 
     // Output plan file path for use by loop command
     console.log(`\n${result.planFilePath}`);
+
+    let title: string | undefined;
+    try {
+      const planContent = await Deno.readTextFile(result.planFilePath);
+      const titleMatch = planContent.match(/^#\s+(.+)$/m);
+      title = titleMatch ? titleMatch[1].trim() : undefined;
+    } catch {
+      title = undefined;
+    }
+    const repo = await getCurrentRepoFromRemote().then(
+      (r) => `${r.owner}/${r.repo}`,
+    ).catch(() => undefined);
+    await promptAndAddToTodoList(
+      [{ ref: result.planFilePath, title }],
+      {
+        repo,
+        updated: new Date().toISOString().slice(0, 10),
+      },
+    );
 
     Deno.exit(0);
   } catch (error) {

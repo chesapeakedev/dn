@@ -12,13 +12,19 @@ closing multiple tickets in one sitting.
 - **`dn todo done [ref]`** — Marks the first unchecked item (or the item
   matching `ref`) as done and **closes the GitHub issue** when the ref is an
   issue; path refs only update the file.
-- **`dn kickstart` with no ticket** — Prompts: “Suggest a task from your list?”
-  → if list has items, suggests first unchecked and asks “Proceed with …?”; if
-  list empty, “Search this repo?” → fetches 5 open issues + `plans/*.plan.md`,
-  **scores** them (Fibonacci 1–8), writes todo, then suggests first.
+- **`dn kickstart` with no ticket** — Reads the list first; if it has unchecked
+  items, uses the first and asks "Proceed with …?" (one prompt). Only if the
+  list is empty, prompts "Search this repo?" → fetches 5 open issues +
+  `plans/*.plan.md`, **scores** them (Fibonacci 1–8), writes todo, then suggests
+  first. After a successful run, prompts "Mark &lt;ref&gt; done and continue
+  with next?" so you can chain without re-typing `dn kickstart`.
 - **`dn tidy`** — Re-fetches open issues + plans, re-scores, updates
   `~/.dn/todo.md`; if the scorer suggests merges, prompts for confirmation
-  before creating/closing issues.
+  before creating/closing issues. When `EDITOR` is set, opens the list in your
+  editor after refresh so you can tweak order or add/remove entries.
+- **`dn prep` / `dn loop`** — After a successful run, optionally prompts "Add
+  this plan to your todo? (y/n)" so the list is populated for `dn kickstart` (no
+  args) without running `dn tidy` or search.
 - **Scoring** — Single LLM call (same agent as plan phase), Fibonacci scores,
   disqualify low-info issues; prompt is bundled in the compiled binary like
   other kickstart prompts.
@@ -38,6 +44,8 @@ dn tidy
 
 - Fetches recent open issues + any `plans/*.plan.md`, scores them, and
   writes/updates `~/.dn/todo.md` in priority order (easiest first).
+- When `EDITOR` is set (e.g. `EDITOR=code --wait`), opens the list in your
+  editor after refresh so you can tweak order, add items, or remove entries.
 - Run once at the start of the day or when you want a fresh ordering. You can
   skip this if your list is already up to date.
 
@@ -47,23 +55,19 @@ dn tidy
 dn kickstart
 ```
 
-- When you don’t pass a ticket, `dn` will:
-  1. Ask: “Suggest a task from your list?” → **y**
-  2. If the list is empty: “Search this repo?” → **y** → fetches 5 issues +
-     plans, scores, writes todo, then suggests first.
-  3. Show the first unchecked item and ask: “Proceed with &lt;ref&gt;?” → **y**
-  4. Run the full kickstart (plan + implement) for that ref.
+- When you don't pass a ticket, `dn` **reads the list first**. If it has
+  unchecked items, you get a single prompt: "Proceed with &lt;ref&gt;?" → **y**,
+  then the full kickstart runs. If the list is empty, you're asked "Search this
+  repo?" → **y** fetches 5 issues + plans, scores, writes todo, then suggests
+  first and asks "Proceed with &lt;ref&gt;?"
+- After a successful kickstart, you're prompted: "Mark &lt;ref&gt; done and
+  continue with next? (y/n)". Answer **y** to mark the current ref done (and
+  close the GitHub issue if applicable), then automatically run the next item
+  from the list (one "Proceed?" prompt, then kickstart). So you can chain
+  multiple tickets without re-typing `dn kickstart`.
 
-After kickstart finishes (success or you stop), run **the same command again**
-to do the next ticket:
-
-```bash
-dn kickstart
-# y → y (or just y if list already has items) → next ticket
-```
-
-Repeat as long as you want to keep going. No need to look up issue numbers or
-paths; the list is already ordered by “kickstart readiness.”
+You can still run `dn kickstart` again manually to do the next ticket; the list
+is checked first, so you often get just one "Proceed?" when the list has items.
 
 ### 3. Mark work as done and close issues
 
@@ -80,12 +84,12 @@ dn todo done
 - To mark a specific item: `dn todo done 42` or
   `dn todo done https://github.com/owner/repo/issues/42`.
 
-So in practice you can alternate:
+In practice you can:
 
-- `dn kickstart` → implement next from list
-- (review, merge, etc.)
-- `dn todo done` → mark that one done and close the issue
-- `dn kickstart` → next
+- Run `dn kickstart` (no args) → one "Proceed?" when the list has items →
+  implement; then "Mark done and continue?" → **y** to chain to the next.
+- Or alternate manually: `dn kickstart` → (review, merge) → `dn todo done` →
+  `dn kickstart` → next.
 
 ### 4. Weaving into what you’re already doing
 
@@ -96,11 +100,12 @@ So in practice you can alternate:
     commands.
 
 - **You already run prep then loop**
-  - `dn prep 123` → plan file in `plans/`.
-  - If you use `dn tidy` or “suggest from list” later, `plans/*.plan.md` are
-    included as virtual tickets and scored with issues.
-  - So: prep one or more issues → later `dn kickstart` (no args) can suggest
-    those plans plus open issues.
+  - `dn prep 123` or `dn loop --plan-file …` → after success, you're prompted
+    "Add this plan to your todo? (y/n)". Say **y** to add the plan to
+    `~/.dn/todo.md`.
+  - So after a few preps or loops, the list has entries and `dn kickstart` (no
+    args) can use the list-first flow (one "Proceed?" prompt) without running
+    `dn tidy` or search.
 
 - **You want to see what’s on the list**
   - Open `~/.dn/todo.md` in your editor, or run a future `dn todo list` if
@@ -114,14 +119,14 @@ So in practice you can alternate:
 
 ## Quick reference
 
-| Goal                        | Command / action                         |
-| --------------------------- | ---------------------------------------- |
-| Refresh list from this repo | `dn tidy`                                |
-| Do next ticket (suggested)  | `dn kickstart` → y → y                   |
-| Do a specific ticket        | `dn kickstart 123` or `dn kickstart URL` |
-| Mark current done + close   | `dn todo done`                           |
-| Mark specific done + close  | `dn todo done 42` or `dn todo done URL`  |
-| Edit list by hand           | Edit `~/.dn/todo.md`                     |
+| Goal                        | Command / action                                           |
+| --------------------------- | ---------------------------------------------------------- |
+| Refresh list from this repo | `dn tidy` (set `EDITOR` to open list after refresh)        |
+| Do next ticket (suggested)  | `dn kickstart` → Proceed? → then "Mark done and continue?" |
+| Do a specific ticket        | `dn kickstart 123` or `dn kickstart URL`                   |
+| Mark current done + close   | `dn todo done`                                             |
+| Mark specific done + close  | `dn todo done 42` or `dn todo done URL`                    |
+| Edit list by hand           | Edit `~/.dn/todo.md`                                       |
 
 ---
 
@@ -201,7 +206,7 @@ as first” (e.g. “only current repo” or “only items with label X”) so
 intended. Could be a flag (`dn kickstart --repo-only`) or a small config in
 `~/.dn` (e.g. “prefer refs matching this repo”).
 
-### 7. Document the workflow in one place
+### 5. Document the workflow in one place
 
 **Done:** This file. Keeping a single “recommended workflow” (tidy → kickstart
 loop → todo done) and a quick-reference table makes it easy to onboard and to
@@ -211,14 +216,17 @@ refine the flow as the above improvements land.
 
 ## Summary
 
-- **Implemented:** Todo list, `dn todo done`, kickstart-without-ticket (suggest
-  from list or search + score), `dn tidy`, scoring with bundled prompt, merge
-  with confirmation.
-- **Best workflow for multiple tickets in one sitting:** Run `dn tidy`
-  (optional) once, then repeatedly `dn kickstart` (no args) → y → y to do the
-  next suggested ticket, and `dn todo done` (or `dn todo done &lt;ref&gt;`) when
-  you’re done with a ticket so the issue is closed and the list stays in sync.
-- **Improvements that would streamline further:** Fewer prompts (or
-  `--yes`/`--next`), “mark done and continue?” after kickstart, “add to todo?”
-  after prep/loop, `dn todo list`, and optional batch-done / repo-scoped
-  “first.”
+- **Implemented:** Todo list, `dn todo done`, kickstart-without-ticket (list
+  checked first; one "Proceed?" when list has items; "mark done and continue?"
+  after a run), `dn tidy` (opens `EDITOR` on the list when set), prep/loop "Add
+  this plan to your todo?", scoring with bundled prompt, merge with
+  confirmation.
+- **Best workflow for multiple tickets in one sitting:** Optionally run
+  `dn
+  tidy` (and set `EDITOR` to edit the list after refresh). Run
+  `dn kickstart` (no args) → Proceed? → after success, "Mark done and continue?"
+  → **y** to chain. Or add plans via prep/loop "Add to todo?" so the list is
+  populated; then `dn kickstart` (no args) often needs just one "Proceed?"
+  prompt.
+- **Further improvements:** `dn kickstart --yes`/`--next`, `dn todo list`,
+  batch-done, repo-scoped "first."

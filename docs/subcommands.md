@@ -47,12 +47,12 @@ See `dn kickstart --help` for all options.
 
 ### Kickstart without a ticket (suggest from list)
 
-If you omit the issue URL/number and don’t set `ISSUE`, kickstart will offer to
-suggest a task from your prioritized list (`~/.dn/todo.md`). If the list is
-empty, it can search the current repo for open issues (and `plans/*.plan.md`),
-score them, write the list, then suggest the first. This supports a
-**multi-ticket workflow**: run `dn kickstart` repeatedly (answer “y” to suggest
-and proceed) to work through the list. See
+If you omit the issue URL/number and don't set `ISSUE`, kickstart reads the list
+first; if it has unchecked items, you get one "Proceed with &lt;ref&gt;?" prompt
+then the full run. If the list is empty, it can search the current repo for open
+issues (and `plans/*.plan.md`), score them, write the list, then suggest the
+first. After a successful run, you can answer "Mark &lt;ref&gt; done and
+continue with next?" to chain to the next item. See
 [Todo list and multi-ticket workflow](todo-and-workflow.md) for the recommended
 flow.
 
@@ -81,6 +81,7 @@ From a repo with a GitHub remote, fetches recent open issues and optional
 `plans/*.plan.md`, scores them (Fibonacci readiness), and updates
 `~/.dn/todo.md`. Use at the start of a session to seed or refresh the list. If
 the scorer suggests merging issues, you’ll be prompted before any GitHub writes.
+When `EDITOR` is set, opens the list in your editor after refresh.
 
 ```bash
 dn tidy

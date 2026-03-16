@@ -5,6 +5,7 @@
  * dn tidy - Groom the prioritized todo list (re-fetch, re-score, optional merge).
  */
 
+import { $ } from "$dax";
 import { runScoring } from "../kickstart/score.ts";
 import {
   addIssueComment,
@@ -16,6 +17,7 @@ import {
 } from "../sdk/github/github-gql.ts";
 import { fetchIssueFromUrl } from "../sdk/github/issue.ts";
 import {
+  getTodoPath,
   readTodoList,
   type TodoItem,
   writeTodoList,
@@ -34,7 +36,10 @@ export async function handleTidy(args: string[]): Promise<void> {
       "Re-fetches recent open issues, scores them (Fibonacci 1–8), and updates ~/.dn/todo.md.",
     );
     console.log(
-      "If the scorer suggests merges, you will be prompted to confirm each.\n",
+      "If the scorer suggests merges, you will be prompted to confirm each.",
+    );
+    console.log(
+      "When EDITOR is set, opens the list in your editor after refresh.\n",
     );
     console.log("Options:");
     console.log("  --limit <n>   Max issues to fetch (default: 5)");
@@ -161,4 +166,15 @@ export async function handleTidy(args: string[]): Promise<void> {
     }
     console.log(`Created #${created.number}; closed #${toClose.join(", #")}.`);
   }
+
+  const editor = Deno.env.get("EDITOR");
+  if (!editor) {
+    console.log(
+      "Set EDITOR to open the list after refresh (e.g. EDITOR=code --wait dn tidy).",
+    );
+    return;
+  }
+  const todoPath = getTodoPath();
+  const absPath = await Deno.realPath(todoPath).catch(() => todoPath);
+  await $`sh -c '"$EDITOR" "$1"' _ ${absPath}`;
 }

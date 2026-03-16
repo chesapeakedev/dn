@@ -13,6 +13,7 @@ import { runScoring } from "../kickstart/score.ts";
 import { isGitHubIssueUrl } from "../sdk/meld/mod.ts";
 import {
   firstUnchecked,
+  markDone,
   readTodoList,
   type TodoItem,
   writeTodoList,
@@ -144,18 +145,12 @@ function promptYesNo(message: string, defaultNo = true): boolean {
 }
 
 /**
- * No-ticket flow: suggest from todo list or search repo, then return config for the chosen ref.
+ * No-ticket flow: read list first; if it has an unchecked item, use it (one "Proceed?" prompt).
+ * Only if list is empty, prompt to search repo, then score and write list.
  */
 async function runNoTicketFlow(
   config: KickstartConfig,
 ): Promise<KickstartConfig | null> {
-  if (!promptYesNo("No ticket given. Suggest a task from your list?")) {
-    console.error(
-      "Pass an issue URL, issue number, or path to a markdown file (or set ISSUE).",
-    );
-    return null;
-  }
-
   const workspaceRoot = config.workspaceRoot ??
     Deno.env.get("WORKSPACE_ROOT") ?? Deno.cwd();
   let list = await readTodoList();
@@ -165,7 +160,9 @@ async function runNoTicketFlow(
     if (
       !promptYesNo("List is empty. Search this repo for a ticket to suggest?")
     ) {
-      console.error("Add items to ~/.dn/todo.md or pass a ticket.");
+      console.error(
+        "Pass an issue URL, issue number, or path to a markdown file (or set ISSUE). Add items to ~/.dn/todo.md or run dn tidy.",
+      );
       return null;
     }
     const { owner, repo } = await getCurrentRepoFromRemote();
@@ -276,11 +273,71 @@ export async function handleKickstart(args: string[]): Promise<void> {
     }
   }
 
-  try {
-    await runFullKickstart(config);
-    Deno.exit(0);
-  } catch (error) {
-    console.error(error instanceof Error ? error.message : String(error));
-    Deno.exit(1);
+  for (;;) {
+    try {
+      await runFullKickstart(config);
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      Deno.exit(1);
+    }
+
+    const ref = config.issueUrl ?? config.contextMarkdownPath;
+    if (!ref) break;
+
+    if (!promptYesNo(`Mark ${ref} done and continue with next?`)) {
+      Deno.exit(0);
+    }
+
+    try {
+      await markDone(ref, {
+        updated: new Date().toISOString().slice(0, 10),
+      });
+    } catch (err) {
+      console.error(err instanceof Error ? err.message : String(err));
+      Deno.exit(1);
+    }
+
+    const list = await readTodoList();
+    const next = firstUnchecked(list);
+    if (!next) {
+      console.log(
+        "No more items in todo. Run `dn kickstart` with a ticket or `dn tidy` to refresh.",
+      );
+      Deno.exit(0);
+    }
+
+    if (!promptYesNo(`Proceed with ${next.ref}?`)) {
+      Deno.exit(0);
+    }
+
+    const { issueUrl, contextMarkdownPath } = classifyInput(next.ref);
+    config = {
+      ...config,
+      issueUrl: issueUrl ?? null,
+      contextMarkdownPath,
+    };
+
+    if (config.contextMarkdownPath) {
+      try {
+        const resolved = await Deno.realPath(config.contextMarkdownPath);
+        const stat = await Deno.stat(resolved);
+        if (!stat.isFile) {
+          console.error(`Error: Not a file: ${config.contextMarkdownPath}`);
+          Deno.exit(1);
+        }
+        config = { ...config, contextMarkdownPath: resolved };
+      } catch (e) {
+        if (e instanceof Deno.errors.NotFound) {
+          console.error(
+            `Error: Markdown file not found: ${config.contextMarkdownPath}`,
+          );
+        } else {
+          console.error(e instanceof Error ? e.message : String(e));
+        }
+        Deno.exit(1);
+      }
+    }
   }
+
+  Deno.exit(0);
 }

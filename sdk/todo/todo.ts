@@ -239,6 +239,23 @@ export async function addToTodoList(
 }
 
 /**
+ * Prompts "Add this plan to your todo? (y/n)" and, on y, appends the items via addToTodoList.
+ * Use after prep or loop to optionally add the plan to the todo list.
+ *
+ * @returns true if the user confirmed and items were added, false otherwise.
+ */
+export async function promptAndAddToTodoList(
+  items: Omit<TodoItem, "checked">[],
+  options?: { repo?: string; updated?: string },
+): Promise<boolean> {
+  const answer = prompt("Add this plan to your todo? (y/n): ")?.trim()
+    .toLowerCase();
+  if (answer !== "y" && answer !== "yes") return false;
+  await addToTodoList(items, options);
+  return true;
+}
+
+/**
  * Finds the first unchecked item matching ref (exact ref, or same GitHub issue).
  */
 function findUncheckedItem(
