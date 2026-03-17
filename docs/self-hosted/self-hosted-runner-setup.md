@@ -4,22 +4,14 @@ This document describes how to set up a self-hosted GitHub Actions runner on
 Debian-based Linux distributions (Ubuntu, Pop!\_OS) to run Kickstart workflows
 on your own hardware.
 
-## Introduction & Use Case
-
-Self-hosted runners allow you to run GitHub Actions workflows on your own
-infrastructure. This can be useful for:
-
-- Running workflows that require specific hardware or software
-- Reducing costs for compute-intensive workflows
-- Maintaining control over the execution environment
-- Running workflows that need access to private resources
-
 ## Overview
 
-Self-hosted runners allow Kickstart to run closer to your hardware, reducing
-queue time and giving you full control over the execution environment. The
-instructions below are generic across Debian-based distributions and are
-suitable for long-running, always-on runners.
+Self-hosted runners let you run GitHub Actions workflows on your own
+infrastructure—useful for workflows that need specific hardware or software,
+compute-intensive jobs, control over the execution environment, or access to
+private resources. Running Kickstart on your own hardware reduces queue time and
+gives you full control. The instructions below work across Debian-based
+distributions and are suitable for long-running, always-on runners.
 
 ## Hardware Requirements
 
@@ -31,8 +23,6 @@ suitable for long-running, always-on runners.
 ## Prerequisites
 
 - Ubuntu Linux (20.04 LTS or later recommended)
-- Root or sudo access
-- Network connectivity to GitHub
 - Root or sudo access
 - Network connectivity to GitHub
 
@@ -85,28 +75,24 @@ Reference: https://opencode.dev/docs/installation
 
 ### 5. Download and Configure Runner
 
-Download the latest runner package:
+Check https://github.com/actions/runner/releases for the current version and
+filename. Download and extract (update the version in the URL if needed):
 
 ```bash
-# Create a folder
 mkdir actions-runner && cd actions-runner
-
-# Download the latest runner package (check releases for newest version)
-curl -o actions-runner-linux-x64.tar.gz -L https://github.com/actions/runner/releases/latest/download/actions-runner-linux-x64.tar.gz
-
-# Extract the installer
-tar xzf ./actions-runner-linux-x64-2.311.0.tar.gz
+curl -L -o actions-runner-linux-x64.tar.gz https://github.com/actions/runner/releases/download/v2.311.0/actions-runner-linux-x64-2.311.0.tar.gz
+tar xzf ./actions-runner-linux-x64.tar.gz
 ```
-
-### 6. Configure Runner
 
 Configure the runner for your repository or organization:
 
 ```bash
-# For repository-level runner
 ./config.sh --url https://github.com/OWNER/REPO --token RUNNER_TOKEN
+```
 
-# For organization-level runner
+For organization-level runner:
+
+```bash
 ./config.sh --url https://github.com/OWNER --token RUNNER_TOKEN
 ```
 
@@ -117,9 +103,7 @@ Replace:
 - `RUNNER_TOKEN` with the token from GitHub (Settings → Actions → Runners → New
   self-hosted runner)
 
-### 7. Install Runner Service
-
-Install the runner as a systemd service:
+### 6. Install Runner Service
 
 ```bash
 sudo ./svc.sh install
@@ -127,74 +111,35 @@ sudo ./svc.sh start
 sudo ./svc.sh status
 ```
 
-### 8. Configure Environment Variables
+### 7. Configure Environment Variables
 
-Install dependencies required by kickstart workflows:
-
-```bash
-cat > ~/.runner-env << 'EOF'
-export DENO_INSTALL="$HOME/.deno"
-export PATH="$DENO_INSTALL/bin:$HOME/.opencode/bin:$HOME/.local/bin:$PATH"
-export GITHUB_TOKEN="your-github-pat-here"
-# Optional:
-# export OPENAI_API_KEY="sk-..."
-# export ANTHROPIC_API_KEY="sk-ant-..."
-EOF
-
-echo 'source ~/.runner-env' >> ~/.bashrc
-```
-
-### 6. Configure Environment Variables
-
-Set up required environment variables for the runner user:
-
-```bash
-# Add to ~/.bashrc or create ~/.env file
-export GITHUB_TOKEN="your-token-here"  # Or use GitHub Actions secrets
-```
-
-For systemd service, create
+For the systemd service, create
 `/etc/systemd/system/actions.runner.*.service.d/override.conf`:
 
 ```ini
 [Service]
-Environment="GITHUB_TOKEN=your-token-here"
-Environment="PATH=/home/github-runner/.deno/bin:/home/github-runner/.opencode/bin:/home/github-runner/.cursor/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="DENO_INSTALL=/home/github-runner/.deno"
+Environment="PATH=/home/github-runner/.deno/bin:/home/github-runner/.opencode/bin:/home/github-runner/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="GITHUB_TOKEN=your-github-pat-here"
 ```
 
-Then reload systemd:
+Optional API keys:
+
+```ini
+Environment="OPENAI_API_KEY=sk-..."
+Environment="ANTHROPIC_API_KEY=sk-ant-..."
+```
+
+Reload and restart:
 
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl restart actions.runner.*.service
 ```
 
-## Workflow Configuration
-
-### Network Security
-
-- **Firewall**: Only allow outbound HTTPS connections to `github.com` and
-  `api.github.com`
-- **VPN**: Consider using a VPN for additional security
-- **Isolation**: Run runners in isolated network segments when possible
-
-### Access Control
-
-- **User Permissions**: Use a dedicated user with minimal privileges
-- **File Permissions**: Restrict access to runner directories
-- **Token Management**: Store tokens securely and rotate regularly
-
-### Runner Security
-
-- **Auto-updates**: Enable automatic runner updates
-- **Monitoring**: Monitor runner logs for suspicious activity
-- **Cleanup**: Regularly clean up workspace directories
-
 ## Configuration
 
 ### Runner Labels
-
-Add custom labels to identify runner capabilities:
 
 ```bash
 ./config.sh --url https://github.com/OWNER/REPO --token TOKEN --labels self-hosted,linux,ubuntu
@@ -202,13 +147,26 @@ Add custom labels to identify runner capabilities:
 
 ### Runner Groups
 
-Organize runners into groups for better management:
-
 1. Go to Settings → Actions → Runner groups
 2. Create a new group
 3. Assign runners to groups
 
 ### Workflow Configuration
+
+**Security**
+
+- **Firewall**: Only allow outbound HTTPS connections to `github.com` and
+  `api.github.com`
+- **VPN**: Consider using a VPN for additional security
+- **Isolation**: Run runners in isolated network segments when possible
+- **User Permissions**: Use a dedicated user with minimal privileges
+- **File Permissions**: Restrict access to runner directories
+- **Token Management**: Store tokens securely and rotate regularly
+- **Auto-updates**: Enable automatic runner updates
+- **Monitoring**: Monitor runner logs for suspicious activity
+- **Cleanup**: Regularly clean up workspace directories
+
+**Workflow YAML**
 
 Update workflows to use self-hosted runners:
 
@@ -226,49 +184,34 @@ jobs:
 
 ### Update Runner
 
-Update the runner to the latest version:
-
-```bash
-cd actions-runner
-./run.sh
-# Runner will auto-update when new version is available
-```
-
-Or manually update:
+The runner auto-updates when a new version is available. For manual update,
+check https://github.com/actions/runner/releases for the current version and
+filename, then:
 
 ```bash
 cd actions-runner
 ./svc.sh stop
-# Download new version
-curl -o actions-runner-linux-x64-2.311.0.tar.gz -L https://github.com/actions/runner/releases/download/v2.311.0/actions-runner-linux-x64-2.311.0.tar.gz
-tar xzf ./actions-runner-linux-x64-2.311.0.tar.gz
+curl -L -o actions-runner-linux-x64.tar.gz https://github.com/actions/runner/releases/download/v2.311.0/actions-runner-linux-x64-2.311.0.tar.gz
+tar xzf ./actions-runner-linux-x64.tar.gz
 ./svc.sh start
 ```
 
 ### Monitor Runner
 
-Check runner status:
-
 ```bash
 sudo systemctl status actions.runner.*.service
 ```
 
-View runner logs:
-
 ```bash
-# Service logs
 sudo journalctl -u actions.runner.*.service -f
-
-# Runner logs
 tail -f ~/actions-runner/_diag/Runner_*.log
 ```
 
 ### Cleanup Workspaces
 
-Runners accumulate workspace files. Set up periodic cleanup:
+Add to crontab for periodic cleanup:
 
 ```bash
-# Add to crontab
 0 2 * * * find ~/actions-runner/_work -type d -mtime +7 -exec rm -rf {} +
 ```
 

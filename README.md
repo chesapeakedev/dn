@@ -1,30 +1,41 @@
 # dn
 
-`dn` is a CLI for running structured, agent-assisted development workflows.
-Written in Deno, `dn` can additionally be used as a subagent or tool by other
-agent harnesses like opencode and cursor. the goal of `dn` is to increase your
-velocity as an individual contributor. We have an additional subgoal to make the
-CLI accessible enough for product managers and other non-swe roles
+`dn` is a CLI for delegating tasks to LLM agents using structured development
+workflows. `dn` can be used as a tool or subagent by other agent harnesses like
+opencode and cursor. the goal of `dn` is to increase your velocity as an
+individual contributor.
 
-`dn` is centered around plan files. Plan files are created, edited, and
-implemented collaboratively inside the git repo. `dn` contains various commands
-to amend github issues using plan file content. `dn` integrates deeply with
-Github, expecting users to focus their energy writing exhaustive, well written
-Github issues. Well written tickets are what give `dn` the ability to provide
-useful context to the agent you are already using.
+`dn` is centered around plan files created, edited, and implemented
+collaboratively inside the git repo. The cli can convert github issues to
+markdown plan files for local implementation, as well as amend github issues
+using plan file content & agent context. `dn` integrates deeply with Github,
+expecting users to focus their energy writing exhaustive, well written Github
+issues & plans.
+
+`dn` intentionally lacks a conversational or "session-based" style. Memory
+systems in popular frontier models are very good, but they aren't collaborative.
+`dn` is focused on augmenting users in their SDLC, and modern software workflows
+are extremely collaborative.
 
 We think plan files are a high-impact strategy for model agnostic file system
 context. Teams already understand how to handle markdown as part of their
 current change management process (github), so having teammates record markdown
-in the repo is an easy way to share "isomorphic" markdown - markdown content
-that benefits both the teammates & the models they use.
+in the repo is an easy way to share context between teammates & the models they
+use.
+
+## Quickstart
+
+```bash
+git clone https://github.com/chesapeake/dn.git && cd dn && make install
+dn kickstart https://github.com/org/repo/issues/123
+```
 
 ## Getting Started
 
 `dn` requires the following in your local development environment.
 
-- [Deno](https://deno.com/) to run `dn` as a script or compile it for local
-  installation
+- [Deno](https://deno.com/) (>= 2.6.3) to run `dn` as a script or compile it for
+  local installation
 - [GitHub CLI (`gh`)](https://cli.github.com/) installed and authenticated (for
   Github integration)
 - Git or [Sapling](https://sapling-scm.com/) installed (for managing local
@@ -33,35 +44,12 @@ that benefits both the teammates & the models they use.
 Install `dn` from the source repository:
 
 ```bash
-# Clone the repository and run make install
 git clone https://github.com/chesapeake/dn.git
 cd dn
 make install
-
-Usage:
-  dn auth
-  dn issue <subcommand> [options]
-  dn kickstart [options] <issue_url_or_number_or_markdown_file>
-  dn prep [options] <issue_url_or_number_or_markdown_file>
-  dn loop [options] --plan-file <path>
-  dn fixup [options] <pr_url>
-  dn glance [options]
-  dn meld [options] <source> [source ...]
-  dn archive [options] <plan_file.plan.md>
-
-Subcommands:
-  auth         Sign in to GitHub in the browser (caches token for dn)
-  issue        Manage GitHub issues (list, show, create, edit, close, reopen, comment)
-  kickstart    Run full kickstart workflow (from issue URL, number, or .md file)
-  prep         Run plan phase only (from issue URL, number, or .md file)
-  loop         Run loop phase only (requires plan file from prep)
-  fixup        Address PR feedback locally (fetch comments, plan, implement)
-  glance       Project velocity overview
-  meld         Merge sources and run plan phase (one or more .md paths and/or issue URLs)
-  archive      Derive commit message from plan file; --yolo to commit and delete plan
-
-Use 'dn <subcommand> --help' for subcommand-specific options.
 ```
+
+Run `dn --help` to see all available subcommands and options.
 
 ### GitHub authentication
 
@@ -107,37 +95,24 @@ sometimes chainable. `dn` supports opencode (default) and Cursor agents.
    dn loop --plan-file plans/issue-123.plan.md
    ```
 
+Plan files are largely agent-agnostic, but the `--opencode` and `--cursor` flags
+apply last-mile formatting tailored to each harness.
+
 ## Detailed Usage
 
-Detailed documentation for all subcommands has moved to
+Detailed documentation for all subcommands can be found at
 [`docs/subcommands.md`](docs/subcommands.md). In general, `dn --help` should
 give you enough info the navigate the CLI. The rest of this document focuses on
 in-depth usage. Kickstart has its own detailed documentation, see
 [kickstart/README.md](kickstart/README.md). For programmatic usage and
 integration details, see [`docs/api.md`](docs/api.md).
 
-### More on Plan Files
-
-By convention, plan files are markdown files with the suffix `plan.md` (e.g.
-`build-feature.plan.md`). Currently, we store them in a top level directory
-`plans` in the user's repository.
-
-`dn` intentionally lacks a conversational or "session-based" style. Memory
-systems in popular frontier models are very good, but they aren't collaborative.
-`dn` is focused on augmenting users in their SDLC, and modern software workflows
-are extremely collaborative.
-
-As a user, you're encouraged to continue to use your main agent harness
-directly. `dn` augments this flow. All existing frontier models & harnesses use
-some form of a plan file, so we do our best to make them useful to popular tools
-in an agnostic way. Mostly this works, but there is last mile polish, handled by
-`--opencode` and `--cursor` flags
-
 ### Basic CLI Usage without Github
 
 Without connecting to Github, the CLI can be used to manage local plan files and
 make changes against your local workspace based on their content. Use this mode
-when you want structured planning and execution but you're not using Github.
+when you want structured planning and execution as filesystem context but you're
+not using Github.
 
 Typical flow:
 
@@ -147,7 +122,7 @@ Typical flow:
 
 ```bash
 # Create a plan from a local markdown file
-dn prep ./notes/feature.md
+dn prep ./plans/feature.md
 
 # Run the implementation loop using the generated plan
 PLAN=plans/feature.plan.md dn loop
@@ -226,7 +201,48 @@ This is especially useful for large efforts that evolve across multiple
 discussion threads. The pair programming potential with this feature is very
 high. What does pair programming look like with agents?
 
-### Managing Plans in your Repo
+### Fixing Up a PR
+
+`dn fixup` addresses pull request feedback locally. Given a PR URL, it fetches
+the description and all review comments, creates a plan to address the feedback,
+and implements fixes in your workspace.
+
+```bash
+# Address PR feedback
+dn fixup https://github.com/org/repo/pull/456
+```
+
+### Managing Issues
+
+`dn issue` provides CRUD operations for GitHub issues without leaving the
+terminal.
+
+```bash
+dn issue list                          # List open issues
+dn issue list --state closed --limit 5 # List closed issues
+dn issue show 123                      # Show issue details and comments
+dn issue create --title "Bug" --body "Details"
+dn issue edit 123 --title "New title"
+dn issue close 123
+dn issue reopen 123
+dn issue comment 123 --body "Update"
+```
+
+Run `dn issue <subcommand> --help` for full options.
+
+### Project Velocity
+
+`dn glance` collects and renders lightweight velocity reports from GitHub
+activity (issues, PRs, timelines). Useful for quick status checks and trend
+analysis.
+
+```bash
+dn glance
+```
+
+See `dn glance --help` for available formats, time ranges, and filters.
+
+### Markdown Plans Lifecycle
 
 Plan files are first-class artifacts. By default, `dn` places them in a top
 level `plans/` directory so they can be versioned, reviewed, and shared like any
@@ -260,6 +276,24 @@ dn archive plans/issue-123.plan.md --yolo
 
 Without `--yolo`, `archive` prints the suggested commit message without making
 any changes.
+
+### Environment Variables
+
+| Variable              | Purpose                                                                               |
+| --------------------- | ------------------------------------------------------------------------------------- |
+| `GITHUB_TOKEN`        | GitHub authentication for CI/scripts (fine-grained PAT recommended)                   |
+| `CURSOR_ENABLED`      | Set to `1` to use Cursor agent instead of OpenCode                                    |
+| `ISSUE`               | Issue URL or number; used by `kickstart` and `prep` when no positional arg is given   |
+| `PLAN`                | Plan file path; used by `loop` when `--plan-file` is not passed                       |
+| `PR_URL`              | PR URL; used by `fixup` when no positional arg is given                               |
+| `WORKSPACE_ROOT`      | Override the working directory for plan execution (defaults to `cwd`)                 |
+| `OPENCODE_TIMEOUT_MS` | Timeout in ms for OpenCode agent invocations (default `600000`)                       |
+| `CURSOR_TIMEOUT_MS`   | Timeout in ms for Cursor agent invocations (falls back to `OPENCODE_TIMEOUT_MS`)      |
+| `NO_COLOR`            | Disable ANSI colors/decoration ([no-color.org](https://no-color.org)); auto-set in CI |
+| `FORCE_COLOR`         | Enable colors even when stdout is not a TTY                                           |
+
+See [docs/output-and-environment.md](docs/output-and-environment.md) for full
+details on output behavior and CI detection.
 
 ### Using `dn` in Github Actions
 

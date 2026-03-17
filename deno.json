@@ -1,6 +1,6 @@
 {
   "name": "@chesapeake/dn",
-  "version": "0.0.11",
+  "version": "0.0.12",
   "description": "dn cli",
   "exports": {
     ".": "./sdk/mod.ts"
@@ -14,8 +14,7 @@
       "docs/img/**"
     ],
     "exclude": [
-      "docs/deslop.md",
-      "docs/hung-process-triage.md"
+      "deslop.md"
     ]
   },
   "tasks": {

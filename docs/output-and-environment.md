@@ -64,3 +64,13 @@ All `dn`-originated lines are prefixed with `[dn]` so that in mixed logs (e.g.
 When delegating to opencode or Cursor agent, `dn` streams their output
 unchanged; you may see a short `[dn]` progress line before or after the
 delegated output.
+
+## Exit codes
+
+| Code | Meaning                                                               |
+| ---- | --------------------------------------------------------------------- |
+| `0`  | Success                                                               |
+| `1`  | Failure (bad input, auth error, agent error, or unexpected exception) |
+
+All subcommands use the same convention. When a command fails, an error message
+is printed to stderr before exiting.

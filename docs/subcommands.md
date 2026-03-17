@@ -16,6 +16,18 @@ In CI, `dn` automatically sets `NO_COLOR` and runs in unattended mode. See
 [Output and environment](output-and-environment.md) for NO_COLOR, FORCE_COLOR,
 and how unattended mode is detected.
 
+## Common argument formats
+
+Several subcommands (`kickstart`, `prep`, `meld`) accept a flexible issue or
+source argument. The following formats are recognized:
+
+- **Full GitHub issue URL**: `https://github.com/owner/repo/issues/123`
+- **Issue number** (current repo): `123`
+- **Local markdown file path**: `docs/spec.md` or `plans/feature.md`
+
+When a markdown file path is given, no GitHub fetch occurs and AWP mode is not
+used.
+
 ## `dn kickstart` — Full workflow
 
 Runs complete kickstart workflow (plan + implement phases):
@@ -37,11 +49,6 @@ dn kickstart --allow-cross-repo https://github.com/private-org/backend-api/issue
 # With Cursor integration
 dn kickstart --cursor https://github.com/owner/repo/issues/123
 ```
-
-The argument may be a full GitHub issue URL, an issue number for the current
-repository, or a path to a markdown file. When a markdown file path is given,
-kickstart uses that file as context (no GitHub fetch) and runs plan + implement;
-AWP (branches, commits, PR) is not used when context is from a file.
 
 ### Cross-Repository Operations
 
@@ -65,9 +72,7 @@ first; if it has unchecked items, you get one "Proceed with &lt;ref&gt;?" prompt
 then the full run. If the list is empty, it can search the current repo for open
 issues (and `plans/*.plan.md`), score them, write the list, then suggest the
 first. After a successful run, you can answer "Mark &lt;ref&gt; done and
-continue with next?" to chain to the next item. See
-[Todo list and multi-ticket workflow](todo-and-workflow.md) for the recommended
-flow.
+continue with next?" to chain to the next item.
 
 ## `dn todo` — Prioritized task list
 
@@ -86,7 +91,7 @@ dn todo done plans/auth.plan.md
 
 When the ref is a GitHub issue, the issue is closed with a comment. Use this
 after you’ve finished a ticket (e.g. PR merged) to keep the list and GitHub in
-sync. See [Todo list and multi-ticket workflow](todo-and-workflow.md).
+sync.
 
 ## `dn tidy` — Refresh and re-score the list
 
@@ -101,7 +106,7 @@ dn tidy
 dn tidy --limit 10
 ```
 
-See [Todo list and multi-ticket workflow](todo-and-workflow.md).
+See `dn tidy --help` for all options.
 
 ## `dn auth` — Sign in to GitHub
 
@@ -109,6 +114,7 @@ Sign in to GitHub in the browser (device flow). The token is cached so
 `dn kickstart`, `dn glance`, etc. can use it without re-prompting:
 
 ```bash
+dn auth
 ```
 
 Requires `DN_GITHUB_DEVICE_CLIENT_ID` (or `GITHUB_DEVICE_CLIENT_ID`) set to your
@@ -121,11 +127,7 @@ Collects and renders lightweight project velocity reports from GitHub activity
 analysis across a repository:
 
 ```bash
-# Collect data for the current repo
-
-# Render a report from collected data
-
-# One-shot: collect and render
+dn glance
 ```
 
 `dn glance` uses the same cached GitHub authentication as other subcommands. See
@@ -150,21 +152,9 @@ dn prep --allow-cross-repo https://github.com/private-org/backend-api/issues/123
 dn prep --plan-name my-feature https://github.com/owner/repo/issues/123
 ```
 
-The argument may be a full GitHub issue URL, an issue number for the current
-repository, or a path to a markdown file. When a markdown file path is given,
-prep uses that file as context for the plan phase (no GitHub fetch).
-
-### Cross-Repository Operations
-
-By default, prep only supports issues from the current repository. Use
-`--allow-cross-repo` to create plans for issues from other repositories:
-
-- **Use Case**: Write tickets in private repo, implement in public repo
-- **Safety**: Shows warning about cross-repo operation
-- **Output**: Plan file created in current workspace context
-- **Next Step**: Use `dn loop` with the generated plan file
-
-The plan file path is printed for use with `dn loop`.
+Cross-repository operations follow the same rules as `dn kickstart` — use
+`--allow-cross-repo` to plan issues from a different repository. The plan file
+path is printed for use with `dn loop`.
 
 ## `dn loop` — Loop phase only
 
@@ -172,12 +162,16 @@ Runs only the loop phase (steps 4–7: implement, completion, lint, artifacts,
 validate):
 
 ```bash
-# Requires plan file from prep
+dn loop --plan-file plans/issue-123.plan.md
+
+# Or via environment variable
+PLAN=plans/issue-123.plan.md dn loop
 
 # With Cursor integration
+dn loop --cursor --plan-file plans/issue-123.plan.md
 ```
 
-Note: `dn loop` requires a plan file created by `dn prep`.
+`dn loop` requires a plan file created by `dn prep`.
 
 ## `dn meld` — Merge sources and run plan phase
 
@@ -213,9 +207,54 @@ Reads a plan file and prints a commit message (summary + body). With `--yolo`,
 it commits staged files with that message and deletes the plan file:
 
 ```bash
-# Print derived commit message
+dn archive plans/issue-123.plan.md
 
 # Commit staged files with derived message, then delete the plan file
+dn archive plans/issue-123.plan.md --yolo
 ```
 
 See `dn archive --help` for all options.
+
+## `dn fixup` — Address PR feedback
+
+Fetches a pull request's description and review comments, creates a plan to
+address the feedback, and implements fixes in your local workspace.
+
+```bash
+dn fixup https://github.com/owner/repo/pull/123
+
+# With Cursor integration
+dn fixup --cursor https://github.com/owner/repo/pull/123
+```
+
+The PR URL can also be provided via the `PR_URL` environment variable. If
+already on the correct branch, no VCS commands are executed. Changes remain
+uncommitted for your review.
+
+See `dn fixup --help` for all options.
+
+## `dn issue` — Manage GitHub issues
+
+Provides CRUD operations for GitHub issues from the terminal. All subcommands
+operate on the current repository (detected from the git remote).
+
+```bash
+dn issue list                              # List open issues
+dn issue list --state closed --limit 10    # Closed issues, max 10
+dn issue list --label bug                  # Filter by label
+dn issue show 123                          # Show details and comments
+dn issue show 123 --no-comments            # Details only
+dn issue create --title "Bug" --body-file report.md
+dn issue edit 123 --title "New title"
+dn issue edit 123 --add-label bug
+dn issue close 123                         # Close as completed
+dn issue close 123 --reason not_planned    # Close as not planned
+dn issue close 123 --comment "Fixed in #456"
+dn issue reopen 123
+dn issue comment 123 --body-file update.md
+dn issue comment 123 --body-stdin          # Pipe body from stdin
+```
+
+All subcommands support `--json` for machine-readable output and `--help` for
+per-subcommand options. Issue references accept a number (`123`), `#123`, or a
+full URL.

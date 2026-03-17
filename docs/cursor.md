@@ -10,41 +10,16 @@ Cursor's `agent` CLI and allow it to create pull requests.
 
 ## Required Setup
 
-### 1. Enable PR Creation for GitHub Actions
+### 1. GitHub and Cursor Setup
 
-By default, GitHub Actions workflows cannot create pull requests. You must
-enable this in your repository settings.
+- Enable "Allow GitHub Actions to create and approve pull requests" in Settings
+  → Actions → General → Workflow permissions
+- Add a `CURSOR_API_KEY` repository secret (from Cursor IDE settings)
 
-1. Go to your repository on GitHub
-2. Navigate to **Settings** → **Actions** → **General**
-3. Scroll to **Workflow permissions**
-4. Enable **Allow GitHub Actions to create and approve pull requests**
-5. Click **Save**
+See
+[GitHub workflow permissions and secrets](https://docs.github.com/en/actions/security-guides).
 
-Without this setting, you'll see the error:
-
-```
-GitHub Actions is not permitted to create or approve pull requests
-```
-
-### 2. Add the Cursor API Key Secret
-
-The Cursor agent CLI requires an API key for background operation.
-
-1. Go to your repository on GitHub
-2. Navigate to **Settings** → **Secrets and variables** → **Actions**
-3. Click **New repository secret**
-4. Name: `CURSOR_API_KEY`
-5. Value: Your Cursor API key
-6. Click **Add secret**
-
-To obtain a Cursor API key:
-
-1. Open Cursor IDE
-2. Go to **Settings** → **API Keys** (or your account settings)
-3. Generate a new API key for CI usage
-
-### 3. Workflow Configuration
+### 2. Workflow Configuration
 
 The workflow file needs these permissions to create branches and PRs:
 
@@ -134,7 +109,7 @@ The repository setting is not enabled. Go to **Settings** → **Actions** →
 
 ### "Error: CURSOR_API_KEY not set"
 
-Add the `CURSOR_API_KEY` secret to your repository. See step 2 above.
+Add the `CURSOR_API_KEY` secret to your repository. See the setup section above.
 
 ### Cursor CLI not found
 
@@ -182,5 +157,4 @@ behavior (for retries). The full format is:
 
 ## Related Documentation
 
-- [GitHub Authentication](authentication.md) - Token setup for local usage
-- [GitHub Token Setup](github-token-setup.md) - Detailed PAT instructions
+- [GitHub Authentication](authentication.md) - Token and auth setup
