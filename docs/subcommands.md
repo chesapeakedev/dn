@@ -3,6 +3,19 @@
 This document describes all `dn` CLI subcommands in detail. For installation and
 authentication, see the project README.
 
+## Global flags and output
+
+You can pass **global flags** after any subcommand to control output style:
+
+- **`--unattended`** or **`--ci`** – Force unattended mode (no spinner, minimal
+  decoration, ASCII-friendly status).
+- **`--no-color`** – Disable colors.
+- **`--color`** – Enable colors even when stdout is not a TTY.
+
+In CI, `dn` automatically sets `NO_COLOR` and runs in unattended mode. See
+[Output and environment](output-and-environment.md) for NO_COLOR, FORCE_COLOR,
+and how unattended mode is detected.
+
 ## `dn kickstart` — Full workflow
 
 Runs complete kickstart workflow (plan + implement phases):

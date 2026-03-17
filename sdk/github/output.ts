@@ -3,8 +3,125 @@
 
 /**
  * Output formatting utilities for terminal operations.
- * Provides TTY detection, spinners, and time formatting.
+ * Provides TTY detection, CI/unattended detection, color policy, spinners, and time formatting.
+ * See https://no-color.org and https://force-color.org for env semantics.
  */
+
+/** Module-level overrides set by CLI bootstrap (e.g. from --unattended, --no-color, --color). */
+let unattendedOverride: boolean | null = null;
+let noColorOverride: boolean | null = null;
+let forceColorOverride: boolean | null = null;
+
+/**
+ * Detects if running in a CI environment.
+ * Checks common CI environment variables set by popular CI systems.
+ * List: CI, GITHUB_ACTIONS, GITLAB_CI, CIRCLECI, TRAVIS, JENKINS_URL, BUILDKITE,
+ * TEAMCITY_VERSION, Azure DevOps (SYSTEM_TEAMFOUNDATIONCOLLECTIONURI).
+ *
+ * @returns true if running in CI, false otherwise
+ */
+export function isCI(): boolean {
+  const env = Deno.env;
+  return (
+    env.get("CI") === "true" ||
+    env.get("CI") === "1" ||
+    env.get("GITHUB_ACTIONS") === "true" ||
+    env.get("GITLAB_CI") === "true" ||
+    env.get("CIRCLECI") === "true" ||
+    env.get("TRAVIS") === "true" ||
+    env.get("JENKINS_URL") !== undefined ||
+    env.get("BUILDKITE") === "true" ||
+    env.get("TEAMCITY_VERSION") !== undefined ||
+    env.get("SYSTEM_TEAMFOUNDATIONCOLLECTIONURI") !== undefined
+  );
+}
+
+/**
+ * Configures the environment for CI mode if detected.
+ * Sets NO_COLOR=1 to disable ANSI color codes in output.
+ * Should be called early at CLI entry (e.g. from bootstrap).
+ *
+ * @returns true if CI mode was configured, false otherwise
+ */
+export function configureForCI(): boolean {
+  if (isCI() && !Deno.env.get("NO_COLOR")) {
+    Deno.env.set("NO_COLOR", "1");
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Whether output is in unattended mode (CI, non-TTY, or explicit flag).
+ * In unattended mode: no spinners, minimal decoration, no interactive prompts,
+ * ASCII-friendly markers preferred over emoji.
+ */
+export function isUnattended(): boolean {
+  if (unattendedOverride !== null) {
+    return unattendedOverride;
+  }
+  return isCI() || !isTty();
+}
+
+/**
+ * Whether ANSI color/decoration should be emitted.
+ * Respects NO_COLOR (any value disables), FORCE_COLOR (enables when not TTY),
+ * TERM=dumb (no color), and CLI overrides (--no-color, --color).
+ */
+export function isColorEnabled(): boolean {
+  if (
+    Deno.env.get("NO_COLOR") !== undefined && Deno.env.get("NO_COLOR") !== ""
+  ) {
+    return false;
+  }
+  if (noColorOverride === true) {
+    return false;
+  }
+  if (
+    forceColorOverride === true || Deno.env.get("FORCE_COLOR") !== undefined
+  ) {
+    return true;
+  }
+  if (Deno.env.get("TERM") === "dumb") {
+    return false;
+  }
+  return isTty();
+}
+
+/**
+ * Bootstrap output policy from environment and optional CLI overrides.
+ * Call once at CLI entry: first with no args to apply CI NO_COLOR, then
+ * with parsed flags (unattended, noColor, forceColor) after parsing global flags.
+ *
+ * @param opts - Optional overrides from global flags (--unattended, --no-color, --color)
+ */
+export function bootstrapFromEnv(opts?: {
+  unattended?: boolean;
+  noColor?: boolean;
+  forceColor?: boolean;
+}): void {
+  if (opts === undefined) {
+    configureForCI();
+    return;
+  }
+  if (opts.unattended !== undefined) {
+    unattendedOverride = opts.unattended;
+  }
+  if (opts.noColor !== undefined) {
+    noColorOverride = opts.noColor;
+  }
+  if (opts.forceColor !== undefined) {
+    forceColorOverride = opts.forceColor;
+  }
+}
+
+/**
+ * Set unattended mode explicitly (for tests).
+ * @param value - true to force unattended, false to clear override
+ */
+export function setUnattended(value: boolean): void {
+  unattendedOverride = value;
+}
 
 /**
  * Check if stdout is a TTY (interactive terminal).

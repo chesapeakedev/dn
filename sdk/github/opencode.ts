@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { $ } from "$dax";
-import { formatElapsedTime, isTty, Spinner } from "./output.ts";
+import { formatElapsedTime, isTty, isUnattended, Spinner } from "./output.ts";
+
+const DN_PREFIX = "[dn] ";
 
 /**
  * Result of an opencode execution.
@@ -47,11 +49,11 @@ export async function runOpenCode(
   }
 
   const ttyMode = isTty();
+  const attended = ttyMode && !isUnattended();
 
-  if (!ttyMode) {
-    // Non-TTY mode: log basic info, output will stream directly
+  if (!attended) {
     console.log(
-      `Running opencode ${phase} phase with combined prompt: ${combinedPromptPath}`,
+      `${DN_PREFIX}Running opencode ${phase} phase with combined prompt: ${combinedPromptPath}`,
     );
   }
 
@@ -82,7 +84,7 @@ export async function runOpenCode(
       if (!hasPlanFiles) {
         // Config exists but doesn't allow plan files - add permissions
         console.warn(
-          "⚠️  Adding plan file permissions to opencode.plan.json",
+          `${DN_PREFIX}[WARN] Adding plan file permissions to opencode.plan.json`,
         );
         editPerms["plans/**/*.plan.md"] = "allow";
         editPerms["plans/*.plan.md"] = "allow";
@@ -175,8 +177,8 @@ export async function runOpenCode(
     const timeoutWarningMs = Math.min(timeoutMs * 0.8, 600000); // Warn at 80% or 10 min, whichever is less
     const longRunWarningMs = 300000; // Warn after 5 minutes
 
-    // Create spinner for TTY mode
-    const spinner = ttyMode ? new Spinner(`Running ${phase} phase...`) : null;
+    // Spinner only when attended (TTY and not unattended)
+    const spinner = attended ? new Spinner(`Running ${phase} phase...`) : null;
 
     if (spinner) {
       spinner.start();
@@ -194,25 +196,19 @@ export async function runOpenCode(
         );
       }
 
-      // Warn if running for a long time (might be waiting for input)
-      // Only show warnings in non-TTY mode or as console warnings
-      if (!ttyMode) {
+      // Warn if running for a long time (unattended or non-TTY)
+      if (!attended) {
         if (elapsed > longRunWarningMs && elapsed < timeoutWarningMs) {
           console.warn(
-            `\n⚠️  Warning: opencode ${phase} phase has been running for ${
+            `${DN_PREFIX}[WARN] opencode ${phase} phase has been running for ${
               Math.round(elapsed / 1000)
-            }s.`,
-          );
-          console.warn(
-            `   If it appears to hang, it may be waiting for user input. Check stderr for prompts.\n`,
+            }s. If it appears to hang, check stderr for prompts.`,
           );
         }
-
-        // Warn approaching timeout
         if (elapsed > timeoutWarningMs) {
           const remaining = Math.round((timeoutMs - elapsed) / 1000);
           console.warn(
-            `\n⚠️  Warning: Approaching timeout (${remaining}s remaining). Consider checking if opencode is waiting for input.\n`,
+            `${DN_PREFIX}[WARN] Approaching timeout (${remaining}s remaining).`,
           );
         }
       }
@@ -275,17 +271,12 @@ export async function runOpenCode(
 
     if (hasPromptIndicators && result.code !== 0) {
       console.warn(
-        "\n⚠️  Warning: stderr contains text that suggests opencode may have been waiting for input.",
-      );
-      console.warn(
-        "   This can cause hangs in headless mode. Consider configuring opencode to run non-interactively.\n",
+        `${DN_PREFIX}[WARN] stderr suggests opencode may have been waiting for input. Consider non-interactive config.`,
       );
     }
 
-    // Display output based on TTY mode
     const exitCode = result.code ?? 0;
-    if (ttyMode) {
-      // TTY mode: Show elapsed time, then display captured output
+    if (attended) {
       if (exitCode === 0) {
         console.log(
           `\n✅ ${phase} phase completed in ${formatElapsedTime(elapsed)}`,
@@ -297,8 +288,7 @@ export async function runOpenCode(
           }`,
         );
       }
-      console.log(""); // Blank line for readability
-
+      console.log("");
       if (result.stdout) {
         console.log(result.stdout);
       }
@@ -306,7 +296,17 @@ export async function runOpenCode(
         console.error(result.stderr);
       }
     } else {
-      // Non-TTY mode: Stream output directly (already captured, just display it)
+      if (exitCode === 0) {
+        console.log(
+          `${DN_PREFIX}${phase} phase done (${formatElapsedTime(elapsed)}).`,
+        );
+      } else {
+        console.error(
+          `${DN_PREFIX}[ERROR] ${phase} phase failed (exit ${exitCode}) after ${
+            formatElapsedTime(elapsed)
+          }.`,
+        );
+      }
       if (result.stdout) {
         console.log(result.stdout);
       }

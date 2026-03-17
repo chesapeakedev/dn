@@ -14,6 +14,7 @@
 
 import { handleArchive } from "./archive.ts";
 import { handleAuth } from "./auth.ts";
+import { bootstrapFromEnv } from "./output.ts";
 import { handleFixup } from "./fixup.ts";
 import { handleIssue } from "./issue.ts";
 import { handleKickstart } from "./kickstart.ts";
@@ -23,6 +24,37 @@ import { handlePrep } from "./prep.ts";
 import { handleGlance } from "./glance.ts";
 import { handleTodo } from "./todo.ts";
 import { handleTidy } from "./tidy.ts";
+
+/**
+ * Parses global flags from args and returns bootstrap options plus remaining args.
+ * Global flags: --unattended, --ci (alias), --no-color, --color.
+ */
+function parseGlobalFlags(
+  args: string[],
+): {
+  unattended: boolean;
+  noColor: boolean;
+  forceColor: boolean;
+  rest: string[];
+} {
+  let unattended = false;
+  let noColor = false;
+  let forceColor = false;
+  const rest: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === "--unattended" || a === "--ci") {
+      unattended = true;
+    } else if (a === "--no-color") {
+      noColor = true;
+    } else if (a === "--color") {
+      forceColor = true;
+    } else {
+      rest.push(a);
+    }
+  }
+  return { unattended, noColor, forceColor, rest };
+}
 
 /**
  * Shows usage information
@@ -91,7 +123,17 @@ async function main(): Promise<void> {
   }
 
   const subcommand = args[0];
-  const subcommandArgs = args.slice(1);
+  const rawSubcommandArgs = args.slice(1);
+
+  // Bootstrap output policy once at CLI entry: set NO_COLOR in CI, then apply global flags
+  bootstrapFromEnv();
+  const { unattended, noColor, forceColor, rest: subcommandArgs } =
+    parseGlobalFlags(rawSubcommandArgs);
+  bootstrapFromEnv({
+    ...(unattended && { unattended: true }),
+    ...(noColor && { noColor: true }),
+    ...(forceColor && { forceColor: true }),
+  });
 
   switch (subcommand) {
     case "auth":

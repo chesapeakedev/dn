@@ -3,7 +3,9 @@
 
 import { $ } from "$dax";
 import type { OpenCodeResult } from "./opencode.ts";
-import { formatElapsedTime, isTty, Spinner } from "./output.ts";
+import { formatElapsedTime, isTty, isUnattended, Spinner } from "./output.ts";
+
+const DN_PREFIX = "[dn] ";
 
 /**
  * Executes the Cursor headless CLI (agent) with the specified phase and prompt file.
@@ -33,6 +35,7 @@ export async function runCursorAgent(
   }
 
   const ttyMode = isTty();
+  const attended = ttyMode && !isUnattended();
 
   // Resolve prompt path to absolute so the agent can read it regardless of cwd
   let absolutePromptPath: string;
@@ -50,9 +53,9 @@ export async function runCursorAgent(
     );
   }
 
-  if (!ttyMode) {
+  if (!attended) {
     console.log(
-      `Running Cursor agent ${phase} phase with combined prompt: ${combinedPromptPath}`,
+      `${DN_PREFIX}Running Cursor agent ${phase} phase with combined prompt: ${combinedPromptPath}`,
     );
   }
 
@@ -65,7 +68,7 @@ export async function runCursorAgent(
   const timeoutWarningMs = Math.min(timeoutMs * 0.8, 600000);
   const longRunWarningMs = 300000;
 
-  const spinner = ttyMode ? new Spinner(`Running ${phase} phase...`) : null;
+  const spinner = attended ? new Spinner(`Running ${phase} phase...`) : null;
   if (spinner) {
     spinner.start();
   }
@@ -77,18 +80,18 @@ export async function runCursorAgent(
         `Running ${phase} phase... (${formatElapsedTime(elapsed)})`,
       );
     }
-    if (!ttyMode) {
+    if (!attended) {
       if (elapsed > longRunWarningMs && elapsed < timeoutWarningMs) {
         console.warn(
-          `\n⚠️  Warning: Cursor agent ${phase} phase has been running for ${
+          `${DN_PREFIX}[WARN] Cursor agent ${phase} phase has been running for ${
             Math.round(elapsed / 1000)
-          }s.\n`,
+          }s.`,
         );
       }
       if (elapsed > timeoutWarningMs) {
         const remaining = Math.round((timeoutMs - elapsed) / 1000);
         console.warn(
-          `\n⚠️  Warning: Approaching timeout (${remaining}s remaining).\n`,
+          `${DN_PREFIX}[WARN] Approaching timeout (${remaining}s remaining).`,
         );
       }
     }
@@ -131,9 +134,9 @@ export async function runCursorAgent(
   });
 
   const elapsed = Date.now() - startTime;
-
   const exitCode = result.code ?? 0;
-  if (ttyMode) {
+
+  if (attended) {
     if (exitCode === 0) {
       console.log(
         `\n✅ ${phase} phase completed in ${formatElapsedTime(elapsed)}`,
@@ -153,6 +156,17 @@ export async function runCursorAgent(
       console.error(result.stderr);
     }
   } else {
+    if (exitCode === 0) {
+      console.log(
+        `${DN_PREFIX}${phase} phase done (${formatElapsedTime(elapsed)}).`,
+      );
+    } else {
+      console.error(
+        `${DN_PREFIX}[ERROR] ${phase} phase failed (exit ${exitCode}) after ${
+          formatElapsedTime(elapsed)
+        }.`,
+      );
+    }
     if (result.stdout) {
       console.log(result.stdout);
     }

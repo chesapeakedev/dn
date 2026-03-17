@@ -20,7 +20,6 @@ import { createCursorRule, generateAgentsMd } from "./artifacts.ts";
 import { extractPlanSummary } from "./lib.ts";
 import type { PlanSummary } from "./lib.ts";
 import {
-  configureForCI,
   formatError,
   formatInfo,
   formatStep,
@@ -720,8 +719,7 @@ async function _openCursorWithPrompt(
 export async function runOrchestrator(
   config: OrchestratorConfig,
 ): Promise<OrchestratorResult> {
-  // Configure for CI environment (disables colors if in CI and NO_COLOR not already set)
-  configureForCI();
+  // CI and color policy are bootstrapped at CLI entry (cli/main.ts)
 
   const { awp, issueUrl, saveCtx } = config;
 
