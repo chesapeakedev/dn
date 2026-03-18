@@ -215,20 +215,40 @@ dn fixup https://github.com/org/repo/pull/456
 ### Managing Issues
 
 `dn issue` provides CRUD operations for GitHub issues without leaving the
-terminal.
+terminal. Combined with an agent, users can create and update issues entirely
+from conversation -- no context switching to a browser.
 
 ```bash
 dn issue list                          # List open issues
 dn issue list --state closed --limit 5 # List closed issues
 dn issue show 123                      # Show issue details and comments
-dn issue create --title "Bug" --body "Details"
+dn issue create --title "Bug" --body-file report.md
 dn issue edit 123 --title "New title"
+dn issue edit 123 --body-file revised.md
 dn issue close 123
 dn issue reopen 123
-dn issue comment 123 --body "Update"
+dn issue comment 123 --body-file update.md
 ```
 
 Run `dn issue <subcommand> --help` for full options.
+
+#### Creating and updating issues from agent conversations
+
+Agents can manage GitHub issues on your behalf during a conversation. Common
+patterns:
+
+- **"File an issue for that bug we found"** -- the agent writes structured
+  Markdown and runs `dn issue create --title "..." --body-file <path>`.
+- **"Update the ticket with what we learned"** -- the agent summarizes the
+  conversation and runs `dn issue comment <ref> --body-file <path>` to append an
+  update, or `dn issue edit <ref> --body-file <path>` if you explicitly want to
+  replace the issue body.
+
+The convention is to default to `comment` (append-only) over `edit` (replaces
+body) unless you specifically ask to rewrite the description. Both commands
+accept `--body-stdin` for short content and `--body-file <path>` for longer
+updates. Agents are encouraged to use `dn issue show <ref>` before editing to
+confirm the current state of the issue.
 
 ### Project Velocity
 

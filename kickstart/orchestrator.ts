@@ -91,24 +91,6 @@ function getBinaryDir(): string {
 }
 
 /**
- * Gets the path to the kickstart binary.
- * Works in both compiled binary and development mode.
- */
-function getKickstartPath(): string {
-  // In compiled binary, use exec path
-  try {
-    return Deno.execPath();
-  } catch {
-    // Fallback: try to detect from import.meta
-    const url = new URL(import.meta.url);
-    if (url.protocol === "file:") {
-      return url.pathname;
-    }
-    return "kickstart";
-  }
-}
-
-/**
  * Get workspace root (where opencode runs)
  */
 function getWorkspaceRoot(): string {
@@ -1198,8 +1180,7 @@ export async function runOrchestrator(
 
       // Create Cursor rule if enabled
       if (config.cursorEnabled) {
-        const kickstartPath = getKickstartPath();
-        await createCursorRule(WORKSPACE_ROOT, kickstartPath);
+        await createCursorRule(WORKSPACE_ROOT);
         console.log(
           formatSuccess(
             "Created .cursor/rules/kickstart.mdc for subagent integration",

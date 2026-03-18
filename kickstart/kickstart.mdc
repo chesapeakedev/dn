@@ -1,0 +1,106 @@
+---
+description: "Kickstart CLI subagent for GitHub issue implementation"
+alwaysApply: true
+globs: ["**/*"]
+---
+
+# Kickstart Subagent
+
+Kickstart is a CLI tool that implements GitHub issues using opencode. When working in this workspace, you can use kickstart as a subagent.
+
+## Usage
+
+To implement a GitHub issue:
+
+```bash
+dn kickstart <issue_url>
+```
+
+Or with AWP mode (creates branch, commits, opens PR):
+
+```bash
+dn kickstart --awp <issue_url>
+```
+
+## Integration
+
+- Kickstart runs opencode in two phases: plan (read-only) and implement
+- It automatically includes AGENTS.md and deno.json (or package.json) in prompts
+- After implementation, it updates AGENTS.md and runs linting
+- It can create branches, commit changes, and open draft PRs (AWP mode)
+
+## Managing GitHub issues from a conversation
+
+Use `dn issue` to create, read, update, and comment on GitHub issues directly
+from a conversation. Users can manage their repo's issues entirely through you
+without leaving the editor.
+
+### Creating issues
+
+When you discover a bug, identify follow-up work, or the user asks you to file
+a ticket, create a new issue:
+
+```bash
+# Create with body from a file
+dn issue create --title "Brief descriptive title" --body-file description.md
+
+# Create with body piped from stdin
+dn issue create --title "Brief descriptive title" --body-stdin
+```
+
+Create new issues when new work is identified. Comment on existing issues when
+refining understanding of work already tracked.
+
+### Updating issues
+
+When the user asks to "update the ticket/issue with our new understanding", you should:
+
+1. Produce a GitHub-ready Markdown update using this template:
+
+```md
+## Summary
+- ...
+
+## Updated understanding
+- ...
+
+## Proposed next steps
+- ...
+
+## Open questions / risks
+- ...
+```
+
+2. Prefer adding a **comment** (append-only) unless the user explicitly asks to rewrite the issue body:
+
+```bash
+# Add as a comment (default / safest)
+dn issue comment <issueRef> --body-stdin
+```
+
+If the user explicitly wants the issue description replaced:
+
+```bash
+# Replace issue body (more invasive)
+dn issue edit <issueRef> --body-stdin
+```
+
+Notes:
+- `<issueRef>` can be `123`, `#123`, or a full GitHub issue URL.
+- Use `dn issue show <issueRef>` first if you need to confirm current title/body/context.
+- Use `--body-file <path>` instead of `--body-stdin` when writing longer content.
+
+## When to Use
+
+- Implementing GitHub issues end-to-end
+- Need structured plan → implement workflow
+- Want automatic branch/PR creation (AWP mode)
+- Need to ensure code follows project conventions (automatic linting)
+
+## Workflow
+
+1. **Plan Phase**: Kickstart analyzes the issue and creates an implementation plan (read-only)
+2. **Implement Phase**: Kickstart applies the changes to the codebase
+3. **Linting**: Kickstart runs linting to improve code quality
+4. **Artifacts**: Kickstart updates AGENTS.md with project guidelines
+5. **VCS** (AWP mode): Kickstart creates branch, commits, and opens draft PR

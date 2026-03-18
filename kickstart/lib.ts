@@ -1232,9 +1232,7 @@ export async function runLoopPhase(
       }
 
       if (config.cursorEnabled) {
-        // Get kickstart path - simplified for library
-        const kickstartPath = "dn"; // Will be updated when CLI is created
-        await createCursorRule(workspaceRoot, kickstartPath);
+        await createCursorRule(workspaceRoot);
         console.log(
           formatSuccess(
             "Created .cursor/rules/kickstart.mdc for subagent integration",

@@ -7,187 +7,93 @@
  */
 
 /**
- * Analyzes workspace structure to determine project type and configuration.
+ * Generates or updates AGENTS.md file for the workspace.
+ * Uses opencode init as a base if available, then intelligently merges kickstart content.
+ *
+ * @param workspaceRoot - Root directory of the workspace
+ * @param existingAgentsMd - Optional existing AGENTS.md content to merge with
+ * @returns Generated AGENTS.md content
  */
-async function analyzeWorkspace(workspaceRoot: string): Promise<{
-  runtime: string;
-  packageManager: string;
-  hasDeno: boolean;
-  hasNode: boolean;
-  hasPython: boolean;
-  hasRust: boolean;
-  hasGo: boolean;
-  denoJson?: unknown;
-  packageJson?: unknown;
-}> {
-  const result: {
-    runtime: string;
-    packageManager: string;
-    hasDeno: boolean;
-    hasNode: boolean;
-    hasPython: boolean;
-    hasRust: boolean;
-    hasGo: boolean;
-    denoJson?: unknown;
-    packageJson?: unknown;
-  } = {
-    runtime: "unknown",
-    packageManager: "unknown",
-    hasDeno: false,
-    hasNode: false,
-    hasPython: false,
-    hasRust: false,
-    hasGo: false,
-  };
+export async function generateAgentsMd(
+  workspaceRoot: string,
+  existingAgentsMd?: string,
+): Promise<string> {
+  const relativeKickstartPath = await getRelativeKickstartPath(workspaceRoot);
 
-  // Check for Deno
-  try {
-    const denoJsonPath = `${workspaceRoot}/deno.json`;
-    await Deno.stat(denoJsonPath);
-    result.hasDeno = true;
-    result.runtime = "Deno";
-    result.packageManager = "Deno imports";
-    try {
-      const content = await Deno.readTextFile(denoJsonPath);
-      result.denoJson = JSON.parse(content);
-    } catch {
-      // Ignore parse errors
+  // Determine base content
+  let baseContent: string;
+
+  // Check if we should use opencode init
+  const isMinimal = !existingAgentsMd || isMinimalAgentsMd(existingAgentsMd);
+
+  if (isMinimal) {
+    // Try to run opencode init first
+    const opencodeContent = await runOpenCodeInit(workspaceRoot);
+    if (opencodeContent) {
+      baseContent = opencodeContent;
+    } else if (existingAgentsMd) {
+      // Use existing content even if minimal
+      baseContent = existingAgentsMd;
+    } else {
+      // Fallback to minimal template
+      return generateMinimalTemplate();
     }
-  } catch {
-    // Not a Deno project
+  } else {
+    // Use existing content as base
+    baseContent = existingAgentsMd!;
   }
 
-  // Check for Node.js
-  try {
-    const packageJsonPath = `${workspaceRoot}/package.json`;
-    await Deno.stat(packageJsonPath);
-    result.hasNode = true;
-    if (!result.hasDeno) {
-      result.runtime = "Node.js";
-      result.packageManager = "npm/yarn/pnpm";
-    }
-    try {
-      const content = await Deno.readTextFile(packageJsonPath);
-      result.packageJson = JSON.parse(content);
-    } catch {
-      // Ignore parse errors
-    }
-  } catch {
-    // Not a Node.js project
-  }
-
-  // Check for Python
-  try {
-    const pyProjectPath = `${workspaceRoot}/pyproject.toml`;
-    await Deno.stat(pyProjectPath);
-    result.hasPython = true;
-    if (!result.hasDeno && !result.hasNode) {
-      result.runtime = "Python";
-      result.packageManager = "pip/poetry";
-    }
-  } catch {
-    try {
-      const requirementsPath = `${workspaceRoot}/requirements.txt`;
-      await Deno.stat(requirementsPath);
-      result.hasPython = true;
-      if (!result.hasDeno && !result.hasNode) {
-        result.runtime = "Python";
-        result.packageManager = "pip";
-      }
-    } catch {
-      // Not a Python project
-    }
-  }
-
-  // Check for Rust
-  try {
-    const cargoTomlPath = `${workspaceRoot}/Cargo.toml`;
-    await Deno.stat(cargoTomlPath);
-    result.hasRust = true;
-    if (!result.hasDeno && !result.hasNode && !result.hasPython) {
-      result.runtime = "Rust";
-      result.packageManager = "Cargo";
-    }
-  } catch {
-    // Not a Rust project
-  }
-
-  // Check for Go
-  try {
-    const goModPath = `${workspaceRoot}/go.mod`;
-    await Deno.stat(goModPath);
-    result.hasGo = true;
-    if (
-      !result.hasDeno && !result.hasNode && !result.hasPython &&
-      !result.hasRust
-    ) {
-      result.runtime = "Go";
-      result.packageManager = "go mod";
-    }
-  } catch {
-    // Not a Go project
-  }
-
-  return result;
+  // Merge kickstart content into base
+  return mergeAgentsMd(baseContent, relativeKickstartPath);
 }
 
 /**
- * Generates build/lint/test commands based on project type.
+ * Creates a Cursor IDE rule file for kickstart subagent integration.
+ *
+ * @param workspaceRoot - Root directory of the workspace
  */
-function _generateCommands(
-  analysis: Awaited<ReturnType<typeof analyzeWorkspace>>,
-): {
-  build?: string;
-  lint: string;
-  test: string;
-  format?: string;
-} {
-  const commands: {
-    build?: string;
-    lint: string;
-    test: string;
-    format?: string;
-  } = {
-    lint: "echo 'No linting configured'",
-    test: "echo 'No tests configured'",
-  };
+export async function createCursorRule(
+  workspaceRoot: string,
+): Promise<void> {
+  const cursorDir = `${workspaceRoot}/.cursor`;
+  const rulesDir = `${cursorDir}/rules`;
+  const rulePath = `${rulesDir}/kickstart.mdc`;
 
-  if (analysis.hasDeno) {
-    const denoJson = analysis.denoJson as
-      | { tasks?: Record<string, string> }
-      | undefined;
-    const tasks = denoJson?.tasks || {};
-
-    commands.lint = tasks.check || tasks.lint || "deno task check";
-    commands.test = tasks.test || "deno test";
-    commands.format = tasks.fmt || "deno fmt";
-
-    if (tasks.dev) {
-      commands.build = tasks.dev;
-    }
-  } else if (analysis.hasNode) {
-    const packageJson = analysis.packageJson as {
-      scripts?: Record<string, string>;
-    } | undefined;
-    const scripts = packageJson?.scripts || {};
-
-    commands.lint = scripts.lint || "npm run lint";
-    commands.test = scripts.test || "npm test";
-    commands.build = scripts.build;
-  } else if (analysis.hasPython) {
-    commands.lint = "ruff check . || pylint . || echo 'No linter configured'";
-    commands.test = "pytest || python -m pytest || echo 'No tests configured'";
-  } else if (analysis.hasRust) {
-    commands.lint = "cargo clippy";
-    commands.test = "cargo test";
-    commands.build = "cargo build";
-  } else if (analysis.hasGo) {
-    commands.lint = "go vet ./...";
-    commands.test = "go test ./...";
-    commands.build = "go build ./...";
+  // Create .cursor directory if it doesn't exist
+  try {
+    await Deno.stat(cursorDir);
+  } catch {
+    await Deno.mkdir(cursorDir, { recursive: true });
   }
 
-  return commands;
+  // Create .cursor/rules directory if it doesn't exist
+  try {
+    await Deno.stat(rulesDir);
+  } catch {
+    await Deno.mkdir(rulesDir, { recursive: true });
+  }
+
+  // Determine the source path for the bundled kickstart.mdc template.
+  // In compiled binaries, import.meta.dirname points to the directory
+  // containing the executable; in development mode we fall back to the
+  // workspace kickstart directory.
+  let sourcePath: string | null = null;
+  if (typeof import.meta.dirname !== "undefined") {
+    sourcePath = `${import.meta.dirname}/kickstart.mdc`;
+  } else {
+    sourcePath = `${workspaceRoot}/kickstart/kickstart.mdc`;
+  }
+
+  let ruleContent: string;
+  try {
+    ruleContent = await Deno.readTextFile(sourcePath);
+  } catch {
+    // If reading the template fails for any reason, do not crash the run;
+    // just skip creating the rule file.
+    return;
+  }
+
+  await Deno.writeTextFile(rulePath, ruleContent);
 }
 
 /**
@@ -507,32 +413,103 @@ function hasKickstartSection(content: string): boolean {
 /**
  * Generates the kickstart section content.
  */
-function generateKickstartSection(): string {
+function genDnSection(): string {
   return `## Using dn
 
-Use \`dn\` when interacting with Github & local plan files. \`dn\` provides useful
-workflows for vibe coders as subcommands. Run \`dn\` to see subcommands and
-consider how they can make your tasks easier or more straightforward. Read
-\`docs/subcommands.md\` for detailed information on subcommands.
+Use \`dn\` when interacting with GitHub and local plan files. \`dn\` is the primary
+interface to this repository's workflows. Prefer it over ad-hoc scripts when
+preparing workspaces, iterating on plans, or coordinating changes.
 
-### Examples
+Run \`dn\` with no arguments to discover available subcommands. For detailed
+behavior and flags, see \`docs/subcommands.md\`.
 
-\`\`\`
-# Discover available workflows
+### Usage
+
+To print help:
+
+\`\`\`bash
 dn
-
-# Prepare a repository before making changes
-dn prep
-
-# Iterate on a plan until convergence
-dn loop
-
-# Combine or reconcile multiple iterations
-dn meld
-
-# Archive completed artifacts
-dn archive
 \`\`\`
+
+To implement a GitHub issue:
+
+\`\`\`bash
+dn kickstart <issue_url>
+\`\`\`
+
+### Integration
+
+- Kickstart runs opencode in two phases: plan (read-only) and implement
+- It automatically includes AGENTS.md and deno.json (or package.json) in prompts
+- After implementation, it updates AGENTS.md and runs linting
+- It can create branches, commit changes, and open draft PRs (AWP mode)
+
+### Workflow
+
+1. **Plan Phase**: Kickstart analyzes the issue and creates an implementation plan (read-only)
+2. **Implement Phase**: Kickstart applies the changes to the codebase
+3. **Linting**: Kickstart runs linting to improve code quality
+4. **Artifacts**: Kickstart updates AGENTS.md with project guidelines
+5. **VCS** (AWP mode): Kickstart creates branch, commits, and opens draft PR
+
+### Managing GitHub Issues
+
+Use \`dn issue\` to create, read, update, and comment on GitHub issues directly
+from a conversation. Users can manage their repo's issues entirely through an
+agent without leaving the terminal.
+
+**Creating issues** — when you discover a bug, identify follow-up work, or the
+user asks you to file a ticket:
+
+\`\`\`bash
+dn issue create --title "Brief descriptive title" --body-file description.md
+dn issue create --title "Brief descriptive title" --body-stdin
+\`\`\`
+
+**Reading issues** — check current state before updating:
+
+\`\`\`bash
+dn issue show 123
+\`\`\`
+
+**Adding a comment** (append-only, preferred default):
+
+\`\`\`bash
+dn issue comment 123 --body-file update.md
+dn issue comment 123 --body-stdin
+\`\`\`
+
+**Replacing the issue body** (only when the user explicitly asks):
+
+\`\`\`bash
+dn issue edit 123 --body-file revised.md
+dn issue edit 123 --body-stdin
+\`\`\`
+
+When creating or updating issues, use structured Markdown:
+
+\`\`\`md
+## Summary
+- ...
+
+## Updated understanding
+- ...
+
+## Proposed next steps
+- ...
+
+## Open questions / risks
+- ...
+\`\`\`
+
+Guidelines:
+
+- Prefer \`comment\` (append-only) over \`edit\` (replaces body) unless the user
+  explicitly asks to rewrite the issue description.
+- Use \`dn issue show <ref>\` before editing to confirm current context.
+- \`<ref>\` can be \`123\`, \`#123\`, or a full GitHub issue URL.
+- Create new issues when new work is identified; comment on existing issues
+  when refining understanding of work already tracked.
 `;
 }
 
@@ -549,7 +526,7 @@ function mergeAgentsMd(
   _relativeKickstartPath: string,
 ): string {
   const structure = parseAgentsMd(baseContent);
-  const kickstartSection = generateKickstartSection();
+  const kickstartSection = genDnSection();
   let result = baseContent;
 
   // Update Cursor / Copilot Rules section if it exists but doesn't mention kickstart
@@ -672,154 +649,5 @@ function generateMinimalTemplate(): string {
 
 This file provides instructions for agentic coding agents operating in this repository.
 
-${generateKickstartSection()}`;
-}
-
-/**
- * Generates or updates AGENTS.md file for the workspace.
- * Uses opencode init as a base if available, then intelligently merges kickstart content.
- *
- * @param workspaceRoot - Root directory of the workspace
- * @param existingAgentsMd - Optional existing AGENTS.md content to merge with
- * @returns Generated AGENTS.md content
- */
-export async function generateAgentsMd(
-  workspaceRoot: string,
-  existingAgentsMd?: string,
-): Promise<string> {
-  const relativeKickstartPath = await getRelativeKickstartPath(workspaceRoot);
-
-  // Determine base content
-  let baseContent: string;
-
-  // Check if we should use opencode init
-  const isMinimal = !existingAgentsMd || isMinimalAgentsMd(existingAgentsMd);
-
-  if (isMinimal) {
-    // Try to run opencode init first
-    const opencodeContent = await runOpenCodeInit(workspaceRoot);
-    if (opencodeContent) {
-      baseContent = opencodeContent;
-    } else if (existingAgentsMd) {
-      // Use existing content even if minimal
-      baseContent = existingAgentsMd;
-    } else {
-      // Fallback to minimal template
-      return generateMinimalTemplate();
-    }
-  } else {
-    // Use existing content as base
-    baseContent = existingAgentsMd!;
-  }
-
-  // Merge kickstart content into base
-  return mergeAgentsMd(baseContent, relativeKickstartPath);
-}
-
-/**
- * Creates a Cursor IDE rule file for kickstart subagent integration.
- *
- * @param workspaceRoot - Root directory of the workspace
- * @param kickstartPath - Path to the kickstart binary (for documentation)
- */
-export async function createCursorRule(
-  workspaceRoot: string,
-  kickstartPath: string,
-): Promise<void> {
-  const cursorDir = `${workspaceRoot}/.cursor`;
-  const rulesDir = `${cursorDir}/rules`;
-  const rulePath = `${rulesDir}/kickstart.mdc`;
-
-  // Create .cursor directory if it doesn't exist
-  try {
-    await Deno.stat(cursorDir);
-  } catch {
-    await Deno.mkdir(cursorDir, { recursive: true });
-  }
-
-  // Create .cursor/rules directory if it doesn't exist
-  try {
-    await Deno.stat(rulesDir);
-  } catch {
-    await Deno.mkdir(rulesDir, { recursive: true });
-  }
-
-  // Determine relative path for kickstart (for documentation)
-  let relativeKickstartPath = kickstartPath;
-  try {
-    const workspacePath = await Deno.realPath(workspaceRoot);
-    const kickstartRealPath = await Deno.realPath(kickstartPath);
-    if (kickstartRealPath.startsWith(workspacePath)) {
-      relativeKickstartPath = "./" +
-        kickstartRealPath.slice(workspacePath.length + 1);
-    }
-  } catch {
-    // If path resolution fails, use original path
-  }
-
-  const ruleContent = `---
-description: "Kickstart CLI subagent for GitHub issue implementation"
-alwaysApply: true
-globs: ["**/*"]
----
-
-# Kickstart Subagent
-
-Kickstart is a CLI tool that implements GitHub issues using opencode. When working in this workspace, you can use kickstart as a subagent.
-
-## Usage
-
-To implement a GitHub issue:
-
-\`\`\`bash
-${relativeKickstartPath} <issue_url>
-\`\`\`
-
-Or with AWP mode (creates branch, commits, opens PR):
-
-\`\`\`bash
-${relativeKickstartPath} --awp <issue_url>
-\`\`\`
-
-## Integration
-
-- Kickstart runs opencode in two phases: plan (read-only) and implement
-- It automatically includes AGENTS.md and deno.json (or package.json) in prompts
-- After implementation, it updates AGENTS.md and runs linting
-- It can create branches, commit changes, and open draft PRs (AWP mode)
-
-## When to Use
-
-- Implementing GitHub issues end-to-end
-- Need structured plan → implement workflow
-- Want automatic branch/PR creation (AWP mode)
-- Need to ensure code follows project conventions (automatic linting)
-
-## Workflow
-
-1. **Plan Phase**: Kickstart analyzes the issue and creates an implementation plan (read-only)
-2. **Implement Phase**: Kickstart applies the changes to the codebase
-3. **Linting**: Kickstart runs linting to improve code quality
-4. **Artifacts**: Kickstart updates AGENTS.md with project guidelines
-5. **VCS** (AWP mode): Kickstart creates branch, commits, and opens draft PR
-
-## Examples
-
-Basic usage:
-\`\`\`bash
-${relativeKickstartPath} https://github.com/owner/repo/issues/123
-\`\`\`
-
-With environment variable:
-\`\`\`bash
-ISSUE=https://github.com/owner/repo/issues/123 ${relativeKickstartPath}
-\`\`\`
-
-Full AWP workflow:
-\`\`\`bash
-${relativeKickstartPath} --awp https://github.com/owner/repo/issues/123
-\`\`\`
-`;
-
-  await Deno.writeTextFile(rulePath, ruleContent);
+${genDnSection()}`;
 }
