@@ -9,6 +9,7 @@
  */
 
 import { runPlanPhase } from "../kickstart/lib.ts";
+import type { AgentHarness } from "../sdk/github/agentHarness.ts";
 import {
   deduplicateBlocks,
   ensureAcceptanceCriteriaSection,
@@ -17,6 +18,16 @@ import {
   normalizeMarkdown,
   resolveSource,
 } from "../sdk/mod.ts";
+
+function meldModeToAgentHarness(mode: MeldMode): AgentHarness {
+  if (mode === "cursor") {
+    return "cursor";
+  }
+  if (mode === "claude") {
+    return "claude";
+  }
+  return "opencode";
+}
 
 interface MeldArgs {
   sources: string[];
@@ -52,6 +63,8 @@ async function parseArgs(args: string[]): Promise<MeldArgs> {
       workspaceRoot = args[++i];
     } else if (arg === "--cursor" || arg === "-c") {
       mode = "cursor";
+    } else if (arg === "--claude") {
+      mode = "claude";
     } else if (arg === "--opencode") {
       mode = "opencode";
     } else if (arg === "--help" || arg === "-h") {
@@ -165,7 +178,7 @@ export async function handleMeld(args: string[]): Promise<void> {
 
     const result = await runPlanPhase({
       awp: false,
-      cursorEnabled: mode === "cursor",
+      agentHarness: meldModeToAgentHarness(mode),
       allowCrossRepo: false,
       issueUrl: null,
       contextMarkdownPath: contextPath,

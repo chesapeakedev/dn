@@ -4,7 +4,7 @@
 const ACCEPTANCE_CRITERIA_HEADING = /^##\s+Acceptance\s+Criteria\s*$/im;
 const CHECKBOX_LINE = /^-\s+\[([\sx])\]\s+(.+)$/gm;
 
-export type MeldMode = "opencode" | "cursor";
+export type MeldMode = "opencode" | "cursor" | "claude";
 
 function extractFirstH1(content: string): string {
   const match = content.match(/^#\s+(.+)$/m);
@@ -50,14 +50,14 @@ function ensureOneAcceptanceCriteriaSection(body: string): string {
 /**
  * Ensures the document has exactly one Acceptance Criteria section with
  * checkboxes. In cursor mode, adds or updates YAML frontmatter per dn/fixtures
- * schema: name, overview, todos, isProject.
+ * schema: name, overview, todos, isProject. Claude mode matches opencode (no frontmatter).
  */
 export function ensureAcceptanceCriteriaSection(
   content: string,
   mode: MeldMode,
 ): string {
   const body = ensureOneAcceptanceCriteriaSection(content);
-  if (mode === "opencode") {
+  if (mode === "opencode" || mode === "claude") {
     return body;
   }
 

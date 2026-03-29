@@ -23,6 +23,7 @@ import {
   getCurrentRepoFromRemote,
   listIssues,
 } from "../sdk/github/github-gql.ts";
+import { resolveAgentHarnessFromFlagsAndEnv } from "../sdk/github/agentHarness.ts";
 
 const ISSUE_NUMBER_PATTERN = /^#?\d+$/;
 
@@ -43,7 +44,8 @@ function classifyInput(input: string): {
 function parseArgs(args: string[]): KickstartConfig {
   let input: string | null = null;
   let awp = false;
-  let cursorEnabled = false;
+  let cursorFlag = false;
+  let claudeFlag = false;
   let allowCrossRepo = false;
   let savedPlanName: string | null = null;
   let workspaceRoot: string | undefined = undefined;
@@ -53,7 +55,9 @@ function parseArgs(args: string[]): KickstartConfig {
     if (arg === "--awp") {
       awp = true;
     } else if (arg === "--cursor" || arg === "-c") {
-      cursorEnabled = true;
+      cursorFlag = true;
+    } else if (arg === "--claude") {
+      claudeFlag = true;
     } else if (arg === "--allow-cross-repo") {
       allowCrossRepo = true;
     } else if (arg === "--saved-plan" && i + 1 < args.length) {
@@ -76,15 +80,16 @@ function parseArgs(args: string[]): KickstartConfig {
     ? classifyInput(input)
     : { issueUrl: null as string | null, contextMarkdownPath: undefined };
 
-  if (!cursorEnabled) {
-    cursorEnabled = Deno.env.get("CURSOR_ENABLED") === "1";
-  }
+  const agentHarness = resolveAgentHarnessFromFlagsAndEnv({
+    cursorFlag,
+    claudeFlag,
+  });
 
   const saveCtx = Deno.env.get("SAVE_CTX") === "1";
 
   return {
     awp,
-    cursorEnabled,
+    agentHarness,
     allowCrossRepo,
     issueUrl,
     contextMarkdownPath,
@@ -116,7 +121,8 @@ function showHelp(): void {
   console.log(
     "  --allow-cross-repo       Allow implementing issues from different repositories",
   );
-  console.log("  --cursor, -c              Enable Cursor IDE integration");
+  console.log("  --cursor, -c              Use Cursor headless agent");
+  console.log("  --claude                  Use Claude Code CLI (`claude -p`)");
   console.log("  --saved-plan <name>      Use a specific plan name");
   console.log("  --workspace-root <path>  Workspace root directory");
   console.log("  --help, -h               Show this help message\n");
@@ -127,13 +133,17 @@ function showHelp(): void {
   );
   console.log("  SAVE_CTX                 Set to '1' to preserve debug files");
   console.log(
-    "  CURSOR_ENABLED           Set to '1' to enable Cursor integration\n",
+    "  CURSOR_ENABLED           Set to '1' to use Cursor agent",
+  );
+  console.log(
+    "  CLAUDE_ENABLED           Set to '1' to use Claude Code (not with CURSOR_ENABLED)\n",
   );
   console.log("Examples:");
   console.log("  dn kickstart https://github.com/owner/repo/issues/123");
   console.log("  dn kickstart 123");
   console.log("  dn kickstart docs/spec.md");
   console.log("  dn kickstart --awp --cursor <issue_url_or_number>");
+  console.log("  dn kickstart --awp --claude <issue_url_or_number>");
   console.log("  ISSUE=<issue_url_or_number> dn kickstart");
 }
 
@@ -197,7 +207,7 @@ async function runNoTicketFlow(
       workspaceRoot,
       withBodies,
       planPaths,
-      config.cursorEnabled,
+      config.agentHarness,
     );
     const scoredItems: TodoItem[] = scoring.scored
       .filter((s) => !s.disqualified && s.score != null)
@@ -244,7 +254,13 @@ async function runNoTicketFlow(
  * Handles the kickstart subcommand
  */
 export async function handleKickstart(args: string[]): Promise<void> {
-  let config = parseArgs(args);
+  let config: KickstartConfig;
+  try {
+    config = parseArgs(args);
+  } catch (e) {
+    console.error(e instanceof Error ? e.message : String(e));
+    Deno.exit(1);
+  }
 
   if (!config.issueUrl && !config.contextMarkdownPath) {
     const resolved = await runNoTicketFlow(config);

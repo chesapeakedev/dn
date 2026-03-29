@@ -67,7 +67,7 @@ For CI and scripts, set `GITHUB_TOKEN` with a Personal Access Token
 ## Setting Up Agents
 
 `dn` invokes an agent to perform work, performing predefined workflows,
-sometimes chainable. `dn` supports opencode (default) and Cursor agents.
+sometimes chainable. `dn` supports OpenCode (default), Cursor, and Claude Code.
 
 ### OpenCode (Default)
 
@@ -77,6 +77,29 @@ sometimes chainable. `dn` supports opencode (default) and Cursor agents.
    dn prep <issue_url>
    dn loop --plan-file plans/issue-123.plan.md
    ```
+
+### Claude Code
+
+1. Install: https://docs.anthropic.com/en/docs/claude-code/quickstart
+2. Local `dn` runs use your normal Claude Code login (same idea as Cursor’s
+   CLI). For CI or isolated runs, set `CLAUDE_CODE_BARE=1` and
+   `ANTHROPIC_API_KEY`.
+3. Enable Claude mode:
+
+   ```bash
+   dn prep --claude <issue_url>
+   dn loop --claude --plan-file plans/issue-123.plan.md
+   dn kickstart --awp --claude <issue_url>
+
+   # Or environment variable (do not set both with CURSOR_ENABLED)
+   export CLAUDE_ENABLED=1
+   dn prep <issue_url>
+   ```
+
+Optional: add a root `CLAUDE.md` in your repo for project-specific instructions
+Claude Code should follow.
+
+See [docs/claude.md](docs/claude.md) for GitHub Actions and troubleshooting.
 
 ### Cursor CLI
 
@@ -94,8 +117,9 @@ sometimes chainable. `dn` supports opencode (default) and Cursor agents.
    dn loop --plan-file plans/issue-123.plan.md
    ```
 
-Plan files are largely agent-agnostic, but the `--opencode` and `--cursor` flags
-apply last-mile formatting tailored to each harness.
+Plan files are largely agent-agnostic, but `dn meld` modes (`--opencode`,
+`--cursor`, `--claude`) apply last-mile formatting and choose which CLI runs the
+plan phase.
 
 ## Detailed Usage
 
@@ -277,18 +301,22 @@ any changes, sort of like a dry run.
 
 ### Environment Variables
 
-| Variable              | Purpose                                                                               |
-| --------------------- | ------------------------------------------------------------------------------------- |
-| `GITHUB_TOKEN`        | GitHub authentication for CI/scripts (fine-grained PAT recommended)                   |
-| `CURSOR_ENABLED`      | Set to `1` to use Cursor agent instead of OpenCode                                    |
-| `ISSUE`               | Issue URL or number; used by `kickstart` and `prep` when no positional arg is given   |
-| `PLAN`                | Plan file path; used by `loop` when `--plan-file` is not passed                       |
-| `PR_URL`              | PR URL; used by `fixup` when no positional arg is given                               |
-| `WORKSPACE_ROOT`      | Override the working directory for plan execution (defaults to `cwd`)                 |
-| `OPENCODE_TIMEOUT_MS` | Timeout in ms for OpenCode agent invocations (default `600000`)                       |
-| `CURSOR_TIMEOUT_MS`   | Timeout in ms for Cursor agent invocations (falls back to `OPENCODE_TIMEOUT_MS`)      |
-| `NO_COLOR`            | Disable ANSI colors/decoration ([no-color.org](https://no-color.org)); auto-set in CI |
-| `FORCE_COLOR`         | Enable colors even when stdout is not a TTY                                           |
+| Variable               | Purpose                                                                                |
+| ---------------------- | -------------------------------------------------------------------------------------- |
+| `GITHUB_TOKEN`         | GitHub authentication for CI/scripts (fine-grained PAT recommended)                    |
+| `CURSOR_ENABLED`       | Set to `1` to use Cursor agent instead of OpenCode                                     |
+| `CLAUDE_ENABLED`       | Set to `1` to use Claude Code instead of OpenCode (not together with `CURSOR_ENABLED`) |
+| `ISSUE`                | Issue URL or number; used by `kickstart` and `prep` when no positional arg is given    |
+| `PLAN`                 | Plan file path; used by `loop` when `--plan-file` is not passed                        |
+| `PR_URL`               | PR URL; used by `fixup` when no positional arg is given                                |
+| `WORKSPACE_ROOT`       | Override the working directory for plan execution (defaults to `cwd`)                  |
+| `OPENCODE_TIMEOUT_MS`  | Timeout in ms for OpenCode agent invocations (default `600000`)                        |
+| `CURSOR_TIMEOUT_MS`    | Timeout in ms for Cursor agent invocations (falls back to `OPENCODE_TIMEOUT_MS`)       |
+| `CLAUDE_TIMEOUT_MS`    | Timeout in ms for Claude Code invocations (falls back to `OPENCODE_TIMEOUT_MS`)        |
+| `CLAUDE_CODE_BARE`     | Set to `1` to run Claude with `--bare` (API-key / deterministic; default is off)       |
+| `CLAUDE_ALLOWED_TOOLS` | Override default `--allowedTools` for Claude Code (default `Bash,Read,Edit`)           |
+| `NO_COLOR`             | Disable ANSI colors/decoration ([no-color.org](https://no-color.org)); auto-set in CI  |
+| `FORCE_COLOR`          | Enable colors even when stdout is not a TTY                                            |
 
 See [docs/output-and-environment.md](docs/output-and-environment.md) for full
 details on output behavior and CI detection.

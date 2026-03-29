@@ -20,6 +20,7 @@ include deslop.mk
 	install \
 	kickstart_ci_opencode \
 	kickstart_ci_cursor \
+	kickstart_ci_claude \
 	repo_stats \
 	tokei \
 	tests \
@@ -73,6 +74,16 @@ kickstart_ci_opencode:
 kickstart_ci_cursor:
 	@if [ -n "$(ISSUE)" ]; then \
 		deno run --allow-all $(CURDIR)/cli/main.ts kickstart --awp --cursor "$(ISSUE)"; \
+	else \
+		echo "Error: ISSUE environment variable required"; \
+		exit 1; \
+	fi
+
+# Run kickstart with Claude Code (for GitHub Actions Claude workflow)
+# Usage: make kickstart_ci_claude ISSUE=https://github.com/org/repo/issues/123
+kickstart_ci_claude:
+	@if [ -n "$(ISSUE)" ]; then \
+		deno run --allow-all $(CURDIR)/cli/main.ts kickstart --awp --claude "$(ISSUE)"; \
 	else \
 		echo "Error: ISSUE environment variable required"; \
 		exit 1; \

@@ -11,9 +11,9 @@ import {
   detectVcs,
   prepareVcsStateInteractive,
 } from "../sdk/github/vcs.ts";
-import { runCursorAgent } from "../sdk/github/cursorAgent.ts";
+import type { AgentHarness } from "../sdk/github/agentHarness.ts";
+import { getRunAgent } from "../sdk/github/agentHarness.ts";
 import { assembleCombinedPrompt } from "../sdk/github/prompt.ts";
-import { runOpenCode } from "../sdk/github/opencode.ts";
 import { createPR } from "../sdk/github/github.ts";
 import type { PRPlanSummary } from "../sdk/github/github.ts";
 import { createCursorRule, generateAgentsMd } from "./artifacts.ts";
@@ -139,8 +139,8 @@ async function readIncludedPrompt(filename: string): Promise<string> {
 export interface OrchestratorConfig {
   /** Whether to run in awp mode (branches, commits, PRs) */
   awp: boolean;
-  /** Whether to enable Cursor IDE integration (creates .cursor/rules/kickstart.mdc) */
-  cursorEnabled: boolean;
+  /** Agent harness; Cursor also enables `.cursor/rules/kickstart.mdc` artifact */
+  agentHarness: AgentHarness;
   /** Issue URL to fetch (mutually exclusive with contextMarkdownPath) */
   issueUrl: string | null;
   /** Path to markdown file to use as issue context (e.g. from CLI); skips fetch */
@@ -508,14 +508,14 @@ function _generateContinuationPrompt(
  * @param planFilePath - Path to the original plan file
  * @param continuationFilePath - Path to the continuation plan file
  * @param tmpDir - Temporary directory for merge operation
- * @param useCursorAgent - If true, use Cursor CLI instead of opencode
+ * @param agentHarness - Which CLI runs the merge phase
  * @returns Promise resolving to `true` if merge was successful
  */
 async function _mergePlanFiles(
   planFilePath: string,
   continuationFilePath: string,
   tmpDir: string,
-  useCursorAgent: boolean = false,
+  agentHarness: AgentHarness = "opencode",
 ): Promise<boolean> {
   try {
     // Read both files
@@ -581,7 +581,7 @@ async function _mergePlanFiles(
       ),
     );
 
-    const runMerge = useCursorAgent ? runCursorAgent : runOpenCode;
+    const runMerge = getRunAgent(agentHarness);
     const mergeResult = await runMerge(
       "implement", // Use implement phase for write permissions
       combinedPromptMergePath,
@@ -832,8 +832,8 @@ export async function runOrchestrator(
       continueExistingPlan ? existingPlanContent : null,
     );
 
-    // Run plan phase (opencode or Cursor agent per config)
-    const runPlan = config.cursorEnabled ? runCursorAgent : runOpenCode;
+    // Run plan phase (opencode, Cursor, or Claude Code per config)
+    const runPlan = getRunAgent(config.agentHarness);
     const planResult = await runPlan(
       "plan",
       combinedPromptPlanPath,
@@ -912,8 +912,8 @@ export async function runOrchestrator(
       planOutputPath, // Include plan output
     );
 
-    // Run implement phase (opencode or Cursor agent per config)
-    const runImplement = config.cursorEnabled ? runCursorAgent : runOpenCode;
+    // Run implement phase (opencode, Cursor, or Claude Code per config)
+    const runImplement = getRunAgent(config.agentHarness);
     const implementResult = await runImplement(
       "implement",
       combinedPromptImplementPath,
@@ -1179,7 +1179,7 @@ export async function runOrchestrator(
       }
 
       // Create Cursor rule if enabled
-      if (config.cursorEnabled) {
+      if (config.agentHarness === "cursor") {
         await createCursorRule(WORKSPACE_ROOT);
         console.log(
           formatSuccess(

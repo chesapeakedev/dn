@@ -22,6 +22,7 @@ import {
   type TodoItem,
   writeTodoList,
 } from "../sdk/todo/todo.ts";
+import { resolveAgentHarnessFromFlagsAndEnv } from "../sdk/github/agentHarness.ts";
 
 function promptYesNo(message: string): boolean {
   const answer = prompt(message + " (y/n): ")?.trim().toLowerCase();
@@ -83,12 +84,15 @@ export async function handleTidy(args: string[]): Promise<void> {
     // no plans dir
   }
 
-  const cursorEnabled = Deno.env.get("CURSOR_ENABLED") === "1";
+  const agentHarness = resolveAgentHarnessFromFlagsAndEnv({
+    cursorFlag: false,
+    claudeFlag: false,
+  });
   const scoring = await runScoring(
     workspaceRoot,
     withBodies,
     planPaths,
-    cursorEnabled,
+    agentHarness,
   );
 
   const scoredItems: TodoItem[] = scoring.scored

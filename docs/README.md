@@ -18,6 +18,7 @@ Reference documentation for `dn`. For installation and quickstart, see the
 | ----------------------- | ----------------------------------------------- |
 | [OpenCode](opencode.md) | Using `dn` tools inside the OpenCode TUI        |
 | [Cursor](cursor.md)     | Running kickstart with Cursor in GitHub Actions |
+| [Claude](claude.md)     | Running kickstart with Claude Code CLI          |
 
 ## Infrastructure
 

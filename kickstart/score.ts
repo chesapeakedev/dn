@@ -6,8 +6,11 @@
  * Output: sorted list with Fibonacci scores (1, 2, 3, 5, 8); disqualified items excluded.
  */
 
-import { runCursorAgent } from "../sdk/github/cursorAgent.ts";
-import { runOpenCode } from "../sdk/github/opencode.ts";
+import type { AgentHarness } from "../sdk/github/agentHarness.ts";
+import {
+  getRunAgent,
+  resolveAgentHarnessFromFlagsAndEnv,
+} from "../sdk/github/agentHarness.ts";
 
 const VALID_SCORES = new Set([1, 2, 3, 5, 8]);
 
@@ -98,13 +101,13 @@ function extractJson(stdout: string): unknown {
  * @param workspaceRoot - Workspace root (for agent cwd and prompt resolution)
  * @param issues - List of issues with ref, title, body
  * @param planPaths - Optional plan file paths to include as virtual issues
- * @param cursorEnabled - Use Cursor agent when true, else opencode
+ * @param agentHarness - Harness for the scoring LLM; when omitted, uses env (`CURSOR_ENABLED` / `CLAUDE_ENABLED`)
  */
 export async function runScoring(
   workspaceRoot: string,
   issues: { ref: string; title: string; body: string }[],
   planPaths: { ref: string; title: string }[] = [],
-  cursorEnabled?: boolean,
+  agentHarness?: AgentHarness,
 ): Promise<ScoringResult> {
   const systemPrompt = await readScoreSystemPrompt(workspaceRoot);
   const lines: string[] = ["# Issues to score\n"];
@@ -126,8 +129,12 @@ export async function runScoring(
   const promptPath = `${tmpDir}/score.prompt.md`;
   await Deno.writeTextFile(promptPath, combined);
 
-  const useCursor = cursorEnabled ?? Deno.env.get("CURSOR_ENABLED") === "1";
-  const run = useCursor ? runCursorAgent : runOpenCode;
+  const harness = agentHarness ??
+    resolveAgentHarnessFromFlagsAndEnv({
+      cursorFlag: false,
+      claudeFlag: false,
+    });
+  const run = getRunAgent(harness);
   const result = await run(
     "plan",
     promptPath,

@@ -48,6 +48,9 @@ dn kickstart --allow-cross-repo https://github.com/private-org/backend-api/issue
 
 # With Cursor integration
 dn kickstart --cursor https://github.com/owner/repo/issues/123
+
+# With Claude Code
+dn kickstart --claude https://github.com/owner/repo/issues/123
 ```
 
 ### Cross-Repository Operations
@@ -150,6 +153,9 @@ dn prep --allow-cross-repo https://github.com/private-org/backend-api/issues/123
 
 # With a specific plan name
 dn prep --plan-name my-feature https://github.com/owner/repo/issues/123
+
+# With Claude Code
+dn prep --claude https://github.com/owner/repo/issues/123
 ```
 
 Cross-repository operations follow the same rules as `dn kickstart` — use
@@ -169,6 +175,9 @@ PLAN=plans/issue-123.plan.md dn loop
 
 # With Cursor integration
 dn loop --cursor --plan-file plans/issue-123.plan.md
+
+# With Claude Code
+dn loop --claude --plan-file plans/issue-123.plan.md
 ```
 
 `dn loop` requires a plan file created by `dn prep`.
@@ -195,10 +204,13 @@ dn meld a.md b.md -o plans/merged.md --plan-name merged
 
 # Cursor mode: frontmatter + Cursor agent for plan phase
 dn meld a.md https://github.com/owner/repo/issues/123 --cursor
+
+# Claude mode: no frontmatter + Claude Code for plan phase
+dn meld a.md https://github.com/owner/repo/issues/123 --claude
 ```
 
 Options include `--list, -l <path>`, `--output, -o <path>`,
-`--plan-name <name>`, `--workspace-root <path>`, `--cursor, -c`, and
+`--plan-name <name>`, `--workspace-root <path>`, `--cursor, -c`, `--claude`, and
 `--opencode`. See `dn meld --help` for details.
 
 ## `dn archive` — Derive a commit message from a plan file
@@ -225,6 +237,9 @@ dn fixup https://github.com/owner/repo/pull/123
 
 # With Cursor integration
 dn fixup --cursor https://github.com/owner/repo/pull/123
+
+# With Claude Code
+dn fixup --claude https://github.com/owner/repo/pull/123
 ```
 
 The PR URL can also be provided via the `PR_URL` environment variable. If

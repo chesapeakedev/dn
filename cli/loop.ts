@@ -13,6 +13,7 @@ import { getCurrentRepoFromRemote } from "../sdk/github/github-gql.ts";
 import { fetchIssueFromUrl } from "../sdk/github/issue.ts";
 import type { IssueData } from "../sdk/github/issue.ts";
 import { promptAndAddToTodoList } from "../sdk/todo/todo.ts";
+import { resolveAgentHarnessFromFlagsAndEnv } from "../sdk/github/agentHarness.ts";
 
 /**
  * Parses loop-specific arguments
@@ -21,7 +22,8 @@ function parseArgs(
   args: string[],
 ): KickstartConfig & { planFilePath: string | null } {
   let planFilePath: string | null = null;
-  let cursorEnabled = false;
+  let cursorFlag = false;
+  let claudeFlag = false;
   let workspaceRoot: string | undefined = undefined;
 
   for (let i = 0; i < args.length; i++) {
@@ -29,7 +31,9 @@ function parseArgs(
     if (arg === "--plan-file" && i + 1 < args.length) {
       planFilePath = args[++i];
     } else if (arg === "--cursor" || arg === "-c") {
-      cursorEnabled = true;
+      cursorFlag = true;
+    } else if (arg === "--claude") {
+      claudeFlag = true;
     } else if (arg === "--workspace-root" && i + 1 < args.length) {
       workspaceRoot = args[++i];
     } else if (arg === "--help" || arg === "-h") {
@@ -43,13 +47,14 @@ function parseArgs(
     planFilePath = Deno.env.get("PLAN") || null;
   }
 
-  if (!cursorEnabled) {
-    cursorEnabled = Deno.env.get("CURSOR_ENABLED") === "1";
-  }
+  const agentHarness = resolveAgentHarnessFromFlagsAndEnv({
+    cursorFlag,
+    claudeFlag,
+  });
 
   return {
     awp: false, // Loop phase doesn't use AWP mode
-    cursorEnabled,
+    agentHarness,
     allowCrossRepo: false,
     issueUrl: null,
     saveCtx: false,
@@ -70,7 +75,8 @@ function showHelp(): void {
   console.log(
     "  --plan-file <path>       Path to plan file (required, from 'dn prep')",
   );
-  console.log("  --cursor, -c             Enable Cursor IDE integration");
+  console.log("  --cursor, -c             Use Cursor headless agent");
+  console.log("  --claude                 Use Claude Code CLI");
   console.log("  --workspace-root <path>  Workspace root directory");
   console.log("  --help, -h               Show this help message\n");
   console.log("Environment variables:");
@@ -79,7 +85,10 @@ function showHelp(): void {
     "  PLAN                     Path to plan file (alternative to --plan-file)",
   );
   console.log(
-    "  CURSOR_ENABLED           Set to '1' to enable Cursor integration\n",
+    "  CURSOR_ENABLED           Set to '1' to use Cursor agent",
+  );
+  console.log(
+    "  CLAUDE_ENABLED           Set to '1' to use Claude Code (not with CURSOR_ENABLED)\n",
   );
   console.log("Examples:");
   console.log("  # Run loop phase with a plan file from prep");
@@ -129,7 +138,13 @@ async function extractIssueContextFromPlan(
  * Handles the loop subcommand
  */
 export async function handleLoop(args: string[]): Promise<void> {
-  const config = parseArgs(args);
+  let config: KickstartConfig & { planFilePath: string | null };
+  try {
+    config = parseArgs(args);
+  } catch (e) {
+    console.error(e instanceof Error ? e.message : String(e));
+    Deno.exit(1);
+  }
 
   if (!config.planFilePath) {
     console.error(

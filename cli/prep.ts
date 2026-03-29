@@ -13,6 +13,7 @@ import { fillEmptyIssueSections, runPlanPhase } from "../kickstart/lib.ts";
 import { isGitHubIssueUrl } from "../sdk/meld/mod.ts";
 import { getCurrentRepoFromRemote } from "../sdk/github/github-gql.ts";
 import { promptAndAddToTodoList } from "../sdk/todo/todo.ts";
+import { resolveAgentHarnessFromFlagsAndEnv } from "../sdk/github/agentHarness.ts";
 
 /**
  * Extended config for prep command including update-issue mode
@@ -45,7 +46,8 @@ function parseArgs(args: string[]): PrepConfig {
   let workspaceRoot: string | undefined = undefined;
   let updateIssue = false;
   let dryRun = false;
-  let cursorEnabled = false;
+  let cursorFlag = false;
+  let claudeFlag = false;
   let allowCrossRepo = false;
 
   for (let i = 0; i < args.length; i++) {
@@ -61,7 +63,9 @@ function parseArgs(args: string[]): PrepConfig {
     } else if (arg === "--dry-run") {
       dryRun = true;
     } else if (arg === "--cursor" || arg === "-c") {
-      cursorEnabled = true;
+      cursorFlag = true;
+    } else if (arg === "--claude") {
+      claudeFlag = true;
     } else if (arg === "--allow-cross-repo") {
       allowCrossRepo = true;
     } else if (arg === "--help" || arg === "-h") {
@@ -80,13 +84,14 @@ function parseArgs(args: string[]): PrepConfig {
     ? classifyInput(input)
     : { issueUrl: null as string | null, contextMarkdownPath: undefined };
 
-  if (!cursorEnabled) {
-    cursorEnabled = Deno.env.get("CURSOR_ENABLED") === "1";
-  }
+  const agentHarness = resolveAgentHarnessFromFlagsAndEnv({
+    cursorFlag,
+    claudeFlag,
+  });
 
   return {
     awp: false,
-    cursorEnabled,
+    agentHarness,
     allowCrossRepo,
     issueUrl,
     contextMarkdownPath,
@@ -131,7 +136,10 @@ function showHelp(): void {
     "  --allow-cross-repo        Allow implementing issues from different repositories",
   );
   console.log(
-    "  --cursor, -c              Use Cursor agent instead of opencode",
+    "  --cursor, -c              Use Cursor headless agent instead of opencode",
+  );
+  console.log(
+    "  --claude                  Use Claude Code CLI instead of opencode",
   );
   console.log(
     "  --update-issue            Fill empty sections in the issue template",
@@ -149,7 +157,10 @@ function showHelp(): void {
     "  ISSUE                     Issue URL, issue number, or path to markdown file (alternative to positional)",
   );
   console.log(
-    "  CURSOR_ENABLED            Set to '1' to use Cursor agent instead of opencode\n",
+    "  CURSOR_ENABLED            Set to '1' to use Cursor agent",
+  );
+  console.log(
+    "  CLAUDE_ENABLED            Set to '1' to use Claude Code (not with CURSOR_ENABLED)\n",
   );
   console.log("Examples:");
   console.log("  # Run plan phase with opencode");
@@ -160,6 +171,7 @@ function showHelp(): void {
   console.log("");
   console.log("  # Run plan phase with Cursor agent");
   console.log("  dn prep --cursor https://github.com/owner/repo/issues/123");
+  console.log("  dn prep --claude https://github.com/owner/repo/issues/123");
   console.log("");
   console.log("  # Update issue description (fill empty template sections)");
   console.log("  dn prep --update-issue 123");
@@ -175,7 +187,13 @@ function showHelp(): void {
  * Handles the prep subcommand
  */
 export async function handlePrep(args: string[]): Promise<void> {
-  let config = parseArgs(args);
+  let config: PrepConfig;
+  try {
+    config = parseArgs(args);
+  } catch (e) {
+    console.error(e instanceof Error ? e.message : String(e));
+    Deno.exit(1);
+  }
 
   if (config.updateIssue) {
     if (!config.issueUrl) {
@@ -226,7 +244,7 @@ export async function handlePrep(args: string[]): Promise<void> {
         config.issueUrl,
         workspaceRoot,
         config.dryRun,
-        config.cursorEnabled,
+        config.agentHarness,
       );
 
       if (result.error) {

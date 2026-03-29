@@ -53,17 +53,42 @@ its arguments.
 ## Branding
 
 All `dn`-originated lines are prefixed with `[dn]` so that in mixed logs (e.g.
-`dn` plus opencode or Cursor agent output) you can tell which lines came from
-`dn`. Step and status lines use a consistent style, e.g.:
+`dn` plus OpenCode, Cursor, or Claude Code output) you can tell which lines came
+from `dn`. Step and status lines use a consistent style, e.g.:
 
 - `[dn] Step 1: Resolving issue context...`
 - `[dn] [OK] Plan phase completed successfully`
 - `[dn] [WARN] Linting found issues (non-blocking)`
 - `[dn] [ERROR] Blocking error detected`
 
-When delegating to opencode or Cursor agent, `dn` streams their output
+When delegating to OpenCode, Cursor, or Claude Code, `dn` streams their output
 unchanged; you may see a short `[dn]` progress line before or after the
 delegated output.
+
+## Agent harness selection
+
+Subcommands that run an LLM agent (`kickstart`, `prep`, `loop`, `fixup`, `meld`,
+and scoring inside `tidy` / no-ticket `kickstart`) pick a **harness**:
+
+| Mechanism          | Effect                      |
+| ------------------ | --------------------------- |
+| (default)          | OpenCode                    |
+| `--cursor` / `-c`  | Cursor headless `agent` CLI |
+| `--claude`         | Claude Code `claude -p`     |
+| `CURSOR_ENABLED=1` | Same as `--cursor`          |
+| `CLAUDE_ENABLED=1` | Same as `--claude`          |
+
+`--cursor` and `--claude` cannot be combined; `CURSOR_ENABLED=1` and
+`CLAUDE_ENABLED=1` cannot both be set.
+
+### Claude-specific variables
+
+| Variable               | Purpose                                                      |
+| ---------------------- | ------------------------------------------------------------ |
+| `ANTHROPIC_API_KEY`    | API key for headless/bare Claude Code (see Anthropic docs)   |
+| `CLAUDE_TIMEOUT_MS`    | Phase timeout (falls back to `OPENCODE_TIMEOUT_MS`)          |
+| `CLAUDE_CODE_BARE`     | Set to `1` to enable `claude --bare` for a run (default off) |
+| `CLAUDE_ALLOWED_TOOLS` | Override default `--allowedTools` passed to Claude           |
 
 ## Exit codes
 

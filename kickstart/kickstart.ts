@@ -23,22 +23,25 @@
  *   SAVE_CTX: set to "1" to preserve debug files on success
  */
 
+import type { AgentHarness } from "../sdk/github/agentHarness.ts";
+import { resolveAgentHarnessFromFlagsAndEnv } from "../sdk/github/agentHarness.ts";
 import { type OrchestratorConfig, runOrchestrator } from "./orchestrator.ts";
 
 /**
  * Parses command-line arguments to extract flags and issue source.
  *
- * @returns Object with awp mode flag, cursor enabled flag, issue URL, and plan options
+ * @returns Object with awp mode flag, agent harness, issue URL, and plan options
  */
 function parseArgs(): {
   awp: boolean;
-  cursorEnabled: boolean;
+  agentHarness: AgentHarness;
   issueUrl: string | null;
   savedPlanName: string | null;
 } {
   const args = Deno.args;
   let awp = false;
-  let cursorEnabled = false;
+  let cursorFlag = false;
+  let claudeFlag = false;
   let issueUrl: string | null = null;
   let savedPlanName: string | null = null;
 
@@ -47,7 +50,9 @@ function parseArgs(): {
     if (arg === "--awp") {
       awp = true;
     } else if (arg === "--cursor" || arg === "-c") {
-      cursorEnabled = true;
+      cursorFlag = true;
+    } else if (arg === "--claude") {
+      claudeFlag = true;
     } else if (arg === "--saved-plan" && i + 1 < args.length) {
       savedPlanName = args[++i];
     } else if (!arg.startsWith("--") && !issueUrl) {
@@ -61,12 +66,12 @@ function parseArgs(): {
     issueUrl = Deno.env.get("ISSUE") || null;
   }
 
-  // Check environment variable for Cursor (overrides CLI flag if not set)
-  if (!cursorEnabled) {
-    cursorEnabled = Deno.env.get("CURSOR_ENABLED") === "1";
-  }
+  const agentHarness = resolveAgentHarnessFromFlagsAndEnv({
+    cursorFlag,
+    claudeFlag,
+  });
 
-  return { awp, cursorEnabled, issueUrl, savedPlanName };
+  return { awp, agentHarness, issueUrl, savedPlanName };
 }
 
 /**
@@ -98,7 +103,16 @@ function parseArgs(): {
  * On failure, preserves debug files in a temp directory for inspection.
  */
 async function main() {
-  const { awp, cursorEnabled, issueUrl, savedPlanName } = parseArgs();
+  let awp: boolean;
+  let agentHarness: AgentHarness;
+  let issueUrl: string | null;
+  let savedPlanName: string | null;
+  try {
+    ({ awp, agentHarness, issueUrl, savedPlanName } = parseArgs());
+  } catch (e) {
+    console.error(e instanceof Error ? e.message : String(e));
+    Deno.exit(1);
+  }
   const saveCtx = Deno.env.get("SAVE_CTX") === "1";
 
   if (!issueUrl) {
@@ -109,7 +123,10 @@ async function main() {
     console.error("  # Default mode: Apply changes locally");
     console.error("  ./kickstart <issue_url>");
     console.error(
-      "  ./kickstart --cursor <issue_url>  # Use Cursor headless agent (agent) instead of opencode",
+      "  ./kickstart --cursor <issue_url>  # Cursor headless agent instead of opencode",
+    );
+    console.error(
+      "  ./kickstart --claude <issue_url>   # Claude Code CLI instead of opencode",
     );
     console.error("\n  # AWP mode: Full workflow with branches and PR");
     console.error("  ./kickstart --awp <issue_url>");
@@ -122,7 +139,10 @@ async function main() {
       "  ISSUE                    GitHub issue URL (alternative to positional arg)",
     );
     console.error(
-      "  CURSOR_ENABLED=1  # Use Cursor headless agent instead of opencode",
+      "  CURSOR_ENABLED=1   # Cursor headless agent",
+    );
+    console.error(
+      "  CLAUDE_ENABLED=1   # Claude Code (do not set both with CURSOR_ENABLED)",
     );
     console.error("  SAVE_CTX=1        # Preserve debug files on success");
     console.error("\nFeatures:");
@@ -138,7 +158,7 @@ async function main() {
 
   const config: OrchestratorConfig = {
     awp,
-    cursorEnabled,
+    agentHarness,
     issueUrl,
     saveCtx,
     savedPlanName,

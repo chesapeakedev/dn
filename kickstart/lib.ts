@@ -24,9 +24,9 @@ import {
   detectVcs,
   prepareVcsStateInteractive,
 } from "../sdk/github/vcs.ts";
-import { runCursorAgent } from "../sdk/github/cursorAgent.ts";
+import type { AgentHarness } from "../sdk/github/agentHarness.ts";
+import { getRunAgent } from "../sdk/github/agentHarness.ts";
 import { assembleCombinedPrompt } from "../sdk/github/prompt.ts";
-import { runOpenCode } from "../sdk/github/opencode.ts";
 import { createCursorRule, generateAgentsMd } from "./artifacts.ts";
 import {
   formatError,
@@ -296,8 +296,8 @@ export interface FillEmptyIssueSectionsResult {
 export interface KickstartConfig {
   /** Whether to run in awp mode (branches, commits, PRs) */
   awp: boolean;
-  /** Whether to enable Cursor IDE integration */
-  cursorEnabled: boolean;
+  /** Which agent harness runs plan/implement phases (OpenCode, Cursor, or Claude Code) */
+  agentHarness: AgentHarness;
   /** Whether to allow cross-repository operations */
   allowCrossRepo: boolean;
   /** Issue URL to fetch (mutually exclusive with contextMarkdownPath) */
@@ -905,8 +905,8 @@ export async function runPlanPhase(
       continueExistingPlan ? existingPlanContent : null,
     );
 
-    // Run plan phase (opencode or Cursor agent per config)
-    const runPlan = config.cursorEnabled ? runCursorAgent : runOpenCode;
+    // Run plan phase (opencode, Cursor, or Claude Code per config)
+    const runPlan = getRunAgent(config.agentHarness);
     const planResult = await runPlan(
       "plan",
       combinedPromptPlanPath,
@@ -1013,8 +1013,8 @@ export async function runLoopPhase(
       planOutputPath, // Include plan output
     );
 
-    // Run implement phase (opencode or Cursor agent per config)
-    const runImplement = config.cursorEnabled ? runCursorAgent : runOpenCode;
+    // Run implement phase (opencode, Cursor, or Claude Code per config)
+    const runImplement = getRunAgent(config.agentHarness);
     const implementResult = await runImplement(
       "implement",
       combinedPromptImplementPath,
@@ -1231,7 +1231,7 @@ export async function runLoopPhase(
         );
       }
 
-      if (config.cursorEnabled) {
+      if (config.agentHarness === "cursor") {
         await createCursorRule(workspaceRoot);
         console.log(
           formatSuccess(
@@ -1378,7 +1378,7 @@ export async function runFullKickstart(
   // Convert KickstartConfig to OrchestratorConfig (they're compatible, just drop workspaceRoot)
   const orchestratorConfig: OrchestratorConfig = {
     awp: config.awp,
-    cursorEnabled: config.cursorEnabled,
+    agentHarness: config.agentHarness,
     issueUrl: config.issueUrl,
     contextMarkdownPath: config.contextMarkdownPath,
     saveCtx: config.saveCtx,
@@ -1455,14 +1455,14 @@ async function readPrepSystemPrompt(workspaceRoot: string): Promise<string> {
  * @param issueUrl - GitHub issue URL or issue number
  * @param workspaceRoot - Root directory of the workspace
  * @param dryRun - If true, preview changes without updating GitHub
- * @param cursorEnabled - If true, use Cursor agent instead of opencode
+ * @param agentHarness - Which agent runs the prep LLM (default opencode)
  * @returns Result of the operation
  */
 export async function fillEmptyIssueSections(
   issueUrl: string,
   workspaceRoot: string,
   dryRun: boolean = false,
-  cursorEnabled: boolean = false,
+  agentHarness: AgentHarness = "opencode",
 ): Promise<FillEmptyIssueSectionsResult> {
   try {
     // Step 1: Resolve and fetch issue
@@ -1554,8 +1554,8 @@ export async function fillEmptyIssueSections(
         issueContextPath,
       );
 
-      // Run LLM (opencode or Cursor agent per config)
-      const runLlm = cursorEnabled ? runCursorAgent : runOpenCode;
+      // Run LLM (opencode, Cursor, or Claude Code per harness)
+      const runLlm = getRunAgent(agentHarness);
       const result = await runLlm(
         "plan", // Use plan phase (read-only except for output)
         combinedPromptPath,
