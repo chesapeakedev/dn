@@ -11,6 +11,7 @@ Reference documentation for `dn`. For installation and quickstart, see the
 | [Authentication](authentication.md)                 | GitHub token setup (CLI, browser, CI)              |
 | [Output and environment](output-and-environment.md) | Colors, unattended mode, exit codes, env vars      |
 | [API](api.md)                                       | Programmatic SDK usage and GitHub Actions examples |
+| [GitHub Actions](github-actions.md)                 | Running `dn` in GitHub Actions CI                  |
 
 ## Agent integration
 

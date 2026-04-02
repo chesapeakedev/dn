@@ -67,6 +67,9 @@ jobs:
         with:
           deno-version: ">=2.6.3"
 
+      - name: Install dn
+        uses: chesapeake/dn-action@v1
+
       - name: Capture issue metadata
         id: issue
         run: |

@@ -46,6 +46,9 @@ jobs:
         with:
           deno-version: ">=2.6.3"
 
+      - name: Install dn
+        uses: chesapeake/dn-action@v1
+
       - name: Run dn kickstart
         id: kickstart
         env:

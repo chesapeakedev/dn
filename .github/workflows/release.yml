@@ -5,23 +5,26 @@ on:
     types: [published]
 
 jobs:
-  build-and-upload:
+  build:
     runs-on: ${{ matrix.os }}
-    permissions:
-      contents: write
-
     strategy:
       matrix:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            binary-name: dn-linux-x64
+            binary: dn-linux-x64
           - os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
-            binary-name: dn-linux-arm64
+            binary: dn-linux-arm64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            binary: dn-macos-x64
           - os: macos-latest
             target: aarch64-apple-darwin
-            binary-name: dn-macos-arm64
+            binary: dn-macos-arm64
+          - os: ubuntu-latest
+            target: x86_64-pc-windows-msvc
+            binary: dn-windows-x64.exe
 
     steps:
       - name: Checkout code
@@ -38,13 +41,40 @@ jobs:
             --allow-all \
             --config deno.json \
             --target ${{ matrix.target }} \
-            -o ${{ matrix.binary-name }} \
+            -o ${{ matrix.binary }} \
             cli/main.ts
 
-      - name: Upload Release Asset
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.binary }}
+          path: ${{ matrix.binary }}
+          retention-days: 1
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          sha256sum dn-linux-x64 dn-linux-arm64 dn-macos-x64 dn-macos-arm64 dn-windows-x64.exe > checksums.txt
+
+      - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ matrix.binary-name }}
+          files: |
+            dn-linux-x64
+            dn-linux-arm64
+            dn-macos-x64
+            dn-macos-arm64
+            dn-windows-x64.exe
+            checksums.txt
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
