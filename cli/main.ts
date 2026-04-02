@@ -16,6 +16,7 @@ import { handleArchive } from "./archive.ts";
 import { handleAuth } from "./auth.ts";
 import { bootstrapFromEnv } from "./output.ts";
 import { handleFixup } from "./fixup.ts";
+import { handleInitBuild } from "./init-build.ts";
 import { handleIssue } from "./issue.ts";
 import { handleKickstart } from "./kickstart.ts";
 import { handleLoop } from "./loop.ts";
@@ -63,6 +64,7 @@ function showUsage(): void {
   console.error("dn - A CLI for kickstart-style workflows\n");
   console.error("Usage:");
   console.error("  dn auth");
+  console.error("  dn init-build");
   console.error("  dn issue <subcommand> [options]");
   console.error("  dn kickstart [options] <issue_url_or_number>");
   console.error("  dn prep [options] <issue_url_or_number>");
@@ -76,6 +78,9 @@ function showUsage(): void {
   console.error("Subcommands:");
   console.error(
     "  auth         Sign in to GitHub in the browser (caches token for dn)",
+  );
+  console.error(
+    "  init-build   Setup GitHub Actions workflow for denoise",
   );
   console.error(
     "  issue        Manage GitHub issues (list, show, create, edit, close, reopen, comment)",
@@ -138,6 +143,9 @@ async function main(): Promise<void> {
   switch (subcommand) {
     case "auth":
       await handleAuth(subcommandArgs);
+      break;
+    case "init-build":
+      await handleInitBuild(subcommandArgs);
       break;
     case "issue":
     case "issues":

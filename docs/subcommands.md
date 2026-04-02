@@ -123,6 +123,29 @@ dn auth
 Requires `DN_GITHUB_DEVICE_CLIENT_ID` (or `GITHUB_DEVICE_CLIENT_ID`) set to your
 GitHub OAuth App client ID. See [`docs/authentication.md`](authentication.md).
 
+## `dn init-build` — Setup GitHub Actions workflow
+
+Sets up GitHub Actions workflow infrastructure for triggering `dn kickstart` via
+issue labels:
+
+```bash
+dn init-build
+```
+
+This command:
+
+1. Creates `.github/workflows/denoise-build.yaml`
+2. Creates the `denoise-build` GitHub label in your repository
+
+After setup, you can trigger builds by:
+
+- Adding the `denoise-build` label to any GitHub issue
+- Clicking "Run workflow" in GitHub Actions and providing an issue URL
+
+Only repository maintainers (owners, members, collaborators) can trigger builds.
+
+See `dn init build --help` for all options.
+
 ## `dn glance` — Project velocity & reports
 
 Collects and renders lightweight project velocity reports from GitHub activity
