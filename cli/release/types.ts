@@ -113,6 +113,15 @@ export interface GitHubRelease {
   uploadUrl: string;
   tarballUrl: string | null;
   zipballUrl: string | null;
+  assets: Array<{
+    id: number;
+    name: string;
+    label: string | null;
+    size: number;
+    downloadCount: number;
+    contentType: string;
+    browserDownloadUrl: string;
+  }>;
 }
 
 /**

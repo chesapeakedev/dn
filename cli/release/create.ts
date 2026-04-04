@@ -123,12 +123,10 @@ function parseArgs(args: string[]): {
       options.draft = true;
     } else if (arg === "--prerelease" || arg === "-p") {
       options.prerelease = true;
-    } else if (arg === "--latest" && i + 1 < args.length) {
-      const val = args[++i];
+    } else if (arg.startsWith("--latest")) {
+      const val = arg.includes("=") ? arg.split("=")[1] : args[++i];
       if (val === "false") {
         options.latest = false;
-      } else if (val === "true") {
-        options.latest = true;
       } else {
         options.latest = true;
       }

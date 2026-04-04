@@ -293,6 +293,25 @@ export async function getReleaseByTag(
 }
 
 /**
+ * List releases for a repository.
+ */
+export async function listReleases(
+  owner: string,
+  repo: string,
+  options: { limit?: number } = {},
+): Promise<GitHubRelease[]> {
+  const token = await resolveGitHubToken();
+  const limit = options.limit ?? 30;
+  const url =
+    `${GITHUB_API_BASE}/repos/${owner}/${repo}/releases?per_page=${limit}`;
+
+  return request<GitHubRelease[]>(url, {
+    method: "GET",
+    headers: buildHeaders(token),
+  });
+}
+
+/**
  * Upload a single asset to a release.
  *
  * The uploadUrl should be the release's upload_url with the {?name,label}
@@ -414,11 +433,11 @@ export async function expandAssetPaths(
 /**
  * Simple glob matcher supporting * and ? wildcards.
  */
-function matchesSimpleGlob(name: string, pattern: string): boolean {
+export function matchesSimpleGlob(name: string, pattern: string): boolean {
   const regex = pattern
+    .replace(/\./g, "\\.")
     .replace(/\*/g, ".*")
-    .replace(/\?/g, ".")
-    .replace(/\./g, "\\.");
+    .replace(/\?/g, ".");
   return new RegExp(`^${regex}$`).test(name);
 }
 
