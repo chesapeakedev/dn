@@ -32,7 +32,7 @@ include deslop.mk
 	glance \
 	publish \
 	test_subcommands \
-	bump_patch bump_minor bump_major
+	bump_patch bump_minor bump_major release
 
 fmt: ; deno fmt
 lint: fmt ; deno task typecheck && deno task lint
@@ -127,3 +127,9 @@ bump_major:
 	new_version="$$((major + 1)).0.0"; \
 	$(SED_INPLACE) "s/\"version\": \"$$current\"/\"version\": \"$$new_version\"/" deno.json; \
 	echo "Bumped version from $$current to $$new_version"
+
+# Create a GitHub release with tag from version in deno.json
+release:
+	@VERSION=$$(grep -o '"version": "[^"]*"' deno.json | cut -d'"' -f4); \
+	echo "Creating release for version $$VERSION"; \
+	gh release create "v$$VERSION" --title "v$$VERSION" --notes "Release v$$VERSION"

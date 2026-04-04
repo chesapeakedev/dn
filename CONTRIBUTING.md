@@ -3,118 +3,44 @@
 Thank you for your interest in contributing to dn! This document provides
 guidelines and instructions for being productive on the project.
 
-This project is not developed, it's orchestrated. As a contributor, your first
-role is to manage the codebase as a product. To take action, update markdown in
-the repo or create & comment on github issues. Message other contributors to
-build consensus.
+This project is an (increasingly common) experiment in working one layer above
+the code itself. Contributors should utilize automation in the repo to
+understand the changes they want made to the project and create a high quality
+github issue describing the change. The issue is reviewed (instead of a pull
+request), and a contributor applies a label to kickoff an agent implementation
+of the ticket. Contributors then review, edit, and merge the change.
 
-Then, use dn to build dn
-
-Your secondary role is to review pull requests & manage change in the
-respository. Reduce LLM artifacts in generated pull requests. Run quality
-programs over the codebase. Make it easier to contribute and easier to verify
-programmatically and by an LLM that a feature works.
+Forms of verification that humans & agents can use are critical to maintaining
+the quality of the software. Keeping agents aligned to the intent of the
+software is a continuous task of annotating code and adding markdown context to
+the repository.
 
 Software engineers will naturally have an easier time with reviewing pull
-requests & being stewards of the repo, but this two-step process lets everyone
-build. As a product manager or other non-SWE contributor, testing can replace
-manual review of the code. Additionally, hardening a plan in github will have a
-huge impact on the generated output of the kickstart process
+requests & being stewards of the repo, but maintaining a quality list of issues
+and testing changes is something anyone can have huge impact with. This process
+lets everyone build.
 
-## Code Style
+## Coding Style
 
-Style is not strictly enforced. As you make changes manually and through LLM
-usage, the linter & AGENTS.md are configured to slowly chop away at the accrued
-technical debt. Some loose guidelines that may be helpful:
+A specific strategy for organization of the repo or patterns in the code is not
+strictly enforced. As you make changes manually and through LLM usage, the
+linter & AGENTS.md are a means to slowly chop away at the accrued technical
+debt. Some loose guidelines:
 
-- **TypeScript is mandatory** - no `any` allowed
+- **TypeScript is mandatory** - avoid `any`, types are important context for
+  agents
 - **Formatting** - use `make fmt` to avoid thinking about it
 - **Type Checking & Linting** - use `make lint`; we accept 0 linter issues
 - **Public APIs must be documented** - any exported function, class, or type
-  intended for reuse must include behavior-focused TSDoc describing guarantees
-  and error behavior
+  intended for reuse must include behavior-focused TSDoc describing usage and
+  error behavior
 
 See [AGENTS.md](AGENTS.md) for an understanding of what the agents are
-instructed to do. Many times the advice generalizes
-
-## Makefile
+instructed to do. Many times the advice generalizes. Quality contributions to
+`AGENTS.md` is highly valuable.
 
 This project uses `make` as a task runner, both locally and in CI. Read through
 the [Makefile](./Makefile) to understand useful commands in the project.
-
-## Project Structure
-
-The dn repository is organized around the CLI and its supporting workflows. The
-structure is intentionally explicit so both humans and LLMs can navigate and
-reason about changes.
-
-Understanding the project structure will help you contribute effectively:
-
-- **`cli/`** - CLI entry point, subcommand implementations (kickstart, prep,
-  loop, meld, archive)
-  - `kickstart.ts` - Entry point for kickstart CLI workflows
-  - `prep.ts` - Workspace and repository preparation logic
-  - `loop.ts` - Iterative execution and refinement workflows
-- **`docs/`** - Supplemental documentation for `dn` users & contributors & LLM's
-  - `README.md` - User-facing overview and CLI usage
-  - `CONTRIBUTING.md` - Contribution and workflow guidelines
-  - `AGENTS.md` - Agent behavior and coding conventions
-- **`glance/`** - Project velocity and reporting tools
-  - `main.ts` - Glance CLI entry point
-  - `collect.ts` - Data collection and aggregation
-  - `render.ts` - Visualization and report generation
-- **`kickstart/`** - End-to-end GitHub issue workflows
-  - `lib.ts` - Public APIs for plan and loop phases
-  - `orchestrator.ts` - Full workflow coordination and state transitions
-  - `artifacts.ts` - Generated artifacts (plans, prompts, reports)
-- **`sdk/`** - Public APIs for the dn project
-  - `index.ts` - Primary SDK export surface
-  - `client.ts` - Programmatic interface to dn workflows
-  - `types.ts` - Shared public types and contracts
-
-## Creating Pull Requests
-
-dn is designed to be contributed to from multiple roles. You can meaningfully
-improve the project without writing TypeScript, or you can work directly in the
-codebase as a developer.
-
-### Contributing as a Product Manager
-
-- Shape high-quality GitHub issues with clear goals, constraints, and examples
-  - Example: write an issue that includes acceptance criteria, non-goals, and a
-    concrete "done looks like" section
-- Break large ideas into smaller, testable milestones (splitting one ticket into
-  many)
-  - Example: split "Add new kickstart mode" into planning, artifact generation,
-    and CLI wiring issues
-- Use the `dn` CLI to turn intent into concrete artifacts
-  - `dn <issue_url>` to generate a structured plan from a GitHub issue
-  - `dn <issue_url> --loop` to iterate on the plan and implementation
-  - `dn --awp <issue_url>` to produce a branch, commits, and a draft PR
-- Review generated artifacts for scope, correctness, and clarity
-  - Check plans and prompts for missing constraints or unintended expansion
-  - Consider a developer teammate that may be suitable for review
-- Validate behavior in pull requests by testing locally
-  - Run the modified CLI or workflow and verify it matches the issue goals
-
-Injecting clear intent and feedback into the project is a significant
-contribution.
-
-### Contributing as a Developer
-
-- Review pull requests, refining kickstart plans & generated code
-- Edit generated code to remove LLM artifacts and improve clarity
-- Add or improve tests to add reliability to product behavior & LLM awareness
-- Refactor incrementally to keep modules small and explicit
-- Run linting, type checks, and tests and steward the project towards keeping
-  these passing
-
-### Submitting Your Changes
-
-The agent you are using should be able to use `dn` to submit pull requests on
-your behalf using either `git` or `sl`. Consider running `make precommit` to run
-basic checks on larger changes to save yourself time. If you run into issues as
-a non-SWE, reach out in chat!
 
 ## Documentation
 
@@ -123,45 +49,159 @@ documentation with the changes you've made. In addition, hand-made documentation
 improvements are always welcome and an important part of quality control:
 
 - Fix typos or clarify existing docs
-- Add examples or use cases
-- Improve code comments
+- Add examples or context on use cases
+- Improve TSDoc comments
 - Update README or AGENTS.md
 
-## Testing Guidelines
+## Creating GitHub Releases
 
-- **Write tests** for new functionality
-- **Test edge cases** and error conditions
-- **Keep tests isolated** - each test should be independent
-- **Use descriptive test names** that explain what is being tested
-- **Prefer testing behavior** over implementation details
+Before creating a release, you need to update the semantic version of the
+project in `deno.json`:
 
-Example test structure:
+1. **Bump the version** using one of the Makefile targets:
+   ```bash
+   # For patch version (e.g., 0.0.13 → 0.0.14)
+   make bump_patch
 
-```typescript
-Deno.test("functionName handles edge case", () => {
-  // Arrange
-  const input = "...";
+   # For minor version (e.g., 0.0.13 → 0.1.0)
+   make bump_minor
 
-  // Act
-  const result = functionName(input);
+   # For major version (e.g., 0.0.13 → 1.0.0)
+   make bump_major
+   ```
 
-  // Assert
-  assertEquals(result, expected);
-});
+2. **Commit the version change**:
+   ```bash
+   sl commit -m "chore: bump version to X.Y.Z"
+   ```
+
+3. **Push the changes** and create a GitHub release:
+   ```bash
+   # Push to remote
+   sl push
+   ```
+
+Now that you've created a release commit, you can create a github release using
+`gh` to kickoff the release artifact build process. There is a convenience make
+target:
+
+```bash
+# Then create the release
+make release
 ```
 
-More to come here...
+This will:
+
+1. Extract the version from deno.json
+2. Create a GitHub release using the gh CLI
+
+## Github Actions Release Workflow
+
+When a new release is published on GitHub, the workflow in
+`.github/workflows/release.yml` automatically builds and distributes binaries.
+
+### Build Job
+
+The workflow runs a matrix build across five platform targets using
+`deno compile --allow-all --config deno.json`:
+
+| Runner          | Target                      | Output Binary        |
+| --------------- | --------------------------- | -------------------- |
+| `ubuntu-latest` | `x86_64-unknown-linux-gnu`  | `dn-linux-x64`       |
+| `ubuntu-latest` | `aarch64-unknown-linux-gnu` | `dn-linux-arm64`     |
+| `macos-latest`  | `x86_64-apple-darwin`       | `dn-macos-x64`       |
+| `macos-latest`  | `aarch64-apple-darwin`      | `dn-macos-arm64`     |
+| `ubuntu-latest` | `x86_64-pc-windows-msvc`    | `dn-windows-x64.exe` |
+
+Each binary is uploaded as a GitHub Actions artifact with 1-day retention.
+Details about the binary:
+
+- **Runtime:** Deno 2.x
+- **Build command:** `deno compile --allow-all -o <output> cli/main.ts`
+- **Included files:** System prompts from `kickstart/` directory
+
+Checksums generated via `sha256sum`:
+
+```bash
+sha256sum dn-linux-x64 dn-linux-arm64 dn-macos-x64 dn-macos-arm64 dn-windows-x64.exe > checksums.txt
+```
+
+Binary Naming Format: `dn-{os}-{arch}` where:
+
+- `os`: `linux`, `macos`, `windows`
+- `arch`: `x64`, `arm64`
+
+### Adding New Platforms
+
+1. Add target to `.github/workflows/release.yml` matrix
+2. Update `compile_dn.sh` if needed
+3. Update `install.sh` with detection logic
+4. Update Homebrew formula with URL and SHA256
+
+### Release Job
+
+After all builds complete, the release job:
+
+1. Downloads all artifacts
+2. Generates SHA256 checksums via `sha256sum` into `checksums.txt`
+3. Uploads all binaries and `checksums.txt` to the GitHub release using
+   `softprops/action-gh-release@v2` with `generate_release_notes: true`
 
 ## Debugging
 
-This section reflects the current kickstart debugging behavior.
+When running kickstart workflows, debug files are preserved in temporary
+directories with prefixes like `geo-opencode-`, `geo-prep-`, `geo-fixup-`, or
+`dn-score-`. By default, these directories are deleted on success and kept on
+failure.
 
-When running kickstart workflows, debug files are preserved in
-`/tmp/geo-opencode-{pid}/`:
+Set `SAVE_CTX=1` to preserve debug files on success as well.
 
-- `combined_prompt.txt` - Full prompt sent to opencode
-- `opencode_stdout.txt` - Standard output
-- `opencode_stderr.txt` - Standard error
-- `issue-context.md` - Formatted issue context
+### Debug files by phase
 
-Set `SAVE_CTX=1` to preserve debug files on success.
+Different workflow phases write different debug files to the temp directory:
+
+| File                            | Phase(s)               | Purpose                                  |
+| ------------------------------- | ---------------------- | ---------------------------------------- |
+| `combined_prompt_plan.txt`      | plan                   | Full combined prompt for plan phase      |
+| `combined_prompt_implement.txt` | implement, loop, fixup | Full combined prompt for implement phase |
+| `combined_prompt_prep.txt`      | prep                   | Full combined prompt for prep phase      |
+| `combined_prompt_merge.txt`     | merge                  | Full combined prompt for merge phase     |
+| `plan_output.txt`               | plan, fixup            | Plan phase output                        |
+| `plan_stdout.txt`               | plan                   | Plan phase stdout                        |
+| `plan_stderr.txt`               | plan                   | Plan phase stderr                        |
+| `implement_stdout.txt`          | implement              | Implement phase stdout                   |
+| `implement_stderr.txt`          | implement              | Implement phase stderr                   |
+| `issue-context.md`              | plan, prep             | Formatted GitHub issue context           |
+| `system.prompt.plan.md`         | plan                   | Plan system prompt                       |
+| `system.prompt.implement.md`    | implement              | Implement system prompt                  |
+| `system.prompt.prep.md`         | prep                   | Prep system prompt                       |
+| `system.prompt.merge.md`        | merge                  | Merge system prompt                      |
+| `system.prompt.fixup.md`        | fixup                  | Fixup system prompt                      |
+
+### Combined prompt structure
+
+Each `combined_prompt_*.txt` file is assembled from multiple sources in order,
+separated by `---`:
+
+1. System prompt (phase-specific)
+2. `AGENTS.md` (if present in project root)
+3. `deno.json` (if present in project root)
+4. Previous plan content (in continuation mode)
+5. Plan output (in implement phase)
+6. Issue context (when fetched from GitHub)
+
+### On failure
+
+When a kickstart workflow fails, debug file paths are printed to stderr:
+
+```
+Debug information:
+  - Temp directory: /var/folders/xx/geo-opencode-xxxxx
+  - Plan prompt: /var/folders/xx/geo-opencode-xxxxx/combined_prompt_plan.txt
+  - Implement prompt: /var/folders/xx/geo-opencode-xxxxx/combined_prompt_implement.txt
+  - Plan output: /var/folders/xx/geo-opencode-xxxxx/plan_output.txt
+  - Issue context: /var/folders/xx/geo-opencode-xxxxx/issue-context.md
+
+Debug files preserved in: /var/folders/xx/geo-opencode-xxxxx
+Set SAVE_CTX=1 to preserve files on success as well.
+```
