@@ -23,6 +23,14 @@ complete.
 - [x] dn release: add tests for release module (api, assets, create)
 - [x] dn release: support --latest=false flag syntax (currently only --latest
       false works)
+- [x] refactor github actions workflows to use `dn issue comment` instead of
+      `actions/github-script@v7` and external reusable workflows
+- [x] add `GITHUB_REPOSITORY` env var support to `getCurrentRepoFromRemote()` so
+      dn works in CI without checkout
+- [ ] update fixtures from plans directory, maybe generate some new ones first
+- [ ] sdk directory is organized weird, should be better organized by domain
+- [ ] add script to the root of the repo to install dn from jsr before moving dn
+      out of repo
 
 ## What is a good plan?
 

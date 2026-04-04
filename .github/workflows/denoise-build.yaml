@@ -24,16 +24,17 @@ jobs:
         github.event.sender.association == 'COLLABORATOR')
     runs-on: ubuntu-latest
     steps:
+      - name: Install dn
+        uses: chesapeake/dn-action@v1
+
       - name: Explain maintainer-only label
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: "Thanks for the request! The `denoise-build` label can only be used by project maintainers because it consumes resources. A maintainer can re-apply the label if they decide to proceed."
-            });
+        run: |
+          cat > /tmp/comment.md << 'EOF'
+          Thanks for the request! The `denoise-build` label can only be used by project maintainers because it consumes resources. A maintainer can re-apply the label if they decide to proceed.
+          EOF
+          dn issue comment ${{ github.event.issue.number }} --body-file /tmp/comment.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build:
     if: >
@@ -58,6 +59,9 @@ jobs:
         uses: denoland/setup-deno@v1
         with:
           deno-version: ">=2.6.3"
+
+      - name: Install dn
+        uses: chesapeake/dn-action@v1
 
       - name: Capture issue metadata
         id: issue
@@ -93,3 +97,54 @@ jobs:
           fi
 
           exit ${EXIT_CODE:-0}
+
+  comment:
+    needs: build
+    if: always() && needs.build.result != 'skipped'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install dn
+        uses: chesapeake/dn-action@v1
+
+      - name: Post kickstart results
+        run: |
+          SUCCESS="${{ needs.build.outputs.success }}"
+          PR_URL="${{ needs.build.outputs.pr_url }}"
+          OUTPUT="${{ needs.build.outputs.output }}"
+
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            LABELER="${{ github.actor }}"
+            TRIGGER="workflow dispatch"
+          else
+            LABELER="${{ github.event.sender.login }}"
+            TRIGGER="\`denoise-build\` label"
+          fi
+
+          if [ "$SUCCESS" = "true" ]; then
+            STATUS="✅ Success"
+          else
+            STATUS="❌ Failed"
+          fi
+
+          {
+            echo "## Denoise Build"
+            echo ""
+            echo "**Triggered by:** @$LABELER via $TRIGGER"
+            echo "**Status:** $STATUS"
+            echo ""
+            if [ -n "$PR_URL" ]; then
+              echo "**PR:** $PR_URL"
+              echo ""
+            fi
+            echo "<details>"
+            echo "<summary>Output</summary>"
+            echo ""
+            echo '```'
+            echo "$OUTPUT"
+            echo '```'
+            echo "</details>"
+          } > /tmp/comment.md
+
+          dn issue comment ${{ needs.build.outputs.issue_number }} --body-file /tmp/comment.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

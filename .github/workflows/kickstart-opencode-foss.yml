@@ -18,16 +18,17 @@ jobs:
         github.event.sender.association == 'COLLABORATOR')
     runs-on: ubuntu-latest
     steps:
+      - name: Install dn
+        uses: chesapeake/dn-action@v1
+
       - name: Explain maintainer-only label
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: "Thanks for the request! The `opencode awp` label can only be used by project maintainers because it consumes paid tokens. A maintainer can re-apply the label if they decide to proceed."
-            });
+        run: |
+          cat > /tmp/comment.md << 'EOF'
+          Thanks for the request! The `opencode awp` label can only be used by project maintainers because it consumes paid tokens. A maintainer can re-apply the label if they decide to proceed.
+          EOF
+          dn issue comment ${{ github.event.issue.number }} --body-file /tmp/comment.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   kickstart:
     if: >
@@ -89,15 +90,43 @@ jobs:
   comment:
     needs: kickstart
     if: always() && needs.kickstart.result != 'skipped'
-    uses: dn-actions/.github/workflows/kickstart-comment.yml@v1
-    with:
-      issue_number: ${{ needs.kickstart.outputs.issue_number }}
-      issue_url: ${{ needs.kickstart.outputs.issue_url }}
-      kickstart_title: opencode
-      trigger_source: issue_label
-      label_name: opencode awp
-      labeler: ${{ github.event.sender.login }}
-      success: ${{ needs.kickstart.outputs.success }}
-      pr_url: ${{ needs.kickstart.outputs.pr_url }}
-      output: ${{ needs.kickstart.outputs.output }}
-    secrets: inherit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install dn
+        uses: chesapeake/dn-action@v1
+
+      - name: Post kickstart results
+        run: |
+          SUCCESS="${{ needs.kickstart.outputs.success }}"
+          PR_URL="${{ needs.kickstart.outputs.pr_url }}"
+          OUTPUT="${{ needs.kickstart.outputs.output }}"
+          LABELER="${{ github.event.sender.login }}"
+
+          if [ "$SUCCESS" = "true" ]; then
+            STATUS="✅ Success"
+          else
+            STATUS="❌ Failed"
+          fi
+
+          {
+            echo "## Kickstart (opencode)"
+            echo ""
+            echo "**Triggered by:** @$LABELER via \`opencode awp\` label"
+            echo "**Status:** $STATUS"
+            echo ""
+            if [ -n "$PR_URL" ]; then
+              echo "**PR:** $PR_URL"
+              echo ""
+            fi
+            echo "<details>"
+            echo "<summary>Output</summary>"
+            echo ""
+            echo '```'
+            echo "$OUTPUT"
+            echo '```'
+            echo "</details>"
+          } > /tmp/comment.md
+
+          dn issue comment ${{ needs.kickstart.outputs.issue_number }} --body-file /tmp/comment.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

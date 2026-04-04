@@ -514,6 +514,15 @@ export async function getCurrentRepoFromRemote(): Promise<{
   owner: string;
   repo: string;
 }> {
+  // Check GITHUB_REPOSITORY env var first (GitHub Actions)
+  const githubRepo = Deno.env.get("GITHUB_REPOSITORY");
+  if (githubRepo) {
+    const parts = githubRepo.split("/");
+    if (parts.length === 2 && parts[0] && parts[1]) {
+      return { owner: parts[0], repo: parts[1] };
+    }
+  }
+
   // Try sapling first - only catch command execution errors, not GraphQL verification errors
   let saplingPath: string | null = null;
   try {
