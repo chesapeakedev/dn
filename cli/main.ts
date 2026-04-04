@@ -25,6 +25,7 @@ import { handlePrep } from "./prep.ts";
 import { handleGlance } from "./glance.ts";
 import { handleTodo } from "./todo.ts";
 import { handleTidy } from "./tidy.ts";
+import { handleRelease } from "./release.ts";
 
 /**
  * Parses global flags from args and returns bootstrap options plus remaining args.
@@ -74,7 +75,8 @@ function showUsage(): void {
   console.error("  dn meld [options] <source> [source ...]");
   console.error("  dn archive [options] <plan_file.plan.md>");
   console.error("  dn todo done [ref]");
-  console.error("  dn tidy\n");
+  console.error("  dn tidy");
+  console.error("  dn release <subcommand> [options]\n");
   console.error("Subcommands:");
   console.error(
     "  auth         Sign in to GitHub in the browser (caches token for dn)",
@@ -108,7 +110,10 @@ function showUsage(): void {
     "  todo         Manage prioritized task list (~/.dn/todo.md); 'done' marks item and closes issue",
   );
   console.error(
-    "  tidy         Groom todo list: re-fetch issues, re-score, update ~/.dn/todo.md\n",
+    "  tidy         Groom todo list: re-fetch issues, re-score, update ~/.dn/todo.md",
+  );
+  console.error(
+    "  release      Manage GitHub releases (create, list, view, delete)\n",
   );
   console.error(
     "Use 'dn <subcommand> --help' for subcommand-specific options.",
@@ -177,6 +182,10 @@ async function main(): Promise<void> {
       break;
     case "tidy":
       await handleTidy(subcommandArgs);
+      break;
+    case "release":
+    case "releases":
+      await handleRelease(subcommandArgs);
       break;
     case "--help":
     case "-h":

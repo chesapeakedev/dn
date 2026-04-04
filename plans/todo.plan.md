@@ -19,6 +19,10 @@ complete.
 - [ ] sdk directory is organized weird, should be better organized by domain
 - [ ] add script to the root of the repo to install dn from jsr before moving dn
       out of repo
+- [ ] dn release: implement list, view, edit, delete subcommands
+- [ ] dn release: add tests for release module (api, assets, create)
+- [ ] dn release: support --latest=false flag syntax (currently only --latest
+      false works)
 
 ## What is a good plan?
 
