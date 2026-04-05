@@ -129,22 +129,49 @@ Sets up GitHub Actions workflow infrastructure for triggering `dn kickstart` via
 issue labels:
 
 ```bash
+# Interactive mode (prompts for agent selection)
 dn init-build
+
+# Specify agent directly
+dn init-build --agent cursor
+dn init-build --agent claude
+dn init-build --agent opencode
+
+# Clear stored agent preference for this repo
+dn init-build --reset
 ```
 
 This command:
 
-1. Creates `.github/workflows/denoise-build.yaml`
+1. Creates `.github/workflows/denoise-build.yaml` with the selected agent
 2. Creates the `denoise-build` GitHub label in your repository
+3. Stores your agent preference in `~/.dn/config.json` for future runs
 
-After setup, you can trigger builds by:
+### Agent Selection
 
-- Adding the `denoise-build` label to any GitHub issue
+Supported agents:
+
+- **`opencode`** (default) - Uses OpenAI API, requires `OPENAI_API_KEY` secret
+- **`cursor`** - Uses Cursor's headless agent, requires `CURSOR_API_KEY` secret
+- **`claude`** - Uses Anthropic Claude Code, requires `ANTHROPIC_API_KEY` secret
+
+After setup, the command prints instructions for adding the required API key as
+a GitHub repository secret:
+
+```bash
+gh secret set CURSOR_API_KEY --body "your-key"
+```
+
+### Trigger Methods
+
+After setup, trigger builds by:
+
+- Adding the `denoise-build` label to any GitHub issue (maintainers only)
 - Clicking "Run workflow" in GitHub Actions and providing an issue URL
 
 Only repository maintainers (owners, members, collaborators) can trigger builds.
 
-See `dn init build --help` for all options.
+See `dn init-build --help` for all options.
 
 ## `dn glance` — Project velocity & reports
 

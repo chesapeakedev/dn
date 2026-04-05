@@ -1,6 +1,6 @@
 {
   "name": "@chesapeake/dn",
-  "version": "0.0.17",
+  "version": "0.0.18",
   "description": "dn cli",
   "exports": {
     ".": "./sdk/mod.ts"

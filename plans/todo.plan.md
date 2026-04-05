@@ -27,6 +27,16 @@ complete.
 - [x] add `GITHUB_REPOSITORY` env var support to `getCurrentRepoFromRemote()` so
       dn works in CI without checkout
 
+## Unfinished: dn init-build enhancements
+
+- [x] Create `sdk/auth/config.ts` - Load/save agent preference to
+      `~/.dn/config.json`
+- [x] Modify `cli/init-build.ts` - Add agent selection, generate workflow with
+      hardcoded agent, output secrets instructions
+- [x] Update `.github/templates/denoise-build.yaml` - Simplify (remove agent
+      dropdown)
+- [x] Run lint/typecheck before finalizing
+
 ## What is a good plan?
 
 - executive summary

@@ -23,16 +23,34 @@ jobs:
         run: dn --awp --opencode "${{ github.event.issue.html_url }}"
 ```
 
-## Using `dn init build`
+## Using `dn init-build`
 
-`dn init build` scaffolds the full workflow for you:
+`dn init-build` scaffolds the full workflow for you:
 
 ```bash
-dn init build
+# Interactive mode (prompts for agent selection)
+dn init-build
+
+# Or specify agent directly
+dn init-build --agent cursor
+dn init-build --agent claude
+dn init-build --agent opencode
 ```
 
-It creates `.github/workflows/denoise-build.yaml` and a `denoise-build` label.
-Maintainers trigger builds by adding the label to any issue. See
+It creates `.github/workflows/denoise-build.yaml` (with your selected agent) and
+a `denoise-build` label. Maintainers trigger builds by adding the label to any
+issue. The generated workflow includes the agent-specific flag and required
+secret configuration.
+
+After running `dn init-build`, add the required API key as a repository secret:
+
+```bash
+gh secret set OPENAI_API_KEY --body "your-key"      # for opencode
+gh secret set CURSOR_API_KEY --body "your-key"      # for cursor
+gh secret set ANTHROPIC_API_KEY --body "your-key"    # for claude
+```
+
+See
 [`.github/templates/denoise-build.yaml`](.github/templates/denoise-build.yaml)
 for the full template.
 
