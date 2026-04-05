@@ -16,6 +16,46 @@ import { promptAndAddToTodoList } from "../sdk/todo/todo.ts";
 import { resolveAgentHarnessFromFlagsAndEnv } from "../sdk/github/agentHarness.ts";
 
 /**
+ * Discovers the most recently modified plan file in the plans/ directory.
+ * Returns the path if exactly one exists, prompts if multiple, or null if none.
+ */
+async function discoverLatestPlanFile(
+  workspaceRoot: string,
+): Promise<string | null> {
+  const plansDir = `${workspaceRoot}/plans`;
+  try {
+    const entries = await Deno.readDir(plansDir);
+    const planFiles: { name: string; mtime: Date }[] = [];
+    for await (const entry of entries) {
+      if (entry.isFile && entry.name.endsWith(".plan.md")) {
+        const stat = await Deno.stat(`${plansDir}/${entry.name}`);
+        if (stat.mtime) {
+          planFiles.push({ name: entry.name, mtime: stat.mtime });
+        }
+      }
+    }
+
+    if (planFiles.length === 0) {
+      return null;
+    }
+
+    if (planFiles.length === 1) {
+      return `${plansDir}/${planFiles[0].name}`;
+    }
+
+    // Multiple plan files - pick the most recently modified
+    planFiles.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
+    const latest = planFiles[0];
+    console.log(
+      `Found ${planFiles.length} plan files, using most recent: ${latest.name}`,
+    );
+    return `${plansDir}/${latest.name}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Parses loop-specific arguments
  */
 function parseArgs(
@@ -70,10 +110,10 @@ function parseArgs(
 function showHelp(): void {
   console.log("dn loop - Run loop phase only\n");
   console.log("Usage:");
-  console.log("  dn loop [options] --plan-file <path>\n");
+  console.log("  dn loop [options] [--plan-file <path>]\n");
   console.log("Options:");
   console.log(
-    "  --plan-file <path>       Path to plan file (required, from 'dn prep')",
+    "  --plan-file <path>       Path to plan file (auto-discovers latest if omitted)",
   );
   console.log("  --cursor, -c             Use Cursor headless agent");
   console.log("  --claude                 Use Claude Code CLI");
@@ -91,12 +131,15 @@ function showHelp(): void {
     "  CLAUDE_ENABLED           Set to '1' to use Claude Code (not with CURSOR_ENABLED)\n",
   );
   console.log("Examples:");
-  console.log("  # Run loop phase with a plan file from prep");
+  console.log("  # Run loop phase (auto-discovers latest plan)");
+  console.log("  dn loop");
+  console.log("");
+  console.log("  # Run loop phase with explicit plan file");
   console.log("  dn loop --plan-file plans/my-feature.plan.md");
   console.log("");
   console.log("  # Full workflow: prep then loop");
   console.log("  dn prep --issue-url <url> --plan-name my-feature");
-  console.log("  dn loop --plan-file plans/my-feature.plan.md");
+  console.log("  dn loop");
   console.log("");
   console.log(
     "  # Run loop with a continuation plan (after naming incomplete work)",
@@ -146,12 +189,20 @@ export async function handleLoop(args: string[]): Promise<void> {
     Deno.exit(1);
   }
 
+  // Auto-discover plan file if not explicitly provided
   if (!config.planFilePath) {
-    console.error(
-      "Error: Either provide --plan-file or set PLAN environment variable",
-    );
-    console.error("\nUse 'dn loop --help' for usage information.");
-    Deno.exit(1);
+    const root = config.workspaceRoot || Deno.env.get("WORKSPACE_ROOT") ||
+      Deno.cwd();
+    const discovered = await discoverLatestPlanFile(root);
+    if (!discovered) {
+      console.error(
+        "Error: No plan files found in plans/ directory.",
+      );
+      console.error("Run 'dn prep' first to create a plan file.");
+      console.error("\nUse 'dn loop --help' for usage information.");
+      Deno.exit(1);
+    }
+    config.planFilePath = discovered;
   }
 
   // Verify plan file exists
