@@ -132,4 +132,4 @@ bump_major:
 release:
 	@VERSION=$$(grep -o '"version": "[^"]*"' deno.json | cut -d'"' -f4); \
 	echo "Creating release for version $$VERSION"; \
-	gh release create "v$$VERSION" --title "v$$VERSION" --notes "Release v$$VERSION"
+	dn release create "v$$VERSION" --title "v$$VERSION"
