@@ -11,9 +11,25 @@ Teams already understand markdown as part of their change management process, so
 recording plans in the repo and making GitHub issues available to LLMs are easy
 ways to share context between teammates and models.
 
-`dn init build` makes it easy to kickoff agentic workflows in GitHub Actions
-with a `denoise-build` label. Maintainers trigger workflows by adding the label
-to any GitHub issue.
+## Features
+
+- **Issue Implementation Automation** — Run `dn kickstart <issue>` to read a
+  GitHub issue, build a plan, and implement changes end-to-end in one command
+- **Agent Agnostic** — Works with OpenCode (default), Cursor, or Claude Code;
+  switch agents with `--cursor` or `--claude` flags
+- **Issue Management** — Create, view, edit, close, and comment on GitHub issues
+  directly from the CLI: `dn issue create`, `dn issue show`, etc.
+- **Multi-Source Merging** — Combine multiple GitHub issues and local markdown
+  files into a single plan with `dn meld`
+- **PR Feedback Automation** — Address review feedback automatically with
+  `dn fixup <pr_url>` — fetches comments, creates a fix plan, and implements it
+- **Milestone Planning** — Initialize a prioritized task stack from a GitHub
+  milestone with `dn init stack <milestone>`; work through tasks in order
+- **Project Insights** — Quick velocity reports and trends with `dn glance`
+- **Commit Message Generation** — Derive clean commit messages from plan files
+  automatically with `dn archive`
+- **GitHub Actions Integration** — Trigger agentic workflows via the
+  `denoise-build` label on any issue (`dn init build`)
 
 ## Getting Started
 
@@ -110,31 +126,6 @@ Run `dn --help` for all subcommands. See
 [kickstart/README.md](kickstart/README.md) for kickstart, and
 [`docs/api.md`](docs/api.md) for programmatic SDK usage.
 
-### Basic Usage without GitHub
-
-```bash
-# Create a plan from a local markdown file
-dn prep ./plans/feature.md
-
-# Run the implementation loop using the generated plan
-PLAN=plans/feature.plan.md dn loop
-```
-
-### Basic Usage with GitHub
-
-```bash
-# All-in-one: read issue, build plan, implement
-dn kickstart https://github.com/org/repo/issues/123
-
-# Explicit phases: plan, review, then implement
-dn prep https://github.com/org/repo/issues/123
-$EDITOR plans/issue-123.plan.md
-dn loop --plan-file plans/issue-123.plan.md
-```
-
-See [`docs/github.md`](docs/github.md) for GitHub Actions CI integration
-examples.
-
 ### Melding Issues into a Plan
 
 `dn meld` merges one or more sources (local markdown files and/or GitHub issue
@@ -159,28 +150,6 @@ dn meld -o plans/combined.md --plan-name combined \
 
 This is especially useful for large efforts that evolve across multiple
 discussion threads.
-
-### Managing Issues
-
-`dn issue` provides CRUD operations for GitHub issues from the terminal.
-
-```bash
-dn issue list                          # List open issues
-dn issue list --state closed --limit 5 # List closed issues
-dn issue show 123                      # Show issue details and comments
-dn issue create --title "Bug" --body-file report.md
-dn issue edit 123 --title "New title"
-dn issue edit 123 --body-file revised.md
-dn issue close 123
-dn issue reopen 123
-dn issue comment 123 --body-file update.md
-```
-
-Run `dn issue <subcommand> --help` for full options. Agents should default to
-`comment` (append-only) over `edit` (replaces body) unless explicitly asked to
-rewrite the description. Both accept `--body-stdin` for short content and
-`--body-file <path>` for longer updates. Use `dn issue show <ref>` before
-editing to confirm current state.
 
 ### Markdown Plans Lifecycle
 
