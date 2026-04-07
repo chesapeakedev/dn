@@ -17,7 +17,50 @@ import { handleAuth } from "./auth.ts";
 import { bootstrapFromEnv } from "./output.ts";
 import { handleFixup } from "./fixup.ts";
 import { handleInitBuild } from "./init-build.ts";
+import { handleInitStack } from "./init-stack.ts";
 import { handleIssue } from "./issue.ts";
+
+async function handleInit(args: string[]): Promise<void> {
+  // Handle backwards compatibility: dn init-build -> treat as dn init build
+  if (args.length > 0 && args[0] === "init-build") {
+    args = ["build", ...args.slice(1)];
+  }
+
+  const subcommand = args[0];
+
+  if (subcommand === "build") {
+    await handleInitBuild(args.slice(1));
+    return;
+  }
+
+  if (subcommand === "stack") {
+    await handleInitStack(args.slice(1));
+    return;
+  }
+
+  if (
+    args.length === 0 || subcommand === "help" || subcommand === "--help" ||
+    subcommand === "-h"
+  ) {
+    console.log("dn init - Initialize repo context\n");
+    console.log("Usage:");
+    console.log("  dn init <subcommand> [options]\n");
+    console.log("Subcommands:");
+    console.log("  build    Setup GitHub Actions workflow for denoise");
+    console.log("  stack    Initialize stack context from GitHub milestone\n");
+    console.log("Examples:");
+    console.log("  dn init build");
+    console.log("  dn init stack --milestone 42");
+    console.log(
+      "  dn init stack --milestone https://github.com/owner/repo/milestone/3",
+    );
+    Deno.exit(0);
+  }
+
+  console.error(`Unknown init subcommand: ${subcommand}\n`);
+  console.error("Valid subcommands: build, stack");
+  Deno.exit(1);
+}
 import { handleKickstart } from "./kickstart.ts";
 import { handleLoop } from "./loop.ts";
 import { handleMeld } from "./meld.ts";
@@ -65,7 +108,7 @@ function showUsage(): void {
   console.error("dn - A CLI for kickstart-style workflows\n");
   console.error("Usage:");
   console.error("  dn auth");
-  console.error("  dn init-build");
+  console.error("  dn init <subcommand> [options]");
   console.error("  dn issue <subcommand> [options]");
   console.error("  dn kickstart [options] <issue_url_or_number>");
   console.error("  dn prep [options] <issue_url_or_number>");
@@ -82,7 +125,11 @@ function showUsage(): void {
     "  auth         Sign in to GitHub in the browser (caches token for dn)",
   );
   console.error(
-    "  init-build   Setup GitHub Actions workflow for denoise",
+    "  init         Initialize repo context (build, stack)",
+  );
+  console.error("    build      Setup GitHub Actions workflow for denoise");
+  console.error(
+    "    stack      Initialize stack context from GitHub milestone",
   );
   console.error(
     "  issue        Manage GitHub issues (list, show, create, edit, close, reopen, comment)",
@@ -149,8 +196,9 @@ async function main(): Promise<void> {
     case "auth":
       await handleAuth(subcommandArgs);
       break;
+    case "init":
     case "init-build":
-      await handleInitBuild(subcommandArgs);
+      await handleInit(subcommandArgs);
       break;
     case "issue":
     case "issues":

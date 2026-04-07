@@ -123,22 +123,26 @@ dn auth
 Requires `DN_GITHUB_DEVICE_CLIENT_ID` (or `GITHUB_DEVICE_CLIENT_ID`) set to your
 GitHub OAuth App client ID. See [`docs/authentication.md`](authentication.md).
 
-## `dn init-build` — Setup GitHub Actions workflow
+## `dn init` — Initialize repository context
+
+Manages repository setup with two subcommands: `build` and `stack`.
+
+### `dn init build` — Setup GitHub Actions workflow
 
 Sets up GitHub Actions workflow infrastructure for triggering `dn kickstart` via
 issue labels:
 
 ```bash
 # Interactive mode (prompts for agent selection)
-dn init-build
+dn init build
 
 # Specify agent directly
-dn init-build --agent cursor
-dn init-build --agent claude
-dn init-build --agent opencode
+dn init build --agent cursor
+dn init build --agent claude
+dn init build --agent opencode
 
 # Clear stored agent preference for this repo
-dn init-build --reset
+dn init build --reset
 ```
 
 This command:
@@ -171,7 +175,77 @@ After setup, trigger builds by:
 
 Only repository maintainers (owners, members, collaborators) can trigger builds.
 
-See `dn init-build --help` for all options.
+See `dn init build --help` for all options.
+
+### `dn init stack` — Initialize stack from GitHub milestone
+
+Creates a prioritized task list from a GitHub milestone. The command:
+
+1. Fetches the milestone and all its open issues from GitHub
+2. Scores each issue for kickstart readiness (Fibonacci: 1, 2, 3, 5, 8)
+3. Creates `plans/{milestone-number}.plan.md` with sorted tasks (easiest first)
+4. Outputs instructions to commit the file to the repo
+
+```bash
+# Using milestone number
+dn init stack --milestone 42
+
+# Using full milestone URL
+dn init stack --milestone https://github.com/owner/repo/milestone/3
+```
+
+#### Plan File Format
+
+The generated plan file looks like:
+
+```markdown
+---
+milestone: 42
+repo: owner/repo
+updated: 2026-04-06
+---
+
+# Milestone: Q2 Features
+
+## Prioritized Tasks (easiest first)
+
+- [ ] 1 #45 Add login button
+- [ ] 2 #42 Fix auth redirect
+- [ ] 3 #41 Update API docs
+```
+
+#### Using with Kickstart
+
+Work on milestone tasks using `--milestone`:
+
+```bash
+# Work on the first unchecked task in milestone 42
+dn kickstart --milestone 42
+
+# Full workflow with AWP
+dn kickstart --awp --milestone 42
+```
+
+The milestone-aware kickstart reads from `plans/{milestone}.plan.md` and uses
+the first unchecked item as the task.
+
+#### Denoise Integration
+
+Commit the plan file to your repository to "link" it to the GitHub milestone:
+
+```bash
+sl add plans/42.plan.md
+sl commit -m "Add milestone 42 plan"
+sl push
+```
+
+When the plan file is in the repo, external tools (like Denoise) can read it to:
+
+1. Discover the milestone
+2. Show a button to trigger kickstart on the next unchecked task
+3. Execute `dn kickstart --awp --milestone <num>` for that issue
+
+See `dn init stack --help` for all options.
 
 ## `dn glance` — Project velocity & reports
 

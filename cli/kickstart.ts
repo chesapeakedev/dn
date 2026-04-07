@@ -24,6 +24,8 @@ import {
   listIssues,
 } from "../sdk/github/github-gql.ts";
 import { resolveAgentHarnessFromFlagsAndEnv } from "../sdk/github/agentHarness.ts";
+import { parseMilestoneUrl } from "../sdk/github/milestone.ts";
+import { parseFrontmatter } from "../sdk/todo/frontmatter.ts";
 
 const ISSUE_NUMBER_PATTERN = /^#?\d+$/;
 
@@ -49,6 +51,7 @@ function parseArgs(args: string[]): KickstartConfig {
   let allowCrossRepo = false;
   let savedPlanName: string | null = null;
   let workspaceRoot: string | undefined = undefined;
+  let milestone: string | undefined = undefined;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -64,6 +67,8 @@ function parseArgs(args: string[]): KickstartConfig {
       savedPlanName = args[++i];
     } else if (arg === "--workspace-root" && i + 1 < args.length) {
       workspaceRoot = args[++i];
+    } else if (arg === "--milestone" && i + 1 < args.length) {
+      milestone = args[++i];
     } else if (arg === "--help" || arg === "-h") {
       showHelp();
       Deno.exit(0);
@@ -96,6 +101,7 @@ function parseArgs(args: string[]): KickstartConfig {
     saveCtx,
     savedPlanName,
     workspaceRoot,
+    milestone,
   };
 }
 
@@ -123,6 +129,9 @@ function showHelp(): void {
   );
   console.log("  --cursor, -c              Use Cursor headless agent");
   console.log("  --claude                  Use Claude Code CLI (`claude -p`)");
+  console.log(
+    "  --milestone <url-or-num>  Use milestone-linked plan file (plans/{milestone}.plan.md)",
+  );
   console.log("  --saved-plan <name>      Use a specific plan name");
   console.log("  --workspace-root <path>  Workspace root directory");
   console.log("  --help, -h               Show this help message\n");
@@ -142,6 +151,7 @@ function showHelp(): void {
   console.log("  dn kickstart https://github.com/owner/repo/issues/123");
   console.log("  dn kickstart 123");
   console.log("  dn kickstart docs/spec.md");
+  console.log("  dn kickstart --milestone 42");
   console.log("  dn kickstart --awp --cursor <issue_url_or_number>");
   console.log("  dn kickstart --awp --claude <issue_url_or_number>");
   console.log("  ISSUE=<issue_url_or_number> dn kickstart");
@@ -163,6 +173,65 @@ async function runNoTicketFlow(
 ): Promise<KickstartConfig | null> {
   const workspaceRoot = config.workspaceRoot ??
     Deno.env.get("WORKSPACE_ROOT") ?? Deno.cwd();
+
+  if (config.milestone) {
+    const milestoneNum = config.milestone.match(/^\d+$/)
+      ? config.milestone
+      : parseMilestoneUrl(config.milestone)?.number.toString() ??
+        config.milestone;
+    const planPath = `${workspaceRoot}/plans/${milestoneNum}.plan.md`;
+
+    try {
+      const content = await Deno.readTextFile(planPath);
+      const { frontmatter, body } = parseFrontmatter(content);
+
+      const items: TodoItem[] = [];
+      for (const line of body.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        const match = trimmed.match(
+          /^-\s+\[([ xX])\]\s*(?:(\d+)\s+)?#?(\d+)\s+(.*)$/,
+        );
+        if (match) {
+          items.push({
+            checked: match[1].toLowerCase() === "x",
+            score: match[2] ? parseInt(match[2], 10) : undefined,
+            ref: match[3],
+            title: match[4].trim(),
+          });
+        }
+      }
+
+      const list = { meta: frontmatter, items };
+      const suggested = firstUnchecked(list);
+
+      if (!suggested) {
+        console.log(`No unchecked items in ${planPath}.`);
+        console.log(
+          "Run 'dn init stack --milestone <num>' to refresh the list.",
+        );
+        return null;
+      }
+
+      const ref = suggested.ref;
+      if (!promptYesNo(`Proceed with #${ref}?`)) {
+        console.error("Cancelled.");
+        return null;
+      }
+
+      return { ...config, issueUrl: `#${ref}`, contextMarkdownPath: undefined };
+    } catch (e) {
+      if (e instanceof Deno.errors.NotFound) {
+        console.error(`Plan file not found: ${planPath}`);
+        console.error(
+          "Run 'dn init stack --milestone <num>' first to create it.",
+        );
+        return null;
+      }
+      throw e;
+    }
+  }
+
   let list = await readTodoList();
   let suggested = firstUnchecked(list);
 
@@ -254,7 +323,7 @@ async function runNoTicketFlow(
  * Handles the kickstart subcommand
  */
 export async function handleKickstart(args: string[]): Promise<void> {
-  let config: KickstartConfig;
+  let config: KickstartConfig & { milestone?: string };
   try {
     config = parseArgs(args);
   } catch (e) {

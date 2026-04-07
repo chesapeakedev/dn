@@ -28,7 +28,7 @@ function createGithubClient(token: string): ObsidianClient {
 /**
  * Get a GitHub GraphQL client using the central token resolver (env → gh → cached).
  */
-async function getClient(): Promise<ObsidianClient> {
+export async function getClient(): Promise<ObsidianClient> {
   const token = await resolveGitHubToken();
   return createGithubClient(token);
 }
@@ -58,7 +58,7 @@ function isAuthError(result: {
 /**
  * Handle GraphQL errors and throw user-friendly messages.
  */
-function handleGraphQLErrors(
+export function handleGraphQLErrors(
   result: {
     data?: unknown;
     errors?: Array<{ message?: string; extensions?: { code?: string } }>;

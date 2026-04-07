@@ -26,6 +26,7 @@ complete.
       `actions/github-script@v7` and external reusable workflows
 - [x] add `GITHUB_REPOSITORY` env var support to `getCurrentRepoFromRemote()` so
       dn works in CI without checkout
+- [ ] submit pr to homebrew to grab "brew install dn"
 
 ## Unfinished: dn init-build enhancements
 

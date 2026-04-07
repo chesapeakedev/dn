@@ -1,0 +1,276 @@
+// Copyright 2026 Chesapeake Computing
+// SPDX-License-Identifier: Apache-2.0
+
+import { resolveGitHubToken } from "../sdk/github/token.ts";
+import {
+  getMilestoneFromInput,
+  listOpenMilestones,
+  type Milestone,
+} from "../sdk/github/milestone.ts";
+import { runScoring } from "../kickstart/score.ts";
+import { resolveAgentHarnessFromFlagsAndEnv } from "../sdk/github/agentHarness.ts";
+import { stringifyFrontmatter } from "../sdk/todo/frontmatter.ts";
+
+interface InitStackConfig {
+  milestone: string | null;
+  reset: boolean;
+  help: boolean;
+}
+
+function showHelp(): void {
+  console.log(
+    "dn init stack - Initialize stack context from GitHub milestone\n",
+  );
+  console.log("Usage:");
+  console.log("  dn init stack [options]\n");
+  console.log("Options:");
+  console.log(
+    "  --milestone <url-or-number>  GitHub milestone URL or number (required)",
+  );
+  console.log("  --reset                      Clear any stored context");
+  console.log("  --help, -h                   Show this help message\n");
+  console.log("Examples:");
+  console.log("  dn init stack --milestone 42");
+  console.log(
+    "  dn init stack --milestone https://github.com/owner/repo/milestone/3\n",
+  );
+  console.log("This command:");
+  console.log("  1. Fetches the GitHub milestone and its open issues");
+  console.log("  2. Scores each issue for kickstart readiness");
+  console.log(
+    "  3. Creates plans/{milestone-number}.plan.md with prioritized tasks",
+  );
+  console.log("  4. Output instructions to commit the plan file to the repo");
+}
+
+function parseArgs(args: string[]): InitStackConfig {
+  const config: InitStackConfig = {
+    milestone: null,
+    reset: false,
+    help: false,
+  };
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--help" || arg === "-h") {
+      config.help = true;
+    } else if (arg === "--reset") {
+      config.reset = true;
+    } else if (arg === "--milestone" && i + 1 < args.length) {
+      config.milestone = args[++i];
+    }
+  }
+
+  return config;
+}
+
+function isTty(): boolean {
+  try {
+    return Deno.stderr.isTerminal();
+  } catch {
+    return false;
+  }
+}
+
+async function detectRepoRoot(): Promise<string> {
+  const cwd = Deno.cwd();
+
+  try {
+    await Deno.stat(`${cwd}/.sl`);
+    return cwd;
+  } catch {
+    // Not sapling
+  }
+
+  try {
+    await Deno.stat(`${cwd}/.git`);
+    return cwd;
+  } catch {
+    // Not git either
+  }
+
+  throw new Error(
+    "Not in a git or sapling repository. Please run from a repository with a GitHub remote.",
+  );
+}
+
+function formatPlanFile(
+  milestone: Milestone,
+  owner: string,
+  repo: string,
+  scored: Array<{ ref: string; title: string; score: number | undefined }>,
+): string {
+  const today = new Date().toISOString().slice(0, 10);
+
+  const frontmatter: Record<string, string> = {
+    milestone: String(milestone.number),
+    repo: `${owner}/${repo}`,
+    updated: today,
+  };
+
+  const lines: string[] = [];
+  lines.push(`# Milestone: ${milestone.title}`);
+  lines.push("");
+  lines.push("## Prioritized Tasks (easiest first)");
+  lines.push("");
+
+  for (const item of scored) {
+    const check = item.score != null ? ` ${item.score}` : "";
+    lines.push(`- [ ]${check} #${item.ref} ${item.title}`);
+  }
+
+  if (milestone.description) {
+    lines.push("");
+    lines.push("---");
+    lines.push("");
+    lines.push(milestone.description);
+  }
+
+  return stringifyFrontmatter(frontmatter, lines.join("\n"));
+}
+
+export async function handleInitStack(args: string[]): Promise<void> {
+  const config = parseArgs(args);
+
+  if (config.help) {
+    showHelp();
+    return;
+  }
+
+  console.log("Initializing stack context from GitHub milestone...\n");
+
+  const repoRoot = await detectRepoRoot();
+  console.log(`Repository root: ${repoRoot}`);
+
+  try {
+    await resolveGitHubToken();
+  } catch {
+    throw new Error(
+      "GitHub authentication required. Run 'dn auth' first or ensure gh is logged in.",
+    );
+  }
+
+  let milestoneInput = config.milestone;
+
+  if (!milestoneInput) {
+    const { owner, repo } = await import("../sdk/github/github-gql.ts").then(
+      (m) => m.getCurrentRepoFromRemote(),
+    );
+    const milestones = await listOpenMilestones(owner, repo);
+
+    if (milestones.length === 0) {
+      throw new Error(
+        `No open milestones found in ${owner}/${repo}. Create a milestone first on GitHub.`,
+      );
+    }
+
+    console.log("Select a milestone:");
+    for (let i = 0; i < milestones.length; i++) {
+      const m = milestones[i];
+      console.log(
+        `  ${i + 1}) #${m.number} ${m.title}${
+          m.dueOn ? ` (due: ${m.dueOn.slice(0, 10)})` : ""
+        }`,
+      );
+    }
+    console.log("");
+
+    const tty = isTty();
+    if (!tty) {
+      throw new Error(
+        "No milestone specified and not in interactive mode. Use --milestone flag.",
+      );
+    }
+
+    const input = prompt("Enter number (or milestone URL/number):")?.trim();
+    if (!input) {
+      throw new Error("No milestone selected.");
+    }
+
+    const numMatch = input.match(/^(\d+)$/);
+    if (numMatch && parseInt(numMatch[1], 10) <= milestones.length) {
+      const idx = parseInt(numMatch[1], 10) - 1;
+      milestoneInput = String(milestones[idx].number);
+    } else {
+      milestoneInput = input;
+    }
+  }
+
+  console.log(`Fetching milestone: ${milestoneInput}`);
+  const { milestone, owner, repo } = await getMilestoneFromInput(
+    milestoneInput,
+  );
+
+  if (milestone.issues.length === 0) {
+    console.log("No open issues found in this milestone.");
+    console.log("Add issues to the milestone on GitHub, then run this again.");
+    return;
+  }
+
+  console.log(
+    `Found ${milestone.issues.length} open issues in milestone #${milestone.number}`,
+  );
+
+  const withBodies = milestone.issues.map((i) => ({
+    ref: String(i.number),
+    title: i.title,
+    body: i.body,
+  }));
+
+  const agentHarness = resolveAgentHarnessFromFlagsAndEnv({
+    cursorFlag: false,
+    claudeFlag: false,
+  });
+
+  console.log("Scoring issues for kickstart readiness...");
+  const scoring = await runScoring(
+    repoRoot,
+    withBodies,
+    [],
+    agentHarness,
+  );
+
+  const scored = scoring.scored
+    .filter((s) => !s.disqualified && s.score != null)
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+
+  if (scored.length === 0) {
+    console.log("No issues scored - all were disqualified.");
+    console.log("Make sure issues have clear acceptance criteria.");
+    return;
+  }
+
+  const scoredItems = scored.map((s) => {
+    const issue = withBodies.find((i) => i.ref === s.ref);
+    return {
+      ref: s.ref,
+      title: issue?.title ?? s.ref,
+      score: s.score,
+    };
+  });
+
+  const planPath = `${repoRoot}/plans/${milestone.number}.plan.md`;
+
+  try {
+    await Deno.mkdir(`${repoRoot}/plans`, { recursive: true });
+  } catch {
+    // Directory may already exist
+  }
+
+  const content = formatPlanFile(milestone, owner, repo, scoredItems);
+  await Deno.writeTextFile(planPath, content);
+
+  console.log(`\nCreated: ${planPath}`);
+  console.log("");
+  console.log("Next steps:");
+  console.log(`  1. Review and commit the plan file:`);
+  console.log(`     sl add plans/${milestone.number}.plan.md`);
+  console.log(`     sl commit -m "Add milestone ${milestone.number} plan"`);
+  console.log(
+    `  2. Run 'dn kickstart --milestone ${milestone.number}' to start working`,
+  );
+  console.log("");
+  console.log(
+    "To trigger from a linked interface, commit this file to the repo.",
+  );
+}

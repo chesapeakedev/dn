@@ -310,6 +310,8 @@ export interface KickstartConfig {
   savedPlanName: string | null;
   /** Workspace root directory (defaults to cwd) */
   workspaceRoot?: string;
+  /** Milestone number or URL to use milestone-linked plan file */
+  milestone?: string;
 }
 
 /**
