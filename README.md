@@ -1,15 +1,19 @@
 # dn
 
-`dn` is a CLI for running workflows with existing LLM agents. `dn` can be used
-as a tool or subagent by other agent harnesses like opencode and cursor. the
-goal of `dn` is to increase your velocity as an individual contributor in a team
-setting.
+`dn` is a tool for enhancing agentic workflows with existing popular agents.
+`dn` can be also used as a subagent to interact with github & local filesystem
+context. The goal of `dn` is to increase your velocity as an individual
+contributor in a team setting.
 
 `dn` intentionally lacks a conversational or session-based interface. Instead,
-it uses plan files as high-impact, model-agnostic filesystem context. Teams
-already understand markdown as part of their change management process, so
+it focuses on plan files as high-impact, model-agnostic filesystem context.
+Teams already understand markdown as part of their change management process, so
 recording plans in the repo and making GitHub issues available to LLMs are easy
 ways to share context between teammates and models.
+
+`dn init build` makes it easy to kickoff agentic workflows in GitHub Actions
+with a `denoise-build` label. Maintainers trigger workflows by adding the label
+to any GitHub issue.
 
 ## Getting Started
 
@@ -99,14 +103,14 @@ See [docs/claude.md](docs/claude.md) for GitHub Actions and troubleshooting.
 Plan files are agent-agnostic; `dn meld` modes apply last-mile formatting and
 choose which CLI runs the plan phase.
 
-## Detailed Usage
+## In-Depth Usage
 
 Run `dn --help` for all subcommands. See
 [`docs/subcommands.md`](docs/subcommands.md) for detailed docs,
 [kickstart/README.md](kickstart/README.md) for kickstart, and
 [`docs/api.md`](docs/api.md) for programmatic SDK usage.
 
-### Basic CLI Usage without GitHub
+### Basic Usage without GitHub
 
 ```bash
 # Create a plan from a local markdown file
@@ -155,17 +159,6 @@ dn meld -o plans/combined.md --plan-name combined \
 
 This is especially useful for large efforts that evolve across multiple
 discussion threads.
-
-### Fixing Up a PR
-
-`dn fixup` addresses pull request feedback locally. Given a PR URL, it fetches
-the description and all review comments, creates a plan to address the feedback,
-and implements fixes in your workspace.
-
-```bash
-# Address PR feedback
-dn fixup https://github.com/org/repo/pull/456
-```
 
 ### Managing Issues
 
