@@ -6,7 +6,7 @@ commands, or manual dispatches.
 ## Quick setup
 
 The recommended way to install `dn` in GitHub Actions is with the
-[chesapeake/dn-action](https://github.com/chesapeake/dn-action) composite
+[chesapeakedev/dn-action](https://github.com/chesapeakedev/dn-action) composite
 action:
 
 ```yaml
@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install dn
-        uses: chesapeake/dn-action@v1
+        uses: chesapeakedev/dn-action@v1
 
       - name: Run kickstart
         run: dn --awp --opencode "${{ github.event.issue.html_url }}"
@@ -56,7 +56,7 @@ for the full template.
 
 ## Manual workflow setup
 
-If you write a workflow from scratch, use `chesapeake/dn-action` after
+If you write a workflow from scratch, use `chesapeakedev/dn-action` after
 `actions/checkout`:
 
 ```yaml
@@ -81,7 +81,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install dn
-        uses: chesapeake/dn-action@v1
+        uses: chesapeakedev/dn-action@v1
 
       - name: Run dn kickstart
         env:
@@ -108,7 +108,7 @@ jobs:
 Pin to a specific release to avoid unexpected updates:
 
 ```yaml
-- uses: chesapeake/dn-action@v1
+- uses: chesapeakedev/dn-action@v1
   with:
     version: "1.2.3"
 ```
@@ -127,7 +127,7 @@ Also add the relevant API key as a repository secret (e.g., `OPENAI_API_KEY`,
 ## Reusable workflows
 
 This repository provides reusable workflows in
-[`dn-actions/.github/workflows/`](https://github.com/chesapeake/dn-actions):
+[`dn-actions/.github/workflows/`](https://github.com/chesapeakedev/dn-actions):
 
 | Workflow                | Purpose                                                        |
 | ----------------------- | -------------------------------------------------------------- |
@@ -154,7 +154,7 @@ comment:
 
 ## Platforms
 
-`chesapeake/dn-action` supports:
+`chesapeakedev/dn-action` supports:
 
 | OS      | Arch  | Binary               |
 | ------- | ----- | -------------------- |
@@ -173,6 +173,6 @@ For other platforms, install from source:
 
 - name: Install dn from source
   run: |
-    deno compile --allow-all -o dn https://esm.sh/chesapeake/dn/cli/main.ts
+    deno compile --allow-all -o dn https://esm.sh/chesapeakedev/dn/cli/main.ts
     echo "$PWD" >> $GITHUB_PATH
 ```

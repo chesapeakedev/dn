@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install dn
-        uses: chesapeake/dn-action@v1
+        uses: chesapeakedev/dn-action@v1
 
       - name: Explain maintainer-only label
         run: |
@@ -61,7 +61,7 @@ jobs:
           deno-version: ">=2.6.3"
 
       - name: Install dn
-        uses: chesapeake/dn-action@v1
+        uses: chesapeakedev/dn-action@v1
 
       - name: Capture issue metadata
         id: issue
@@ -104,7 +104,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install dn
-        uses: chesapeake/dn-action@v1
+        uses: chesapeakedev/dn-action@v1
 
       - name: Post kickstart results
         run: |

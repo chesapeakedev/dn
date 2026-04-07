@@ -27,8 +27,8 @@ to any GitHub issue.
 ### Install by Downloading a Binary
 
 Pre-built binaries are available on the
-[GitHub Releases page](https://github.com/chesapeake/dn/releases). Download the
-binary for your platform and place it in your `PATH`.
+[GitHub Releases page](https://github.com/chesapeakedev/dn/releases/latest).
+Download the binary for your platform and place it in your `PATH`.
 
 | Platform              | Binary               |
 | --------------------- | -------------------- |
@@ -40,7 +40,7 @@ binary for your platform and place it in your `PATH`.
 
 ```bash
 # Example: install on macOS (Apple Silicon)
-curl -L -o dn https://github.com/chesapeake/dn/releases/latest/download/dn-macos-arm64
+curl -L -o dn https://github.com/chesapeakedev/dn/releases/latest/download/dn-macos-arm64
 chmod +x dn
 sudo mv dn /usr/local/bin/dn
 ```
@@ -60,7 +60,7 @@ Binaries compiled from source (`make install`) are not blocked by Gatekeeper.
 [Deno](https://deno.com/) (>= 2.6.3) is required to build from source.
 
 ```bash
-git clone https://github.com/chesapeake/dn.git
+git clone https://github.com/chesapeakedev/dn.git
 cd dn
 make install
 ```

@@ -79,7 +79,7 @@ function generateWorkflow(agent: AgentHarness): string {
   lines.push("    runs-on: ubuntu-latest");
   lines.push("    steps:");
   lines.push("      - name: Install dn");
-  lines.push("        uses: chesapeake/dn-action@v1");
+  lines.push("        uses: chesapeakedev/dn-action@v1");
   lines.push("");
   lines.push("      - name: Explain maintainer-only label");
   lines.push("        run: |");
@@ -119,7 +119,7 @@ function generateWorkflow(agent: AgentHarness): string {
   lines.push('          deno-version: ">=2.6.3"');
   lines.push("");
   lines.push("      - name: Install dn");
-  lines.push("        uses: chesapeake/dn-action@v1");
+  lines.push("        uses: chesapeakedev/dn-action@v1");
   lines.push("");
   lines.push("      - name: Capture issue metadata");
   lines.push("        id: issue");
@@ -175,7 +175,7 @@ function generateWorkflow(agent: AgentHarness): string {
   lines.push("    runs-on: ubuntu-latest");
   lines.push("    steps:");
   lines.push("      - name: Install dn");
-  lines.push("        uses: chesapeake/dn-action@v1");
+  lines.push("        uses: chesapeakedev/dn-action@v1");
   lines.push("");
   lines.push("      - name: Post kickstart results");
   lines.push("        run: |");
