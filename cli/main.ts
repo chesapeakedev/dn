@@ -50,9 +50,9 @@ async function handleInit(args: string[]): Promise<void> {
     console.log("  stack    Initialize stack context from GitHub milestone\n");
     console.log("Examples:");
     console.log("  dn init build");
-    console.log("  dn init stack --milestone 42");
+    console.log("  dn init stack 42");
     console.log(
-      "  dn init stack --milestone https://github.com/owner/repo/milestone/3",
+      "  dn init stack https://github.com/owner/repo/milestone/3",
     );
     Deno.exit(0);
   }
