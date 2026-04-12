@@ -1485,7 +1485,18 @@ export async function fillEmptyIssueSections(
     const emptySections = parsed.sections.filter((s) => s.isEmpty);
     const nonEmptySections = parsed.sections.filter((s) => !s.isEmpty);
 
-    if (emptySections.length === 0) {
+    // Detect if sections are completely missing (no ## headers at all)
+    const noSectionsExist = parsed.sections.length === 0;
+
+    // If no sections exist, treat the entire description as "Current State" context
+    // and create the standard three-section template
+    if (noSectionsExist) {
+      console.log(
+        formatInfo(
+          "No issue template sections detected - will create template",
+        ),
+      );
+    } else if (emptySections.length === 0) {
       console.log(formatSuccess("All sections are already filled."));
       return {
         updated: false,
@@ -1495,21 +1506,25 @@ export async function fillEmptyIssueSections(
       };
     }
 
-    console.log(
-      formatInfo(
-        `Found ${emptySections.length} empty section(s): ${
-          emptySections.map((s) => s.header.replace("## ", "")).join(", ")
-        }`,
-      ),
-    );
-    if (nonEmptySections.length > 0) {
+    if (!noSectionsExist && emptySections.length > 0) {
       console.log(
         formatInfo(
-          `Preserving ${nonEmptySections.length} non-empty section(s): ${
-            nonEmptySections.map((s) => s.header.replace("## ", "")).join(", ")
+          `Found ${emptySections.length} empty section(s): ${
+            emptySections.map((s) => s.header.replace("## ", "")).join(", ")
           }`,
         ),
       );
+      if (nonEmptySections.length > 0) {
+        console.log(
+          formatInfo(
+            `Preserving ${nonEmptySections.length} non-empty section(s): ${
+              nonEmptySections.map((s) => s.header.replace("## ", "")).join(
+                ", ",
+              )
+            }`,
+          ),
+        );
+      }
     }
 
     // Step 3: Load system prompt and run LLM
@@ -1528,18 +1543,40 @@ export async function fillEmptyIssueSections(
         .join("\n\n");
 
       let issueContext = `# Issue #${issueData.number}: ${issueData.title}\n\n`;
-      issueContext += `## Empty Sections to Fill\n\n`;
-      for (const section of emptySections) {
-        issueContext += `-${
-          section.header.replace("## ", "")
-        } (currently empty)\n`;
+
+      // Handle case where no sections exist at all vs some empty sections
+      if (noSectionsExist) {
+        // No ## headers exist - need to create the template from scratch
+        // Use the issue description (frontmatter) as the basis
+        issueContext += `## Sections to Create and Fill\n\n`;
+        issueContext +=
+          `- Current State (create section and describe current situation)\n`;
+        issueContext +=
+          `- Expected State (create section and describe desired outcome)\n`;
+        issueContext +=
+          `- Additional Context (create section with relevant details)\n`;
+        issueContext += `\n## Issue Description\n\n`;
+        issueContext +=
+          "The issue has no template sections. Create the standard three-section template and fill in content based on the issue title and description above.\n\n";
+        // Use frontmatter as the "content" since there are no sections
+        issueContext += "```markdown\n";
+        issueContext += parsed.frontmatter || "(No description provided)";
+        issueContext += "\n```\n";
+      } else {
+        // Standard case: fill existing empty sections
+        issueContext += `## Empty Sections to Fill\n\n`;
+        for (const section of emptySections) {
+          issueContext += `-${
+            section.header.replace("## ", "")
+          } (currently empty)\n`;
+        }
+        issueContext += `\n## Current Issue Sections\n\n`;
+        issueContext +=
+          "Only fill the empty sections. Preserve section headers exactly.\n\n";
+        issueContext += "```markdown\n";
+        issueContext += originalSectionsOnly;
+        issueContext += "\n```\n";
       }
-      issueContext += `\n## Current Issue Sections\n\n`;
-      issueContext +=
-        "Only fill the empty sections. Preserve section headers exactly.\n\n";
-      issueContext += "```markdown\n";
-      issueContext += originalSectionsOnly;
-      issueContext += "\n```\n";
 
       await Deno.writeTextFile(issueContextPath, issueContext);
 
@@ -1612,35 +1649,74 @@ export async function fillEmptyIssueSections(
 
       // Parse the updated body to see which sections were filled
       const updatedParsed = parseIssueBody(updatedBody);
-      const filledSections = updatedParsed.sections
-        .filter((s) => {
-          const original = parsed.sections.find((o) => o.header === s.header);
-          return original?.isEmpty && !s.isEmpty;
-        })
-        .map((s) => s.header);
 
-      // Simple verification: check all original sections are present
-      const missingSections = parsed.sections
-        .filter((s) =>
-          !updatedParsed.sections.find((u) => u.header === s.header)
+      let filledSections: string[];
+      let skippedSections: string[];
+
+      if (noSectionsExist) {
+        // Verify that new sections were created when none existed before
+        const expectedHeaders = [
+          "## Current State",
+          "## Expected State",
+          "## Additional Context",
+        ];
+        const createdSections = updatedParsed.sections.filter((s) =>
+          expectedHeaders.includes(s.header)
         );
 
-      if (missingSections.length > 0) {
-        console.error(formatError("Verification failed:"));
-        console.error(
-          `  - Missing sections: ${
-            missingSections.map((s) => s.header).join(", ")
-          }`,
-        );
-        return {
-          updated: false,
-          body: issueData.body,
-          filledSections: [],
-          skippedSections: nonEmptySections.map((s) => s.header),
-          error: `Verification failed: Missing sections - ${
-            missingSections.map((s) => s.header).join(", ")
-          }`,
-        };
+        if (createdSections.length === 0) {
+          console.error(formatError("Verification failed:"));
+          console.error(
+            "  - No template sections were created from the issue description",
+          );
+          return {
+            updated: false,
+            body: issueData.body,
+            filledSections: [],
+            skippedSections: [],
+            error:
+              "Verification failed: No template sections were created. Expected Current State, Expected State, and Additional Context sections.",
+          };
+        }
+
+        filledSections = createdSections.map((s) => s.header);
+        skippedSections = [];
+      } else {
+        // Standard case: verify that empty sections were filled
+        filledSections = updatedParsed.sections
+          .filter((s) => {
+            const original = parsed.sections.find(
+              (o) => o.header === s.header,
+            );
+            return original?.isEmpty && !s.isEmpty;
+          })
+          .map((s) => s.header);
+
+        // Simple verification: check all original sections are present
+        const missingSections = parsed.sections
+          .filter((s) =>
+            !updatedParsed.sections.find((u) => u.header === s.header)
+          );
+
+        if (missingSections.length > 0) {
+          console.error(formatError("Verification failed:"));
+          console.error(
+            `  - Missing sections: ${
+              missingSections.map((s) => s.header).join(", ")
+            }`,
+          );
+          return {
+            updated: false,
+            body: issueData.body,
+            filledSections: [],
+            skippedSections: nonEmptySections.map((s) => s.header),
+            error: `Verification failed: Missing sections - ${
+              missingSections.map((s) => s.header).join(", ")
+            }`,
+          };
+        }
+
+        skippedSections = nonEmptySections.map((s) => s.header);
       }
 
       console.log(formatSuccess("Reassembly complete"));
@@ -1657,7 +1733,7 @@ export async function fillEmptyIssueSections(
           updated: false,
           body: updatedBody,
           filledSections,
-          skippedSections: nonEmptySections.map((s) => s.header),
+          skippedSections,
         };
       }
 

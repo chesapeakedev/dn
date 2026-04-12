@@ -26,7 +26,11 @@ complete.
       `actions/github-script@v7` and external reusable workflows
 - [x] add `GITHUB_REPOSITORY` env var support to `getCurrentRepoFromRemote()` so
       dn works in CI without checkout
-- [ ] submit pr to homebrew to grab "brew install dn"
+- [ ] markdown OCI artifact so prompts can be easily stored in a registry
+- [ ] dn init ralph - install daily github actions workflow that iterates on
+      todo.plan.md
+- [ ] have agent use dn to spawn subagent in a completely separate context (like
+      another local repo) then report status back up to the calling agent
 
 ## Unfinished: dn init-build enhancements
 
