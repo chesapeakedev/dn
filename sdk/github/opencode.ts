@@ -137,10 +137,39 @@ export async function runOpenCode(
     try {
       await Deno.stat(implementConfigPath);
     } catch {
-      throw new Error(
-        `Implement config not found at ${implementConfigPath}. ` +
-          `Please create opencode.implement.json in the workspace root.`,
-      );
+      // Try to create a default implement config template
+      try {
+        const defaultImplementConfig = {
+          "$schema": "https://opencode.ai/config.json",
+          "permission": {
+            "edit": {
+              "*": "allow",
+              "/tmp/**": "allow",
+            },
+            "bash": {
+              "*": "allow",
+            },
+            "external_directory": "allow",
+          },
+        };
+        await Deno.writeTextFile(
+          implementConfigPath,
+          JSON.stringify(defaultImplementConfig, null, 2) + "\n",
+        );
+        console.log(
+          `Created default implement config at ${implementConfigPath}`,
+        );
+      } catch (createError) {
+        throw new Error(
+          `Implement config not found at ${implementConfigPath} and could not be created. ` +
+            `Please create opencode.implement.json in the workspace root. ` +
+            `Error: ${
+              createError instanceof Error
+                ? createError.message
+                : String(createError)
+            }`,
+        );
+      }
     }
   }
 
