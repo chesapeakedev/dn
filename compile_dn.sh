@@ -13,12 +13,14 @@ echo "Compiling dn with included system prompts..."
 echo "  Source: ${DN_REPO_ROOT}/cli/main.ts"
 echo "  Output: ${DN_REPO_ROOT}/${OUTPUT_NAME}"
 echo "  Included files:"
-echo "    - ${KICKSTART_DIR}/system.prompt.plan.md"
-echo "    - ${KICKSTART_DIR}/system.prompt.implement.md"
-echo "    - ${KICKSTART_DIR}/system.prompt.merge.md"
-echo "    - ${KICKSTART_DIR}/system.prompt.fixup.md"
-echo "    - ${KICKSTART_DIR}/system.prompt.score.md"
-echo "    - ${KICKSTART_DIR}/kickstart.mdc"
+  echo "    - ${KICKSTART_DIR}/system.prompt.plan.md"
+  echo "    - ${KICKSTART_DIR}/system.prompt.prep.md"
+  echo "    - ${KICKSTART_DIR}/system.prompt.implement.md"
+  echo "    - ${KICKSTART_DIR}/system.prompt.merge.md"
+  echo "    - ${KICKSTART_DIR}/system.prompt.fixup.md"
+  echo "    - ${KICKSTART_DIR}/system.prompt.score.md"
+  echo "    - ${KICKSTART_DIR}/system.prompt.complexity.md"
+  echo "    - ${KICKSTART_DIR}/kickstart.mdc"
 echo ""
 
 cd "${DN_REPO_ROOT}"
@@ -27,10 +29,12 @@ deno compile \
   --allow-all \
   --config "${DN_REPO_ROOT}/deno.json" \
   --include "${KICKSTART_DIR}/system.prompt.plan.md" \
+  --include "${KICKSTART_DIR}/system.prompt.prep.md" \
   --include "${KICKSTART_DIR}/system.prompt.implement.md" \
   --include "${KICKSTART_DIR}/system.prompt.merge.md" \
   --include "${KICKSTART_DIR}/system.prompt.fixup.md" \
   --include "${KICKSTART_DIR}/system.prompt.score.md" \
+  --include "${KICKSTART_DIR}/system.prompt.complexity.md" \
   --include "${KICKSTART_DIR}/kickstart.mdc" \
   -o "${DN_REPO_ROOT}/${OUTPUT_NAME}" \
   "${DN_REPO_ROOT}/cli/main.ts"

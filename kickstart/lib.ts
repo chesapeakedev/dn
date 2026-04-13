@@ -1445,7 +1445,7 @@ async function readPrepSystemPrompt(workspaceRoot: string): Promise<string> {
       );
     } catch {
       throw new Error(
-        `Prep system prompt not found. Looked in: ${PREP_PROMPT_DIR}/${filename} and ${workspaceRoot}/dn/kickstart/${filename}`,
+        `Prep system prompt not found. Looked in: ${PREP_PROMPT_DIR}/${filename} and ${workspaceRoot}/kickstart/${filename}`,
       );
     }
   }
