@@ -16,7 +16,7 @@ import { getRunAgent } from "../sdk/github/agentHarness.ts";
 import { assembleCombinedPrompt } from "../sdk/github/prompt.ts";
 import { createPR } from "../sdk/github/github.ts";
 import type { PRPlanSummary } from "../sdk/github/github.ts";
-import { createCursorRule, generateAgentsMd } from "./artifacts.ts";
+import { createCursorRule } from "./artifacts.ts";
 import { extractPlanSummary } from "./lib.ts";
 import type { PlanSummary } from "./lib.ts";
 import {
@@ -1126,58 +1126,6 @@ export async function runOrchestrator(
     // Step 6: Generate artifacts
     console.log(`\n${formatStep(6, "Generating workspace artifacts...")}`);
     try {
-      // Read existing AGENTS.md if it exists
-      let existingAgentsMd: string | undefined;
-      try {
-        existingAgentsMd = await Deno.readTextFile(
-          `${WORKSPACE_ROOT}/AGENTS.md`,
-        );
-      } catch {
-        // AGENTS.md doesn't exist, that's fine
-      }
-
-      // Generate/update AGENTS.md
-      const wasNewFile = !existingAgentsMd;
-      const agentsMdContent = await generateAgentsMd(
-        WORKSPACE_ROOT,
-        existingAgentsMd,
-      );
-      await Deno.writeTextFile(
-        `${WORKSPACE_ROOT}/AGENTS.md`,
-        agentsMdContent,
-      );
-      console.log(formatSuccess("Updated AGENTS.md with project guidelines"));
-
-      // Print helpful message about AGENTS.md importance
-      if (wasNewFile) {
-        console.log(
-          `\n${formatInfo("AGENTS.md has been created for this repository.")}`,
-        );
-        console.log(
-          formatInfo("   This file is crucial for agentic coding workflows:"),
-        );
-        console.log(
-          formatInfo(
-            "   - It provides essential context to AI agents about your project",
-          ),
-        );
-        console.log(
-          formatInfo("   - It documents build, lint, and test commands"),
-        );
-        console.log(
-          formatInfo(
-            "   - It includes instructions for using kickstart as a subagent",
-          ),
-        );
-        console.log(`\n${formatInfo("   Learn more about AGENTS.md:")}`);
-        console.log(
-          formatInfo("   - https://docs.opencode.dev/concepts/agents-md"),
-        );
-        console.log(
-          formatInfo("   - https://github.com/opencode-dev/opencode"),
-        );
-      }
-
       // Create Cursor rule if enabled
       if (config.agentHarness === "cursor") {
         await createCursorRule(WORKSPACE_ROOT);

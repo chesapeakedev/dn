@@ -11,7 +11,7 @@ and can be continued across multiple runs.
 - **Completion detection**: Automatically checks acceptance criteria checklists
 - **Continuation prompts**: Generates prompts for incomplete work
 - **Plan merging**: Combines plan and continuation files for named plans
-- **Artifact generation**: Updates AGENTS.md and creates Cursor rules
+- **Artifact generation**: Creates Cursor rules if configured
 - **AWP mode**: Full workflow with branches, commits, and PR creation
 
 ### Normal Mode Flow
@@ -35,7 +35,7 @@ flowchart TD
     IsComplete -->|No| ShowContinuation[Show Continuation Info<br/>Plan file updated]
     ShowContinuation --> RunLint
     MergePlans --> RunLint[Step 5: Run Linting<br/>Non-blocking Warnings]
-    RunLint --> GenerateArtifacts[Step 6: Generate Artifacts<br/>Update AGENTS.md<br/>Create Cursor Rules if --cursor]
+    RunLint --> GenerateArtifacts[Step 6: Generate Artifacts<br/>Create Cursor Rules if --cursor]
     GenerateArtifacts --> ValidateChanges[Step 7: Validate Changes<br/>Show File Summary]
     ValidateChanges --> End([End<br/>User Handles Git/PR Manually])
     
@@ -70,7 +70,7 @@ flowchart TD
     IsComplete -->|Yes| RunLint
     IsComplete -->|No| ShowContinuation[Show Continuation Info<br/>Plan file updated]
     ShowContinuation --> RunLint[Step 5: Run Linting<br/>Non-blocking Warnings]
-    RunLint --> GenerateArtifacts[Step 6: Generate Artifacts<br/>Update AGENTS.md<br/>Create Cursor Rules if --cursor]
+    RunLint --> GenerateArtifacts[Step 6: Generate Artifacts<br/>Create Cursor Rules if --cursor]
     GenerateArtifacts --> ValidateChanges[Step 7: Validate Changes<br/>Show File Summary]
     ValidateChanges --> CommitPush[Step 8: Commit and Push<br/>Message: #N Title]
     CommitPush --> CreatePR[Step 9: Create PR<br/>Title: #N Title<br/>Body: Closes #N]

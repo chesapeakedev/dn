@@ -21,10 +21,8 @@ This is a Deno-based TypeScript project. Key conventions:
 - Maintain existing patterns and architecture
 - Write clear, descriptive code
 
-**Note:** After implementation, kickstart will automatically:
-
-- Run linting to improve code quality (non-blocking)
-- Update `AGENTS.md` with project-specific guidelines
+**Note:** After implementation, kickstart will automatically run linting to
+improve code quality.
 
 ## Constraints
 

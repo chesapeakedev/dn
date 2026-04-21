@@ -17,6 +17,7 @@ import { handleAuth } from "./auth.ts";
 import { handleContext } from "./context.ts";
 import { bootstrapFromEnv } from "./output.ts";
 import { handleFixup } from "./fixup.ts";
+import { handleInitAgents } from "./init-agents.ts";
 import { handleInitBuild } from "./init-build.ts";
 import { handleInitStack } from "./init-stack.ts";
 import { handleIssue } from "./issue.ts";
@@ -39,6 +40,11 @@ async function handleInit(args: string[]): Promise<void> {
     return;
   }
 
+  if (subcommand === "agents") {
+    await handleInitAgents(args.slice(1));
+    return;
+  }
+
   if (
     args.length === 0 || subcommand === "help" || subcommand === "--help" ||
     subcommand === "-h"
@@ -48,7 +54,8 @@ async function handleInit(args: string[]): Promise<void> {
     console.log("  dn init <subcommand> [options]\n");
     console.log("Subcommands:");
     console.log("  build    Setup GitHub Actions workflow for denoise");
-    console.log("  stack    Initialize stack context from GitHub milestone\n");
+    console.log("    stack    Initialize stack context from GitHub milestone");
+    console.log("    agents   Update AGENTS.md with dn instructions\n");
     console.log("Examples:");
     console.log("  dn init build");
     console.log("  dn init stack 42");
@@ -59,7 +66,7 @@ async function handleInit(args: string[]): Promise<void> {
   }
 
   console.error(`Unknown init subcommand: ${subcommand}\n`);
-  console.error("Valid subcommands: build, stack");
+  console.error("Valid subcommands: build, stack, agents");
   Deno.exit(1);
 }
 import { handleKickstart } from "./kickstart.ts";
