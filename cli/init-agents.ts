@@ -13,7 +13,7 @@ interface AgentsMdStructure {
   }>;
   hasProjectOverview: boolean;
   hasBuildLintTest: boolean;
-  hasKickstartSection: boolean;
+  hasDnSection: boolean;
   hasCursorRules: boolean;
   customSections: string[];
   rawContent: string;
@@ -46,19 +46,25 @@ function parseAgentsMd(content: string): AgentsMdStructure {
     "Git",
     "Cursor",
     "Agent Expectations",
+    "Using dn",
     "Using Kickstart",
     "Kickstart",
   ];
 
   let hasProjectOverview = false;
   let hasBuildLintTest = false;
-  let hasKickstartSection = false;
+  let hasDnSection = false;
   let hasCursorRules = false;
   const customSections: string[] = [];
+  let activeFenceMarker: "```" | "~~~" | null = null;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const headerMatch = line.match(/^(#{1,6})\s+(.+)$/);
+    const trimmedLine = line.trimStart();
+    const fenceMatch = trimmedLine.match(/^(```|~~~)/);
+    const headerMatch = activeFenceMarker === null
+      ? line.match(/^(#{1,6})\s+(.+)$/)
+      : null;
     if (headerMatch) {
       if (currentSection) {
         currentSection.endLine = i - 1;
@@ -78,8 +84,8 @@ function parseAgentsMd(content: string): AgentsMdStructure {
       ) {
         hasBuildLintTest = true;
       }
-      if (name.includes("Kickstart")) {
-        hasKickstartSection = true;
+      if (name.includes("Using dn") || name.includes("Kickstart")) {
+        hasDnSection = true;
       }
       if (name.includes("Cursor") || name.includes("Copilot")) {
         hasCursorRules = true;
@@ -99,6 +105,15 @@ function parseAgentsMd(content: string): AgentsMdStructure {
     } else if (currentSection) {
       currentSection.content += line + "\n";
     }
+
+    if (fenceMatch) {
+      const fenceMarker = fenceMatch[1] as "```" | "~~~";
+      if (activeFenceMarker === fenceMarker) {
+        activeFenceMarker = null;
+      } else if (activeFenceMarker === null) {
+        activeFenceMarker = fenceMarker;
+      }
+    }
   }
 
   if (currentSection) {
@@ -110,106 +125,61 @@ function parseAgentsMd(content: string): AgentsMdStructure {
     sections,
     hasProjectOverview,
     hasBuildLintTest,
-    hasKickstartSection,
+    hasDnSection,
     hasCursorRules,
     customSections,
     rawContent: content,
   };
 }
 
-function hasKickstartSection(content: string): boolean {
+function hasDnSection(content: string): boolean {
   const structure = parseAgentsMd(content);
-  if (!structure.hasKickstartSection) {
+  if (!structure.hasDnSection) {
     return false;
   }
 
-  const kickstartSection = structure.sections.find((s) =>
-    s.name.includes("Kickstart")
+  const dnSection = structure.sections.find((s) =>
+    s.name.includes("Using dn") || s.name.includes("Kickstart")
   );
 
-  return kickstartSection !== undefined;
+  return dnSection !== undefined;
 }
 
 function genDnSection(): string {
   return `## Using dn
 
-Use \`dn\` when interacting with GitHub and local plan files. \`dn\` is the primary
-interface to this repository's workflows. Prefer it over ad-hoc scripts when
-preparing workspaces, iterating on plans, or coordinating changes.
+Use \`dn\` as the primary interface for this repo's GitHub workflows and plan
+artifacts. Prefer it over ad-hoc scripts or direct API calls when reading
+issues, updating GitHub state, preparing plans, or processing review feedback.
 
-Run \`dn\` with no arguments to discover available subcommands. For detailed
-behavior and flags, see \`docs/subcommands.md\`.
+### GitHub access
 
-### Usage
-
-To print help:
-
-\`\`\`bash
-dn
-\`\`\`
-
-To implement a GitHub issue:
+Use \`dn issue\` for authenticated access to repository issues, including private
+repositories that the signed-in user can access. Prefer it when an agent needs
+to inspect or update issue state from the terminal.
 
 \`\`\`bash
-dn kickstart <issue_url>
-\`\`\`
-
-To update AGENTS.md with dn instructions (run after cloning):
-
-\`\`\`bash
-dn init agents
-\`\`\`
-
-### Integration
-
-- Kickstart runs opencode in two phases: plan (read-only) and implement
-- It automatically includes AGENTS.md and deno.json (or package.json) in prompts
-- After implementation, it runs linting
-- It can create branches, commit changes, and open draft PRs (AWP mode)
-
-### Workflow
-
-1. **Plan Phase**: Kickstart analyzes the issue and creates an implementation plan (read-only)
-2. **Implement Phase**: Kickstart applies the changes to the codebase
-3. **Linting**: Kickstart runs linting to improve code quality
-4. **Artifacts**: Kickstart generates Cursor rules if configured
-5. **VCS** (AWP mode): Kickstart creates branch, commits, and opens draft PR
-
-### Managing GitHub Issues
-
-Use \`dn issue\` to create, read, update, and comment on GitHub issues directly
-from a conversation. Users can manage their repo's issues entirely through an
-agent without leaving the terminal.
-
-**Creating issues** — when you discover a bug, identify follow-up work, or the
-user asks you to file a ticket:
-
-\`\`\`bash
-dn issue create --title "Brief descriptive title" --body-file description.md
-dn issue create --title "Brief descriptive title" --body-stdin
-\`\`\`
-
-**Reading issues** — check current state before updating:
-
-\`\`\`bash
+dn issue list --label bug
 dn issue show 123
-\`\`\`
-
-**Adding a comment** (append-only, preferred default):
-
-\`\`\`bash
+dn issue show 123 --json
 dn issue comment 123 --body-file update.md
-dn issue comment 123 --body-stdin
+dn issue edit 123 --add-label needs-triage
+dn issue create --title "Brief title" --body-file description.md
+dn issue relationship list 123
 \`\`\`
 
-**Replacing the issue body** (only when the user explicitly asks):
+Guidelines:
 
-\`\`\`bash
-dn issue edit 123 --body-file revised.md
-dn issue edit 123 --body-stdin
-\`\`\`
+- Use \`dn issue show <ref>\` before making issue edits so updates are based on
+  current state.
+- Prefer \`dn issue comment\` for append-only progress updates and refined
+  understanding.
+- Use \`dn issue edit\` only when the user explicitly wants the issue body or
+  metadata changed.
+- Use \`--json\` when structured output is useful for follow-up agent steps.
+- Issue references may be \`123\`, \`#123\`, or a full GitHub issue URL.
 
-When creating or updating issues, use structured Markdown:
+When writing issue content, prefer concise structured Markdown:
 
 \`\`\`md
 ## Summary
@@ -225,14 +195,48 @@ When creating or updating issues, use structured Markdown:
 - ...
 \`\`\`
 
-Guidelines:
+### Workflow commands
 
-- Prefer \`comment\` (append-only) over \`edit\` (replaces body) unless the user
-  explicitly asks to rewrite the issue description.
-- Use \`dn issue show <ref>\` before editing to confirm current context.
-- \`<ref>\` can be \`123\`, \`#123\`, or a full GitHub issue URL.
-- Create new issues when new work is identified; comment on existing issues
-  when refining understanding of work already tracked.
+Use the command that matches the stage of work:
+
+\`\`\`bash
+dn kickstart <issue-url-or-number>         # Full plan + implement workflow
+dn prep <issue-url-or-number>              # Plan phase only
+dn loop --plan-file plans/task.plan.md     # Implement from an existing plan
+dn fixup <pull-request-url>                # Address PR review feedback
+dn meld a.md b.md --plan-name merged       # Merge sources, then run prep
+\`\`\`
+
+Use \`dn kickstart\` when the user wants the whole issue implemented. Use
+\`dn prep\` and \`dn loop\` separately when planning and implementation need to be
+split across steps or reviewed between phases. Use \`dn fixup\` when the task is
+to address existing PR comments rather than re-implement from scratch.
+
+### Milestones, queues, and context
+
+\`\`\`bash
+dn init stack 42
+dn kickstart --milestone 42
+dn todo done 123
+dn tidy
+dn context check cli/main.ts
+\`\`\`
+
+- Use \`dn init stack\` and milestone-aware \`dn kickstart\` for ordered work from
+  a GitHub milestone.
+- Use \`dn todo done\` and \`dn tidy\` to manage the local prioritized task list
+  in \`~/.dn/todo.md\`.
+- Use \`dn context check\` to inspect inherited \`AGENTS.md\` context and prompt
+  size when context assembly is relevant.
+
+### Authentication
+
+If GitHub operations fail due to missing auth, prefer existing cached auth. If
+setup is needed, use:
+
+\`\`\`bash
+dn auth
+\`\`\`
 `;
 }
 
@@ -266,7 +270,7 @@ function mergeAgentsMd(baseContent: string): string {
     }
   }
 
-  if (hasKickstartSection(result)) {
+  if (hasDnSection(result)) {
     return result;
   }
 
