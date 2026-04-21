@@ -24,6 +24,14 @@ export interface Commit {
   url: string;
 }
 
+export type {
+  IssueData,
+  IssueRelationshipReference,
+  IssueRelationships,
+  IssueRelationshipSummary,
+  IssueStateValue,
+} from "./issue.ts";
+
 // Re-export issue CRUD types from github-gql.ts for convenience
 export type {
   CommentResult,

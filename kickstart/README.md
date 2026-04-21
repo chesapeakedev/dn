@@ -572,7 +572,8 @@ On failure (or when `SAVE_CTX=1`), debug files are preserved in
 - `combined_prompt.txt`: The full combined prompt sent to opencode
 - `opencode_stdout.txt`: Standard output from opencode execution
 - `opencode_stderr.txt`: Standard error from opencode execution
-- `issue-context.md`: The formatted issue context (if fetched from GitHub)
+- `issue-context.md`: The formatted issue context, including labels and curated
+  relationship metadata when fetched from GitHub
 
 ### Common Issues
 

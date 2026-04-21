@@ -259,6 +259,7 @@ export {
   fetchIssuesOpened,
   getCurrentRepoFromRemote,
   getDefaultBranch,
+  getIssueIdentifiers,
 } from "./github/github-gql.ts";
 
 // Issue CRUD operations
@@ -272,6 +273,19 @@ export {
   updateIssue,
 } from "./github/github-gql.ts";
 
+// Issue relationship REST operations
+export {
+  addIssueBlockedBy,
+  addSubIssue,
+  removeIssueBlockedBy,
+  removeSubIssue,
+  reprioritizeSubIssue,
+} from "./github/issueRelationships.ts";
+export type {
+  AddSubIssueOptions,
+  ReprioritizeSubIssueOptions,
+} from "./github/issueRelationships.ts";
+
 // Token resolution
 export { resolveGitHubToken } from "./github/token.ts";
 
@@ -279,8 +293,15 @@ export { resolveGitHubToken } from "./github/token.ts";
 export { createPR } from "./github/github.ts";
 
 // Issue utilities
-export type { IssueData } from "./github/issue.ts";
+export type {
+  IssueData,
+  IssueRelationshipReference,
+  IssueRelationships,
+  IssueRelationshipSummary,
+  IssueStateValue,
+} from "./github/issue.ts";
 export {
+  emptyIssueRelationships,
   fetchIssueFromUrl as fetchIssue,
   parseIssueFromFile,
   resolveIssueUrlInput,

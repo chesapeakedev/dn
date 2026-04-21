@@ -35,6 +35,9 @@ const authHandler = auth.createAuthHandler(kv, {
 const issue = await github.fetchIssueFromUrl(
   "https://github.com/org/repo/issues/123",
 );
+
+console.log(issue.relationships.blockedBySummary.totalCount);
+console.log(issue.relationships.parent?.title ?? "no parent");
 ```
 
 ## GitHub App Installation Flow

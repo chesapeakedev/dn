@@ -11,9 +11,96 @@ const GITHUB_ISSUE_URL_PATTERN =
 const ISSUE_NUMBER_PATTERN = /^#?(\d+)$/;
 
 /**
+ * Canonical issue state values returned by GitHub issue APIs.
+ */
+export type IssueStateValue = "OPEN" | "CLOSED";
+
+/**
+ * Minimal related-issue payload surfaced in issue relationship context.
+ */
+export interface IssueRelationshipReference {
+  /** The related issue number */
+  number: number;
+  /** The related issue title */
+  title: string;
+  /** The related issue state */
+  state: IssueStateValue;
+  /** The related issue URL */
+  url: string;
+  /** Repository owner for the related issue */
+  owner: string;
+  /** Repository name for the related issue */
+  repo: string;
+}
+
+/**
+ * Summary counts for a relationship group.
+ */
+export interface IssueRelationshipSummary {
+  /** Total number of related issues in this group */
+  totalCount: number;
+  /** Number of open issues in this group */
+  openCount: number;
+  /** Number of closed issues in this group */
+  closedCount: number;
+}
+
+/**
+ * Relationship metadata attached to a GitHub issue.
+ */
+export interface IssueRelationships {
+  /** Parent issue when this issue is a sub-issue */
+  parent: IssueRelationshipReference | null;
+  /** Child sub-issues */
+  subIssues: IssueRelationshipReference[];
+  /** Summary counts for sub-issues */
+  subIssuesSummary: IssueRelationshipSummary;
+  /** Issues currently blocking this issue */
+  blockedBy: IssueRelationshipReference[];
+  /** Summary counts for blockers */
+  blockedBySummary: IssueRelationshipSummary;
+  /** Issues currently blocked by this issue */
+  blocking: IssueRelationshipReference[];
+  /** Summary counts for blocked issues */
+  blockingSummary: IssueRelationshipSummary;
+  /** Canonical issue when this issue is marked as a duplicate */
+  duplicateOf: IssueRelationshipReference | null;
+}
+
+/**
+ * Create an empty relationship payload for contexts without GitHub data.
+ */
+export function emptyIssueRelationships(): IssueRelationships {
+  return {
+    parent: null,
+    subIssues: [],
+    subIssuesSummary: {
+      totalCount: 0,
+      openCount: 0,
+      closedCount: 0,
+    },
+    blockedBy: [],
+    blockedBySummary: {
+      totalCount: 0,
+      openCount: 0,
+      closedCount: 0,
+    },
+    blocking: [],
+    blockingSummary: {
+      totalCount: 0,
+      openCount: 0,
+      closedCount: 0,
+    },
+    duplicateOf: null,
+  };
+}
+
+/**
  * Represents GitHub issue data fetched from the API or parsed from a file.
  */
 export interface IssueData {
+  /** Database identifier used by REST issue relationship endpoints */
+  databaseId: number | null;
   /** The issue number */
   number: number;
   /** The issue title */
@@ -26,6 +113,8 @@ export interface IssueData {
   repo: string;
   /** Repository owner/organization name */
   owner: string;
+  /** Relationship metadata that helps agents reason about issue dependencies */
+  relationships: IssueRelationships;
 }
 
 /**
@@ -80,12 +169,14 @@ export async function parseIssueFromFile(
     const match = content.match(/^# Issue #(\d+): (.+)$/m);
     if (match) {
       return {
+        databaseId: null,
         number: parseInt(match[1], 10),
         title: match[2],
         body: content,
         labels: [],
         repo: "",
         owner: "",
+        relationships: emptyIssueRelationships(),
       };
     }
   } catch {
@@ -113,5 +204,81 @@ export async function writeIssueContext(
     content += "(none)\n";
   }
 
+  content += "\n## Relationships\n";
+  content += formatSingleRelationship("Parent", issueData.relationships.parent);
+  content += formatRelationshipGroup(
+    "Sub-issues",
+    issueData.relationships.subIssues,
+    issueData.relationships.subIssuesSummary,
+  );
+  content += formatRelationshipGroup(
+    "Blocked By",
+    issueData.relationships.blockedBy,
+    issueData.relationships.blockedBySummary,
+  );
+  content += formatRelationshipGroup(
+    "Blocking",
+    issueData.relationships.blocking,
+    issueData.relationships.blockingSummary,
+  );
+  content += formatSingleRelationship(
+    "Duplicate Of",
+    issueData.relationships.duplicateOf,
+  );
+
   await Deno.writeTextFile(filePath, content);
+}
+
+function formatSingleRelationship(
+  title: string,
+  relationship: IssueRelationshipReference | null,
+): string {
+  const section = `\n### ${title}\n`;
+  if (!relationship) {
+    return section + "(none)\n";
+  }
+  return section + `${formatRelationshipReference(relationship)}\n`;
+}
+
+function formatRelationshipGroup(
+  title: string,
+  relationships: IssueRelationshipReference[],
+  summary: IssueRelationshipSummary,
+): string {
+  let section = `\n### ${title}\n`;
+  if (summary.totalCount === 0) {
+    return section + "(none)\n";
+  }
+
+  section += `- ${summary.totalCount} total`;
+  if (summary.openCount > 0 || summary.closedCount > 0) {
+    section += ` (${summary.openCount} open, ${summary.closedCount} closed)`;
+  }
+  section += "\n";
+
+  if (relationships.length === 0) {
+    return section + "- Detailed issue refs omitted from context\n";
+  }
+
+  for (const relationship of relationships) {
+    section += `${formatRelationshipReference(relationship)}\n`;
+  }
+
+  if (relationships.length < summary.totalCount) {
+    section += `- ${
+      summary.totalCount - relationships.length
+    } more not shown\n`;
+  }
+
+  return section;
+}
+
+function formatRelationshipReference(
+  relationship: IssueRelationshipReference,
+): string {
+  const repoPrefix = relationship.repo
+    ? `${relationship.owner}/${relationship.repo}`
+    : "";
+  const state = relationship.state.toLowerCase();
+  return `- ${repoPrefix}#${relationship.number} ${relationship.title} (${state})`;
 }

@@ -137,7 +137,7 @@ function showUsage(): void {
     "    stack      Initialize stack context from GitHub milestone",
   );
   console.error(
-    "  issue        Manage GitHub issues (list, show, create, edit, close, reopen, comment)",
+    "  issue        Manage GitHub issues and relationships",
   );
   console.error(
     "  kickstart    Run full kickstart workflow (plan + implement)",

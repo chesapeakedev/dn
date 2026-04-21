@@ -450,8 +450,15 @@ dn issue close 123 --comment "Fixed in #456"
 dn issue reopen 123
 dn issue comment 123 --body-file update.md
 dn issue comment 123 --body-stdin          # Pipe body from stdin
+dn issue relationship list 123
+dn issue relationship add blocked-by 123 456
+dn issue relationship add sub-issue 123 789
+dn issue relationship reprioritize sub-issue 123 789 --after 456
+dn issue relationship mark-duplicate 123 456
 ```
 
 All subcommands support `--json` for machine-readable output and `--help` for
 per-subcommand options. Issue references accept a number (`123`), `#123`, or a
-full URL.
+full URL. `dn issue show` includes relationship metadata such as parent issue,
+sub-issues, blockers, blocked issues, and duplicate-of when GitHub exposes it
+for the issue.

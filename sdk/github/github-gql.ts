@@ -8,7 +8,12 @@
 import { $ } from "$dax";
 import { ObsidianClient } from "@chesapeake/obsidian-gql";
 import type { Commit, Issue } from "./types.ts";
-import type { IssueData } from "./issue.ts";
+import type {
+  IssueData,
+  IssueRelationshipReference,
+  IssueRelationships,
+  IssueRelationshipSummary,
+} from "./issue.ts";
 import { resolveGitHubToken } from "./token.ts";
 
 /**
@@ -204,6 +209,7 @@ const ISSUE_QUERY = `
   query GetIssue($owner: String!, $name: String!, $number: Int!) {
     repository(owner: $owner, name: $name) {
       issue(number: $number) {
+        databaseId
         number
         title
         body
@@ -211,6 +217,81 @@ const ISSUE_QUERY = `
           nodes {
             name
           }
+        }
+        parent {
+          number
+          title
+          state
+          url
+          repository {
+            name
+            owner {
+              login
+            }
+          }
+        }
+        subIssues(first: 10) {
+          totalCount
+          nodes {
+            number
+            title
+            state
+            url
+            repository {
+              name
+              owner {
+                login
+              }
+            }
+          }
+        }
+        blockedBy(first: 10) {
+          totalCount
+          nodes {
+            number
+            title
+            state
+            url
+            repository {
+              name
+              owner {
+                login
+              }
+            }
+          }
+        }
+        blocking(first: 10) {
+          totalCount
+          nodes {
+            number
+            title
+            state
+            url
+            repository {
+              name
+              owner {
+                login
+              }
+            }
+          }
+        }
+        duplicateOf {
+          number
+          title
+          state
+          url
+          repository {
+            name
+            owner {
+              login
+            }
+          }
+        }
+        issueDependenciesSummary {
+          blockedBy
+          totalBlockedBy
+          blocking
+          totalBlocking
         }
         url
       }
@@ -222,6 +303,7 @@ const PULL_REQUEST_QUERY = `
   query GetPullRequest($owner: String!, $name: String!, $number: Int!) {
     repository(owner: $owner, name: $name) {
       pullRequest(number: $number) {
+        databaseId
         number
         title
         body
@@ -349,9 +431,28 @@ interface CommitsResponse {
   } | null;
 }
 
+interface GraphqlRelationshipNode {
+  number: number;
+  title: string;
+  state: "OPEN" | "CLOSED";
+  url: string;
+  repository: {
+    name: string;
+    owner: {
+      login: string;
+    };
+  };
+}
+
+interface GraphqlRelationshipConnection {
+  totalCount: number;
+  nodes: GraphqlRelationshipNode[];
+}
+
 interface IssueResponse {
   repository: {
     issue: {
+      databaseId: number | null;
       number: number;
       title: string;
       body: string;
@@ -359,6 +460,17 @@ interface IssueResponse {
         nodes: Array<{
           name: string;
         }>;
+      };
+      parent: GraphqlRelationshipNode | null;
+      subIssues: GraphqlRelationshipConnection;
+      blockedBy: GraphqlRelationshipConnection;
+      blocking: GraphqlRelationshipConnection;
+      duplicateOf: GraphqlRelationshipNode | null;
+      issueDependenciesSummary: {
+        blockedBy: number;
+        totalBlockedBy: number;
+        blocking: number;
+        totalBlocking: number;
       };
       url: string;
     } | null;
@@ -368,6 +480,7 @@ interface IssueResponse {
 interface PullRequestResponse {
   repository: {
     pullRequest: {
+      databaseId: number | null;
       number: number;
       title: string;
       body: string;
@@ -964,12 +1077,14 @@ export async function fetchIssueFromUrl(issueUrl: string): Promise<IssueData> {
     const labels = issue.labels.nodes.map((l) => l.name);
 
     return {
+      databaseId: issue.databaseId,
       number: issue.number,
       title: issue.title,
       body: issue.body,
       labels,
       repo,
       owner,
+      relationships: mapIssueRelationships(issue),
     };
   }
 
@@ -997,12 +1112,23 @@ export async function fetchIssueFromUrl(issueUrl: string): Promise<IssueData> {
       const labels = pr.labels.nodes.map((l: { name: string }) => l.name);
 
       return {
+        databaseId: pr.databaseId,
         number: pr.number,
         title: pr.title,
         body: pr.body,
         labels,
         repo,
         owner,
+        relationships: {
+          parent: null,
+          subIssues: [],
+          subIssuesSummary: { totalCount: 0, openCount: 0, closedCount: 0 },
+          blockedBy: [],
+          blockedBySummary: { totalCount: 0, openCount: 0, closedCount: 0 },
+          blocking: [],
+          blockingSummary: { totalCount: 0, openCount: 0, closedCount: 0 },
+          duplicateOf: null,
+        },
       };
     }
   } catch {
@@ -1200,6 +1326,7 @@ const GET_ISSUE_WITH_COMMENTS_QUERY = `
     repository(owner: $owner, name: $name) {
       issue(number: $number) {
         id
+        databaseId
         number
         title
         body
@@ -1216,6 +1343,81 @@ const GET_ISSUE_WITH_COMMENTS_QUERY = `
           nodes {
             name
           }
+        }
+        parent {
+          number
+          title
+          state
+          url
+          repository {
+            name
+            owner {
+              login
+            }
+          }
+        }
+        subIssues(first: 10) {
+          totalCount
+          nodes {
+            number
+            title
+            state
+            url
+            repository {
+              name
+              owner {
+                login
+              }
+            }
+          }
+        }
+        blockedBy(first: 10) {
+          totalCount
+          nodes {
+            number
+            title
+            state
+            url
+            repository {
+              name
+              owner {
+                login
+              }
+            }
+          }
+        }
+        blocking(first: 10) {
+          totalCount
+          nodes {
+            number
+            title
+            state
+            url
+            repository {
+              name
+              owner {
+                login
+              }
+            }
+          }
+        }
+        duplicateOf {
+          number
+          title
+          state
+          url
+          repository {
+            name
+            owner {
+              login
+            }
+          }
+        }
+        issueDependenciesSummary {
+          blockedBy
+          totalBlockedBy
+          blocking
+          totalBlocking
         }
         comments(first: 100) {
           nodes {
@@ -1329,6 +1531,7 @@ const GET_ISSUE_ID_QUERY = `
     repository(owner: $owner, name: $name) {
       issue(number: $number) {
         id
+        databaseId
       }
     }
   }
@@ -1341,6 +1544,7 @@ const GET_ISSUE_ID_QUERY = `
  */
 export interface IssueWithComments {
   id: string;
+  databaseId: number | null;
   number: number;
   title: string;
   body: string;
@@ -1353,6 +1557,7 @@ export interface IssueWithComments {
   updatedAt: string;
   closedAt: string | null;
   url: string;
+  relationships: IssueRelationships;
 }
 
 /**
@@ -1466,6 +1671,7 @@ interface IssueWithCommentsResponse {
   repository: {
     issue: {
       id: string;
+      databaseId: number | null;
       number: number;
       title: string;
       body: string;
@@ -1473,6 +1679,17 @@ interface IssueWithCommentsResponse {
       author: { login: string } | null;
       assignees: { nodes: Array<{ login: string }> };
       labels: { nodes: Array<{ name: string }> };
+      parent: GraphqlRelationshipNode | null;
+      subIssues: GraphqlRelationshipConnection;
+      blockedBy: GraphqlRelationshipConnection;
+      blocking: GraphqlRelationshipConnection;
+      duplicateOf: GraphqlRelationshipNode | null;
+      issueDependenciesSummary: {
+        blockedBy: number;
+        totalBlockedBy: number;
+        blocking: number;
+        totalBlocking: number;
+      };
       comments: {
         nodes: Array<{
           id: string;
@@ -1502,6 +1719,7 @@ interface IssueIdResponse {
   repository: {
     issue: {
       id: string;
+      databaseId: number | null;
     } | null;
   } | null;
 }
@@ -1563,6 +1781,70 @@ interface AddCommentResponse {
       };
     };
   } | null;
+}
+
+function mapRelationshipReference(
+  node: GraphqlRelationshipNode,
+): IssueRelationshipReference {
+  return {
+    number: node.number,
+    title: node.title,
+    state: node.state,
+    url: node.url,
+    owner: node.repository.owner.login,
+    repo: node.repository.name,
+  };
+}
+
+function buildRelationshipSummary(
+  totalCount: number,
+  openCount: number,
+): IssueRelationshipSummary {
+  return {
+    totalCount,
+    openCount,
+    closedCount: Math.max(totalCount - openCount, 0),
+  };
+}
+
+function mapIssueRelationships(issue: {
+  parent: GraphqlRelationshipNode | null;
+  subIssues: GraphqlRelationshipConnection;
+  blockedBy: GraphqlRelationshipConnection;
+  blocking: GraphqlRelationshipConnection;
+  duplicateOf: GraphqlRelationshipNode | null;
+  issueDependenciesSummary: {
+    blockedBy: number;
+    totalBlockedBy: number;
+    blocking: number;
+    totalBlocking: number;
+  };
+}): IssueRelationships {
+  const subIssues = issue.subIssues.nodes.map(mapRelationshipReference);
+  const blockedBy = issue.blockedBy.nodes.map(mapRelationshipReference);
+  const blocking = issue.blocking.nodes.map(mapRelationshipReference);
+
+  return {
+    parent: issue.parent ? mapRelationshipReference(issue.parent) : null,
+    subIssues,
+    subIssuesSummary: buildRelationshipSummary(
+      issue.subIssues.totalCount,
+      subIssues.filter((related) => related.state === "OPEN").length,
+    ),
+    blockedBy,
+    blockedBySummary: buildRelationshipSummary(
+      issue.issueDependenciesSummary.totalBlockedBy,
+      issue.issueDependenciesSummary.blockedBy,
+    ),
+    blocking,
+    blockingSummary: buildRelationshipSummary(
+      issue.issueDependenciesSummary.totalBlocking,
+      issue.issueDependenciesSummary.blocking,
+    ),
+    duplicateOf: issue.duplicateOf
+      ? mapRelationshipReference(issue.duplicateOf)
+      : null,
+  };
 }
 
 /**
@@ -1677,6 +1959,7 @@ export async function getIssueWithComments(
   const issue = data.repository.issue;
   return {
     id: issue.id,
+    databaseId: issue.databaseId,
     number: issue.number,
     title: issue.title,
     body: issue.body,
@@ -1694,17 +1977,18 @@ export async function getIssueWithComments(
     updatedAt: issue.updatedAt,
     closedAt: issue.closedAt,
     url: issue.url,
+    relationships: mapIssueRelationships(issue),
   };
 }
 
 /**
- * Get the issue node ID for mutations.
+ * Get the issue node ID and database ID for mutations and REST operations.
  */
-async function getIssueId(
+export async function getIssueIdentifiers(
   owner: string,
   repo: string,
   issueNumber: number,
-): Promise<string> {
+): Promise<{ id: string; databaseId: number }> {
   const client = await getClient();
 
   const result = await client.query(GET_ISSUE_ID_QUERY, {
@@ -1728,7 +2012,16 @@ async function getIssueId(
     throw new Error(`Issue #${issueNumber} not found in ${owner}/${repo}`);
   }
 
-  return data.repository.issue.id;
+  if (data.repository.issue.databaseId === null) {
+    throw new Error(
+      `Issue #${issueNumber} in ${owner}/${repo} is missing a database ID`,
+    );
+  }
+
+  return {
+    id: data.repository.issue.id,
+    databaseId: data.repository.issue.databaseId,
+  };
 }
 
 /**
@@ -1842,7 +2135,7 @@ export async function updateIssue(
 ): Promise<IssueResult> {
   const client = await getClient();
 
-  const issueId = await getIssueId(owner, repo, issueNumber);
+  const { id: issueId } = await getIssueIdentifiers(owner, repo, issueNumber);
 
   const input: Record<string, unknown> = {
     id: issueId,
@@ -1902,7 +2195,7 @@ export async function closeIssue(
 ): Promise<{ number: number; state: string; url: string }> {
   const client = await getClient();
 
-  const issueId = await getIssueId(owner, repo, issueNumber);
+  const { id: issueId } = await getIssueIdentifiers(owner, repo, issueNumber);
 
   const input: Record<string, unknown> = {
     issueId,
@@ -1949,7 +2242,7 @@ export async function reopenIssue(
 ): Promise<{ number: number; state: string; url: string }> {
   const client = await getClient();
 
-  const issueId = await getIssueId(owner, repo, issueNumber);
+  const { id: issueId } = await getIssueIdentifiers(owner, repo, issueNumber);
 
   const result = await client.mutate(REOPEN_ISSUE_MUTATION, {
     variables: {
@@ -1991,7 +2284,7 @@ export async function addIssueComment(
 ): Promise<CommentResult> {
   const client = await getClient();
 
-  const issueId = await getIssueId(owner, repo, issueNumber);
+  const { id: issueId } = await getIssueIdentifiers(owner, repo, issueNumber);
 
   const result = await client.mutate(ADD_ISSUE_COMMENT_MUTATION, {
     variables: {

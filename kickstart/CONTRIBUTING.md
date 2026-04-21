@@ -128,7 +128,27 @@ Issue body/description here...
 
 - label1
 - label2
+
+## Relationships
+
+### Parent
+
+- owner/repo#12 Parent issue (open)
+
+### Sub-issues
+
+- 3 total (2 open, 1 closed)
+- owner/repo#124 Child issue (open)
+
+### Blocked By
+
+- 1 total (1 open, 0 closed)
+- owner/repo#9 Blocking issue (open)
 ```
+
+Kickstart uses this curated relationship section to surface hierarchy,
+dependencies, and duplicate context to the planning and implementation agents
+without dumping full raw API payloads into the prompt.
 
 When using a local file, the script attempts to parse issue number and title
 from a header in the format `# Issue #123: Title`.
