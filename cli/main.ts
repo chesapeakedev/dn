@@ -14,6 +14,7 @@
 
 import { handleArchive } from "./archive.ts";
 import { handleAuth } from "./auth.ts";
+import { handleContext } from "./context.ts";
 import { bootstrapFromEnv } from "./output.ts";
 import { handleFixup } from "./fixup.ts";
 import { handleInitBuild } from "./init-build.ts";
@@ -108,6 +109,7 @@ function showUsage(): void {
   console.error("dn - A CLI for kickstart-style workflows\n");
   console.error("Usage:");
   console.error("  dn auth");
+  console.error("  dn context check <file-or-directory> [options]");
   console.error("  dn init <subcommand> [options]");
   console.error("  dn issue <subcommand> [options]");
   console.error("  dn kickstart [options] <issue_url_or_number>");
@@ -123,6 +125,9 @@ function showUsage(): void {
   console.error("Subcommands:");
   console.error(
     "  auth         Sign in to GitHub in the browser (caches token for dn)",
+  );
+  console.error(
+    "  context      Inspect inherited AGENTS.md context for a file or directory",
   );
   console.error(
     "  init         Initialize repo context (build, stack)",
@@ -195,6 +200,9 @@ async function main(): Promise<void> {
   switch (subcommand) {
     case "auth":
       await handleAuth(subcommandArgs);
+      break;
+    case "context":
+      await handleContext(subcommandArgs);
       break;
     case "init":
     case "init-build":

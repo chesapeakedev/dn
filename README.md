@@ -28,6 +28,8 @@ ways to share context between teammates and models.
 - **Project Insights** — Quick velocity reports and trends with `dn glance`
 - **Commit Message Generation** — Derive clean commit messages from plan files
   automatically with `dn archive`
+- **Instruction Context Auditing** — Inspect inherited `AGENTS.md` size and
+  optional Claude token estimates with `dn context check <file>`
 - **GitHub Actions Integration** — Trigger agentic workflows via the
   `denoise-build` label on any issue (`dn init build`)
 

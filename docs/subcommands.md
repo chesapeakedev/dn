@@ -123,6 +123,39 @@ dn auth
 Requires `DN_GITHUB_DEVICE_CLIENT_ID` (or `GITHUB_DEVICE_CLIENT_ID`) set to your
 GitHub OAuth App client ID. See [`docs/authentication.md`](authentication.md).
 
+## `dn context` — Inspect inherited `AGENTS.md` context
+
+Calculates the inherited `AGENTS.md` chain for a file or directory using the
+basic Codex discovery order documented by OpenAI:
+
+- Checks global `CODEX_HOME` (or `~/.codex`) for `AGENTS.override.md`, then
+  `AGENTS.md`
+- Walks from the detected project root down to the target directory
+- In each directory, prefers `AGENTS.override.md` over `AGENTS.md`
+- Skips empty files
+- Joins discovered files with blank lines
+- Reports the full byte size and the subset that fits within a configurable byte
+  budget (`32768` by default)
+
+```bash
+# Basic size check
+dn context check cli/main.ts
+
+# Compare against a larger byte limit
+dn context check cli/main.ts --max-bytes 65536
+
+# Machine-readable output
+dn context check cli/main.ts --json
+
+# Estimate included prompt tokens with Anthropic's token counting API
+dn context check cli/main.ts --claude-tokens
+```
+
+`--claude-tokens` requires `ANTHROPIC_API_KEY` and uses Anthropic's
+`/v1/messages/count_tokens` endpoint. The returned count is an estimate for the
+included context, not the full undiscarded chain, when the byte limit truncates
+later files.
+
 ## `dn init` — Initialize repository context
 
 Manages repository setup with two subcommands: `build` and `stack`.
