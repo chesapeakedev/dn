@@ -55,45 +55,37 @@ improvements are always welcome and an important part of quality control:
 
 ## Creating GitHub Releases
 
-Before creating a release, you need to update the semantic version of the
-project in `deno.json`:
-
-1. **Bump the version** using one of the Makefile targets:
-   ```bash
-   # For patch version (e.g., 0.0.13 → 0.0.14)
-   make bump_patch
-
-   # For minor version (e.g., 0.0.13 → 0.1.0)
-   make bump_minor
-
-   # For major version (e.g., 0.0.13 → 1.0.0)
-   make bump_major
-   ```
-
-2. **Commit the version change**:
-   ```bash
-   sl commit -m "chore: bump version to X.Y.Z"
-   ```
-
-3. **Push the changes** and create a GitHub release:
-   ```bash
-   # Push to remote
-   sl push
-   ```
-
-Now that you've created a release commit, you can create a github release using
-`gh` to kickoff the release artifact build process. There is a convenience make
-target:
+Run the release target from a clean working copy:
 
 ```bash
-# Then create the release
 make release
 ```
 
 This will:
 
-1. Extract the version from deno.json
-2. Create a GitHub release using the gh CLI
+1. Read the current version from `deno.json`
+2. Find the previous release commit whose subject starts with that version
+3. Summarize commits since that release
+4. Bump the patch version in `deno.json`
+5. Run `make precommit`
+6. Commit the version bump with `sl commit`
+7. Run `make sync`
+8. Create the GitHub release with `dn release create`
+
+Use a dry run to preview the detected version and generated notes without
+changing files:
+
+```bash
+deno run --allow-read --allow-run scripts/release.ts --dry-run
+```
+
+The manual version bump targets remain available for non-patch releases:
+
+```bash
+make bump_patch
+make bump_minor
+make bump_major
+```
 
 ## Github Actions Release Workflow
 

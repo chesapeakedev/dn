@@ -128,8 +128,6 @@ bump_major:
 	$(SED_INPLACE) "s/\"version\": \"$$current\"/\"version\": \"$$new_version\"/" deno.json; \
 	echo "Bumped version from $$current to $$new_version"
 
-# Create a GitHub release with tag from version in deno.json
+# Bump patch version, commit, sync, and create a GitHub release
 release:
-	@VERSION=$$(grep -o '"version": "[^"]*"' deno.json | cut -d'"' -f4); \
-	echo "Creating release for version $$VERSION"; \
-	dn release create "v$$VERSION" --title "v$$VERSION"
+	deno run --allow-read --allow-write --allow-run scripts/release.ts
