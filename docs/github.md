@@ -57,7 +57,7 @@ jobs:
           IS_OPEN_SOURCE: "true"
           NO_COLOR: "1"
         run: |
-          OUTPUT=$(dn --awp --cursor "${{ github.event.issue.html_url }}" 2>&1) || EXIT_CODE=$?
+          OUTPUT=$(dn --agent cursor kickstart --awp "${{ github.event.issue.html_url }}" 2>&1) || EXIT_CODE=$?
 
           PR_URL=$(echo "$OUTPUT" | grep -oP 'PR created: \K[^\s]+' || true)
 

@@ -17,15 +17,16 @@ in print mode (`claude -p`), including GitHub Actions patterns.
 ## Local usage
 
 ```bash
-dn kickstart --claude https://github.com/owner/repo/issues/123
-dn prep --claude https://github.com/owner/repo/issues/123
-dn loop --claude --plan-file plans/issue-123.plan.md
-dn fixup --claude https://github.com/owner/repo/pull/123
+dn --agent claude kickstart https://github.com/owner/repo/issues/123
+dn --agent claude prep https://github.com/owner/repo/issues/123
+dn --agent claude loop --plan-file plans/issue-123.plan.md
+dn --agent claude fixup https://github.com/owner/repo/pull/123
 dn meld a.md b.md --claude
 ```
 
-Or set `CLAUDE_ENABLED=1` instead of passing `--claude`. Do not set
-`CURSOR_ENABLED=1` at the same time.
+Legacy command-level `--claude` flags still work. Or set `CLAUDE_ENABLED=1`
+instead of passing `--agent claude`. Do not set another agent env toggle at the
+same time.
 
 `dn` invokes `claude -p` **without** `--bare` by default, like Cursor’s headless
 `agent` flow: your normal CLI auth and project `CLAUDE.md` apply. Set
@@ -61,7 +62,7 @@ Example job steps:
     CLAUDE_CODE_BARE: "1"
     NO_COLOR: "1"
   run: |
-    dn --awp --claude "${{ github.event.issue.html_url }}"
+    dn --agent claude kickstart --awp "${{ github.event.issue.html_url }}"
 ```
 
 This repository includes

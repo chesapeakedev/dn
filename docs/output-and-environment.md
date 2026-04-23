@@ -70,16 +70,24 @@ delegated output.
 Subcommands that run an LLM agent (`kickstart`, `prep`, `loop`, `fixup`, `meld`,
 and scoring inside `tidy` / no-ticket `kickstart`) pick a **harness**:
 
-| Mechanism          | Effect                      |
-| ------------------ | --------------------------- |
-| (default)          | OpenCode                    |
-| `--cursor` / `-c`  | Cursor headless `agent` CLI |
-| `--claude`         | Claude Code `claude -p`     |
-| `CURSOR_ENABLED=1` | Same as `--cursor`          |
-| `CLAUDE_ENABLED=1` | Same as `--claude`          |
+| Mechanism          | Effect                       |
+| ------------------ | ---------------------------- |
+| (default)          | OpenCode                     |
+| `--agent opencode` | OpenCode                     |
+| `--agent cursor`   | Cursor headless `agent` CLI  |
+| `--agent claude`   | Claude Code `claude -p`      |
+| `--agent codex`    | Codex CLI `codex exec`       |
+| `--cursor` / `-c`  | Legacy alias for Cursor      |
+| `--claude`         | Legacy alias for Claude Code |
+| `--codex`          | Legacy alias for Codex CLI   |
+| `CURSOR_ENABLED=1` | Same as `--agent cursor`     |
+| `CLAUDE_ENABLED=1` | Same as `--agent claude`     |
+| `CODEX_ENABLED=1`  | Same as `--agent codex`      |
 
-`--cursor` and `--claude` cannot be combined; `CURSOR_ENABLED=1` and
-`CLAUDE_ENABLED=1` cannot both be set.
+Top-level agent options apply to each supported subcommand, for example
+`dn --agent codex prep <issue-url>`. Explicit command-level aliases cannot be
+combined with a conflicting top-level `--agent`; environment toggles are used
+only when no explicit CLI selection was provided.
 
 ### Claude-specific variables
 
@@ -89,6 +97,13 @@ and scoring inside `tidy` / no-ticket `kickstart`) pick a **harness**:
 | `CLAUDE_TIMEOUT_MS`    | Phase timeout (falls back to `OPENCODE_TIMEOUT_MS`)          |
 | `CLAUDE_CODE_BARE`     | Set to `1` to enable `claude --bare` for a run (default off) |
 | `CLAUDE_ALLOWED_TOOLS` | Override default `--allowedTools` passed to Claude           |
+
+### Codex-specific variables
+
+| Variable           | Purpose                                              |
+| ------------------ | ---------------------------------------------------- |
+| `OPENAI_API_KEY`   | API key used by Codex CLI when not already logged in |
+| `CODEX_TIMEOUT_MS` | Phase timeout (falls back to `OPENCODE_TIMEOUT_MS`)  |
 
 ## Exit codes
 

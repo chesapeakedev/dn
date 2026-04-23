@@ -11,10 +11,12 @@ import {
   saveConfig,
   setRepoAgent,
 } from "../sdk/auth/config.ts";
-import type { AgentHarness } from "../sdk/github/agentHarness.ts";
+import {
+  AGENT_HARNESSES,
+  type AgentHarness,
+} from "../sdk/github/agentHarness.ts";
 
 interface AgentConfig {
-  flag: string;
   secret: string;
   keyUrl: string;
   keyName: string;
@@ -23,25 +25,28 @@ interface AgentConfig {
 
 const AGENT_CONFIGS: Record<AgentHarness, AgentConfig> = {
   opencode: {
-    flag: "--opencode",
     secret: "OPENAI_API_KEY",
     keyUrl: "https://platform.openai.com/api-keys",
     keyName: "OPENAI_API_KEY",
     isClaude: false,
   },
   cursor: {
-    flag: "--cursor",
     secret: "CURSOR_API_KEY",
     keyUrl: "https://cursor.com/docs/cli",
     keyName: "CURSOR_API_KEY",
     isClaude: false,
   },
   claude: {
-    flag: "--claude",
     secret: "ANTHROPIC_API_KEY",
     keyUrl: "https://console.anthropic.com/settings/keys",
     keyName: "ANTHROPIC_API_KEY",
     isClaude: true,
+  },
+  codex: {
+    secret: "OPENAI_API_KEY",
+    keyUrl: "https://platform.openai.com/api-keys",
+    keyName: "OPENAI_API_KEY",
+    isClaude: false,
   },
 };
 
@@ -149,7 +154,7 @@ function generateWorkflow(agent: AgentHarness): string {
   lines.push("        run: |");
   lines.push('          INPUT_URL="${{ steps.issue.outputs.url }}"');
   lines.push(
-    `          OUTPUT=$(dn --awp ${config.flag} "$INPUT_URL" 2>&1) || EXIT_CODE=$?`,
+    `          OUTPUT=$(dn --agent ${agent} kickstart --awp "$INPUT_URL" 2>&1) || EXIT_CODE=$?`,
   );
   lines.push("");
   lines.push(
@@ -233,7 +238,9 @@ function showHelp(): void {
   console.log("  dn init-build [options]\n");
   console.log("Options:");
   console.log("  --help, -h         Show this help message");
-  console.log("  --agent <agent>    Agent to use (opencode, cursor, claude)");
+  console.log(
+    "  --agent <agent>    Agent to use (opencode, cursor, claude, codex)",
+  );
   console.log(
     "  --reset            Clear stored agent preference for this repo",
   );
@@ -254,10 +261,17 @@ interface InitBuildConfig {
   reset: boolean;
 }
 
-const VALID_AGENTS: AgentHarness[] = ["opencode", "cursor", "claude"];
+const VALID_AGENTS: readonly AgentHarness[] = AGENT_HARNESSES;
 
-function parseArgs(args: string[]): InitBuildConfig {
-  const config: InitBuildConfig = { help: false, agent: null, reset: false };
+function parseArgs(
+  args: string[],
+  globalAgent: AgentHarness | null = null,
+): InitBuildConfig {
+  const config: InitBuildConfig = {
+    help: false,
+    agent: globalAgent,
+    reset: false,
+  };
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -270,6 +284,11 @@ function parseArgs(args: string[]): InitBuildConfig {
       if (!VALID_AGENTS.includes(value as AgentHarness)) {
         throw new Error(
           `Invalid agent: ${value}. Must be one of: ${VALID_AGENTS.join(", ")}`,
+        );
+      }
+      if (config.agent && config.agent !== value) {
+        throw new Error(
+          `Conflicting agent selections: --agent ${config.agent} and --agent ${value}. Select only one agent.`,
         );
       }
       config.agent = value as AgentHarness;
@@ -326,9 +345,10 @@ function promptAgent(): AgentHarness {
   console.log("  1) opencode (default)");
   console.log("  2) cursor");
   console.log("  3) claude");
+  console.log("  4) codex");
   console.log("");
 
-  const input = prompt("Enter choice (1-3, or press Enter for opencode):")
+  const input = prompt("Enter choice (1-4, or press Enter for opencode):")
     ?.trim();
 
   if (!input || input === "1") {
@@ -340,8 +360,11 @@ function promptAgent(): AgentHarness {
   if (input === "3") {
     return "claude";
   }
+  if (input === "4") {
+    return "codex";
+  }
 
-  throw new Error(`Invalid choice: ${input}. Please enter 1, 2, or 3.`);
+  throw new Error(`Invalid choice: ${input}. Please enter 1, 2, 3, or 4.`);
 }
 
 function isTty(): boolean {
@@ -430,8 +453,11 @@ async function createWorkflowLabel(owner: string, repo: string): Promise<void> {
   }
 }
 
-export async function handleInitBuild(args: string[]): Promise<void> {
-  const config = parseArgs(args);
+export async function handleInitBuild(
+  args: string[],
+  globalAgent: AgentHarness | null = null,
+): Promise<void> {
+  const config = parseArgs(args, globalAgent);
 
   if (config.help) {
     showHelp();

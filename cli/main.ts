@@ -21,8 +21,15 @@ import { handleInitAgents } from "./init-agents.ts";
 import { handleInitBuild } from "./init-build.ts";
 import { handleInitStack } from "./init-stack.ts";
 import { handleIssue } from "./issue.ts";
+import {
+  type AgentHarness,
+  parseAgentHarness,
+} from "../sdk/github/agentHarness.ts";
 
-async function handleInit(args: string[]): Promise<void> {
+async function handleInit(
+  args: string[],
+  globalAgent: AgentHarness | null,
+): Promise<void> {
   // Handle backwards compatibility: dn init-build -> treat as dn init build
   if (args.length > 0 && args[0] === "init-build") {
     args = ["build", ...args.slice(1)];
@@ -31,12 +38,12 @@ async function handleInit(args: string[]): Promise<void> {
   const subcommand = args[0];
 
   if (subcommand === "build") {
-    await handleInitBuild(args.slice(1));
+    await handleInitBuild(args.slice(1), globalAgent);
     return;
   }
 
   if (subcommand === "stack") {
-    await handleInitStack(args.slice(1));
+    await handleInitStack(args.slice(1), globalAgent);
     return;
   }
 
@@ -88,11 +95,13 @@ function parseGlobalFlags(
   unattended: boolean;
   noColor: boolean;
   forceColor: boolean;
+  agent: AgentHarness | null;
   rest: string[];
 } {
   let unattended = false;
   let noColor = false;
   let forceColor = false;
+  let agent: AgentHarness | null = null;
   const rest: string[] = [];
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
@@ -102,8 +111,74 @@ function parseGlobalFlags(
       noColor = true;
     } else if (a === "--color") {
       forceColor = true;
+    } else if (a === "--agent") {
+      if (i + 1 >= args.length) {
+        throw new Error("Missing value for --agent");
+      }
+      const parsed = parseAgentHarness(args[++i]);
+      if (agent && agent !== parsed) {
+        throw new Error(
+          `Conflicting agent selections: ${agent} and ${parsed}. Select only one agent.`,
+        );
+      }
+      agent = parsed;
+    } else if (a === "--opencode") {
+      if (agent && agent !== "opencode") {
+        throw new Error(
+          `Conflicting agent selections: ${agent} and opencode. Select only one agent.`,
+        );
+      }
+      agent = "opencode";
+    } else if (a === "--cursor") {
+      if (agent && agent !== "cursor") {
+        throw new Error(
+          `Conflicting agent selections: ${agent} and cursor. Select only one agent.`,
+        );
+      }
+      agent = "cursor";
+    } else if (a === "--claude") {
+      if (agent && agent !== "claude") {
+        throw new Error(
+          `Conflicting agent selections: ${agent} and claude. Select only one agent.`,
+        );
+      }
+      agent = "claude";
+    } else if (a === "--codex") {
+      if (agent && agent !== "codex") {
+        throw new Error(
+          `Conflicting agent selections: ${agent} and codex. Select only one agent.`,
+        );
+      }
+      agent = "codex";
     } else {
-      rest.push(a);
+      rest.push(...args.slice(i));
+      break;
+    }
+  }
+  return { unattended, noColor, forceColor, agent, rest };
+}
+
+function parseBootstrapFlags(
+  args: string[],
+): {
+  unattended: boolean;
+  noColor: boolean;
+  forceColor: boolean;
+  rest: string[];
+} {
+  let unattended = false;
+  let noColor = false;
+  let forceColor = false;
+  const rest: string[] = [];
+  for (const arg of args) {
+    if (arg === "--unattended" || arg === "--ci") {
+      unattended = true;
+    } else if (arg === "--no-color") {
+      noColor = true;
+    } else if (arg === "--color") {
+      forceColor = true;
+    } else {
+      rest.push(arg);
     }
   }
   return { unattended, noColor, forceColor, rest };
@@ -115,6 +190,19 @@ function parseGlobalFlags(
 function showUsage(): void {
   console.error("dn - A CLI for kickstart-style workflows\n");
   console.error("Usage:");
+  console.error("  dn [global options] <subcommand> [options]\n");
+  console.error("Global options:");
+  console.error(
+    "  --agent <agent>   Agent to use for agent-backed workflows (opencode, cursor, claude, codex)",
+  );
+  console.error("  --opencode        Alias for --agent opencode");
+  console.error("  --cursor          Alias for --agent cursor");
+  console.error("  --claude          Alias for --agent claude");
+  console.error("  --codex           Alias for --agent codex");
+  console.error("  --unattended      Disable interactive output affordances");
+  console.error("  --no-color        Disable color output");
+  console.error("  --color           Force color output\n");
+  console.error("Subcommand usage:");
   console.error("  dn auth");
   console.error("  dn context check <file-or-directory> [options]");
   console.error("  dn init <subcommand> [options]");
@@ -184,7 +272,23 @@ function showUsage(): void {
  * Main entry point
  */
 async function main(): Promise<void> {
-  const args = Deno.args;
+  let args: string[];
+  let globalAgent: AgentHarness | null;
+  let unattended: boolean;
+  let noColor: boolean;
+  let forceColor: boolean;
+  try {
+    ({
+      unattended,
+      noColor,
+      forceColor,
+      agent: globalAgent,
+      rest: args,
+    } = parseGlobalFlags(Deno.args));
+  } catch (e) {
+    console.error(e instanceof Error ? e.message : String(e));
+    Deno.exit(1);
+  }
 
   if (args.length === 0) {
     showUsage();
@@ -196,12 +300,16 @@ async function main(): Promise<void> {
 
   // Bootstrap output policy once at CLI entry: set NO_COLOR in CI, then apply global flags
   bootstrapFromEnv();
-  const { unattended, noColor, forceColor, rest: subcommandArgs } =
-    parseGlobalFlags(rawSubcommandArgs);
+  const {
+    unattended: subcommandUnattended,
+    noColor: subcommandNoColor,
+    forceColor: subcommandForceColor,
+    rest: subcommandArgs,
+  } = parseBootstrapFlags(rawSubcommandArgs);
   bootstrapFromEnv({
-    ...(unattended && { unattended: true }),
-    ...(noColor && { noColor: true }),
-    ...(forceColor && { forceColor: true }),
+    ...((unattended || subcommandUnattended) && { unattended: true }),
+    ...((noColor || subcommandNoColor) && { noColor: true }),
+    ...((forceColor || subcommandForceColor) && { forceColor: true }),
   });
 
   switch (subcommand) {
@@ -212,27 +320,29 @@ async function main(): Promise<void> {
       await handleContext(subcommandArgs);
       break;
     case "init":
+      await handleInit(subcommandArgs, globalAgent);
+      break;
     case "init-build":
-      await handleInit(subcommandArgs);
+      await handleInitBuild(subcommandArgs, globalAgent);
       break;
     case "issue":
     case "issues":
       await handleIssue(subcommandArgs);
       break;
     case "kickstart":
-      await handleKickstart(subcommandArgs);
+      await handleKickstart(subcommandArgs, globalAgent);
       break;
     case "loop":
-      await handleLoop(subcommandArgs);
+      await handleLoop(subcommandArgs, globalAgent);
       break;
     case "prep":
-      await handlePrep(subcommandArgs);
+      await handlePrep(subcommandArgs, globalAgent);
       break;
     case "fixup":
-      await handleFixup(subcommandArgs);
+      await handleFixup(subcommandArgs, globalAgent);
       break;
     case "meld":
-      await handleMeld(subcommandArgs);
+      await handleMeld(subcommandArgs, globalAgent);
       break;
     case "archive":
       await handleArchive(subcommandArgs);
@@ -244,7 +354,7 @@ async function main(): Promise<void> {
       await handleTodo(subcommandArgs);
       break;
     case "tidy":
-      await handleTidy(subcommandArgs);
+      await handleTidy(subcommandArgs, globalAgent);
       break;
     case "release":
     case "releases":

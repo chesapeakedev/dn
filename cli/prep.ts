@@ -14,6 +14,7 @@ import { isGitHubIssueUrl } from "../sdk/meld/mod.ts";
 import { getCurrentRepoFromRemote } from "../sdk/github/github-gql.ts";
 import { promptAndAddToTodoList } from "../sdk/todo/todo.ts";
 import { resolveAgentHarnessFromFlagsAndEnv } from "../sdk/github/agentHarness.ts";
+import type { AgentHarness } from "../sdk/github/agentHarness.ts";
 
 /**
  * Extended config for prep command including update-issue mode
@@ -40,7 +41,10 @@ function classifyInput(input: string): {
 /**
  * Parses prep-specific arguments
  */
-function parseArgs(args: string[]): PrepConfig {
+function parseArgs(
+  args: string[],
+  globalAgent: AgentHarness | null = null,
+): PrepConfig {
   let input: string | null = null;
   let planName: string | null = null;
   let workspaceRoot: string | undefined = undefined;
@@ -48,6 +52,8 @@ function parseArgs(args: string[]): PrepConfig {
   let dryRun = false;
   let cursorFlag = false;
   let claudeFlag = false;
+  let codexFlag = false;
+  let opencodeFlag = false;
   let allowCrossRepo = false;
 
   for (let i = 0; i < args.length; i++) {
@@ -66,6 +72,10 @@ function parseArgs(args: string[]): PrepConfig {
       cursorFlag = true;
     } else if (arg === "--claude") {
       claudeFlag = true;
+    } else if (arg === "--codex") {
+      codexFlag = true;
+    } else if (arg === "--opencode") {
+      opencodeFlag = true;
     } else if (arg === "--allow-cross-repo") {
       allowCrossRepo = true;
     } else if (arg === "--help" || arg === "-h") {
@@ -85,8 +95,11 @@ function parseArgs(args: string[]): PrepConfig {
     : { issueUrl: null as string | null, contextMarkdownPath: undefined };
 
   const agentHarness = resolveAgentHarnessFromFlagsAndEnv({
+    agent: globalAgent,
     cursorFlag,
     claudeFlag,
+    codexFlag,
+    opencodeFlag,
   });
 
   return {
@@ -142,6 +155,12 @@ function showHelp(): void {
     "  --claude                  Use Claude Code CLI instead of opencode",
   );
   console.log(
+    "  --codex                   Use Codex CLI instead of opencode",
+  );
+  console.log(
+    "  --opencode                Use OpenCode CLI (default)",
+  );
+  console.log(
     "  --update-issue            Fill empty sections in the issue template",
   );
   console.log(
@@ -162,6 +181,7 @@ function showHelp(): void {
   console.log(
     "  CLAUDE_ENABLED            Set to '1' to use Claude Code (not with CURSOR_ENABLED)\n",
   );
+  console.log("  CODEX_ENABLED             Set to '1' to use Codex CLI\n");
   console.log("Examples:");
   console.log("  # Run plan phase with opencode");
   console.log("  dn prep https://github.com/owner/repo/issues/123");
@@ -172,6 +192,9 @@ function showHelp(): void {
   console.log("  # Run plan phase with Cursor agent");
   console.log("  dn prep --cursor https://github.com/owner/repo/issues/123");
   console.log("  dn prep --claude https://github.com/owner/repo/issues/123");
+  console.log(
+    "  dn --agent codex prep https://github.com/owner/repo/issues/123",
+  );
   console.log("");
   console.log("  # Update issue description (fill empty template sections)");
   console.log("  dn prep --update-issue 123");
@@ -186,10 +209,13 @@ function showHelp(): void {
 /**
  * Handles the prep subcommand
  */
-export async function handlePrep(args: string[]): Promise<void> {
+export async function handlePrep(
+  args: string[],
+  globalAgent: AgentHarness | null = null,
+): Promise<void> {
   let config: PrepConfig;
   try {
-    config = parseArgs(args);
+    config = parseArgs(args, globalAgent);
   } catch (e) {
     console.error(e instanceof Error ? e.message : String(e));
     Deno.exit(1);

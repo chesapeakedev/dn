@@ -1,4 +1,5 @@
 import { assert } from "@std/assert";
+import { cleanupTestRepo, createTestRepo, runDnCommand } from "./test_utils.ts";
 
 Deno.test("CLI rejects unknown subcommand", async () => {
   // The subprocess needs --allow-env because npm packages like graphql
@@ -30,4 +31,32 @@ Deno.test("CLI rejects unknown subcommand", async () => {
   assert(
     errorText.includes("Unknown subcommand"),
   );
+});
+
+Deno.test("CLI accepts top-level --agent before subcommand", async () => {
+  const testRepo = await createTestRepo();
+  try {
+    const result = await runDnCommand(["--agent", "codex", "prep", "--help"], {
+      cwd: testRepo.path,
+    });
+
+    assert(result.success);
+    assert(result.stdout.includes("dn prep"));
+  } finally {
+    await cleanupTestRepo(testRepo);
+  }
+});
+
+Deno.test("CLI accepts top-level agent alias before subcommand", async () => {
+  const testRepo = await createTestRepo();
+  try {
+    const result = await runDnCommand(["--codex", "loop", "--help"], {
+      cwd: testRepo.path,
+    });
+
+    assert(result.success);
+    assert(result.stdout.includes("dn loop"));
+  } finally {
+    await cleanupTestRepo(testRepo);
+  }
 });

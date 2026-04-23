@@ -97,20 +97,23 @@ See [docs/authentication.md](docs/authentication.md) for details.
 
 ## Setting Up Agents
 
-`dn` supports OpenCode (default), Cursor, and Claude Code. Use `--cursor` or
-`--claude` flags (or `CURSOR_ENABLED=1` / `CLAUDE_ENABLED=1`) to switch agents.
-Do not set both environment variables at the same time.
+`dn` supports OpenCode (default), Cursor, Claude Code, and Codex CLI. Use the
+top-level `--agent <opencode|cursor|claude|codex>` option to select an agent for
+any agent-backed command. Legacy command flags such as `--cursor` and `--claude`
+still work. Do not set more than one `*_ENABLED=1` environment variable at the
+same time.
 
-| Agent       | Install                                                   | Flag       |
-| ----------- | --------------------------------------------------------- | ---------- |
-| OpenCode    | https://opencode.dev/                                     | (default)  |
-| Claude Code | https://docs.anthropic.com/en/docs/claude-code/quickstart | `--claude` |
-| Cursor      | https://cursor.com/docs/cli/installation                  | `--cursor` |
+| Agent       | Install                                                   | Flag            |
+| ----------- | --------------------------------------------------------- | --------------- |
+| OpenCode    | https://opencode.dev/                                     | (default)       |
+| Claude Code | https://docs.anthropic.com/en/docs/claude-code/quickstart | `--claude`      |
+| Cursor      | https://cursor.com/docs/cli/installation                  | `--cursor`      |
+| Codex CLI   | https://openai.com/codex/                                 | `--agent codex` |
 
 ```bash
-dn prep --claude <issue_url>
-dn loop --cursor --plan-file plans/issue-123.plan.md
-dn kickstart --awp --claude <issue_url>
+dn --agent claude prep <issue_url>
+dn --agent cursor loop --plan-file plans/issue-123.plan.md
+dn --agent codex kickstart --awp <issue_url>
 ```
 
 For CI or isolated Claude runs, set `CLAUDE_CODE_BARE=1` and
@@ -173,6 +176,7 @@ Without `--yolo`, `archive` prints the suggested commit message as a dry run.
 | `GITHUB_TOKEN`         | GitHub authentication for CI/scripts (fine-grained PAT recommended)                    |
 | `CURSOR_ENABLED`       | Set to `1` to use Cursor agent instead of OpenCode                                     |
 | `CLAUDE_ENABLED`       | Set to `1` to use Claude Code instead of OpenCode (not together with `CURSOR_ENABLED`) |
+| `CODEX_ENABLED`        | Set to `1` to use Codex CLI instead of OpenCode (not with other agent env toggles)     |
 | `ISSUE`                | Issue URL or number; used by `kickstart` and `prep` when no positional arg is given    |
 | `PLAN`                 | Plan file path; used by `loop` when `--plan-file` is not passed                        |
 | `PR_URL`               | PR URL; used by `fixup` when no positional arg is given                                |
@@ -180,6 +184,7 @@ Without `--yolo`, `archive` prints the suggested commit message as a dry run.
 | `OPENCODE_TIMEOUT_MS`  | Timeout in ms for OpenCode agent invocations (default `600000`)                        |
 | `CURSOR_TIMEOUT_MS`    | Timeout in ms for Cursor agent invocations (falls back to `OPENCODE_TIMEOUT_MS`)       |
 | `CLAUDE_TIMEOUT_MS`    | Timeout in ms for Claude Code invocations (falls back to `OPENCODE_TIMEOUT_MS`)        |
+| `CODEX_TIMEOUT_MS`     | Timeout in ms for Codex CLI invocations (falls back to `OPENCODE_TIMEOUT_MS`)          |
 | `CLAUDE_CODE_BARE`     | Set to `1` to run Claude with `--bare` (API-key / deterministic; default is off)       |
 | `CLAUDE_ALLOWED_TOOLS` | Override default `--allowedTools` for Claude Code (default `Bash,Read,Edit`)           |
 | `NO_COLOR`             | Disable ANSI colors/decoration ([no-color.org](https://no-color.org)); auto-set in CI  |

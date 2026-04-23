@@ -9,6 +9,7 @@ import {
 } from "../sdk/github/milestone.ts";
 import { runScoring } from "../kickstart/score.ts";
 import { resolveAgentHarnessFromFlagsAndEnv } from "../sdk/github/agentHarness.ts";
+import type { AgentHarness } from "../sdk/github/agentHarness.ts";
 import { stringifyFrontmatter } from "../sdk/todo/frontmatter.ts";
 
 interface InitStackConfig {
@@ -154,7 +155,10 @@ function formatPlanFile(
   return stringifyFrontmatter(frontmatter, lines.join("\n"));
 }
 
-export async function handleInitStack(args: string[]): Promise<void> {
+export async function handleInitStack(
+  args: string[],
+  globalAgent: AgentHarness | null = null,
+): Promise<void> {
   const config = parseArgs(args);
 
   if (config.help) {
@@ -247,6 +251,7 @@ export async function handleInitStack(args: string[]): Promise<void> {
   }));
 
   const agentHarness = resolveAgentHarnessFromFlagsAndEnv({
+    agent: globalAgent,
     cursorFlag: false,
     claudeFlag: false,
   });

@@ -150,7 +150,9 @@ Derives a commit message from a plan file and optionally commits changes.
 - `PLAN` - Default plan file for dn_loop (e.g. `plans/my-feature.plan.md`)
 - `CURSOR_ENABLED` - Set to `1` to use Cursor agent by default
 - `CLAUDE_ENABLED` - Set to `1` to use Claude Code by default (do not combine
-  with `CURSOR_ENABLED`)
+  with another agent env toggle)
+- `CODEX_ENABLED` - Set to `1` to use Codex CLI by default (do not combine with
+  another agent env toggle)
 - `OPENCODE_TIMEOUT_MS` - Timeout for OpenCode agent invocations (default:
   600000, i.e. 10 minutes)
 

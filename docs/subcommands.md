@@ -173,6 +173,7 @@ dn init build
 dn init build --agent cursor
 dn init build --agent claude
 dn init build --agent opencode
+dn init build --agent codex
 
 # Clear stored agent preference for this repo
 dn init build --reset
@@ -191,6 +192,7 @@ Supported agents:
 - **`opencode`** (default) - Uses OpenAI API, requires `OPENAI_API_KEY` secret
 - **`cursor`** - Uses Cursor's headless agent, requires `CURSOR_API_KEY` secret
 - **`claude`** - Uses Anthropic Claude Code, requires `ANTHROPIC_API_KEY` secret
+- **`codex`** - Uses OpenAI Codex CLI, requires `OPENAI_API_KEY` secret
 
 After setup, the command prints instructions for adding the required API key as
 a GitHub repository secret:
@@ -337,7 +339,10 @@ dn prep --allow-cross-repo https://github.com/private-org/backend-api/issues/123
 dn prep --plan-name my-feature https://github.com/owner/repo/issues/123
 
 # With Claude Code
-dn prep --claude https://github.com/owner/repo/issues/123
+dn --agent claude prep https://github.com/owner/repo/issues/123
+
+# With Codex CLI
+dn --agent codex prep https://github.com/owner/repo/issues/123
 ```
 
 Cross-repository operations follow the same rules as `dn kickstart` — use
@@ -356,10 +361,13 @@ dn loop --plan-file plans/issue-123.plan.md
 PLAN=plans/issue-123.plan.md dn loop
 
 # With Cursor integration
-dn loop --cursor --plan-file plans/issue-123.plan.md
+dn --agent cursor loop --plan-file plans/issue-123.plan.md
 
 # With Claude Code
-dn loop --claude --plan-file plans/issue-123.plan.md
+dn --agent claude loop --plan-file plans/issue-123.plan.md
+
+# With Codex CLI
+dn --agent codex loop --plan-file plans/issue-123.plan.md
 ```
 
 `dn loop` requires a plan file created by `dn prep`.
@@ -389,11 +397,15 @@ dn meld a.md https://github.com/owner/repo/issues/123 --cursor
 
 # Claude mode: no frontmatter + Claude Code for plan phase
 dn meld a.md https://github.com/owner/repo/issues/123 --claude
+
+# Codex CLI with default markdown formatting
+dn --agent codex meld a.md https://github.com/owner/repo/issues/123
 ```
 
 Options include `--list, -l <path>`, `--output, -o <path>`,
 `--plan-name <name>`, `--workspace-root <path>`, `--cursor, -c`, `--claude`, and
-`--opencode`. See `dn meld --help` for details.
+`--opencode`. Top-level `--agent codex` is supported for Codex CLI. See
+`dn meld --help` for details.
 
 ## `dn archive` — Derive a commit message from a plan file
 
@@ -418,10 +430,13 @@ address the feedback, and implements fixes in your local workspace.
 dn fixup https://github.com/owner/repo/pull/123
 
 # With Cursor integration
-dn fixup --cursor https://github.com/owner/repo/pull/123
+dn --agent cursor fixup https://github.com/owner/repo/pull/123
 
 # With Claude Code
-dn fixup --claude https://github.com/owner/repo/pull/123
+dn --agent claude fixup https://github.com/owner/repo/pull/123
+
+# With Codex CLI
+dn --agent codex fixup https://github.com/owner/repo/pull/123
 ```
 
 The PR URL can also be provided via the `PR_URL` environment variable. If

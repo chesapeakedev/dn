@@ -101,7 +101,7 @@ function extractJson(stdout: string): unknown {
  * @param workspaceRoot - Workspace root (for agent cwd and prompt resolution)
  * @param issues - List of issues with ref, title, body
  * @param planPaths - Optional plan file paths to include as virtual issues
- * @param agentHarness - Harness for the scoring LLM; when omitted, uses env (`CURSOR_ENABLED` / `CLAUDE_ENABLED`)
+ * @param agentHarness - Harness for the scoring LLM; when omitted, uses agent env toggles
  */
 export async function runScoring(
   workspaceRoot: string,

@@ -33,14 +33,20 @@ interface MeldArgs {
   sources: string[];
   outputPath: string | null;
   mode: MeldMode;
+  agentHarness: AgentHarness;
   planName: string | null;
   workspaceRoot: string | undefined;
 }
 
-async function parseArgs(args: string[]): Promise<MeldArgs> {
+async function parseArgs(
+  args: string[],
+  globalAgent: AgentHarness | null = null,
+): Promise<MeldArgs> {
   let listPath: string | null = null;
   let outputPath: string | null = null;
   let mode: MeldMode = "opencode";
+  let explicitAgent: AgentHarness | null = null;
+  let agentOnlyFlag = false;
   let planName: string | null = null;
   let workspaceRoot: string | undefined = undefined;
   const positionals: string[] = [];
@@ -63,10 +69,16 @@ async function parseArgs(args: string[]): Promise<MeldArgs> {
       workspaceRoot = args[++i];
     } else if (arg === "--cursor" || arg === "-c") {
       mode = "cursor";
+      explicitAgent = "cursor";
     } else if (arg === "--claude") {
       mode = "claude";
+      explicitAgent = "claude";
     } else if (arg === "--opencode") {
       mode = "opencode";
+      explicitAgent = "opencode";
+    } else if (arg === "--codex") {
+      explicitAgent = "codex";
+      agentOnlyFlag = true;
     } else if (arg === "--help" || arg === "-h") {
       showHelp();
       Deno.exit(0);
@@ -89,7 +101,16 @@ async function parseArgs(args: string[]): Promise<MeldArgs> {
     }
   }
 
-  return { sources, outputPath, mode, planName, workspaceRoot };
+  if (globalAgent && agentOnlyFlag && explicitAgent !== globalAgent) {
+    throw new Error(
+      `Conflicting agent selections: --agent ${globalAgent} and --${explicitAgent}. Select only one agent.`,
+    );
+  }
+
+  const agentHarness = globalAgent ?? explicitAgent ??
+    meldModeToAgentHarness(mode);
+
+  return { sources, outputPath, mode, agentHarness, planName, workspaceRoot };
 }
 
 function showHelp(): void {
@@ -116,6 +137,12 @@ function showHelp(): void {
     "  --cursor, -c          Cursor mode: add YAML frontmatter; use Cursor agent for plan phase",
   );
   console.log(
+    "  --claude              Claude mode: no frontmatter; use Claude agent for plan phase",
+  );
+  console.log(
+    "  --codex               Use Codex CLI for plan phase (opencode markdown formatting)",
+  );
+  console.log(
     "  --opencode            Opencode mode (default): no frontmatter",
   );
   console.log("  --help, -h            Show this help\n");
@@ -129,9 +156,12 @@ function showHelp(): void {
   );
 }
 
-export async function handleMeld(args: string[]): Promise<void> {
-  const { sources, outputPath, mode, planName, workspaceRoot } =
-    await parseArgs(args);
+export async function handleMeld(
+  args: string[],
+  globalAgent: AgentHarness | null = null,
+): Promise<void> {
+  const { sources, outputPath, mode, agentHarness, planName, workspaceRoot } =
+    await parseArgs(args, globalAgent);
 
   if (sources.length === 0) {
     console.error(
@@ -178,7 +208,7 @@ export async function handleMeld(args: string[]): Promise<void> {
 
     const result = await runPlanPhase({
       awp: false,
-      agentHarness: meldModeToAgentHarness(mode),
+      agentHarness,
       allowCrossRepo: false,
       issueUrl: null,
       contextMarkdownPath: contextPath,

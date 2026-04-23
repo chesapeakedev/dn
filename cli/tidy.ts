@@ -23,13 +23,17 @@ import {
   writeTodoList,
 } from "../sdk/todo/todo.ts";
 import { resolveAgentHarnessFromFlagsAndEnv } from "../sdk/github/agentHarness.ts";
+import type { AgentHarness } from "../sdk/github/agentHarness.ts";
 
 function promptYesNo(message: string): boolean {
   const answer = prompt(message + " (y/n): ")?.trim().toLowerCase();
   return answer === "y" || answer === "yes";
 }
 
-export async function handleTidy(args: string[]): Promise<void> {
+export async function handleTidy(
+  args: string[],
+  globalAgent: AgentHarness | null = null,
+): Promise<void> {
   if (args.includes("--help") || args.includes("-h")) {
     console.log("dn tidy - Groom the prioritized todo list\n");
     console.log("Usage: dn tidy [options]\n");
@@ -85,6 +89,7 @@ export async function handleTidy(args: string[]): Promise<void> {
   }
 
   const agentHarness = resolveAgentHarnessFromFlagsAndEnv({
+    agent: globalAgent,
     cursorFlag: false,
     claudeFlag: false,
   });

@@ -42,6 +42,8 @@ function parseArgs(): {
   let awp = false;
   let cursorFlag = false;
   let claudeFlag = false;
+  let codexFlag = false;
+  let opencodeFlag = false;
   let issueUrl: string | null = null;
   let savedPlanName: string | null = null;
 
@@ -53,6 +55,10 @@ function parseArgs(): {
       cursorFlag = true;
     } else if (arg === "--claude") {
       claudeFlag = true;
+    } else if (arg === "--codex") {
+      codexFlag = true;
+    } else if (arg === "--opencode") {
+      opencodeFlag = true;
     } else if (arg === "--saved-plan" && i + 1 < args.length) {
       savedPlanName = args[++i];
     } else if (!arg.startsWith("--") && !issueUrl) {
@@ -69,6 +75,8 @@ function parseArgs(): {
   const agentHarness = resolveAgentHarnessFromFlagsAndEnv({
     cursorFlag,
     claudeFlag,
+    codexFlag,
+    opencodeFlag,
   });
 
   return { awp, agentHarness, issueUrl, savedPlanName };
@@ -128,6 +136,9 @@ async function main() {
     console.error(
       "  ./kickstart --claude <issue_url>   # Claude Code CLI instead of opencode",
     );
+    console.error(
+      "  ./kickstart --codex <issue_url>    # Codex CLI instead of opencode",
+    );
     console.error("\n  # AWP mode: Full workflow with branches and PR");
     console.error("  ./kickstart --awp <issue_url>");
     console.error("\n  # Plan management flags");
@@ -144,6 +155,7 @@ async function main() {
     console.error(
       "  CLAUDE_ENABLED=1   # Claude Code (do not set both with CURSOR_ENABLED)",
     );
+    console.error("  CODEX_ENABLED=1    # Codex CLI");
     console.error("  SAVE_CTX=1        # Preserve debug files on success");
     console.error("\nFeatures:");
     console.error(

@@ -23,7 +23,10 @@ import {
   getCurrentRepoFromRemote,
   listIssues,
 } from "../sdk/github/github-gql.ts";
-import { resolveAgentHarnessFromFlagsAndEnv } from "../sdk/github/agentHarness.ts";
+import {
+  type AgentHarness,
+  resolveAgentHarnessFromFlagsAndEnv,
+} from "../sdk/github/agentHarness.ts";
 import { parseMilestoneUrl } from "../sdk/github/milestone.ts";
 import { parseFrontmatter } from "../sdk/todo/frontmatter.ts";
 
@@ -43,11 +46,16 @@ function classifyInput(input: string): {
 /**
  * Parses kickstart-specific arguments
  */
-function parseArgs(args: string[]): KickstartConfig {
+function parseArgs(
+  args: string[],
+  globalAgent: AgentHarness | null = null,
+): KickstartConfig {
   let input: string | null = null;
   let awp = false;
   let cursorFlag = false;
   let claudeFlag = false;
+  let codexFlag = false;
+  let opencodeFlag = false;
   let allowCrossRepo = false;
   let savedPlanName: string | null = null;
   let workspaceRoot: string | undefined = undefined;
@@ -61,6 +69,10 @@ function parseArgs(args: string[]): KickstartConfig {
       cursorFlag = true;
     } else if (arg === "--claude") {
       claudeFlag = true;
+    } else if (arg === "--codex") {
+      codexFlag = true;
+    } else if (arg === "--opencode") {
+      opencodeFlag = true;
     } else if (arg === "--allow-cross-repo") {
       allowCrossRepo = true;
     } else if (arg === "--saved-plan" && i + 1 < args.length) {
@@ -86,8 +98,11 @@ function parseArgs(args: string[]): KickstartConfig {
     : { issueUrl: null as string | null, contextMarkdownPath: undefined };
 
   const agentHarness = resolveAgentHarnessFromFlagsAndEnv({
+    agent: globalAgent,
     cursorFlag,
     claudeFlag,
+    codexFlag,
+    opencodeFlag,
   });
 
   const saveCtx = Deno.env.get("SAVE_CTX") === "1";
@@ -129,6 +144,8 @@ function showHelp(): void {
   );
   console.log("  --cursor, -c              Use Cursor headless agent");
   console.log("  --claude                  Use Claude Code CLI (`claude -p`)");
+  console.log("  --codex                   Use Codex CLI (`codex exec`)");
+  console.log("  --opencode                Use OpenCode CLI (default)");
   console.log(
     "  --milestone <url-or-num>  Use milestone-linked plan file (plans/{milestone}.plan.md)",
   );
@@ -147,6 +164,7 @@ function showHelp(): void {
   console.log(
     "  CLAUDE_ENABLED           Set to '1' to use Claude Code (not with CURSOR_ENABLED)\n",
   );
+  console.log("  CODEX_ENABLED            Set to '1' to use Codex CLI\n");
   console.log("Examples:");
   console.log("  dn kickstart https://github.com/owner/repo/issues/123");
   console.log("  dn kickstart 123");
@@ -154,6 +172,7 @@ function showHelp(): void {
   console.log("  dn kickstart --milestone 42");
   console.log("  dn kickstart --awp --cursor <issue_url_or_number>");
   console.log("  dn kickstart --awp --claude <issue_url_or_number>");
+  console.log("  dn --agent codex kickstart --awp <issue_url_or_number>");
   console.log("  ISSUE=<issue_url_or_number> dn kickstart");
 }
 
@@ -322,10 +341,13 @@ async function runNoTicketFlow(
 /**
  * Handles the kickstart subcommand
  */
-export async function handleKickstart(args: string[]): Promise<void> {
+export async function handleKickstart(
+  args: string[],
+  globalAgent: AgentHarness | null = null,
+): Promise<void> {
   let config: KickstartConfig & { milestone?: string };
   try {
-    config = parseArgs(args);
+    config = parseArgs(args, globalAgent);
   } catch (e) {
     console.error(e instanceof Error ? e.message : String(e));
     Deno.exit(1);

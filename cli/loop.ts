@@ -14,6 +14,7 @@ import { fetchIssueFromUrl } from "../sdk/github/issue.ts";
 import type { IssueData } from "../sdk/github/issue.ts";
 import { promptAndAddToTodoList } from "../sdk/todo/todo.ts";
 import { resolveAgentHarnessFromFlagsAndEnv } from "../sdk/github/agentHarness.ts";
+import type { AgentHarness } from "../sdk/github/agentHarness.ts";
 
 /**
  * Discovers the most recently modified plan file in the plans/ directory.
@@ -60,10 +61,13 @@ async function discoverLatestPlanFile(
  */
 function parseArgs(
   args: string[],
+  globalAgent: AgentHarness | null = null,
 ): KickstartConfig & { planFilePath: string | null } {
   let planFilePath: string | null = null;
   let cursorFlag = false;
   let claudeFlag = false;
+  let codexFlag = false;
+  let opencodeFlag = false;
   let workspaceRoot: string | undefined = undefined;
 
   for (let i = 0; i < args.length; i++) {
@@ -74,6 +78,10 @@ function parseArgs(
       cursorFlag = true;
     } else if (arg === "--claude") {
       claudeFlag = true;
+    } else if (arg === "--codex") {
+      codexFlag = true;
+    } else if (arg === "--opencode") {
+      opencodeFlag = true;
     } else if (arg === "--workspace-root" && i + 1 < args.length) {
       workspaceRoot = args[++i];
     } else if (arg === "--help" || arg === "-h") {
@@ -88,8 +96,11 @@ function parseArgs(
   }
 
   const agentHarness = resolveAgentHarnessFromFlagsAndEnv({
+    agent: globalAgent,
     cursorFlag,
     claudeFlag,
+    codexFlag,
+    opencodeFlag,
   });
 
   return {
@@ -117,6 +128,8 @@ function showHelp(): void {
   );
   console.log("  --cursor, -c             Use Cursor headless agent");
   console.log("  --claude                 Use Claude Code CLI");
+  console.log("  --codex                  Use Codex CLI");
+  console.log("  --opencode               Use OpenCode CLI (default)");
   console.log("  --workspace-root <path>  Workspace root directory");
   console.log("  --help, -h               Show this help message\n");
   console.log("Environment variables:");
@@ -130,6 +143,7 @@ function showHelp(): void {
   console.log(
     "  CLAUDE_ENABLED           Set to '1' to use Claude Code (not with CURSOR_ENABLED)\n",
   );
+  console.log("  CODEX_ENABLED            Set to '1' to use Codex CLI\n");
   console.log("Examples:");
   console.log("  # Run loop phase (auto-discovers latest plan)");
   console.log("  dn loop");
@@ -180,10 +194,13 @@ async function extractIssueContextFromPlan(
 /**
  * Handles the loop subcommand
  */
-export async function handleLoop(args: string[]): Promise<void> {
+export async function handleLoop(
+  args: string[],
+  globalAgent: AgentHarness | null = null,
+): Promise<void> {
   let config: KickstartConfig & { planFilePath: string | null };
   try {
-    config = parseArgs(args);
+    config = parseArgs(args, globalAgent);
   } catch (e) {
     console.error(e instanceof Error ? e.message : String(e));
     Deno.exit(1);
