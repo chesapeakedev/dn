@@ -12,6 +12,13 @@ import { resolveAgentHarnessFromFlagsAndEnv } from "../sdk/github/agentHarness.t
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
 import { stringifyFrontmatter } from "../sdk/todo/frontmatter.ts";
 
+/**
+ * Parsed CLI flags for `dn init stack`.
+ *
+ * The command accepts one milestone reference plus a small set of behavior
+ * flags. The parsed shape is kept explicit so the main handler can stay mostly
+ * linear and easy to read.
+ */
 interface InitStackConfig {
   milestone: string | null;
   reset: boolean;
@@ -19,6 +26,10 @@ interface InitStackConfig {
   help: boolean;
 }
 
+/**
+ * Prints subcommand usage, examples, and the high-level workflow the command
+ * performs when it succeeds.
+ */
 function showHelp(): void {
   console.log(
     "dn init stack - Initialize stack context from GitHub milestone\n",
@@ -47,6 +58,14 @@ function showHelp(): void {
   console.log("  4. Output instructions to commit the stack file to the repo");
 }
 
+/**
+ * Converts raw CLI arguments into the configuration expected by
+ * {@link handleInitStack}.
+ *
+ * Unknown flags are ignored here and will simply not affect behavior. The last
+ * non-flag argument wins, which keeps parsing predictable without introducing a
+ * heavier CLI framework.
+ */
 function parseArgs(args: string[]): InitStackConfig {
   const config: InitStackConfig = {
     milestone: null,
@@ -71,6 +90,12 @@ function parseArgs(args: string[]): InitStackConfig {
   return config;
 }
 
+/**
+ * Returns whether stderr is attached to a terminal.
+ *
+ * Interactive milestone selection is only safe when a TTY is present. Any
+ * runtime failure while probing terminal state is treated as non-interactive.
+ */
 function isTty(): boolean {
   try {
     return Deno.stderr.isTerminal();
@@ -79,6 +104,14 @@ function isTty(): boolean {
   }
 }
 
+/**
+ * Finds the repository root for the current working directory.
+ *
+ * `dn init stack` writes generated artifacts into `plans/`, so it must confirm
+ * it is running from a repository checkout first. Both Sapling and Git working
+ * copies are accepted because GitHub metadata resolution depends on repo state,
+ * not the VCS brand.
+ */
 async function detectRepoRoot(): Promise<string> {
   const cwd = Deno.cwd();
 
@@ -101,6 +134,14 @@ async function detectRepoRoot(): Promise<string> {
   );
 }
 
+/**
+ * Renders the human-readable stack plan stored in
+ * `plans/{milestone-number}.stack.md`.
+ *
+ * The markdown file is optimized for people and agents: frontmatter captures
+ * stable metadata, the checklist is ordered by kickstart readiness, and
+ * disqualified issues retain their rejection reason for follow-up.
+ */
 function formatPlanFile(
   milestone: Milestone,
   owner: string,
@@ -109,12 +150,19 @@ function formatPlanFile(
   disqualified: Array<{ ref: string; title: string; reason: string }>,
 ): string {
   const today = new Date().toISOString().slice(0, 10);
+  const generatedAt = new Date().toISOString();
 
   const frontmatter: Record<string, string> = {
     milestone: String(milestone.number),
+    milestone_title: milestone.title,
     repo: `${owner}/${repo}`,
     updated: today,
+    generated_at: generatedAt,
   };
+
+  if (scored.length > 0) {
+    frontmatter.issue_count = String(scored.length);
+  }
 
   const lines: string[] = [];
   lines.push("<!--");
@@ -155,6 +203,89 @@ function formatPlanFile(
   return stringifyFrontmatter(frontmatter, lines.join("\n"));
 }
 
+/**
+ * Machine-readable representation of one milestone issue inside the generated
+ * stack index.
+ */
+interface StackIssue {
+  ref: string;
+  title: string;
+  score: number | null;
+  disqualified: boolean;
+  reason?: string;
+}
+
+/**
+ * JSON index written next to the markdown stack file for integrations that need
+ * structured milestone state instead of parsing checklist text.
+ */
+interface StackIndex {
+  version: string;
+  milestone: {
+    number: number;
+    title: string;
+  };
+  repo: string;
+  generated_at: string;
+  issues: StackIssue[];
+  kickstart_order: string[];
+}
+
+/**
+ * Persists the structured stack index at
+ * `plans/{milestone-number}.stack.json`.
+ *
+ * The JSON artifact mirrors the markdown plan but preserves scores,
+ * disqualification state, and explicit kickstart order for tooling.
+ */
+async function writeStackIndex(
+  repoRoot: string,
+  milestone: Milestone,
+  owner: string,
+  repo: string,
+  scored: Array<{ ref: string; title: string; score: number | undefined }>,
+  disqualified: Array<{ ref: string; title: string; reason: string }>,
+): Promise<void> {
+  const generatedAt = new Date().toISOString();
+  const scoredItems = scored.map((s) => ({
+    ref: s.ref,
+    title: s.title,
+    score: s.score ?? null,
+    disqualified: false,
+  }));
+  const disqualifiedItems = disqualified.map((d) => ({
+    ref: d.ref,
+    title: d.title,
+    score: null,
+    disqualified: true,
+    reason: d.reason,
+  }));
+
+  const index: StackIndex = {
+    version: "1.0",
+    milestone: {
+      number: milestone.number,
+      title: milestone.title,
+    },
+    repo: `${owner}/${repo}`,
+    generated_at: generatedAt,
+    issues: [...scoredItems, ...disqualifiedItems],
+    kickstart_order: scored.map((s) => `#${s.ref}`),
+  };
+
+  const indexPath = `${repoRoot}/plans/${milestone.number}.stack.json`;
+  const content = JSON.stringify(index, null, 2);
+  await Deno.writeTextFile(indexPath, content);
+  console.log(`Created: ${indexPath}`);
+}
+
+/**
+ * Initializes milestone stack artifacts for the current repository.
+ *
+ * The command resolves a GitHub milestone, scores its open issues for
+ * kickstart readiness, writes both markdown and JSON stack artifacts under
+ * `plans/`, and prints the follow-up commands needed to commit and use them.
+ */
 export async function handleInitStack(
   args: string[],
   globalAgent: AgentHarness | null = null,
@@ -310,6 +441,15 @@ export async function handleInitStack(
     disqualified,
   );
   await Deno.writeTextFile(planPath, content);
+
+  await writeStackIndex(
+    repoRoot,
+    milestone,
+    owner,
+    repo,
+    scoredItems,
+    disqualified,
+  );
 
   const action = config.refresh ? "Refreshed" : "Created";
   console.log(`${action}: ${planPath}`);

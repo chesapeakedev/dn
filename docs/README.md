@@ -26,3 +26,9 @@ Reference documentation for `dn`. For installation and quickstart, see the
 | Document                                                       | Description                                    |
 | -------------------------------------------------------------- | ---------------------------------------------- |
 | [Self-hosted runners](self-hosted/self-hosted-runner-setup.md) | Setting up a self-hosted GitHub Actions runner |
+
+## Integrations
+
+| Document                          | Description                                      |
+| --------------------------------- | ------------------------------------------------ |
+| [Denoise](denoise-integration.md) | Detecting stack artifacts for milestone-aware UI |

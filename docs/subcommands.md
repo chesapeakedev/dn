@@ -285,6 +285,9 @@ the first unchecked item as the task.
 
 #### Denoise Integration
 
+For stable machine-readable stack artifacts and UI integration guidance, see
+[denoise-integration.md](denoise-integration.md).
+
 Commit the plan file to your repository to "link" it to the GitHub milestone:
 
 ```bash
