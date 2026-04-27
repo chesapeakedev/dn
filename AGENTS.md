@@ -209,6 +209,9 @@ $ dn archive
 # Create a new GitHub issue from a conversation
 $ dn issue create --title "Brief title" --body-file description.md
 
+# Create a new GitHub issue in a different repository
+$ dn issue create --repo owner/repo --title "Brief title" --body-file description.md
+
 # Read an issue before updating it
 $ dn issue show 123
 
@@ -235,6 +238,8 @@ entirely through an agent without leaving the editor.
 - **Edit** an existing issue's body only when the user explicitly asks to
   replace the description.
 - Use `dn issue show <ref>` before editing to confirm current context.
+- Use `--repo owner/repo` when the target issue or new issue belongs to a
+  repository other than the current checkout.
 - Use `--body-file <path>` for longer content and `--body-stdin` for short
   updates.
 

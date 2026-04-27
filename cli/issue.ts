@@ -41,19 +41,76 @@ import {
 // Helpers
 // ============================================================================
 
-interface ResolvedIssueRef {
+export interface ResolvedIssueRef {
   owner: string;
   repo: string;
   number: number;
 }
 
+export interface RepoRef {
+  owner: string;
+  repo: string;
+}
+
+interface ArgsWithRepo {
+  args: string[];
+  repo: RepoRef | undefined;
+}
+
+export function parseRepoRef(value: string): RepoRef | null {
+  const parts = value.split("/");
+  if (parts.length !== 2 || !parts[0] || !parts[1]) {
+    return null;
+  }
+  return { owner: parts[0], repo: parts[1] };
+}
+
+function parseRepoOption(args: string[]): ArgsWithRepo {
+  const nextArgs: string[] = [];
+  let repo: RepoRef | undefined;
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg !== "--repo") {
+      nextArgs.push(arg);
+      continue;
+    }
+
+    if (i + 1 >= args.length) {
+      console.error("Error: --repo requires owner/repo");
+      Deno.exit(1);
+    }
+
+    const parsed = parseRepoRef(args[++i]);
+    if (!parsed) {
+      console.error(`Error: Invalid repository: ${args[i]}. Use owner/repo`);
+      Deno.exit(1);
+    }
+    repo = parsed;
+  }
+
+  return { args: nextArgs, repo };
+}
+
+async function resolveRepo(
+  repoOverride: RepoRef | undefined,
+): Promise<RepoRef> {
+  if (repoOverride) {
+    return repoOverride;
+  }
+  return await getCurrentRepoFromRemote();
+}
+
 /**
  * Resolve a user-facing issue reference into owner/repo/number coordinates.
  */
-async function resolveIssueRef(ref: string): Promise<ResolvedIssueRef | null> {
+export async function resolveIssueRef(
+  ref: string,
+  repoOverride?: RepoRef,
+): Promise<ResolvedIssueRef | null> {
   const numMatch = ref.match(/^#?(\d+)$/);
   if (numMatch) {
-    const remote = await getCurrentRepoFromRemote();
+    const remote = await resolveRepo(repoOverride);
     return {
       owner: remote.owner,
       repo: remote.repo,
@@ -240,6 +297,9 @@ function formatRelationshipRef(
  * dn issue list
  */
 async function handleList(args: string[]): Promise<void> {
+  const repoArgs = parseRepoOption(args);
+  args = repoArgs.args;
+
   let state: "open" | "closed" | "all" = "open";
   const labels: string[] = [];
   let limit = 30;
@@ -267,7 +327,7 @@ async function handleList(args: string[]): Promise<void> {
     }
   }
 
-  const { owner, repo } = await getCurrentRepoFromRemote();
+  const { owner, repo } = await resolveRepo(repoArgs.repo);
   const issues = await listIssues(owner, repo, { state, labels, limit });
 
   if (json) {
@@ -288,12 +348,14 @@ function showListHelp(): void {
   console.log("  dn issue list [options]\n");
   console.log("Options:");
   console.log("  --state <open|closed|all>   Filter by state (default: open)");
+  console.log("  --repo <owner/repo>         Repository to query");
   console.log("  --label <name>              Filter by label (repeatable)");
   console.log("  --limit <n>                 Max results (default: 30)");
   console.log("  --json                      Output as JSON");
   console.log("  --help, -h                  Show this help message\n");
   console.log("Examples:");
   console.log("  dn issue list");
+  console.log("  dn issue list --repo owner/repo");
   console.log("  dn issue list --state closed --limit 10");
   console.log('  dn issue list --label bug --label "help wanted"');
 }
@@ -302,6 +364,9 @@ function showListHelp(): void {
  * dn issue show
  */
 async function handleShow(args: string[]): Promise<void> {
+  const repoArgs = parseRepoOption(args);
+  args = repoArgs.args;
+
   let issueRef: string | null = null;
   let json = false;
   let showComments = true;
@@ -326,7 +391,7 @@ async function handleShow(args: string[]): Promise<void> {
     Deno.exit(1);
   }
 
-  const resolved = await resolveIssueRef(issueRef);
+  const resolved = await resolveIssueRef(issueRef, repoArgs.repo);
   if (!resolved) {
     console.error(`Error: Invalid issue reference: ${issueRef}`);
     Deno.exit(1);
@@ -358,9 +423,11 @@ function showShowHelp(): void {
   console.log("Options:");
   console.log("  --json          Output as JSON");
   console.log("  --no-comments   Hide comments");
+  console.log("  --repo <owner/repo>  Repository for number refs");
   console.log("  --help, -h      Show this help message\n");
   console.log("Examples:");
   console.log("  dn issue show 123");
+  console.log("  dn issue show 123 --repo owner/repo");
   console.log("  dn issue show https://github.com/owner/repo/issues/123");
 }
 
@@ -368,6 +435,9 @@ function showShowHelp(): void {
  * dn issue create
  */
 async function handleCreate(args: string[]): Promise<void> {
+  const repoArgs = parseRepoOption(args);
+  args = repoArgs.args;
+
   let title: string | null = null;
   let body: string | null = null;
   let bodyFile: string | null = null;
@@ -425,7 +495,7 @@ async function handleCreate(args: string[]): Promise<void> {
     body = new TextDecoder().decode(new Uint8Array(buffer));
   }
 
-  const { owner, repo } = await getCurrentRepoFromRemote();
+  const { owner, repo } = await resolveRepo(repoArgs.repo);
 
   const options: CreateIssueOptions = {
     title,
@@ -449,15 +519,16 @@ function showCreateHelp(): void {
   console.log("  dn issue create --title <title> [options]\n");
   console.log("Options:");
   console.log("  --title <title>       Issue title (required)");
-  console.log("  --body <body>         Issue body");
+  console.log("  --repo <owner/repo>   Repository to create the issue in");
   console.log("  --body-file <path>    Read body from file");
+  console.log("  --body-stdin          Read body from stdin");
   console.log("  --label <name>        Add label (repeatable)");
   console.log("  --json                Output as JSON");
   console.log("  --help, -h            Show this help message\n");
   console.log("Examples:");
   console.log('  dn issue create --title "Bug report"');
   console.log(
-    '  dn issue create --title "Feature request" --body "Please add..."',
+    '  dn issue create --repo owner/repo --title "Bug report"',
   );
   console.log(
     '  dn issue create --title "Fix needed" --label bug --label urgent',
@@ -468,6 +539,9 @@ function showCreateHelp(): void {
  * dn issue edit
  */
 async function handleEdit(args: string[]): Promise<void> {
+  const repoArgs = parseRepoOption(args);
+  args = repoArgs.args;
+
   let issueRef: string | null = null;
   let title: string | undefined;
   let body: string | undefined;
@@ -507,7 +581,7 @@ async function handleEdit(args: string[]): Promise<void> {
     Deno.exit(1);
   }
 
-  const resolved = await resolveIssueRef(issueRef);
+  const resolved = await resolveIssueRef(issueRef, repoArgs.repo);
   if (!resolved) {
     console.error(`Error: Invalid issue reference: ${issueRef}`);
     Deno.exit(1);
@@ -568,6 +642,7 @@ function showEditHelp(): void {
   console.log("  <number>              Issue number\n");
   console.log("Options:");
   console.log("  --title <title>       New title");
+  console.log("  --repo <owner/repo>   Repository for number refs");
   console.log("  --body-file <path>    Read body from file");
   console.log("  --body-stdin          Read body from stdin");
   console.log("  --add-label <name>    Add label (repeatable)");
@@ -575,6 +650,7 @@ function showEditHelp(): void {
   console.log("  --help, -h            Show this help message\n");
   console.log("Examples:");
   console.log('  dn issue edit 123 --title "Updated title"');
+  console.log('  dn issue edit 123 --repo owner/repo --title "Updated title"');
   console.log("  dn issue edit 123 --add-label bug");
 }
 
@@ -582,6 +658,9 @@ function showEditHelp(): void {
  * dn issue close
  */
 async function handleClose(args: string[]): Promise<void> {
+  const repoArgs = parseRepoOption(args);
+  args = repoArgs.args;
+
   let issueRef: string | null = null;
   let comment: string | null = null;
   let reason: "COMPLETED" | "NOT_PLANNED" | undefined;
@@ -615,7 +694,7 @@ async function handleClose(args: string[]): Promise<void> {
     Deno.exit(1);
   }
 
-  const resolved = await resolveIssueRef(issueRef);
+  const resolved = await resolveIssueRef(issueRef, repoArgs.repo);
   if (!resolved) {
     console.error(`Error: Invalid issue reference: ${issueRef}`);
     Deno.exit(1);
@@ -653,12 +732,14 @@ function showCloseHelp(): void {
   console.log("Arguments:");
   console.log("  <number>                    Issue number\n");
   console.log("Options:");
+  console.log("  --repo <owner/repo>         Repository for number refs");
   console.log("  --comment <text>            Add comment before closing");
   console.log("  --reason <completed|not_planned>  Close reason");
   console.log("  --json                      Output as JSON");
   console.log("  --help, -h                  Show this help message\n");
   console.log("Examples:");
   console.log("  dn issue close 123");
+  console.log("  dn issue close 123 --repo owner/repo");
   console.log('  dn issue close 123 --comment "Fixed in #456"');
   console.log("  dn issue close 123 --reason not_planned");
 }
@@ -667,6 +748,9 @@ function showCloseHelp(): void {
  * dn issue reopen
  */
 async function handleReopen(args: string[]): Promise<void> {
+  const repoArgs = parseRepoOption(args);
+  args = repoArgs.args;
+
   let issueRef: string | null = null;
   let comment: string | null = null;
   let json = false;
@@ -691,7 +775,7 @@ async function handleReopen(args: string[]): Promise<void> {
     Deno.exit(1);
   }
 
-  const resolved = await resolveIssueRef(issueRef);
+  const resolved = await resolveIssueRef(issueRef, repoArgs.repo);
   if (!resolved) {
     console.error(`Error: Invalid issue reference: ${issueRef}`);
     Deno.exit(1);
@@ -728,11 +812,13 @@ function showReopenHelp(): void {
   console.log("Arguments:");
   console.log("  <number>            Issue number\n");
   console.log("Options:");
+  console.log("  --repo <owner/repo>   Repository for number refs");
   console.log("  --comment <text>    Add comment when reopening");
   console.log("  --json              Output as JSON");
   console.log("  --help, -h          Show this help message\n");
   console.log("Examples:");
   console.log("  dn issue reopen 123");
+  console.log("  dn issue reopen 123 --repo owner/repo");
   console.log(
     '  dn issue reopen 123 --comment "Reopening for further discussion"',
   );
@@ -742,6 +828,9 @@ function showReopenHelp(): void {
  * dn issue comment
  */
 async function handleComment(args: string[]): Promise<void> {
+  const repoArgs = parseRepoOption(args);
+  args = repoArgs.args;
+
   let issueRef: string | null = null;
   let body: string | null = null;
   let bodyFile: string | null = null;
@@ -771,11 +860,13 @@ async function handleComment(args: string[]): Promise<void> {
 
   if (!issueRef) {
     console.error("Error: Issue number required");
-    console.error("\nUsage: dn issue comment <number> --body <text>");
+    console.error(
+      "\nUsage: dn issue comment <number> --body-file <path> | --body-stdin",
+    );
     Deno.exit(1);
   }
 
-  const resolved = await resolveIssueRef(issueRef);
+  const resolved = await resolveIssueRef(issueRef, repoArgs.repo);
   if (!resolved) {
     console.error(`Error: Invalid issue reference: ${issueRef}`);
     Deno.exit(1);
@@ -827,23 +918,30 @@ async function handleComment(args: string[]): Promise<void> {
 function showCommentHelp(): void {
   console.log("dn issue comment - Add comment to an issue\n");
   console.log("Usage:");
-  console.log("  dn issue comment <number> --body <text>\n");
+  console.log("  dn issue comment <number> --body-file <path>");
+  console.log("  dn issue comment <number> --body-stdin\n");
   console.log("Arguments:");
   console.log("  <number>              Issue number\n");
   console.log("Options:");
+  console.log("  --repo <owner/repo>   Repository for number refs");
   console.log("  --body-file <path>    Read body from file");
   console.log("  --body-stdin          Read body from stdin");
   console.log("  --json                Output as JSON");
   console.log("  --help, -h            Show this help message\n");
   console.log("Examples:");
-  console.log('  dn issue comment 123 --body "Thanks for the report!"');
   console.log("  dn issue comment 123 --body-file response.md");
+  console.log(
+    "  dn issue comment 123 --repo owner/repo --body-file response.md",
+  );
 }
 
 /**
  * dn issue relationship
  */
 async function handleRelationship(args: string[]): Promise<void> {
+  const repoArgs = parseRepoOption(args);
+  args = repoArgs.args;
+
   if (args.length === 0 || args[0] === "--help" || args[0] === "-h") {
     showRelationshipHelp();
     return;
@@ -854,19 +952,19 @@ async function handleRelationship(args: string[]): Promise<void> {
 
   switch (subcommand) {
     case "list":
-      await handleRelationshipList(subArgs);
+      await handleRelationshipList(subArgs, repoArgs.repo);
       return;
     case "add":
-      await handleRelationshipAdd(subArgs);
+      await handleRelationshipAdd(subArgs, repoArgs.repo);
       return;
     case "remove":
-      await handleRelationshipRemove(subArgs);
+      await handleRelationshipRemove(subArgs, repoArgs.repo);
       return;
     case "reprioritize":
-      await handleRelationshipReprioritize(subArgs);
+      await handleRelationshipReprioritize(subArgs, repoArgs.repo);
       return;
     case "mark-duplicate":
-      await handleRelationshipMarkDuplicate(subArgs);
+      await handleRelationshipMarkDuplicate(subArgs, repoArgs.repo);
       return;
     default:
       console.error(`Unknown relationship subcommand: ${subcommand}\n`);
@@ -875,7 +973,10 @@ async function handleRelationship(args: string[]): Promise<void> {
   }
 }
 
-async function handleRelationshipList(args: string[]): Promise<void> {
+async function handleRelationshipList(
+  args: string[],
+  repoOverride?: RepoRef,
+): Promise<void> {
   let issueRef: string | null = null;
   let json = false;
 
@@ -892,7 +993,7 @@ async function handleRelationshipList(args: string[]): Promise<void> {
     Deno.exit(1);
   }
 
-  const resolved = await resolveIssueRef(issueRef);
+  const resolved = await resolveIssueRef(issueRef, repoOverride);
   if (!resolved) {
     console.error(`Error: Invalid issue reference: ${issueRef}`);
     Deno.exit(1);
@@ -911,7 +1012,10 @@ async function handleRelationshipList(args: string[]): Promise<void> {
   }
 }
 
-async function handleRelationshipAdd(args: string[]): Promise<void> {
+async function handleRelationshipAdd(
+  args: string[],
+  repoOverride?: RepoRef,
+): Promise<void> {
   const kind = args[0];
   if (!kind) {
     console.error("Error: Relationship kind required");
@@ -919,12 +1023,12 @@ async function handleRelationshipAdd(args: string[]): Promise<void> {
   }
 
   if (kind === "blocked-by") {
-    await mutateBlockedByRelationship(args.slice(1), "add");
+    await mutateBlockedByRelationship(args.slice(1), "add", repoOverride);
     return;
   }
 
   if (kind === "sub-issue") {
-    await mutateSubIssueRelationship(args.slice(1), "add");
+    await mutateSubIssueRelationship(args.slice(1), "add", repoOverride);
     return;
   }
 
@@ -932,7 +1036,10 @@ async function handleRelationshipAdd(args: string[]): Promise<void> {
   Deno.exit(1);
 }
 
-async function handleRelationshipRemove(args: string[]): Promise<void> {
+async function handleRelationshipRemove(
+  args: string[],
+  repoOverride?: RepoRef,
+): Promise<void> {
   const kind = args[0];
   if (!kind) {
     console.error("Error: Relationship kind required");
@@ -940,12 +1047,12 @@ async function handleRelationshipRemove(args: string[]): Promise<void> {
   }
 
   if (kind === "blocked-by") {
-    await mutateBlockedByRelationship(args.slice(1), "remove");
+    await mutateBlockedByRelationship(args.slice(1), "remove", repoOverride);
     return;
   }
 
   if (kind === "sub-issue") {
-    await mutateSubIssueRelationship(args.slice(1), "remove");
+    await mutateSubIssueRelationship(args.slice(1), "remove", repoOverride);
     return;
   }
 
@@ -956,6 +1063,7 @@ async function handleRelationshipRemove(args: string[]): Promise<void> {
 async function mutateBlockedByRelationship(
   args: string[],
   operation: "add" | "remove",
+  repoOverride?: RepoRef,
 ): Promise<void> {
   const issueRef = args[0];
   const targetRef = args[1];
@@ -966,8 +1074,8 @@ async function mutateBlockedByRelationship(
     Deno.exit(1);
   }
 
-  const issue = await resolveIssueRef(issueRef);
-  const target = await resolveIssueRef(targetRef);
+  const issue = await resolveIssueRef(issueRef, repoOverride);
+  const target = await resolveIssueRef(targetRef, repoOverride);
   if (!issue || !target) {
     console.error("Error: Invalid issue reference");
     Deno.exit(1);
@@ -1004,6 +1112,7 @@ async function mutateBlockedByRelationship(
 async function mutateSubIssueRelationship(
   args: string[],
   operation: "add" | "remove",
+  repoOverride?: RepoRef,
 ): Promise<void> {
   const parentRef = args[0];
   const childRef = args[1];
@@ -1022,8 +1131,8 @@ async function mutateSubIssueRelationship(
     Deno.exit(1);
   }
 
-  const parent = await resolveIssueRef(parentRef);
-  const child = await resolveIssueRef(childRef);
+  const parent = await resolveIssueRef(parentRef, repoOverride);
+  const child = await resolveIssueRef(childRef, repoOverride);
   if (!parent || !child) {
     console.error("Error: Invalid issue reference");
     Deno.exit(1);
@@ -1058,7 +1167,10 @@ async function mutateSubIssueRelationship(
   );
 }
 
-async function handleRelationshipReprioritize(args: string[]): Promise<void> {
+async function handleRelationshipReprioritize(
+  args: string[],
+  repoOverride?: RepoRef,
+): Promise<void> {
   const kind = args[0];
   const parentRef = args[1];
   const childRef = args[2];
@@ -1077,9 +1189,9 @@ async function handleRelationshipReprioritize(args: string[]): Promise<void> {
     Deno.exit(1);
   }
 
-  const parent = await resolveIssueRef(parentRef);
-  const child = await resolveIssueRef(childRef);
-  const sibling = await resolveIssueRef(afterRef);
+  const parent = await resolveIssueRef(parentRef, repoOverride);
+  const child = await resolveIssueRef(childRef, repoOverride);
+  const sibling = await resolveIssueRef(afterRef, repoOverride);
   if (!parent || !child || !sibling) {
     console.error("Error: Invalid issue reference");
     Deno.exit(1);
@@ -1105,7 +1217,10 @@ async function handleRelationshipReprioritize(args: string[]): Promise<void> {
   );
 }
 
-async function handleRelationshipMarkDuplicate(args: string[]): Promise<void> {
+async function handleRelationshipMarkDuplicate(
+  args: string[],
+  repoOverride?: RepoRef,
+): Promise<void> {
   const issueRef = args[0];
   const canonicalRef = args[1];
   if (!issueRef || !canonicalRef) {
@@ -1115,8 +1230,8 @@ async function handleRelationshipMarkDuplicate(args: string[]): Promise<void> {
     Deno.exit(1);
   }
 
-  const issue = await resolveIssueRef(issueRef);
-  const canonical = await resolveIssueRef(canonicalRef);
+  const issue = await resolveIssueRef(issueRef, repoOverride);
+  const canonical = await resolveIssueRef(canonicalRef, repoOverride);
   if (!issue || !canonical) {
     console.error("Error: Invalid issue reference");
     Deno.exit(1);
@@ -1137,6 +1252,10 @@ function showRelationshipHelp(): void {
   console.log("dn issue relationship - Manage issue relationships\n");
   console.log("Usage:");
   console.log("  dn issue relationship <subcommand> [options]\n");
+  console.log("Options:");
+  console.log(
+    "  --repo <owner/repo>                              Repository for number refs\n",
+  );
   console.log("Subcommands:");
   console.log(
     "  list <issue>                                     Show relationship metadata",
@@ -1177,6 +1296,10 @@ function showHelp(): void {
   console.log("  reopen    Reopen a closed issue");
   console.log("  comment   Add comment to an issue");
   console.log("  relationship  Manage issue relationships\n");
+  console.log("Common options:");
+  console.log(
+    "  --repo <owner/repo>  Target another repository for number refs and creation\n",
+  );
   console.log(
     "Use 'dn issue <subcommand> --help' for subcommand-specific options.",
   );

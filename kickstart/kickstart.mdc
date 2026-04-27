@@ -44,6 +44,9 @@ a ticket, create a new issue:
 # Create with body from a file
 dn issue create --title "Brief descriptive title" --body-file description.md
 
+# Create in another repository
+dn issue create --repo owner/repo --title "Brief descriptive title" --body-file description.md
+
 # Create with body piped from stdin
 dn issue create --title "Brief descriptive title" --body-stdin
 ```
@@ -87,6 +90,8 @@ dn issue edit <issueRef> --body-stdin
 
 Notes:
 - `<issueRef>` can be `123`, `#123`, or a full GitHub issue URL.
+- Use `--repo owner/repo` when the target issue or new issue belongs to a
+  repository other than the current checkout.
 - Use `dn issue show <issueRef>` first if you need to confirm current title/body/context.
 - Use `--body-file <path>` instead of `--body-stdin` when writing longer content.
 

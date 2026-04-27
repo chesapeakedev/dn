@@ -463,6 +463,7 @@ user asks you to file a ticket:
 
 \`\`\`bash
 dn issue create --title "Brief descriptive title" --body-file description.md
+dn issue create --repo owner/repo --title "Brief descriptive title" --body-file description.md
 dn issue create --title "Brief descriptive title" --body-stdin
 \`\`\`
 
@@ -507,6 +508,8 @@ Guidelines:
 - Prefer \`comment\` (append-only) over \`edit\` (replaces body) unless the user
   explicitly asks to rewrite the issue description.
 - Use \`dn issue show <ref>\` before editing to confirm current context.
+- Use \`--repo owner/repo\` when the target issue or new issue belongs to a
+  repository other than the current checkout.
 - \`<ref>\` can be \`123\`, \`#123\`, or a full GitHub issue URL.
 - Create new issues when new work is identified; comment on existing issues
   when refining understanding of work already tracked.

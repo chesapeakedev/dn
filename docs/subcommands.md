@@ -451,15 +451,19 @@ See `dn fixup --help` for all options.
 ## `dn issue` — Manage GitHub issues
 
 Provides CRUD operations for GitHub issues from the terminal. All subcommands
-operate on the current repository (detected from the git remote).
+operate on the current repository by default (detected from the git remote).
+Pass `--repo owner/repo` to target a different repository.
 
 ```bash
 dn issue list                              # List open issues
+dn issue list --repo owner/repo            # List issues in another repo
 dn issue list --state closed --limit 10    # Closed issues, max 10
 dn issue list --label bug                  # Filter by label
 dn issue show 123                          # Show details and comments
+dn issue show 123 --repo owner/repo        # Resolve number in another repo
 dn issue show 123 --no-comments            # Details only
 dn issue create --title "Bug" --body-file report.md
+dn issue create --repo owner/repo --title "Bug" --body-file report.md
 dn issue edit 123 --title "New title"
 dn issue edit 123 --add-label bug
 dn issue close 123                         # Close as completed
@@ -477,6 +481,8 @@ dn issue relationship mark-duplicate 123 456
 
 All subcommands support `--json` for machine-readable output and `--help` for
 per-subcommand options. Issue references accept a number (`123`), `#123`, or a
-full URL. `dn issue show` includes relationship metadata such as parent issue,
-sub-issues, blockers, blocked issues, and duplicate-of when GitHub exposes it
-for the issue.
+full URL. `--repo owner/repo` sets the repository used for numeric refs and for
+commands without an issue ref, such as `list` and `create`; full URLs keep using
+the repository from the URL. `dn issue show` includes relationship metadata such
+as parent issue, sub-issues, blockers, blocked issues, and duplicate-of when
+GitHub exposes it for the issue.

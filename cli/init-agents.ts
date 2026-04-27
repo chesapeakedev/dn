@@ -165,6 +165,7 @@ dn issue show 123 --json
 dn issue comment 123 --body-file update.md
 dn issue edit 123 --add-label needs-triage
 dn issue create --title "Brief title" --body-file description.md
+dn issue create --repo owner/repo --title "Brief title" --body-file description.md
 dn issue relationship list 123
 \`\`\`
 
@@ -176,6 +177,8 @@ Guidelines:
   understanding.
 - Use \`dn issue edit\` only when the user explicitly wants the issue body or
   metadata changed.
+- Use \`--repo owner/repo\` when the target issue or new issue belongs to a
+  repository other than the current checkout.
 - Use \`--json\` when structured output is useful for follow-up agent steps.
 - Issue references may be \`123\`, \`#123\`, or a full GitHub issue URL.
 
