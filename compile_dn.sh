@@ -7,9 +7,10 @@ set -e
 
 DN_REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KICKSTART_DIR="${DN_REPO_ROOT}/kickstart"
+WORKFLOW_TEMPLATE_DIR="${DN_REPO_ROOT}/templates/workflows"
 OUTPUT_NAME=".dn"
 
-echo "Compiling dn with included system prompts..."
+echo "Compiling dn with included system prompts and workflow templates..."
 echo "  Source: ${DN_REPO_ROOT}/cli/main.ts"
 echo "  Output: ${DN_REPO_ROOT}/${OUTPUT_NAME}"
 echo "  Included files:"
@@ -21,6 +22,10 @@ echo "  Included files:"
   echo "    - ${KICKSTART_DIR}/system.prompt.score.md"
   echo "    - ${KICKSTART_DIR}/system.prompt.complexity.md"
   echo "    - ${KICKSTART_DIR}/kickstart.mdc"
+  echo "    - ${WORKFLOW_TEMPLATE_DIR}/manifest.json"
+  echo "    - ${WORKFLOW_TEMPLATE_DIR}/dn-init-stack.yml"
+  echo "    - ${WORKFLOW_TEMPLATE_DIR}/dn-prep-issue-plan.yml"
+  echo "    - ${WORKFLOW_TEMPLATE_DIR}/dn-kickstart-issue.yml"
 echo ""
 
 cd "${DN_REPO_ROOT}"
@@ -36,6 +41,10 @@ deno compile \
   --include "${KICKSTART_DIR}/system.prompt.score.md" \
   --include "${KICKSTART_DIR}/system.prompt.complexity.md" \
   --include "${KICKSTART_DIR}/kickstart.mdc" \
+  --include "${WORKFLOW_TEMPLATE_DIR}/manifest.json" \
+  --include "${WORKFLOW_TEMPLATE_DIR}/dn-init-stack.yml" \
+  --include "${WORKFLOW_TEMPLATE_DIR}/dn-prep-issue-plan.yml" \
+  --include "${WORKFLOW_TEMPLATE_DIR}/dn-kickstart-issue.yml" \
   -o "${DN_REPO_ROOT}/${OUTPUT_NAME}" \
   "${DN_REPO_ROOT}/cli/main.ts"
 
