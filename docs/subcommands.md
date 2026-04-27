@@ -158,7 +158,7 @@ later files.
 
 ## `dn init` — Initialize repository context
 
-Manages repository setup with two subcommands: `build` and `stack`.
+Manages repository setup with `build`, `stack`, `workflows`, and `agents`.
 
 ### `dn init build` — Setup GitHub Actions workflow
 
@@ -211,6 +211,19 @@ After setup, trigger builds by:
 Only repository maintainers (owners, members, collaborators) can trigger builds.
 
 See `dn init build --help` for all options.
+
+### `dn init workflows` — Install canonical workflow templates
+
+Installs the canonical dn GitHub Actions templates into `.github/workflows/`:
+
+```bash
+dn init workflows
+dn init workflows --dry-run
+dn init workflows --json
+```
+
+This is an alias for `dn workflows install` and only writes missing templates.
+Use `dn workflows update` to replace outdated installed templates.
 
 ### `dn init stack` — Initialize stack from GitHub milestone
 
@@ -309,6 +322,28 @@ dn init stack 42 --refresh
 ```
 
 See `dn init stack --help` for all options.
+
+## `dn workflows` — Manage canonical workflow templates
+
+Manages workflow templates and reports machine-readable status for integrations:
+
+```bash
+dn workflows list
+dn workflows install
+dn workflows update
+dn workflows validate
+dn workflows validate --json
+```
+
+Subcommands:
+
+- `list` reports each canonical template as `missing`, `current`, or `outdated`
+- `install` writes missing templates only
+- `update` writes missing templates and replaces outdated templates
+- `validate` checks installed template checksums and required permission lines
+
+All subcommands support `--json`; `install` and `update` also support
+`--dry-run`.
 
 ## `dn glance` — Project velocity & reports
 

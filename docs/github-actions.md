@@ -56,6 +56,24 @@ See
 [`.github/templates/denoise-build.yaml`](.github/templates/denoise-build.yaml)
 for the full template.
 
+## Canonical workflow templates
+
+For integrations that dispatch `dn` from another application, use the canonical
+workflow templates shipped in `templates/workflows/`:
+
+```bash
+dn init workflows
+dn workflows list
+dn workflows validate --json
+dn workflows update
+```
+
+The templates define stable `repository_dispatch` event contracts for
+`dn.init_stack`, `dn.prep_issue_plan`, and `dn.kickstart_issue`. The
+machine-readable source of truth is `templates/workflows/manifest.json`; see
+[Denoise integration](denoise-integration.md) for payload schemas, permissions,
+secrets, and versioning details.
+
 ## Manual workflow setup
 
 If you write a workflow from scratch, use `chesapeakedev/dn-action` after

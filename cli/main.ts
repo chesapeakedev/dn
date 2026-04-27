@@ -21,6 +21,7 @@ import { handleInitAgents } from "./init-agents.ts";
 import { handleInitBuild } from "./init-build.ts";
 import { handleInitStack } from "./init-stack.ts";
 import { handleIssue } from "./issue.ts";
+import { handleInitWorkflows, handleWorkflows } from "./workflows.ts";
 import {
   type AgentHarness,
   parseAgentHarness,
@@ -52,6 +53,11 @@ async function handleInit(
     return;
   }
 
+  if (subcommand === "workflows") {
+    await handleInitWorkflows(args.slice(1));
+    return;
+  }
+
   if (
     args.length === 0 || subcommand === "help" || subcommand === "--help" ||
     subcommand === "-h"
@@ -61,8 +67,9 @@ async function handleInit(
     console.log("  dn init <subcommand> [options]\n");
     console.log("Subcommands:");
     console.log("  build    Setup GitHub Actions workflow for denoise");
-    console.log("    stack    Initialize stack context from GitHub milestone");
-    console.log("    agents   Update AGENTS.md with dn instructions\n");
+    console.log("  stack    Initialize stack context from GitHub milestone");
+    console.log("  workflows Install canonical GitHub Actions workflows");
+    console.log("  agents   Update AGENTS.md with dn instructions\n");
     console.log("Examples:");
     console.log("  dn init build");
     console.log("  dn init stack 42");
@@ -73,7 +80,7 @@ async function handleInit(
   }
 
   console.error(`Unknown init subcommand: ${subcommand}\n`);
-  console.error("Valid subcommands: build, stack, agents");
+  console.error("Valid subcommands: build, stack, workflows, agents");
   Deno.exit(1);
 }
 import { handleKickstart } from "./kickstart.ts";
@@ -235,6 +242,9 @@ function showUsage(): void {
     "  issue        Manage GitHub issues and relationships",
   );
   console.error(
+    "  workflows    Manage canonical GitHub Actions workflow templates",
+  );
+  console.error(
     "  kickstart    Run full kickstart workflow (plan + implement)",
   );
   console.error("  prep         Run plan phase only (creates plan file)");
@@ -328,6 +338,9 @@ async function main(): Promise<void> {
     case "issue":
     case "issues":
       await handleIssue(subcommandArgs);
+      break;
+    case "workflows":
+      await handleWorkflows(subcommandArgs);
       break;
     case "kickstart":
       await handleKickstart(subcommandArgs, globalAgent);

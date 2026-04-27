@@ -1,0 +1,94 @@
+{
+  "schema_version": "1.0",
+  "templates": [
+    {
+      "id": "dn.init_stack",
+      "version": "1.0.0",
+      "source_path": "templates/workflows/dn-init-stack.yml",
+      "install_path": ".github/workflows/dn-init-stack.yml",
+      "checksum": "sha256:711a20f8e570472f4edeccc1a3e602c07a9c3921b17c8234af1374f2ce77f8ce",
+      "latest_version": "1.0.0",
+      "deprecated": false,
+      "deprecation_message": null,
+      "minimum_dn_version": "0.0.21",
+      "permissions": {
+        "contents": "write",
+        "issues": "write"
+      },
+      "required_secrets": ["GITHUB_TOKEN"],
+      "optional_secrets": [],
+      "triggers": {
+        "repository_dispatch": ["dn.init_stack"],
+        "labels": [],
+        "comments": []
+      },
+      "payload_schema_version": "1.0",
+      "payload": {
+        "required": ["schema_version", "dispatch_id", "milestone"],
+        "optional": ["refresh", "agent"]
+      },
+      "compatibility_notes": "Writes plans/{milestone}.stack.md and plans/{milestone}.stack.json."
+    },
+    {
+      "id": "dn.prep_issue_plan",
+      "version": "1.0.0",
+      "source_path": "templates/workflows/dn-prep-issue-plan.yml",
+      "install_path": ".github/workflows/dn-prep-issue-plan.yml",
+      "checksum": "sha256:269c9ce73c1c81444f98f66399df3728fd517270ebfb56e61fc5a247870c36b0",
+      "latest_version": "1.0.0",
+      "deprecated": false,
+      "deprecation_message": null,
+      "minimum_dn_version": "0.0.21",
+      "permissions": {
+        "contents": "write",
+        "issues": "write"
+      },
+      "required_secrets": ["GITHUB_TOKEN"],
+      "optional_secrets": [],
+      "triggers": {
+        "repository_dispatch": ["dn.prep_issue_plan"],
+        "labels": [],
+        "comments": []
+      },
+      "payload_schema_version": "1.0",
+      "payload": {
+        "required": ["schema_version", "dispatch_id"],
+        "optional": ["issue_url", "issue_number", "plan_name", "agent"]
+      },
+      "compatibility_notes": "Provide exactly one of issue_url or issue_number."
+    },
+    {
+      "id": "dn.kickstart_issue",
+      "version": "1.0.0",
+      "source_path": "templates/workflows/dn-kickstart-issue.yml",
+      "install_path": ".github/workflows/dn-kickstart-issue.yml",
+      "checksum": "sha256:4f038ddfcc7dc4ff0456caeb1f95402a55d43d586c8d379aa7aa71a8a6de0c09",
+      "latest_version": "1.0.0",
+      "deprecated": false,
+      "deprecation_message": null,
+      "minimum_dn_version": "0.0.21",
+      "permissions": {
+        "contents": "write",
+        "pull-requests": "write",
+        "issues": "write"
+      },
+      "required_secrets": ["GITHUB_TOKEN"],
+      "optional_secrets": [
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "CURSOR_API_KEY"
+      ],
+      "triggers": {
+        "repository_dispatch": ["dn.kickstart_issue"],
+        "labels": ["denoise-build", "cursor awp", "opencode awp"],
+        "comments": ["/dn kickstart"]
+      },
+      "payload_schema_version": "1.0",
+      "payload": {
+        "required": ["schema_version", "dispatch_id"],
+        "optional": ["issue_url", "issue_number", "agent", "awp"]
+      },
+      "compatibility_notes": "Provide exactly one of issue_url or issue_number. awp defaults to true."
+    }
+  ]
+}

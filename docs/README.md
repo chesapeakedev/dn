@@ -12,6 +12,7 @@ Reference documentation for `dn`. For installation and quickstart, see the
 | [Output and environment](output-and-environment.md) | Colors, unattended mode, exit codes, env vars      |
 | [API](api.md)                                       | Programmatic SDK usage and GitHub Actions examples |
 | [GitHub Actions](github-actions.md)                 | Running `dn` in GitHub Actions CI                  |
+| [Denoise integration](denoise-integration.md)       | Workflow templates and dispatch contracts          |
 
 ## Agent integration
 
@@ -31,4 +32,4 @@ Reference documentation for `dn`. For installation and quickstart, see the
 
 | Document                          | Description                                      |
 | --------------------------------- | ------------------------------------------------ |
-| [Denoise](denoise-integration.md) | Detecting stack artifacts for milestone-aware UI |
+| [Denoise](denoise-integration.md) | Workflow contracts for denoise-style integrators |

@@ -339,3 +339,30 @@ export type { MeldMode } from "./meld/acceptance.ts";
 export { mergeMarkdown } from "./meld/merge.ts";
 export { normalizeMarkdown } from "./meld/normalize.ts";
 export { isGitHubIssueUrl, resolveSource } from "./meld/resolve.ts";
+
+// ============================================================================
+// Workflows - Canonical GitHub Actions template utilities
+// ============================================================================
+
+export {
+  computeSha256,
+  installWorkflowTemplates,
+  listWorkflowStatuses,
+  loadWorkflowManifest,
+  readWorkflowTemplate,
+  updateWorkflowTemplates,
+  validateWorkflowInstallation,
+  validateWorkflowManifest,
+} from "./workflows/mod.ts";
+export type {
+  WorkflowInstallStatus,
+  WorkflowManifest,
+  WorkflowPayloadContract,
+  WorkflowPermission,
+  WorkflowTemplateManifestEntry,
+  WorkflowTemplateStatus,
+  WorkflowTriggerContract,
+  WorkflowValidationResult,
+  WorkflowValidationWarning,
+  WorkflowWriteResult,
+} from "./workflows/mod.ts";

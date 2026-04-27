@@ -208,9 +208,12 @@ function formatPlanFile(
  * stack index.
  */
 interface StackIssue {
-  ref: string;
+  number: number;
   title: string;
   score: number | null;
+  scoring_source: "agent";
+  scoring_confidence: "unknown";
+  recommended_order_rank: number | null;
   disqualified: boolean;
   reason?: string;
 }
@@ -225,10 +228,14 @@ interface StackIndex {
     number: number;
     title: string;
   };
-  repo: string;
+  repo: {
+    owner: string;
+    name: string;
+    full_name: string;
+  };
   generated_at: string;
   issues: StackIssue[];
-  kickstart_order: string[];
+  kickstart_order: number[];
 }
 
 /**
@@ -247,16 +254,22 @@ async function writeStackIndex(
   disqualified: Array<{ ref: string; title: string; reason: string }>,
 ): Promise<void> {
   const generatedAt = new Date().toISOString();
-  const scoredItems = scored.map((s) => ({
-    ref: s.ref,
+  const scoredItems = scored.map((s, index) => ({
+    number: parseInt(s.ref, 10),
     title: s.title,
     score: s.score ?? null,
+    scoring_source: "agent" as const,
+    scoring_confidence: "unknown" as const,
+    recommended_order_rank: index + 1,
     disqualified: false,
   }));
   const disqualifiedItems = disqualified.map((d) => ({
-    ref: d.ref,
+    number: parseInt(d.ref, 10),
     title: d.title,
     score: null,
+    scoring_source: "agent" as const,
+    scoring_confidence: "unknown" as const,
+    recommended_order_rank: null,
     disqualified: true,
     reason: d.reason,
   }));
@@ -267,10 +280,14 @@ async function writeStackIndex(
       number: milestone.number,
       title: milestone.title,
     },
-    repo: `${owner}/${repo}`,
+    repo: {
+      owner,
+      name: repo,
+      full_name: `${owner}/${repo}`,
+    },
     generated_at: generatedAt,
     issues: [...scoredItems, ...disqualifiedItems],
-    kickstart_order: scored.map((s) => `#${s.ref}`),
+    kickstart_order: scored.map((s) => parseInt(s.ref, 10)),
   };
 
   const indexPath = `${repoRoot}/plans/${milestone.number}.stack.json`;

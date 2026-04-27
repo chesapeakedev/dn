@@ -1,0 +1,59 @@
+name: dn init stack
+
+on:
+  repository_dispatch:
+    types: [dn.init_stack]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  init-stack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate dispatch payload
+        id: payload
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const payload = context.payload.client_payload || {};
+            if (payload.schema_version !== "1.0") {
+              core.setFailed("client_payload.schema_version must be 1.0");
+              return;
+            }
+            if (!payload.dispatch_id) {
+              core.setFailed("client_payload.dispatch_id is required");
+              return;
+            }
+            if (!payload.milestone) {
+              core.setFailed("client_payload.milestone is required");
+              return;
+            }
+            core.setOutput("milestone", String(payload.milestone));
+            core.setOutput("refresh", payload.refresh === false ? "false" : "true");
+            core.setOutput("agent", payload.agent ? String(payload.agent) : "");
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dn
+        uses: chesapeakedev/dn-action@v1
+
+      - name: Run dn init stack
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NO_COLOR: "1"
+        run: |
+          AGENT_ARG=""
+          if [ -n "${{ steps.payload.outputs.agent }}" ]; then
+            AGENT_ARG="--agent ${{ steps.payload.outputs.agent }}"
+          fi
+
+          REFRESH_ARG=""
+          if [ "${{ steps.payload.outputs.refresh }}" = "true" ]; then
+            REFRESH_ARG="--refresh"
+          fi
+
+          dn $AGENT_ARG init stack "${{ steps.payload.outputs.milestone }}" $REFRESH_ARG
