@@ -486,3 +486,101 @@ Deno.test("kickstart command with issue number format", async () => {
     await cleanupTestRepo(testRepo);
   }
 });
+
+Deno.test("kickstart --milestone reads current repo prefixed stack file", async () => {
+  const testRepo = await createTestRepo();
+
+  try {
+    await Deno.mkdir(`${testRepo.path}/plans`, { recursive: true });
+    await Deno.writeTextFile(
+      `${testRepo.path}/plans/owner_repo_42.stack.md`,
+      `---
+milestone: 42
+repo: owner/repo
+---
+
+# Milestone: Test
+
+## Prioritized Tasks (easiest first)
+
+- [ ] 1 #123 Test issue
+`,
+    );
+
+    const result = await runDnCommand(["kickstart", "--milestone", "42"], {
+      cwd: testRepo.path,
+      env: { GITHUB_REPOSITORY: "owner/repo" },
+      expectFailure: true,
+    });
+
+    assert(result.stderr.includes("Cancelled."));
+    assert(!result.stderr.includes("Plan file not found"));
+  } finally {
+    await cleanupTestRepo(testRepo);
+  }
+});
+
+Deno.test("kickstart --milestone URL reads repo prefixed stack file", async () => {
+  const testRepo = await createTestRepo();
+
+  try {
+    await Deno.mkdir(`${testRepo.path}/plans`, { recursive: true });
+    await Deno.writeTextFile(
+      `${testRepo.path}/plans/owner_other-repo_7.stack.md`,
+      `---
+milestone: 7
+repo: owner/other-repo
+---
+
+# Milestone: Test
+
+## Prioritized Tasks (easiest first)
+
+- [ ] 2 https://github.com/owner/other-repo/issues/456 Cross repo issue
+`,
+    );
+
+    const result = await runDnCommand([
+      "kickstart",
+      "--milestone",
+      "https://github.com/owner/other-repo/milestone/7",
+    ], {
+      cwd: testRepo.path,
+      expectFailure: true,
+    });
+
+    assert(result.stderr.includes("Cancelled."));
+    assert(!result.stderr.includes("Plan file not found"));
+  } finally {
+    await cleanupTestRepo(testRepo);
+  }
+});
+
+Deno.test("kickstart --milestone does not use legacy numeric stack file", async () => {
+  const testRepo = await createTestRepo();
+
+  try {
+    await Deno.mkdir(`${testRepo.path}/plans`, { recursive: true });
+    await Deno.writeTextFile(
+      `${testRepo.path}/plans/42.stack.md`,
+      `---
+milestone: 42
+repo: owner/repo
+---
+
+- [ ] 1 #123 Legacy issue
+`,
+    );
+
+    const result = await runDnCommand(["kickstart", "--milestone", "42"], {
+      cwd: testRepo.path,
+      env: { GITHUB_REPOSITORY: "owner/repo" },
+      expectFailure: true,
+    });
+
+    assert(result.stderr.includes("owner_repo_42.stack.md"));
+    assert(result.stderr.includes("Plan file not found"));
+  } finally {
+    await cleanupTestRepo(testRepo);
+  }
+});

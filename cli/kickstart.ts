@@ -29,6 +29,10 @@ import {
 } from "../sdk/github/agentHarness.ts";
 import { parseMilestoneUrl } from "../sdk/github/milestone.ts";
 import { parseFrontmatter } from "../sdk/todo/frontmatter.ts";
+import {
+  getStackArtifactPaths,
+  parseStackTodoItems,
+} from "../sdk/github/stack.ts";
 
 const ISSUE_NUMBER_PATTERN = /^#?\d+$/;
 
@@ -147,7 +151,7 @@ function showHelp(): void {
   console.log("  --codex                   Use Codex CLI (`codex exec`)");
   console.log("  --opencode                Use OpenCode CLI (default)");
   console.log(
-    "  --milestone <url-or-num>  Use milestone-linked plan file (plans/{milestone}.plan.md)",
+    "  --milestone <url-or-num>  Use milestone-linked stack file (plans/{owner}_{repo}_{milestone}.stack.md)",
   );
   console.log("  --saved-plan <name>      Use a specific plan name");
   console.log("  --workspace-root <path>  Workspace root directory");
@@ -194,32 +198,30 @@ async function runNoTicketFlow(
     Deno.env.get("WORKSPACE_ROOT") ?? Deno.cwd();
 
   if (config.milestone) {
+    const parsedUrl = parseMilestoneUrl(config.milestone);
     const milestoneNum = config.milestone.match(/^\d+$/)
-      ? config.milestone
-      : parseMilestoneUrl(config.milestone)?.number.toString() ??
-        config.milestone;
-    const planPath = `${workspaceRoot}/plans/${milestoneNum}.plan.md`;
+      ? parseInt(config.milestone, 10)
+      : parsedUrl?.number;
+    if (!milestoneNum) {
+      console.error(
+        `Invalid milestone: ${config.milestone}. Provide a milestone URL or number.`,
+      );
+      return null;
+    }
+
+    const repoRef = parsedUrl ?? await getCurrentRepoFromRemote();
+    const planPath = getStackArtifactPaths(
+      workspaceRoot,
+      repoRef.owner,
+      repoRef.repo,
+      milestoneNum,
+    ).markdownPath;
 
     try {
       const content = await Deno.readTextFile(planPath);
       const { frontmatter, body } = parseFrontmatter(content);
 
-      const items: TodoItem[] = [];
-      for (const line of body.split(/\r?\n/)) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith("#")) continue;
-        const match = trimmed.match(
-          /^-\s+\[([ xX])\]\s*(?:(\d+)\s+)?#?(\d+)\s+(.*)$/,
-        );
-        if (match) {
-          items.push({
-            checked: match[1].toLowerCase() === "x",
-            score: match[2] ? parseInt(match[2], 10) : undefined,
-            ref: match[3],
-            title: match[4].trim(),
-          });
-        }
-      }
+      const items: TodoItem[] = parseStackTodoItems(body);
 
       const list = { meta: frontmatter, items };
       const suggested = firstUnchecked(list);
@@ -233,17 +235,17 @@ async function runNoTicketFlow(
       }
 
       const ref = suggested.ref;
-      if (!promptYesNo(`Proceed with #${ref}?`)) {
+      if (!promptYesNo(`Proceed with ${ref}?`)) {
         console.error("Cancelled.");
         return null;
       }
 
-      return { ...config, issueUrl: `#${ref}`, contextMarkdownPath: undefined };
+      return { ...config, issueUrl: ref, contextMarkdownPath: undefined };
     } catch (e) {
       if (e instanceof Deno.errors.NotFound) {
         console.error(`Plan file not found: ${planPath}`);
         console.error(
-          "Run 'dn init stack --milestone <num>' first to create it.",
+          "Run 'dn init stack <num-or-url>' first to create it.",
         );
         return null;
       }

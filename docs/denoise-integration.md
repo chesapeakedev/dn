@@ -92,10 +92,11 @@ optional at the manifest level because they depend on the selected agent, but
 ## Stack JSON Contract
 
 `dn init stack` writes both a human-readable markdown file and a structured JSON
-artifact:
+artifact. The filenames include the repository owner and name so milestones from
+different repositories do not collide:
 
-- `plans/{milestone}.stack.md`
-- `plans/{milestone}.stack.json`
+- `plans/{owner}_{repo}_{milestone}.stack.md`
+- `plans/{owner}_{repo}_{milestone}.stack.json`
 
 The JSON artifact is the parsing contract for integrations. It includes schema
 version, repository, milestone number/title, generation timestamp, issue entries

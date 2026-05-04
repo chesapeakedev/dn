@@ -27,7 +27,7 @@
         "required": ["schema_version", "dispatch_id", "milestone"],
         "optional": ["refresh", "agent"]
       },
-      "compatibility_notes": "Writes plans/{milestone}.stack.md and plans/{milestone}.stack.json."
+      "compatibility_notes": "Writes plans/{owner}_{repo}_{milestone}.stack.md and plans/{owner}_{repo}_{milestone}.stack.json."
     },
     {
       "id": "dn.prep_issue_plan",
