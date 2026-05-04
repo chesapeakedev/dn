@@ -18,7 +18,6 @@ import { handleContext } from "./context.ts";
 import { bootstrapFromEnv } from "./output.ts";
 import { handleFixup } from "./fixup.ts";
 import { handleInitAgents } from "./init-agents.ts";
-import { handleInitBuild } from "./init-build.ts";
 import { handleInitStack } from "./init-stack.ts";
 import { handleIssue } from "./issue.ts";
 import { handleInitWorkflows, handleWorkflows } from "./workflows.ts";
@@ -31,17 +30,7 @@ async function handleInit(
   args: string[],
   globalAgent: AgentHarness | null,
 ): Promise<void> {
-  // Handle backwards compatibility: dn init-build -> treat as dn init build
-  if (args.length > 0 && args[0] === "init-build") {
-    args = ["build", ...args.slice(1)];
-  }
-
   const subcommand = args[0];
-
-  if (subcommand === "build") {
-    await handleInitBuild(args.slice(1), globalAgent);
-    return;
-  }
 
   if (subcommand === "stack") {
     await handleInitStack(args.slice(1), globalAgent);
@@ -66,12 +55,11 @@ async function handleInit(
     console.log("Usage:");
     console.log("  dn init <subcommand> [options]\n");
     console.log("Subcommands:");
-    console.log("  build    Setup GitHub Actions workflow for denoise");
     console.log("  stack    Initialize stack context from GitHub milestone");
     console.log("  workflows Install canonical GitHub Actions workflows");
     console.log("  agents   Update AGENTS.md with dn instructions\n");
     console.log("Examples:");
-    console.log("  dn init build");
+    console.log("  dn init workflows");
     console.log("  dn init stack 42");
     console.log(
       "  dn init stack https://github.com/owner/repo/milestone/3",
@@ -80,7 +68,7 @@ async function handleInit(
   }
 
   console.error(`Unknown init subcommand: ${subcommand}\n`);
-  console.error("Valid subcommands: build, stack, workflows, agents");
+  console.error("Valid subcommands: stack, workflows, agents");
   Deno.exit(1);
 }
 import { handleKickstart } from "./kickstart.ts";
@@ -232,12 +220,15 @@ function showUsage(): void {
     "  context      Inspect inherited AGENTS.md context for a file or directory",
   );
   console.error(
-    "  init         Initialize repo context (build, stack)",
+    "  init         Initialize repo context (stack, workflows, agents)",
   );
-  console.error("    build      Setup GitHub Actions workflow for denoise");
   console.error(
     "    stack      Initialize stack context from GitHub milestone",
   );
+  console.error(
+    "    workflows  Install canonical GitHub Actions workflows",
+  );
+  console.error("    agents     Update AGENTS.md with dn instructions");
   console.error(
     "  issue        Manage GitHub issues and relationships",
   );
@@ -331,9 +322,6 @@ async function main(): Promise<void> {
       break;
     case "init":
       await handleInit(subcommandArgs, globalAgent);
-      break;
-    case "init-build":
-      await handleInitBuild(subcommandArgs, globalAgent);
       break;
     case "issue":
     case "issues":

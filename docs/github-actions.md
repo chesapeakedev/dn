@@ -1,7 +1,6 @@
 # GitHub Actions
 
-Use `dn` in automated workflows to trigger kickstart from issue labels, slash
-commands, or manual dispatches.
+Use `dn` in automated workflows to trigger kickstart from GitHub Actions.
 
 ## Quick setup
 
@@ -23,43 +22,9 @@ jobs:
         run: dn --agent opencode kickstart --awp "${{ github.event.issue.html_url }}"
 ```
 
-## Using `dn init-build`
+## Canonical Workflow Templates
 
-`dn init-build` scaffolds the full workflow for you:
-
-```bash
-# Interactive mode (prompts for agent selection)
-dn init-build
-
-# Or specify agent directly
-dn init-build --agent cursor
-dn init-build --agent claude
-dn init-build --agent opencode
-dn init-build --agent codex
-```
-
-It creates `.github/workflows/denoise-build.yaml` (with your selected agent) and
-a `denoise-build` label. Maintainers trigger builds by adding the label to any
-issue. The generated workflow uses `dn --agent <agent> kickstart --awp` and
-includes the required secret configuration.
-
-After running `dn init-build`, add the required API key as a repository secret:
-
-```bash
-gh secret set OPENAI_API_KEY --body "your-key"      # for opencode
-gh secret set CURSOR_API_KEY --body "your-key"      # for cursor
-gh secret set ANTHROPIC_API_KEY --body "your-key"    # for claude
-gh secret set OPENAI_API_KEY --body "your-key"      # for codex
-```
-
-See
-[`.github/templates/denoise-build.yaml`](.github/templates/denoise-build.yaml)
-for the full template.
-
-## Canonical workflow templates
-
-For integrations that dispatch `dn` from another application, use the canonical
-workflow templates shipped in `templates/workflows/`:
+Install the canonical workflow templates shipped in `templates/workflows/`:
 
 ```bash
 dn init workflows
@@ -73,6 +38,16 @@ The templates define stable `repository_dispatch` event contracts for
 machine-readable source of truth is `templates/workflows/manifest.json`; see
 [Denoise integration](denoise-integration.md) for payload schemas, permissions,
 secrets, and versioning details.
+
+`dn.kickstart_issue` exposes the agent-specific secrets used by `dn kickstart`.
+Add the secrets needed by the agents you plan to dispatch:
+
+```bash
+gh secret set OPENAI_API_KEY --body "your-key"      # for opencode
+gh secret set CURSOR_API_KEY --body "your-key"      # for cursor
+gh secret set ANTHROPIC_API_KEY --body "your-key"    # for claude
+gh secret set OPENAI_API_KEY --body "your-key"      # for codex
+```
 
 ## Manual workflow setup
 

@@ -31,8 +31,7 @@ ways to share context between teammates and models.
 - **Instruction Context Auditing** — Inspect inherited `AGENTS.md` size and
   optional Claude token estimates with `dn context check <file>`
 - **GitHub Actions Integration** — Trigger agentic workflows with canonical
-  repository dispatch templates (`dn init workflows`) or the legacy
-  `denoise-build` label setup (`dn init build`)
+  repository dispatch templates installed by `dn init workflows`
 
 ## Getting Started
 
