@@ -84,10 +84,16 @@ Canonical templates request the minimum permissions needed for their workflow:
 - `dn.kickstart_issue`: `contents: write`, `pull-requests: write`,
   `issues: write`
 
-`GITHUB_TOKEN` is required for all templates. Agent-specific API keys are
-optional at the manifest level because they depend on the selected agent, but
-`dn.kickstart_issue` exposes `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and
-`CURSOR_API_KEY` to support opencode, codex, Claude, and Cursor workflows.
+Templates pass `GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}` into `dn`. That value
+is **not** a repository secret the user creates: GitHub Actions provides it
+automatically for every job. The `permissions` block scopes what that token can
+do; integrators should not treat `GITHUB_TOKEN` as part of `required_secrets`
+when checking the repo’s configured secrets (for example via the GitHub API).
+
+Agent-specific API keys are optional at the manifest level because they depend
+on the selected agent, but `dn.kickstart_issue` exposes `OPENAI_API_KEY`,
+`ANTHROPIC_API_KEY`, and `CURSOR_API_KEY` to support opencode, codex, Claude,
+and Cursor workflows.
 
 ## Stack JSON Contract
 

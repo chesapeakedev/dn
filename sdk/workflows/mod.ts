@@ -62,7 +62,12 @@ export interface WorkflowTemplateManifestEntry {
   minimum_dn_version: string;
   /** Required GitHub Actions permissions. */
   permissions: Record<string, WorkflowPermission>;
-  /** Required GitHub Actions secrets or token names. */
+  /**
+   * Repository secrets the workflow expects the user to configure.
+   * Do not list `GITHUB_TOKEN`: Actions injects that automatically (see
+   * `permissions`); integrators that diff this list against repo secrets would
+   * falsely report it as missing.
+   */
   required_secrets: string[];
   /** Optional secrets that unlock agent-specific behavior. */
   optional_secrets: string[];

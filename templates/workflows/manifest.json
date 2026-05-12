@@ -15,7 +15,7 @@
         "contents": "write",
         "issues": "write"
       },
-      "required_secrets": ["GITHUB_TOKEN"],
+      "required_secrets": [],
       "optional_secrets": [],
       "triggers": {
         "repository_dispatch": ["dn.init_stack"],
@@ -43,7 +43,7 @@
         "contents": "write",
         "issues": "write"
       },
-      "required_secrets": ["GITHUB_TOKEN"],
+      "required_secrets": [],
       "optional_secrets": [],
       "triggers": {
         "repository_dispatch": ["dn.prep_issue_plan"],
@@ -72,7 +72,7 @@
         "pull-requests": "write",
         "issues": "write"
       },
-      "required_secrets": ["GITHUB_TOKEN"],
+      "required_secrets": [],
       "optional_secrets": [
         "OPENAI_API_KEY",
         "ANTHROPIC_API_KEY",
