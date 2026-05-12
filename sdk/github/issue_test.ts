@@ -1,12 +1,42 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import {
   emptyIssueRelationships,
   type IssueData,
+  summarizeIssueForDisplay,
   writeIssueContext,
 } from "./issue.ts";
+
+Deno.test("summarizeIssueForDisplay uses owner/repo and truncates long titles", () => {
+  const issue: IssueData = {
+    databaseId: 1,
+    number: 42,
+    title: "x".repeat(130),
+    body: "",
+    labels: [],
+    repo: "dn",
+    owner: "acme",
+    relationships: emptyIssueRelationships(),
+  };
+  const line = summarizeIssueForDisplay(issue, 120);
+  assertEquals(line, `acme/dn#42 — ${"x".repeat(117)}...`);
+});
+
+Deno.test("summarizeIssueForDisplay falls back to #n when owner/repo missing", () => {
+  const issue: IssueData = {
+    databaseId: null,
+    number: 7,
+    title: "Hello",
+    body: "",
+    labels: [],
+    repo: "",
+    owner: "",
+    relationships: emptyIssueRelationships(),
+  };
+  assertEquals(summarizeIssueForDisplay(issue), "#7 — Hello");
+});
 
 Deno.test("writeIssueContext includes curated relationship summary", async () => {
   const tempFile = await Deno.makeTempFile({ suffix: ".md" });

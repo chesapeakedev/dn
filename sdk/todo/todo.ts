@@ -192,7 +192,7 @@ export function firstUnchecked(list: TodoList): TodoItem | null {
 /**
  * Resolves a ref to owner/repo/number for GitHub issues. Returns null for paths.
  */
-async function resolveGitHubRef(ref: string): Promise<
+export async function resolveGitHubRef(ref: string): Promise<
   {
     owner: string;
     repo: string;
@@ -256,6 +256,38 @@ export async function promptAndAddToTodoList(
 }
 
 /**
+ * True when `itemRef` denotes the same work item as `targetRef`, using GitHub
+ * coordinates from `targetGh` (from {@link resolveGitHubRef}(targetRef)).
+ */
+export function itemRefMatchesTarget(
+  itemRef: string,
+  targetRef: string,
+  targetGh: { owner: string; repo: string; number: number } | null,
+): boolean {
+  if (itemRef === targetRef) return true;
+  if (!targetGh) return false;
+  if (
+    itemRef === `#${targetGh.number}` || itemRef === String(targetGh.number)
+  ) {
+    return true;
+  }
+  if (itemRef.endsWith(`/issues/${targetGh.number}`)) return true;
+  return false;
+}
+
+/**
+ * Closes a GitHub issue with the standard completion comment.
+ */
+export async function completeGitHubIssueForRef(
+  gh: { owner: string; repo: string; number: number },
+  options?: { closeComment?: string },
+): Promise<void> {
+  const comment = options?.closeComment ?? "Completed via dn todo done";
+  await addIssueComment(gh.owner, gh.repo, gh.number, comment);
+  await closeIssue(gh.owner, gh.repo, gh.number, "COMPLETED");
+}
+
+/**
  * Finds the first unchecked item matching ref (exact ref, or same GitHub issue).
  */
 function findUncheckedItem(
@@ -265,12 +297,7 @@ function findUncheckedItem(
 ): number {
   return list.items.findIndex((i) => {
     if (i.checked) return false;
-    if (i.ref === ref) return true;
-    if (gh && (i.ref === `#${gh.number}` || i.ref === String(gh.number))) {
-      return true;
-    }
-    if (gh && i.ref.endsWith(`/issues/${gh.number}`)) return true;
-    return false;
+    return itemRefMatchesTarget(i.ref, ref, gh);
   });
 }
 
@@ -291,9 +318,7 @@ export async function markDone(
     throw new Error(`No unchecked todo item found for ref: ${ref}`);
   }
   if (gh) {
-    const comment = options?.closeComment ?? "Completed via dn todo done";
-    await addIssueComment(gh.owner, gh.repo, gh.number, comment);
-    await closeIssue(gh.owner, gh.repo, gh.number, "COMPLETED");
+    await completeGitHubIssueForRef(gh, options);
   }
   await withLock(async () => {
     const list2 = await readTodoList();

@@ -2,7 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { IssueData } from "../sdk/github/issue.ts";
-import { fetchIssueFromUrl, writeIssueContext } from "../sdk/github/issue.ts";
+import {
+  fetchIssueFromUrl,
+  parseIssueFromFile,
+  resolveIssueUrlInput,
+  summarizeIssueForDisplay,
+  writeIssueContext,
+} from "../sdk/github/issue.ts";
 import type { GitContext } from "../sdk/github/vcs.ts";
 import {
   checkForChanges,
@@ -251,18 +257,26 @@ async function readExistingPlan(planPath: string): Promise<string | null> {
  * @param config - Orchestrator configuration
  * @param workspaceRoot - Root directory of the workspace
  * @param gitContext - Git context (for branch name suggestion)
+ * @param issueHint - Fetched issue or parsed markdown context (shown before the plan name prompt)
  * @returns The plan file path
  */
 function resolvePlanFilePath(
   config: OrchestratorConfig,
   workspaceRoot: string,
   gitContext: GitContext | null,
+  issueHint: IssueData | null,
 ): string {
   const plansDir = `${workspaceRoot}/plans`;
 
   // If savedPlanName is provided, use it
   if (config.savedPlanName) {
     return `${plansDir}/${config.savedPlanName}.plan.md`;
+  }
+
+  if (issueHint) {
+    console.log(
+      `\n${formatInfo(`Issue: ${summarizeIssueForDisplay(issueHint)}`)}`,
+    );
   }
 
   // Always prompt for plan name (suggest branch name if available)
@@ -733,7 +747,8 @@ export async function runOrchestrator(
       issueContextPathFinal = config.contextMarkdownPath;
       issueData = null;
     } else if (issueUrl) {
-      issueData = await fetchIssueFromUrl(issueUrl);
+      const resolvedIssueUrl = await resolveIssueUrlInput(issueUrl);
+      issueData = await fetchIssueFromUrl(resolvedIssueUrl);
       issueContextPathFinal = `${tmpDir}/issue-context.md`;
       await writeIssueContext(issueData, issueContextPathFinal);
     } else {
@@ -752,10 +767,15 @@ export async function runOrchestrator(
     // VCS will be detected lazily only when needed (e.g., to show changes).
 
     // Step 2.5: Resolve plan file path
+    let issueHintForPlanName: IssueData | null = issueData;
+    if (!issueHintForPlanName && issueContextPathFinal) {
+      issueHintForPlanName = await parseIssueFromFile(issueContextPathFinal);
+    }
     const planFilePath = resolvePlanFilePath(
       config,
       normalizedWorkspaceRoot,
       gitContext,
+      issueHintForPlanName,
     );
 
     // Step 2.6: Handle plan continuation (normal mode only)

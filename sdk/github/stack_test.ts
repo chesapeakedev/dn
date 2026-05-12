@@ -1,10 +1,11 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
-import { assertEquals, assertThrows } from "@std/assert";
+import { assertEquals, assertRejects, assertThrows } from "@std/assert";
 import {
   formatStackArtifactId,
   getStackArtifactPaths,
+  markMilestoneStackItemDone,
   parseStackTodoItems,
   sanitizeStackFilenamePart,
 } from "./stack.ts";
@@ -64,4 +65,47 @@ Deno.test("parseStackTodoItems accepts issue numbers and full issue URLs", () =>
       title: "Fix redirect",
     },
   ]);
+});
+
+Deno.test("markMilestoneStackItemDone checks off matching line", async () => {
+  const path = await Deno.makeTempFile({ suffix: ".stack.md" });
+  try {
+    await Deno.writeTextFile(
+      path,
+      `---
+milestone: 1
+repo: owner/repo
+---
+
+# Milestone
+
+- [ ] 1 #45 First task
+- [ ] 2 #46 Second task
+`,
+    );
+    await markMilestoneStackItemDone(path, "#45");
+    const out = await Deno.readTextFile(path);
+    assertEquals(out.includes("- [x] 1 #45 First task"), true);
+    assertEquals(out.includes("- [ ] 2 #46 Second task"), true);
+  } finally {
+    await Deno.remove(path);
+  }
+});
+
+Deno.test("markMilestoneStackItemDone throws when ref not in stack", async () => {
+  const path = await Deno.makeTempFile({ suffix: ".stack.md" });
+  try {
+    await Deno.writeTextFile(
+      path,
+      `---
+milestone: 1
+---
+
+- [ ] 1 #99 Only here
+`,
+    );
+    await assertRejects(() => markMilestoneStackItemDone(path, "#45"));
+  } finally {
+    await Deno.remove(path);
+  }
 });

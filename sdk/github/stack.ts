@@ -1,10 +1,21 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
-import type { TodoItem } from "../todo/todo.ts";
+import { parseFrontmatter, stringifyFrontmatter } from "../todo/frontmatter.ts";
+import {
+  itemRefMatchesTarget,
+  resolveGitHubRef,
+  type TodoItem,
+} from "../todo/todo.ts";
 
 const GITHUB_ISSUE_URL_RE =
   /^https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/issues\/\d+$/;
+
+/**
+ * Checklist line pattern for milestone stack markdown (same as {@link parseStackTodoItems}).
+ */
+export const STACK_TODO_LINE_RE =
+  /^-\s+\[([ xX])\]\s*(?:(\d+)\s+)?((?:#?\d+)|(?:https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/issues\/\d+))\s+(.*)$/;
 
 /**
  * Filesystem paths for the generated milestone stack artifacts.
@@ -74,9 +85,7 @@ export function parseStackTodoItems(body: string): TodoItem[] {
   for (const line of body.split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
-    const match = trimmed.match(
-      /^-\s+\[([ xX])\]\s*(?:(\d+)\s+)?((?:#?\d+)|(?:https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/issues\/\d+))\s+(.*)$/,
-    );
+    const match = trimmed.match(STACK_TODO_LINE_RE);
     if (!match) continue;
 
     const rawRef = match[3];
@@ -91,4 +100,72 @@ export function parseStackTodoItems(body: string): TodoItem[] {
     });
   }
   return items;
+}
+
+/**
+ * Marks the first unchecked stack line matching `targetRef` as done (`[x]`).
+ * Matches the same ref rules as ~/.dn/todo.md (issue URL, `#n`, or `n`).
+ *
+ * @throws Error if no matching unchecked line exists in the file.
+ */
+export async function markMilestoneStackItemDone(
+  stackMarkdownPath: string,
+  targetRef: string,
+): Promise<void> {
+  const raw = await Deno.readTextFile(stackMarkdownPath);
+  const { frontmatter, body } = parseFrontmatter(raw);
+  const lines = body.split(/\r?\n/);
+  let targetGh: Awaited<ReturnType<typeof resolveGitHubRef>> | null = null;
+  let targetGhResolved = false;
+
+  async function getTargetGh(): Promise<
+    Awaited<ReturnType<typeof resolveGitHubRef>>
+  > {
+    if (targetGhResolved) return targetGh;
+    targetGhResolved = true;
+    try {
+      targetGh = await resolveGitHubRef(targetRef);
+    } catch {
+      targetGh = null;
+    }
+    return targetGh;
+  }
+
+  let changed = false;
+  const newLines: string[] = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const m = trimmed.match(STACK_TODO_LINE_RE);
+    if (!m) {
+      newLines.push(line);
+      continue;
+    }
+    if (m[1].toLowerCase() === "x") {
+      newLines.push(line);
+      continue;
+    }
+    const rawRef = m[3];
+    const itemRef = GITHUB_ISSUE_URL_RE.test(rawRef)
+      ? rawRef
+      : rawRef.replace(/^#?/, "#");
+    const matches = itemRef === targetRef ||
+      itemRefMatchesTarget(itemRef, targetRef, await getTargetGh());
+    if (!matches) {
+      newLines.push(line);
+      continue;
+    }
+    changed = true;
+    const newTrimmed = trimmed.replace(/^-\s+\[ \]/, "- [x]");
+    const lead = line.match(/^\s*/)?.[0] ?? "";
+    newLines.push(lead + newTrimmed);
+  }
+  if (!changed) {
+    throw new Error(
+      `No unchecked stack item found for ref: ${targetRef}`,
+    );
+  }
+  await Deno.writeTextFile(
+    stackMarkdownPath,
+    stringifyFrontmatter(frontmatter, newLines.join("\n")),
+  );
 }

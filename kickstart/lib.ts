@@ -11,7 +11,9 @@
 import type { IssueData } from "../sdk/github/issue.ts";
 import {
   fetchIssueFromUrl,
+  parseIssueFromFile,
   resolveIssueUrlInput,
+  summarizeIssueForDisplay,
   writeIssueContext,
 } from "../sdk/github/issue.ts";
 import {
@@ -421,17 +423,26 @@ async function ensurePlansDirectory(workspaceRoot: string): Promise<void> {
 
 /**
  * Resolves the plan file path based on configuration and mode.
+ *
+ * @param issueHint - Fetched issue or parsed markdown context (shown before the plan name prompt)
  */
 function resolvePlanFilePath(
   config: KickstartConfig,
   workspaceRoot: string,
   gitContext: GitContext | null,
+  issueHint: IssueData | null,
 ): string {
   const plansDir = `${workspaceRoot}/plans`;
 
   // If savedPlanName is provided, use it
   if (config.savedPlanName) {
     return `${plansDir}/${config.savedPlanName}.plan.md`;
+  }
+
+  if (issueHint) {
+    console.log(
+      `\n${formatInfo(`Issue: ${summarizeIssueForDisplay(issueHint)}`)}`,
+    );
   }
 
   // Always prompt for plan name (suggest branch name if available)
@@ -831,10 +842,15 @@ export async function runPlanPhase(
     }
 
     // Step 2.5: Resolve plan file path
+    let issueHintForPlanName: IssueData | null = issueData;
+    if (!issueHintForPlanName && issueContextPathFinal) {
+      issueHintForPlanName = await parseIssueFromFile(issueContextPathFinal);
+    }
     const planFilePath = resolvePlanFilePath(
       config,
       normalizedWorkspaceRoot,
       gitContext,
+      issueHintForPlanName,
     );
 
     // Step 2.6: Handle plan continuation (normal mode only)

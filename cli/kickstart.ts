@@ -12,9 +12,11 @@ import { runFullKickstart } from "../kickstart/lib.ts";
 import { runScoring } from "../kickstart/score.ts";
 import { isGitHubIssueUrl } from "../sdk/meld/mod.ts";
 import {
+  completeGitHubIssueForRef,
   firstUnchecked,
   markDone,
   readTodoList,
+  resolveGitHubRef,
   type TodoItem,
   writeTodoList,
 } from "../sdk/todo/todo.ts";
@@ -31,10 +33,17 @@ import { parseMilestoneUrl } from "../sdk/github/milestone.ts";
 import { parseFrontmatter } from "../sdk/todo/frontmatter.ts";
 import {
   getStackArtifactPaths,
+  markMilestoneStackItemDone,
   parseStackTodoItems,
 } from "../sdk/github/stack.ts";
 
 const ISSUE_NUMBER_PATTERN = /^#?\d+$/;
+
+/** CLI-only fields layered on {@link KickstartConfig}. */
+type KickstartCliConfig = KickstartConfig & {
+  milestone?: string;
+  milestoneStackMarkdownPath?: string;
+};
 
 function classifyInput(input: string): {
   issueUrl: string | null;
@@ -193,7 +202,7 @@ function promptYesNo(message: string, defaultNo = true): boolean {
  */
 async function runNoTicketFlow(
   config: KickstartConfig,
-): Promise<KickstartConfig | null> {
+): Promise<KickstartCliConfig | null> {
   const workspaceRoot = config.workspaceRoot ??
     Deno.env.get("WORKSPACE_ROOT") ?? Deno.cwd();
 
@@ -240,7 +249,12 @@ async function runNoTicketFlow(
         return null;
       }
 
-      return { ...config, issueUrl: ref, contextMarkdownPath: undefined };
+      return {
+        ...config,
+        issueUrl: ref,
+        contextMarkdownPath: undefined,
+        milestoneStackMarkdownPath: planPath,
+      };
     } catch (e) {
       if (e instanceof Deno.errors.NotFound) {
         console.error(`Plan file not found: ${planPath}`);
@@ -347,7 +361,7 @@ export async function handleKickstart(
   args: string[],
   globalAgent: AgentHarness | null = null,
 ): Promise<void> {
-  let config: KickstartConfig & { milestone?: string };
+  let config: KickstartCliConfig;
   try {
     config = parseArgs(args, globalAgent);
   } catch (e) {
@@ -397,34 +411,63 @@ export async function handleKickstart(
       Deno.exit(0);
     }
 
+    const updated = new Date().toISOString().slice(0, 10);
+    const stackPath = config.milestoneStackMarkdownPath;
+
     try {
-      await markDone(ref, {
-        updated: new Date().toISOString().slice(0, 10),
-      });
+      if (stackPath) {
+        await markMilestoneStackItemDone(stackPath, ref);
+        const gh = await resolveGitHubRef(ref);
+        if (gh) {
+          await completeGitHubIssueForRef(gh, {
+            closeComment: "Completed via dn kickstart",
+          });
+        }
+        const stackContent = await Deno.readTextFile(stackPath);
+        const { body } = parseFrontmatter(stackContent);
+        const stackItems = parseStackTodoItems(body);
+        const next = firstUnchecked({ meta: {}, items: stackItems });
+        if (!next) {
+          console.log(
+            "No more unchecked tasks in this milestone stack. Commit the updated stack file when ready.",
+          );
+          Deno.exit(0);
+        }
+        if (!promptYesNo(`Proceed with ${next.ref}?`)) {
+          Deno.exit(0);
+        }
+        const { issueUrl, contextMarkdownPath } = classifyInput(next.ref);
+        config = {
+          ...config,
+          issueUrl: issueUrl ?? null,
+          contextMarkdownPath,
+          milestoneStackMarkdownPath: stackPath,
+        };
+      } else {
+        await markDone(ref, { updated });
+        const list = await readTodoList();
+        const next = firstUnchecked(list);
+        if (!next) {
+          console.log(
+            "No more items in todo. Run `dn kickstart` with a ticket or `dn tidy` to refresh.",
+          );
+          Deno.exit(0);
+        }
+        if (!promptYesNo(`Proceed with ${next.ref}?`)) {
+          Deno.exit(0);
+        }
+        const { issueUrl, contextMarkdownPath } = classifyInput(next.ref);
+        config = {
+          ...config,
+          issueUrl: issueUrl ?? null,
+          contextMarkdownPath,
+          milestoneStackMarkdownPath: undefined,
+        };
+      }
     } catch (err) {
       console.error(err instanceof Error ? err.message : String(err));
       Deno.exit(1);
     }
-
-    const list = await readTodoList();
-    const next = firstUnchecked(list);
-    if (!next) {
-      console.log(
-        "No more items in todo. Run `dn kickstart` with a ticket or `dn tidy` to refresh.",
-      );
-      Deno.exit(0);
-    }
-
-    if (!promptYesNo(`Proceed with ${next.ref}?`)) {
-      Deno.exit(0);
-    }
-
-    const { issueUrl, contextMarkdownPath } = classifyInput(next.ref);
-    config = {
-      ...config,
-      issueUrl: issueUrl ?? null,
-      contextMarkdownPath,
-    };
 
     if (config.contextMarkdownPath) {
       try {

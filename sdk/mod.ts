@@ -305,6 +305,7 @@ export {
   fetchIssueFromUrl as fetchIssue,
   parseIssueFromFile,
   resolveIssueUrlInput,
+  summarizeIssueForDisplay,
   writeIssueContext,
 } from "./github/issue.ts";
 

@@ -117,6 +117,27 @@ export interface IssueData {
   relationships: IssueRelationships;
 }
 
+const DEFAULT_ISSUE_SUMMARY_TITLE_MAX = 120;
+
+/**
+ * Returns a single-line `owner/repo#n — title` (or `#n — title` when owner/repo
+ * are unknown) for terminal prompts. Long titles are truncated with an ellipsis.
+ */
+export function summarizeIssueForDisplay(
+  issue: IssueData,
+  maxTitleLength: number = DEFAULT_ISSUE_SUMMARY_TITLE_MAX,
+): string {
+  const title = issue.title.length > maxTitleLength
+    ? `${issue.title.slice(0, Math.max(0, maxTitleLength - 3))}...`
+    : issue.title;
+  const owner = issue.owner.trim();
+  const repo = issue.repo.trim();
+  const ref = owner !== "" && repo !== ""
+    ? `${owner}/${repo}#${issue.number}`
+    : `#${issue.number}`;
+  return `${ref} — ${title}`;
+}
+
 /**
  * Resolves user input to a full GitHub issue URL.
  * Accepts either a full GitHub issue URL or an issue number for the current repository.
