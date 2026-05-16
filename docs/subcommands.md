@@ -240,7 +240,16 @@ dn kickstart --milestone 42
 
 # Full workflow with AWP
 dn kickstart --awp --milestone 42
+
+# Run every remaining unchecked stack item in order (no y/n between tasks)
+dn kickstart --milestone 42 --complete
 ```
+
+`--complete` must be used with `--milestone` and **without** an issue argument
+or `ISSUE` env var. It skips only the milestone queue prompts in the kickstart
+CLI (proceed / mark done / next task). Plan and implement phases can still
+prompt internally (for example existing plan continuation or plan naming); use
+`--saved-plan` or other flags as needed for unattended agent runs.
 
 The milestone-aware kickstart reads from
 `plans/{owner}_{repo}_{milestone}.stack.md` and uses the first unchecked item as

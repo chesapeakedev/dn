@@ -41,8 +41,9 @@ const ISSUE_NUMBER_PATTERN = /^#?\d+$/;
 
 /** CLI-only fields layered on {@link KickstartConfig}. */
 type KickstartCliConfig = KickstartConfig & {
-  milestone?: string;
   milestoneStackMarkdownPath?: string;
+  /** When true with `--complete` and `--milestone`, skip milestone queue y/n prompts in this module. */
+  milestoneAutoAdvance?: boolean;
 };
 
 function classifyInput(input: string): {
@@ -62,7 +63,7 @@ function classifyInput(input: string): {
 function parseArgs(
   args: string[],
   globalAgent: AgentHarness | null = null,
-): KickstartConfig {
+): KickstartCliConfig {
   let input: string | null = null;
   let awp = false;
   let cursorFlag = false;
@@ -73,6 +74,7 @@ function parseArgs(
   let savedPlanName: string | null = null;
   let workspaceRoot: string | undefined = undefined;
   let milestone: string | undefined = undefined;
+  let milestoneAutoAdvance = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -88,6 +90,8 @@ function parseArgs(
       opencodeFlag = true;
     } else if (arg === "--allow-cross-repo") {
       allowCrossRepo = true;
+    } else if (arg === "--complete") {
+      milestoneAutoAdvance = true;
     } else if (arg === "--saved-plan" && i + 1 < args.length) {
       savedPlanName = args[++i];
     } else if (arg === "--workspace-root" && i + 1 < args.length) {
@@ -130,6 +134,7 @@ function parseArgs(
     savedPlanName,
     workspaceRoot,
     milestone,
+    ...(milestoneAutoAdvance ? { milestoneAutoAdvance: true } : {}),
   };
 }
 
@@ -162,6 +167,9 @@ function showHelp(): void {
   console.log(
     "  --milestone <url-or-num>  Use milestone-linked stack file (plans/{owner}_{repo}_{milestone}.stack.md)",
   );
+  console.log(
+    "  --complete               With --milestone only: run all unchecked stack tasks without y/n prompts between them",
+  );
   console.log("  --saved-plan <name>      Use a specific plan name");
   console.log("  --workspace-root <path>  Workspace root directory");
   console.log("  --help, -h               Show this help message\n");
@@ -183,6 +191,9 @@ function showHelp(): void {
   console.log("  dn kickstart 123");
   console.log("  dn kickstart docs/spec.md");
   console.log("  dn kickstart --milestone 42");
+  console.log(
+    "  dn kickstart --milestone 42 --complete   # chain every unchecked stack item",
+  );
   console.log("  dn kickstart --awp --cursor <issue_url_or_number>");
   console.log("  dn kickstart --awp --claude <issue_url_or_number>");
   console.log("  dn --agent codex kickstart --awp <issue_url_or_number>");
@@ -201,7 +212,7 @@ function promptYesNo(message: string, defaultNo = true): boolean {
  * Only if list is empty, prompt to search repo, then score and write list.
  */
 async function runNoTicketFlow(
-  config: KickstartConfig,
+  config: KickstartCliConfig,
 ): Promise<KickstartCliConfig | null> {
   const workspaceRoot = config.workspaceRoot ??
     Deno.env.get("WORKSPACE_ROOT") ?? Deno.cwd();
@@ -244,7 +255,10 @@ async function runNoTicketFlow(
       }
 
       const ref = suggested.ref;
-      if (!promptYesNo(`Proceed with ${ref}?`)) {
+      if (
+        !config.milestoneAutoAdvance &&
+        !promptYesNo(`Proceed with ${ref}?`)
+      ) {
         console.error("Cancelled.");
         return null;
       }
@@ -369,6 +383,21 @@ export async function handleKickstart(
     Deno.exit(1);
   }
 
+  if (config.milestoneAutoAdvance) {
+    if (!config.milestone) {
+      console.error(
+        "--complete requires --milestone <number-or-url>.",
+      );
+      Deno.exit(1);
+    }
+    if (config.issueUrl || config.contextMarkdownPath) {
+      console.error(
+        "--complete only applies when no issue argument or ISSUE is set (use `dn kickstart --milestone …` alone to pick from the stack file).",
+      );
+      Deno.exit(1);
+    }
+  }
+
   if (!config.issueUrl && !config.contextMarkdownPath) {
     const resolved = await runNoTicketFlow(config);
     if (!resolved) Deno.exit(1);
@@ -407,7 +436,13 @@ export async function handleKickstart(
     const ref = config.issueUrl ?? config.contextMarkdownPath;
     if (!ref) break;
 
-    if (!promptYesNo(`Mark ${ref} done and continue with next?`)) {
+    const skipMilestoneQueuePrompts = Boolean(
+      config.milestoneAutoAdvance && config.milestoneStackMarkdownPath,
+    );
+    if (
+      !skipMilestoneQueuePrompts &&
+      !promptYesNo(`Mark ${ref} done and continue with next?`)
+    ) {
       Deno.exit(0);
     }
 
@@ -433,7 +468,10 @@ export async function handleKickstart(
           );
           Deno.exit(0);
         }
-        if (!promptYesNo(`Proceed with ${next.ref}?`)) {
+        if (
+          !skipMilestoneQueuePrompts &&
+          !promptYesNo(`Proceed with ${next.ref}?`)
+        ) {
           Deno.exit(0);
         }
         const { issueUrl, contextMarkdownPath } = classifyInput(next.ref);
