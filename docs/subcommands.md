@@ -283,6 +283,32 @@ dn init stack 42 --refresh
 
 See `dn init stack --help` for all options.
 
+## `dn workflow` — Trigger GitHub Actions workflows
+
+Runs `workflow_dispatch` events for workflows that declare
+`on.workflow_dispatch`. This mirrors `gh workflow run` and is distinct from
+`dn workflows`, which installs canonical dn template files.
+
+```bash
+dn workflow run release.yml
+dn workflow run triage.yml --ref my-branch
+dn workflow run triage.yml -f name=scully -f greeting=hello
+echo '{"name":"scully"}' | dn workflow run triage.yml --json
+dn workflow run smoke.yml --repo owner/repo
+```
+
+Options:
+
+- `--repo`, `-R` — target `owner/repo` (default: current remote)
+- `--ref`, `-r` — branch or tag containing the workflow file (default: default
+  branch)
+- `-f`, `--raw-field` — string input as `key=value`
+- `-F`, `--field` — string input; `@path` reads file contents
+- `--json` — workflow inputs as a JSON object from stdin
+
+The command prints the created run URL when the API returns it. Interactive
+workflow and input prompts are not implemented yet.
+
 ## `dn workflows` — Manage canonical workflow templates
 
 Manages workflow templates and reports machine-readable status for integrations:

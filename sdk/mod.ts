@@ -286,6 +286,23 @@ export type {
   ReprioritizeSubIssueOptions,
 } from "./github/issueRelationships.ts";
 
+// GitHub Actions workflow dispatch (REST)
+export {
+  dispatchWorkflow,
+  getWorkflow,
+  listWorkflows,
+  parseWorkflowFields,
+  resolveWorkflow,
+  workflowBase,
+} from "./github/workflow.ts";
+export type {
+  DispatchWorkflowOptions,
+  WorkflowDispatchInputs,
+  WorkflowDispatchResult,
+  WorkflowState,
+  WorkflowSummary,
+} from "./github/workflow.ts";
+
 // Token resolution
 export { resolveGitHubToken } from "./github/token.ts";
 

@@ -220,6 +220,9 @@ $ dn issue comment 123 --body-file update.md
 
 # Replace the issue body (only when explicitly asked)
 $ dn issue edit 123 --body-file revised.md
+
+# Trigger a GitHub Actions workflow_dispatch run
+$ dn workflow run release.yml --ref main -f tag=v1.0.0
 ```
 
 Guideline: if a task involves GitHub state, plans, or iteration across steps,

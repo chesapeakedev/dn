@@ -20,6 +20,7 @@ import { handleFixup } from "./fixup.ts";
 import { handleInitAgents } from "./init-agents.ts";
 import { handleInitStack } from "./init-stack.ts";
 import { handleIssue } from "./issue.ts";
+import { handleWorkflow } from "./workflow.ts";
 import { handleInitWorkflows, handleWorkflows } from "./workflows.ts";
 import {
   type AgentHarness,
@@ -202,6 +203,7 @@ function showUsage(): void {
   console.error("  dn context check <file-or-directory> [options]");
   console.error("  dn init <subcommand> [options]");
   console.error("  dn issue <subcommand> [options]");
+  console.error("  dn workflow run [<workflow>] [options]");
   console.error("  dn kickstart [options] <issue_url_or_number>");
   console.error("  dn prep [options] <issue_url_or_number>");
   console.error("  dn loop [options] --plan-file <path>");
@@ -231,6 +233,9 @@ function showUsage(): void {
   console.error("    agents     Update AGENTS.md with dn instructions");
   console.error(
     "  issue        Manage GitHub issues and relationships",
+  );
+  console.error(
+    "  workflow     Trigger GitHub Actions workflows (workflow_dispatch)",
   );
   console.error(
     "  workflows    Manage canonical GitHub Actions workflow templates",
@@ -326,6 +331,9 @@ async function main(): Promise<void> {
     case "issue":
     case "issues":
       await handleIssue(subcommandArgs);
+      break;
+    case "workflow":
+      await handleWorkflow(subcommandArgs);
       break;
     case "workflows":
       await handleWorkflows(subcommandArgs);
