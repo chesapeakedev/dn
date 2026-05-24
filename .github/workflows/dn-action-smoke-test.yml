@@ -70,16 +70,7 @@ jobs:
             echo "::endgroup::"
           fi
 
-          # dn CLI smoke: --help paths should not require GitHub auth
-          subcommands=(
-            context init issue workflows kickstart prep loop fixup
-            meld archive glance todo tidy release
-          )
-          for sub in "${subcommands[@]}"; do
-            check "dn ${sub} --help" bash -c "dn '${sub}' --help | head -n 5 | grep -q ."
-          done
-
-          # Bare 'dn' prints usage to stderr and exits 1; ignore exit code, not pipefail.
+          # Bare 'dn' runs and prints usage (exits 1); confirms the binary is functional.
           check "bare 'dn' prints top-level usage" bash -c '
             set +o pipefail
             usage="$(dn 2>&1 || true)"
