@@ -41,6 +41,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install dn
+        id: dn-install
         uses: chesapeakedev/dn-action@v1
 
       - name: Run dn prep
@@ -58,4 +59,4 @@ jobs:
             PLAN_ARG="--plan-name ${{ steps.payload.outputs.plan_name }}"
           fi
 
-          dn $AGENT_ARG prep $PLAN_ARG "${{ steps.payload.outputs.issue }}"
+          "${{ steps.dn-install.outputs.dn-path }}" $AGENT_ARG prep $PLAN_ARG "${{ steps.payload.outputs.issue }}"
