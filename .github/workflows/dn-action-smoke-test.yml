@@ -31,25 +31,43 @@ jobs:
         run: |
           set -euo pipefail
 
+          check() {
+            local name="$1"
+            shift
+            echo "::group::check: ${name}"
+            if "$@"; then
+              echo "ok: ${name}"
+            else
+              echo "::error::failed check: ${name}"
+              exit 1
+            fi
+            echo "::endgroup::"
+          }
+
           echo "Action reported version: ${DN_VERSION}"
           echo "Action reported path:   ${DN_PATH}"
+          echo "PATH: ${PATH}"
+          echo "Install dir listing:"
+          ls -la "$(dirname "${DN_PATH}")" || true
 
-          # coreutils-style checks: binary exists, is executable, and is on PATH
-          test -n "${DN_PATH}"
-          test -f "${DN_PATH}"
-          test -x "${DN_PATH}"
+          check "dn-path is set" test -n "${DN_PATH}"
+          check "dn-path is a regular file" test -f "${DN_PATH}"
+          check "dn-path is executable" test -x "${DN_PATH}"
 
+          check "'dn' is on PATH (command -v dn)" command -v dn
           dn_on_path="$(command -v dn)"
           echo "command -v dn => ${dn_on_path}"
-          test -n "${dn_on_path}"
-          test -x "${dn_on_path}"
+
+          check "PATH dn is executable" test -x "${dn_on_path}"
+          check "PATH dn matches action dn-path" test "${dn_on_path}" = "${DN_PATH}"
 
           install_dir="$(dirname "${DN_PATH}")"
-          test -d "${install_dir}"
-          test "$(basename "${DN_PATH}")" = "$(basename "${dn_on_path}")"
+          check "install directory exists" test -d "${install_dir}"
 
           if command -v file >/dev/null 2>&1; then
+            echo "::group::file ${DN_PATH}"
             file "${DN_PATH}"
+            echo "::endgroup::"
           fi
 
           # dn CLI smoke: --help paths should not require GitHub auth
@@ -58,15 +76,14 @@ jobs:
             meld archive glance todo tidy release
           )
           for sub in "${subcommands[@]}"; do
-            echo "::group::dn ${sub} --help"
-            dn "${sub}" --help | head -n 5
-            echo "::endgroup::"
+            check "dn ${sub} --help" bash -c "dn '${sub}' --help | head -n 5 | grep -q ."
           done
 
-          # Top-level usage (exits non-zero but must print help)
-          if ! dn 2>&1 | head -n 3 | grep -q "dn - A CLI"; then
-            echo "error: expected top-level usage from bare 'dn'" >&2
-            exit 1
-          fi
+          # Bare 'dn' prints usage to stderr and exits 1; ignore exit code, not pipefail.
+          check "bare 'dn' prints top-level usage" bash -c '
+            set +o pipefail
+            usage="$(dn 2>&1 || true)"
+            grep -q "dn - A CLI" <<< "${usage}"
+          '
 
           echo "Smoke test passed on ${RUNNER_OS}/${RUNNER_ARCH}"
