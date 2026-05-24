@@ -1,0 +1,72 @@
+# Smoke-test the published dn-action install path (same as consumer workflows).
+# Run manually from Actions → "dn-action smoke test".
+name: dn-action smoke test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-test:
+    name: install and verify (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Install dn
+        id: install
+        uses: chesapeakedev/dn-action@v1
+
+      - name: Verify install with coreutils and dn CLI
+        shell: bash
+        env:
+          DN_PATH: ${{ steps.install.outputs.dn-path }}
+          DN_VERSION: ${{ steps.install.outputs.dn-version }}
+          NO_COLOR: "1"
+        run: |
+          set -euo pipefail
+
+          echo "Action reported version: ${DN_VERSION}"
+          echo "Action reported path:   ${DN_PATH}"
+
+          # coreutils-style checks: binary exists, is executable, and is on PATH
+          test -n "${DN_PATH}"
+          test -f "${DN_PATH}"
+          test -x "${DN_PATH}"
+
+          dn_on_path="$(command -v dn)"
+          echo "command -v dn => ${dn_on_path}"
+          test -n "${dn_on_path}"
+          test -x "${dn_on_path}"
+
+          install_dir="$(dirname "${DN_PATH}")"
+          test -d "${install_dir}"
+          test "$(basename "${DN_PATH}")" = "$(basename "${dn_on_path}")"
+
+          if command -v file >/dev/null 2>&1; then
+            file "${DN_PATH}"
+          fi
+
+          # dn CLI smoke: --help paths should not require GitHub auth
+          subcommands=(
+            context init issue workflows kickstart prep loop fixup
+            meld archive glance todo tidy release
+          )
+          for sub in "${subcommands[@]}"; do
+            echo "::group::dn ${sub} --help"
+            dn "${sub}" --help | head -n 5
+            echo "::endgroup::"
+          done
+
+          # Top-level usage (exits non-zero but must print help)
+          if ! dn 2>&1 | head -n 3 | grep -q "dn - A CLI"; then
+            echo "error: expected top-level usage from bare 'dn'" >&2
+            exit 1
+          fi
+
+          echo "Smoke test passed on ${RUNNER_OS}/${RUNNER_ARCH}"
