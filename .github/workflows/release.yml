@@ -45,13 +45,7 @@ jobs:
           deno-version: v2
 
       - name: Build binary
-        run: |
-          deno compile \
-            --allow-all \
-            --config deno.json \
-            --target ${{ matrix.target }} \
-            -o ${{ matrix.binary }} \
-            cli/main.ts
+        run: ./compile_dn.sh --target ${{ matrix.target }} -o ${{ matrix.binary }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v5

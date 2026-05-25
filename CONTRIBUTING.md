@@ -95,7 +95,7 @@ When a new release is published on GitHub, the workflow in
 ### Build Job
 
 The workflow runs a matrix build across five platform targets using
-`deno compile --allow-all --config deno.json`:
+`compile_dn.sh` (embedded kickstart prompts and workflow templates):
 
 | Runner          | Target                      | Output Binary        |
 | --------------- | --------------------------- | -------------------- |
@@ -109,8 +109,9 @@ Each binary is uploaded as a GitHub Actions artifact with 1-day retention.
 Details about the binary:
 
 - **Runtime:** Deno 2.x
-- **Build command:** `deno compile --allow-all -o <output> cli/main.ts`
-- **Included files:** System prompts from `kickstart/` directory
+- **Build command:** `./compile_dn.sh --target <triple> -o <binary>`
+- **Included files:** Kickstart system prompts, `kickstart.mdc`, and workflow
+  templates under `templates/workflows/` (see `compile_dn.sh`)
 
 Checksums generated via `sha256sum`:
 
