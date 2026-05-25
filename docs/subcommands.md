@@ -285,9 +285,11 @@ See `dn init stack --help` for all options.
 
 ## `dn workflow` — Trigger GitHub Actions workflows
 
-Runs `workflow_dispatch` events for workflows that declare
-`on.workflow_dispatch`. This mirrors `gh workflow run` and is distinct from
-`dn workflows`, which installs canonical dn template files.
+Triggers `workflow_dispatch` or `repository_dispatch` events. Canonical dn
+templates (`dn.init_stack`, `dn.prep_issue_plan`, `dn.kickstart_issue`) use
+`repository_dispatch` and are auto-detected from the shipped manifest. Other
+workflows with `on.workflow_dispatch` use the same path as `gh workflow run`.
+This is distinct from `dn workflows`, which installs canonical template files.
 
 ```bash
 dn workflow run release.yml
@@ -295,6 +297,11 @@ dn workflow run triage.yml --ref my-branch
 dn workflow run triage.yml -f name=scully -f greeting=hello
 echo '{"name":"scully"}' | dn workflow run triage.yml --json
 dn workflow run smoke.yml --repo owner/repo
+
+# repository_dispatch (canonical dn templates)
+echo '{"schema_version":"1.0","dispatch_id":"'"$(uuidgen)"'","milestone":"1"}' \
+  | dn workflow run dn.init_stack --repo owner/repo --json
+dn workflow run dn-prep-issue-plan.yml --repo owner/repo --json '<payload>'
 ```
 
 Options:
@@ -302,11 +309,16 @@ Options:
 - `--repo`, `-R` — target `owner/repo` (default: current remote)
 - `--ref`, `-r` — branch or tag containing the workflow file (default: default
   branch)
-- `-f`, `--raw-field` — string input as `key=value`
+- `--dispatch` — force `repository` or `workflow` when both triggers exist
+- `--wait` — poll until a `repository_dispatch` run appears (opt-in)
+- `-f`, `--raw-field` — string workflow input (`workflow_dispatch` only)
 - `-F`, `--field` — string input; `@path` reads file contents
-- `--json` — workflow inputs as a JSON object from stdin
+- `--json` — JSON object from stdin: workflow `inputs` or `client_payload`
 
-The command prints the created run URL when the API returns it. Interactive
+For `workflow_dispatch`, the command prints the created run URL when the API
+returns it. For `repository_dispatch`, the API returns 204 with no run id; the
+command prints `event_type`, `dispatch_id`, and a polling hint such as
+`gh run list --repo owner/repo --event repository_dispatch`. Interactive
 workflow and input prompts are not implemented yet.
 
 ## `dn workflows` — Manage canonical workflow templates

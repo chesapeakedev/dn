@@ -29,6 +29,23 @@ Deno.test("parseWorkflowRunArgs extracts repo and fields", async () => {
   assert(options.ref === "main");
   assert(options.rawFields.length === 1);
   assert(options.magicFields.length === 1);
+  assert(options.wait === false);
+});
+
+Deno.test("parseWorkflowRunArgs parses dispatch mode and wait", async () => {
+  const options = await parseWorkflowRunArgs([
+    "dn.init_stack",
+    "--dispatch",
+    "repository",
+    "--wait",
+    "--repo",
+    "acme/platform",
+  ]);
+
+  assert(options.selector === "dn.init_stack");
+  assert(options.dispatchMode === "repository");
+  assert(options.wait === true);
+  assert(options.repo?.owner === "acme");
 });
 
 Deno.test("parseWorkflowRunArgs requires workflow when fields passed", async () => {

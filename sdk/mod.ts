@@ -288,19 +288,27 @@ export type {
 
 // GitHub Actions workflow dispatch (REST)
 export {
+  dispatchRepositoryEvent,
   dispatchWorkflow,
   getWorkflow,
+  getWorkflowFileContent,
+  listWorkflowRuns,
   listWorkflows,
   parseWorkflowFields,
+  parseWorkflowTriggers,
   resolveWorkflow,
+  waitForRepositoryDispatchRun,
   workflowBase,
 } from "./github/workflow.ts";
 export type {
   DispatchWorkflowOptions,
+  RepositoryDispatchResult,
   WorkflowDispatchInputs,
   WorkflowDispatchResult,
+  WorkflowRunSummary,
   WorkflowState,
   WorkflowSummary,
+  WorkflowTriggerInfo,
 } from "./github/workflow.ts";
 
 // Token resolution
@@ -364,19 +372,25 @@ export { isGitHubIssueUrl, resolveSource } from "./meld/resolve.ts";
 
 export {
   computeSha256,
+  extractDispatchPayloadError,
   installWorkflowTemplates,
   listWorkflowStatuses,
   loadWorkflowManifest,
   readWorkflowTemplate,
+  repositoryDispatchEventType,
+  resolveManifestTemplate,
   updateWorkflowTemplates,
+  validateDispatchPayload,
   validateWorkflowInstallation,
   validateWorkflowManifest,
 } from "./workflows/mod.ts";
 export type {
+  RepositoryDispatchClientPayload,
   WorkflowInstallStatus,
   WorkflowManifest,
   WorkflowPayloadContract,
   WorkflowPermission,
+  WorkflowRunDispatchMode,
   WorkflowTemplateManifestEntry,
   WorkflowTemplateStatus,
   WorkflowTriggerContract,

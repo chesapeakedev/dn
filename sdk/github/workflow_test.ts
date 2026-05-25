@@ -3,8 +3,10 @@
 
 import { assertEquals, assertRejects } from "@std/assert";
 import {
+  dispatchRepositoryEvent,
   dispatchWorkflow,
   parseWorkflowFields,
+  parseWorkflowTriggers,
   resolveWorkflow,
   workflowBase,
 } from "./workflow.ts";
@@ -217,6 +219,50 @@ Deno.test("dispatchWorkflow posts ref inputs and return_run_details", async () =
       result.htmlUrl,
       "https://github.com/acme/platform/actions/runs/99",
     );
+  });
+});
+
+Deno.test("parseWorkflowTriggers detects dispatch triggers", () => {
+  const content = `
+on:
+  repository_dispatch:
+    types: [dn.init_stack]
+  workflow_dispatch:
+    inputs:
+      tag:
+        required: true
+`;
+  assertEquals(parseWorkflowTriggers(content), {
+    workflow_dispatch: true,
+    repository_dispatch: ["dn.init_stack"],
+  });
+});
+
+Deno.test("dispatchRepositoryEvent posts event_type and client_payload", async () => {
+  let capturedBody = "";
+
+  await withStubFetch((input, init) => {
+    const url = String(input);
+    if (url.endsWith("/dispatches")) {
+      capturedBody = init?.body as string;
+      return Promise.resolve(new Response(null, { status: 204 }));
+    }
+    return Promise.resolve(new Response("not found", { status: 404 }));
+  }, async () => {
+    const result = await dispatchRepositoryEvent(OWNER, REPO, "dn.init_stack", {
+      schema_version: "1.0",
+      dispatch_id: "run-1",
+      milestone: "1",
+    });
+
+    const body = JSON.parse(capturedBody) as Record<string, unknown>;
+    assertEquals(body.event_type, "dn.init_stack");
+    assertEquals(
+      (body.client_payload as Record<string, string>).dispatch_id,
+      "run-1",
+    );
+    assertEquals(result.eventType, "dn.init_stack");
+    assertEquals(result.dispatchId, "run-1");
   });
 });
 

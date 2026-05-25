@@ -235,7 +235,7 @@ function showUsage(): void {
     "  issue        Manage GitHub issues and relationships",
   );
   console.error(
-    "  workflow     Trigger GitHub Actions workflows (workflow_dispatch)",
+    "  workflow     Trigger GitHub Actions workflows (dispatch or repository)",
   );
   console.error(
     "  workflows    Manage canonical GitHub Actions workflow templates",

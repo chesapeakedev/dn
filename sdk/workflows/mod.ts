@@ -374,3 +374,14 @@ async function getWorkflowTemplateStatus(
 function resolveTemplatePath(template: WorkflowTemplateManifestEntry): string {
   return join(WORKFLOW_ROOT, template.source_path);
 }
+
+export {
+  extractDispatchPayloadError,
+  repositoryDispatchEventType,
+  resolveManifestTemplate,
+  validateDispatchPayload,
+} from "./dispatch.ts";
+export type {
+  RepositoryDispatchClientPayload,
+  WorkflowRunDispatchMode,
+} from "./dispatch.ts";

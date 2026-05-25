@@ -9,6 +9,9 @@
  */
 
 import { resolveGitHubToken } from "./token.ts";
+import type { RepositoryDispatchClientPayload } from "../workflows/dispatch.ts";
+
+export type { RepositoryDispatchClientPayload };
 
 const GITHUB_API_BASE = "https://api.github.com";
 
@@ -38,6 +41,42 @@ export interface WorkflowSummary {
  * String key/value inputs for a `workflow_dispatch` event.
  */
 export type WorkflowDispatchInputs = Record<string, string>;
+
+/**
+ * Result of creating a `repository_dispatch` event (204 No Content).
+ */
+export interface RepositoryDispatchResult {
+  /** Event type sent to the dispatches API. */
+  eventType: string;
+  /** Correlation id from client_payload when present. */
+  dispatchId?: string;
+}
+
+/**
+ * Summary of a workflow run from the Actions API.
+ */
+export interface WorkflowRunSummary {
+  /** Numeric run id. */
+  id: number;
+  /** Browser URL for the run. */
+  htmlUrl: string;
+  /** ISO 8601 creation timestamp. */
+  createdAt: string;
+  /** Workflow display name. */
+  name: string;
+  /** Event that triggered the run. */
+  event: string;
+}
+
+/**
+ * Parsed trigger declarations from a workflow file.
+ */
+export interface WorkflowTriggerInfo {
+  /** Whether the workflow declares `on.workflow_dispatch`. */
+  workflow_dispatch: boolean;
+  /** `repository_dispatch` event type names. */
+  repository_dispatch: string[];
+}
 
 /**
  * Result of triggering a workflow dispatch when run details are returned.
@@ -70,6 +109,22 @@ interface DispatchResponseBody {
   workflow_run_id?: number;
   run_url?: string;
   html_url?: string;
+}
+
+interface WorkflowRunsPayload {
+  total_count: number;
+  workflow_runs: Array<{
+    id: number;
+    html_url: string;
+    created_at: string;
+    name: string;
+    event: string;
+  }>;
+}
+
+interface ContentsPayload {
+  content?: string;
+  encoding?: string;
 }
 
 function buildHeaders(token: string): Record<string, string> {
@@ -249,6 +304,146 @@ export async function resolveWorkflow(
  * @param workflowId - Numeric workflow ID from {@link WorkflowSummary.id}
  * @param options - Ref and optional inputs
  */
+/**
+ * Parse supported triggers from a workflow YAML file.
+ */
+export function parseWorkflowTriggers(content: string): WorkflowTriggerInfo {
+  const workflow_dispatch = /\bworkflow_dispatch\s*:/m.test(content);
+  const repository_dispatch: string[] = [];
+
+  const typesBlock = content.match(
+    /repository_dispatch:\s*\n\s+types:\s*\[([^\]]*)\]/m,
+  );
+  if (typesBlock) {
+    const inner = typesBlock[1];
+    for (const segment of inner.split(",")) {
+      const trimmed = segment.trim();
+      const quoted = trimmed.match(/^["']([^"']+)["']$/);
+      if (quoted) {
+        repository_dispatch.push(quoted[1]);
+        continue;
+      }
+      if (/^[\w.-]+$/.test(trimmed)) {
+        repository_dispatch.push(trimmed);
+      }
+    }
+  }
+
+  return { workflow_dispatch, repository_dispatch };
+}
+
+/**
+ * Fetch a workflow file from a repository at a given ref.
+ */
+export async function getWorkflowFileContent(
+  owner: string,
+  repo: string,
+  path: string,
+  ref: string,
+): Promise<string> {
+  const encodedPath = path.split("/").map(encodeURIComponent).join("/");
+  const { data } = await request<ContentsPayload>(
+    `/repos/${owner}/${repo}/contents/${encodedPath}?ref=${
+      encodeURIComponent(ref)
+    }`,
+  );
+
+  if (!data.content || data.encoding !== "base64") {
+    throw new Error(`could not read workflow file ${path} at ${ref}`);
+  }
+
+  const bytes = Uint8Array.from(
+    atob(data.content.replace(/\n/g, "")),
+    (c) => c.charCodeAt(0),
+  );
+  return new TextDecoder().decode(bytes);
+}
+
+/**
+ * Create a `repository_dispatch` event for a repository.
+ */
+export async function dispatchRepositoryEvent(
+  owner: string,
+  repo: string,
+  eventType: string,
+  clientPayload: RepositoryDispatchClientPayload,
+): Promise<RepositoryDispatchResult> {
+  await request<undefined>(
+    `/repos/${owner}/${repo}/dispatches`,
+    {
+      method: "POST",
+      body: {
+        event_type: eventType,
+        client_payload: clientPayload,
+      },
+    },
+  );
+
+  const dispatchId = typeof clientPayload.dispatch_id === "string"
+    ? clientPayload.dispatch_id
+    : clientPayload.dispatch_id !== undefined
+    ? String(clientPayload.dispatch_id)
+    : undefined;
+
+  return { eventType, dispatchId };
+}
+
+/**
+ * List recent workflow runs, optionally filtered by event name.
+ */
+export async function listWorkflowRuns(
+  owner: string,
+  repo: string,
+  options: { event?: string; perPage?: number } = {},
+): Promise<WorkflowRunSummary[]> {
+  const perPage = options.perPage ?? 10;
+  let path = `/repos/${owner}/${repo}/actions/runs?per_page=${perPage}`;
+  if (options.event) {
+    path += `&event=${encodeURIComponent(options.event)}`;
+  }
+
+  const { data } = await request<WorkflowRunsPayload>(path);
+  return data.workflow_runs.map((run) => ({
+    id: run.id,
+    htmlUrl: run.html_url,
+    createdAt: run.created_at,
+    name: run.name,
+    event: run.event,
+  }));
+}
+
+/**
+ * Poll until a workflow run appears after a repository dispatch.
+ *
+ * Returns the newest run created at or after `notBefore`, when one exists.
+ */
+export async function waitForRepositoryDispatchRun(
+  owner: string,
+  repo: string,
+  notBefore: Date,
+  options: { timeoutMs?: number; intervalMs?: number } = {},
+): Promise<WorkflowRunSummary | undefined> {
+  const timeoutMs = options.timeoutMs ?? 120_000;
+  const intervalMs = options.intervalMs ?? 3_000;
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const runs = await listWorkflowRuns(owner, repo, {
+      event: "repository_dispatch",
+      perPage: 5,
+    });
+    const match = runs.find((run) =>
+      new Date(run.createdAt).getTime() >= notBefore.getTime()
+    );
+    if (match) {
+      return match;
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+
+  return undefined;
+}
+
 export async function dispatchWorkflow(
   owner: string,
   repo: string,

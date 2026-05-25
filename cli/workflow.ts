@@ -14,10 +14,12 @@ function showHelp(): void {
   console.log("Usage:");
   console.log("  dn workflow <subcommand> [options]\n");
   console.log("Subcommands:");
-  console.log("  run       Create a workflow_dispatch event for a workflow\n");
+  console.log(
+    "  run       Trigger workflow_dispatch or repository_dispatch\n",
+  );
   console.log("Examples:");
   console.log("  dn workflow run release.yml");
-  console.log("  dn workflow run triage.yml --ref main -f name=value\n");
+  console.log("  dn workflow run dn.init_stack --repo owner/repo --json\n");
   console.log("See also:");
   console.log(
     "  dn workflows   Install and validate canonical dn workflow templates",
