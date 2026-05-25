@@ -131,7 +131,7 @@ Derives a commit message from a plan file and optionally commits changes.
 **Use CLI for:**
 
 - Full `dn kickstart` workflows (too slow for TUI)
-- `dn glance` reports (designed for terminal output)
+- `dn glance` / `dn peek` reports (designed for terminal output)
 - Batch operations and automation
 - CI/CD pipelines
 

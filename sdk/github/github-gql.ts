@@ -163,7 +163,13 @@ const ISSUES_QUERY = `
             }
           }
           createdAt
+          updatedAt
           closedAt
+          labels(first: 20) {
+            nodes {
+              name
+            }
+          }
           url
         }
       }
@@ -400,7 +406,11 @@ interface IssuesResponse {
           login: string;
         } | null;
         createdAt: string;
+        updatedAt: string;
         closedAt: string | null;
+        labels: {
+          nodes: Array<{ name: string }>;
+        };
         url: string;
       }>;
     };
@@ -902,8 +912,10 @@ async function fetchAllIssues(
         state: issue.state.toLowerCase() as "open" | "closed",
         author: issue.author?.login || "unknown",
         createdAt: issue.createdAt,
+        updatedAt: issue.updatedAt,
         closedAt: issue.closedAt,
         url: issue.url,
+        labels: issue.labels.nodes.map((l) => l.name),
       });
     }
 
@@ -1279,6 +1291,7 @@ const LIST_ISSUES_FILTERED_QUERY = `
     $labels: [String!]
     $first: Int!
     $after: String
+    $orderBy: IssueOrder
   ) {
     repository(owner: $owner, name: $name) {
       issues(
@@ -1286,7 +1299,7 @@ const LIST_ISSUES_FILTERED_QUERY = `
         labels: $labels
         first: $first
         after: $after
-        orderBy: { field: UPDATED_AT, direction: DESC }
+        orderBy: $orderBy
       ) {
         pageInfo {
           hasNextPage
@@ -1315,6 +1328,9 @@ const LIST_ISSUES_FILTERED_QUERY = `
           updatedAt
           closedAt
           url
+          comments {
+            totalCount
+          }
         }
       }
     }
@@ -1585,6 +1601,8 @@ export interface IssueListItem {
   updatedAt: string;
   closedAt: string | null;
   url: string;
+  /** Total comment count on the issue (from GitHub). */
+  commentCount: number;
 }
 
 /**
@@ -1662,6 +1680,9 @@ interface ListIssuesResponse {
         updatedAt: string;
         closedAt: string | null;
         url: string;
+        comments: {
+          totalCount: number;
+        };
       }>;
     };
   } | null;
@@ -1880,6 +1901,7 @@ export async function listIssues(
         labels: labels && labels.length > 0 ? labels : null,
         first: fetchCount,
         after: cursor,
+        orderBy: { field: "UPDATED_AT", direction: "DESC" },
       },
       cacheRead: false,
       cacheWrite: false,
@@ -1910,6 +1932,7 @@ export async function listIssues(
         updatedAt: issue.updatedAt,
         closedAt: issue.closedAt,
         url: issue.url,
+        commentCount: issue.comments.totalCount,
       });
       remaining--;
     }

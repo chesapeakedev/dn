@@ -5,7 +5,14 @@
  * Public module interface for the glance CLI tool.
  */
 
-export type { Commit, Issue, UserActivity, VelocityData } from "./types.ts";
+export type {
+  Commit,
+  FormatVelocityOptions,
+  Issue,
+  TrendDirection,
+  UserActivity,
+  VelocityData,
+} from "./types.ts";
 export {
   aggregateUserActivity,
   fetchCommits,
@@ -14,4 +21,9 @@ export {
   getCurrentRepo,
   getWeekWindow,
 } from "./gh.ts";
+export { gatherVelocityData } from "./collectVelocity.ts";
 export { formatVelocity } from "./format.ts";
+export { labelsLookLikeBug, scorePeekIssues } from "./peekScore.ts";
+export { formatPeekIssues } from "./peekFormat.ts";
+export type { FormatPeekOutputOptions } from "./peekFormat.ts";
+export type { PeekScoreBreakdown, ScoredPeekIssue } from "./peekScore.ts";

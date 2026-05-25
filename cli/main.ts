@@ -77,6 +77,7 @@ import { handleLoop } from "./loop.ts";
 import { handleMeld } from "./meld.ts";
 import { handlePrep } from "./prep.ts";
 import { handleGlance } from "./glance.ts";
+import { handlePeek } from "./peek.ts";
 import { handleTodo } from "./todo.ts";
 import { handleTidy } from "./tidy.ts";
 import { handleRelease } from "./release.ts";
@@ -210,6 +211,7 @@ function showUsage(): void {
   console.error("  dn loop [options] --plan-file <path>");
   console.error("  dn fixup [options] <pr_url>");
   console.error("  dn glance [options]");
+  console.error("  dn peek [options]");
   console.error("  dn meld [options] <source> [source ...]");
   console.error("  dn archive [options] <plan_file.plan.md>");
   console.error("  dn todo done [ref]");
@@ -254,6 +256,9 @@ function showUsage(): void {
   );
   console.error(
     "  glance       Project velocity overview",
+  );
+  console.error(
+    "  peek         Suggest next open issues to prioritize (heuristic)",
   );
   console.error(
     "  meld         Merge markdown sources and route planner output (--target README/AGENTS/...)",
@@ -360,6 +365,9 @@ async function main(): Promise<void> {
       break;
     case "archive":
       await handleArchive(subcommandArgs);
+      break;
+    case "peek":
+      await handlePeek(subcommandArgs);
       break;
     case "glance":
       await handleGlance(subcommandArgs);

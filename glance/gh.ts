@@ -79,6 +79,7 @@ export function aggregateUserActivity(
       issuesOpened: 0,
       issuesClosed: 0,
       commits: 0,
+      activitySharePercent: 0,
     };
     existing.issuesOpened++;
     activityMap.set(issue.author, existing);
@@ -90,6 +91,7 @@ export function aggregateUserActivity(
       issuesOpened: 0,
       issuesClosed: 0,
       commits: 0,
+      activitySharePercent: 0,
     };
     existing.issuesClosed++;
     activityMap.set(issue.author, existing);
@@ -101,6 +103,7 @@ export function aggregateUserActivity(
       issuesOpened: 0,
       issuesClosed: 0,
       commits: 0,
+      activitySharePercent: 0,
     };
     existing.commits++;
     activityMap.set(commit.author, existing);

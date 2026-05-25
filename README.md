@@ -25,7 +25,8 @@ ways to share context between teammates and models.
   `dn fixup <pr_url>` — fetches comments, creates a fix plan, and implements it
 - **Milestone Planning** — Initialize a prioritized task stack from a GitHub
   milestone with `dn init stack <milestone>`; work through tasks in order
-- **Project Insights** — Quick velocity reports and trends with `dn glance`
+- **Project Insights** — Quick velocity reports (`dn glance`) and heuristic
+  “what should I look at next?” suggestions (`dn peek`)
 - **Commit Message Generation** — Derive clean commit messages from plan files
   automatically with `dn archive`
 - **Instruction Context Auditing** — Inspect inherited `AGENTS.md` size and

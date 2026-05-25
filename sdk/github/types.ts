@@ -12,8 +12,12 @@ export interface Issue {
   state: "open" | "closed";
   author: string;
   createdAt: string;
+  /** ISO 8601; last substantive update time from GitHub. */
+  updatedAt: string;
   closedAt: string | null;
   url: string;
+  /** Label names (first page from GraphQL; may omit labels beyond the configured cap). */
+  labels: string[];
 }
 
 export interface Commit {

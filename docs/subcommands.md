@@ -364,16 +364,46 @@ All subcommands support `--json`; `install` and `update` also support
 
 ## `dn glance` — Project velocity & reports
 
-Collects and renders lightweight project velocity reports from GitHub activity
-(issues, pull requests, timelines). Useful for quick status checks and trend
-analysis across a repository:
+Collects GitHub activity (issues opened/closed + commits on the default branch),
+compares it to the **prior window of equal length**, and renders a boxed summary
+including per-day rates (`issues/day`, `commits/day`), trend glyphs (**↑ / ↓ /
+→**) or unattended markers (`[UP]` / `[DOWN]` / `[FLAT]`), **net issue flow**
+(`opens − closes`), grouping by primary label for issue lists, relative
+timestamps, truncated titles, and contributor share with ASCII micro-bars.
 
 ```bash
 dn glance
+dn glance --days 14
+dn glance --compact --no-urls
 ```
 
-`dn glance` uses the same cached GitHub authentication as other subcommands. See
-`dn glance --help` for available formats, time ranges, and filters.
+Standalone entry (parity with CLI flags): run `glance/main.ts` with `--days`,
+`--compact`, and `--no-urls`.
+
+See [Global flags and output](#global-flags-and-output) for `--no-color`,
+`--color`, and `--unattended` / `--ci`, which affect Unicode vs ASCII and ANSI
+styling (`dn` bootstraps them before glance runs).
+
+Authentication matches other GitHub-backed commands (**`dn auth`**,
+**`gh auth login`**, or **`GITHUB_TOKEN`**).
+
+## `dn peek` — Suggested next open issues (heuristic)
+
+Ranks recent **open** issues with a fixed scoring model (issue age, assignees,
+bug-like labels, staleness vs `updatedAt`, and comment counts). Uses GraphQL
+**`listIssues`** paging only—**no LLM**; **`kickstart` Fibonacci scoring is not
+invoked**.
+
+```bash
+dn peek                       # Top 3 (default), up to 100 candidates
+dn peek --limit 5             # Top five
+dn peek --fetch 200           # Widen candidate pool (1–500 cap)
+dn peek --verbose --no-urls   # Explain score boosts; omit URLs
+```
+
+Output includes a heuristic **score** line per issue and optional `--verbose`
+boost breakdown. Respect global color/unattended flags the same way as
+`dn glance`.
 
 ## `dn sync` — Sapling: lint, pull, rebase, restack/push drafts
 

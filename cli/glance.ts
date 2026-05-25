@@ -2,23 +2,34 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
-  aggregateUserActivity,
-  fetchCommits,
-  fetchIssuesClosed,
-  fetchIssuesOpened,
   formatVelocity,
+  gatherVelocityData,
   getCurrentRepo,
 } from "../glance/mod.ts";
-import type { VelocityData } from "../glance/types.ts";
+import type { FormatVelocityOptions } from "../glance/types.ts";
+import { formatError } from "./output.ts";
 
-function parseArgs(args: string[]): { help: boolean; days: number } {
+interface GlanceParseResult {
+  help: boolean;
+  days: number;
+  compact: boolean;
+  noUrls: boolean;
+}
+
+function parseGlanceArgs(args: string[]): GlanceParseResult {
   let help = false;
   let days = 7;
+  let compact = false;
+  let noUrls = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === "--help" || arg === "-h") {
       help = true;
+    } else if (arg === "--compact") {
+      compact = true;
+    } else if (arg === "--no-urls") {
+      noUrls = true;
     } else if (arg === "--days" || arg === "-d") {
       const daysArg = args[i + 1];
       if (daysArg) {
@@ -31,10 +42,10 @@ function parseArgs(args: string[]): { help: boolean; days: number } {
     }
   }
 
-  return { help, days };
+  return { help, days, compact, noUrls };
 }
 
-function showHelp(): void {
+function showGlanceHelp(): void {
   console.log(`
 dn glance - Project velocity overview
 
@@ -42,49 +53,62 @@ Usage:
   dn glance [options]
 
 Options:
-  -h, --help     Show this help message
-  -d, --days N   Show activity for the last N days (default: 7)
+  -h, --help       Show this help message
+  -d, --days N     Show activity for the last N days (default: 7)
+      --compact    Fewer blank lines and shorter subsection headers
+      --no-urls    Omit URLs for issues and commits (titles and SHAs only)
 `);
 }
 
-function getTimeWindow(days: number): { start: Date; end: Date } {
-  const end = new Date();
-  const start = new Date();
-  start.setDate(start.getDate() - days);
-  return { start, end };
-}
-
 export async function handleGlance(args: string[]): Promise<void> {
-  const parsed = parseArgs(args);
+  let parsed: GlanceParseResult;
+  try {
+    parsed = parseGlanceArgs(args);
+  } catch (e) {
+    console.error(
+      formatError(e instanceof Error ? e.message : String(e)),
+    );
+    Deno.exit(1);
+  }
 
   if (parsed.help) {
-    showHelp();
+    showGlanceHelp();
     return;
   }
 
-  const repo = await getCurrentRepo();
-  const { start, end } = getTimeWindow(parsed.days);
-
-  const [issuesOpened, issuesClosed, commits] = await Promise.all([
-    fetchIssuesOpened(repo.owner, repo.repo, start),
-    fetchIssuesClosed(repo.owner, repo.repo, start),
-    fetchCommits(repo.owner, repo.repo, start),
-  ]);
-
-  const userActivity = aggregateUserActivity(
-    issuesOpened,
-    issuesClosed,
-    commits,
-  );
-
-  const velocityData: VelocityData = {
-    issuesOpened,
-    issuesClosed,
-    commits,
-    userActivity,
-    weekStart: start,
-    weekEnd: end,
-  };
-
-  console.log(formatVelocity(velocityData));
+  try {
+    const repo = await getCurrentRepo();
+    const velocity = await gatherVelocityData(
+      repo.owner,
+      repo.repo,
+      parsed.days,
+    );
+    const formatOpts: FormatVelocityOptions = {
+      compact: parsed.compact,
+      noUrls: parsed.noUrls,
+    };
+    console.log(formatVelocity(velocity, formatOpts));
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(formatError(`${msg}`));
+    if (
+      msg.toLowerCase().includes("auth") ||
+      msg.includes("GITHUB_TOKEN") ||
+      msg.includes("credentials")
+    ) {
+      console.error(
+        formatError(
+          `Try: gh auth login, or dn auth, or a GITHUB_TOKEN with repo scope.`,
+        ),
+      );
+    }
+    if (msg.includes("remote") || msg.includes("repository")) {
+      console.error(
+        formatError(
+          `Run inside a checkout whose origin is github.com/org/repo.`,
+        ),
+      );
+    }
+    Deno.exit(1);
+  }
 }

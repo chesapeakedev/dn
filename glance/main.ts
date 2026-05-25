@@ -2,48 +2,49 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-  aggregateUserActivity,
-  fetchCommits,
-  fetchIssuesClosed,
-  fetchIssuesOpened,
-  formatVelocity,
-  getCurrentRepo,
-} from "./mod.ts";
-import type { VelocityData } from "./types.ts";
+import { formatVelocity, gatherVelocityData, getCurrentRepo } from "./mod.ts";
+import type { FormatVelocityOptions } from "./types.ts";
 
-/**
- * Parse command line arguments.
- */
-function parseArgs(): { help: boolean; days: number } {
-  const args = Deno.args;
+interface GlanceArgs {
+  help: boolean;
+  days: number;
+  compact: boolean;
+  noUrls: boolean;
+}
+
+function parseGlanceCliArgs(raw: string[]): GlanceArgs {
   let help = false;
   let days = 7;
+  let compact = false;
+  let noUrls = false;
 
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
+  for (let i = 0; i < raw.length; i++) {
+    const arg = raw[i];
     if (arg === "--help" || arg === "-h") {
       help = true;
+    } else if (arg === "--compact") {
+      compact = true;
+    } else if (arg === "--no-urls") {
+      noUrls = true;
     } else if (arg === "--days" || arg === "-d") {
-      const daysArg = args[i + 1];
-      if (daysArg) {
-        days = parseInt(daysArg, 10);
-        if (isNaN(days) || days < 1) {
-          console.error(`Invalid days value: ${daysArg}`);
-          Deno.exit(1);
-        }
-        i++;
+      const daysArg = raw[i + 1];
+      if (!daysArg) {
+        console.error("Missing value for --days");
+        Deno.exit(1);
       }
+      days = parseInt(daysArg, 10);
+      if (isNaN(days) || days < 1) {
+        console.error(`Invalid days value: ${daysArg}`);
+        Deno.exit(1);
+      }
+      i++;
     }
   }
 
-  return { help, days };
+  return { help, days, compact, noUrls };
 }
 
-/**
- * Display help message.
- */
-function showHelp(): void {
+function showStandaloneHelp(): void {
   console.log(`
 glance - Project velocity overview
 
@@ -51,83 +52,60 @@ Usage:
   glance [options]
 
 Options:
-  -h, --help     Show this help message
-  -d, --days N   Show activity for the last N days (default: 7)
+  -h, --help       Show this help message
+  -d, --days N     Show activity for the last N days (default: 7)
+      --compact    Fewer blank lines and shorter subsection headers
+      --no-urls    Omit URLs for issues and commits
 
 Description:
   Visualizes recent project velocity using GitHub issues and commits.
-  Shows issues opened/closed, commits, and per-user activity breakdown.
+  Compares the last N days against the preceding N-day window.
 
 Requirements:
-  - GitHub authentication: run \`gh auth login\`, or \`dn auth\` for browser login, or set GITHUB_TOKEN (see docs/authentication.md)
-  - Must be run from within a git or sapling repository with a GitHub remote
+  - GitHub authentication: run \`gh auth login\`, or \`dn auth\`, or set GITHUB_TOKEN
+  - Must be run from within a checkout with a GitHub remote on github.com
+
+Flags align with \`dn glance\` for consistent output.
 `);
 }
 
-/**
- * Calculate time window based on days.
- */
-function getTimeWindow(days: number): { start: Date; end: Date } {
-  const end = new Date();
-  const start = new Date();
-  start.setDate(start.getDate() - days);
-  return { start, end };
-}
-
-/**
- * Main entry point.
- */
 async function main(): Promise<void> {
-  const args = parseArgs();
+  const args = parseGlanceCliArgs(Deno.args);
 
   if (args.help) {
-    showHelp();
+    showStandaloneHelp();
     Deno.exit(0);
   }
 
   try {
-    // Get repository info
     const repo = await getCurrentRepo();
     console.error(`Repository: ${repo.owner}/${repo.repo}`);
 
-    // Calculate time window
-    const { start, end } = getTimeWindow(args.days);
+    const velocity = await gatherVelocityData(repo.owner, repo.repo, args.days);
     console.error(
-      `Time window: ${start.toLocaleDateString()} - ${end.toLocaleDateString()}`,
+      `Window: ${velocity.weekStart.toLocaleDateString()} - ${velocity.weekEnd.toLocaleDateString()} (${velocity.windowDays}d vs prior)`,
     );
 
-    // Fetch data
-    console.error("Fetching data...");
-    const [issuesOpened, issuesClosed, commits] = await Promise.all([
-      fetchIssuesOpened(repo.owner, repo.repo, start),
-      fetchIssuesClosed(repo.owner, repo.repo, start),
-      fetchCommits(repo.owner, repo.repo, start),
-    ]);
-
-    // Aggregate user activity
-    const userActivity = aggregateUserActivity(
-      issuesOpened,
-      issuesClosed,
-      commits,
-    );
-
-    // Build velocity data
-    const velocityData: VelocityData = {
-      issuesOpened,
-      issuesClosed,
-      commits,
-      userActivity,
-      weekStart: start,
-      weekEnd: end,
+    const formatOpts: FormatVelocityOptions = {
+      compact: args.compact,
+      noUrls: args.noUrls,
     };
-
-    // Format and display
-    const output = formatVelocity(velocityData);
+    const output = formatVelocity(velocity, formatOpts);
     console.log(output);
   } catch (error) {
-    console.error(
-      `Error: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error(`Error: ${msg}`);
+    if (
+      msg.toLowerCase().includes("auth") ||
+      msg.includes("GITHUB_TOKEN")
+    ) {
+      console.error(
+        `Hint: gh auth login, dn auth, or a GITHUB_TOKEN with repo scope.`,
+      );
+    }
+    if (msg.includes("remote")) {
+      console.error(`Hint: use a github.com remote (origin).`);
+    }
     Deno.exit(1);
   }
 }

@@ -1,7 +1,8 @@
 # Authentication
 
 `dn` needs a GitHub token for subcommands that access the GitHub API
-(`kickstart`, `prep`, `glance`, `fixup`, `issue`, `meld` with issue URLs).
+(`kickstart`, `prep`, `glance`, `peek`, `fixup`, `issue`, `meld` with issue
+URLs).
 
 ## Token resolution order
 
