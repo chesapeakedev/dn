@@ -27,7 +27,8 @@ Deno.test("meld command shows help", async () => {
 
     assert(result.stdout.includes("dn meld"));
     assert(result.stdout.includes("--output"));
-    assert(result.stdout.includes("--trim"));
+    assert(result.stdout.includes("--target"));
+    assert(result.stdout.includes("--dry-run"));
     assert(result.success);
   } finally {
     await cleanupTestRepo(testRepo);
@@ -84,6 +85,7 @@ Content for section B.
       "doc2.md",
       "--output",
       "merged.md",
+      "--dry-run",
     ], { cwd: testRepo.path });
 
     assert(result.success);
@@ -102,72 +104,6 @@ Content for section B.
     assert(mergedContent.includes("Document 2"));
     assert(mergedContent.includes("Section 1"));
     assert(mergedContent.includes("Section A"));
-  } finally {
-    await cleanupTestRepo(testRepo);
-  }
-});
-
-Deno.test("meld command with --trim option", async () => {
-  const testRepo = await createProjectTestRepo();
-
-  try {
-    // Create markdown files with extra content
-    const file1Content = `# Document 1
-
-This is the first document.
-
-## Section 1
-Content for section 1.
-
-## Section 2
-Content for section 2.
-
----
-
-Some extra content that should be trimmed.
-`;
-
-    const file2Content = `# Document 2
-
-This is the second document.
-
-## Section A
-Content for section A.
-
-## Section B
-Content for section B.
-
-## Metadata
-- Author: Test
-- Date: 2026-02-10
-`;
-
-    await Deno.writeTextFile(`${testRepo.path}/doc1.md`, file1Content);
-    await Deno.writeTextFile(`${testRepo.path}/doc2.md`, file2Content);
-
-    // Run meld command with trim option
-    const result = await runDnCommand([
-      "meld",
-      "doc1.md",
-      "doc2.md",
-      "--output",
-      "trimmed.md",
-      "--trim",
-    ], { cwd: testRepo.path });
-
-    assert(result.success);
-
-    // Check trimmed file content
-    const trimmedContent = await Deno.readTextFile(
-      `${testRepo.path}/trimmed.md`,
-    );
-    assert(trimmedContent.includes("Document 1"));
-    assert(trimmedContent.includes("Document 2"));
-    // Should not include metadata sections when trimmed
-    assert(
-      !trimmedContent.includes("Some extra content that should be trimmed"),
-    );
-    assert(!trimmedContent.includes("Metadata"));
   } finally {
     await cleanupTestRepo(testRepo);
   }
@@ -239,6 +175,7 @@ Summary of the content.
       "conclusion.md",
       "--output",
       "complete.md",
+      "--dry-run",
     ], { cwd: testRepo.path });
 
     assert(result.success);
@@ -252,60 +189,6 @@ Summary of the content.
     assert(completeContent.includes("Conclusion"));
     assert(completeContent.includes("Chapter 1"));
     assert(completeContent.includes("Summary"));
-  } finally {
-    await cleanupTestRepo(testRepo);
-  }
-});
-
-Deno.test("meld command with --deduplicate option", async () => {
-  const testRepo = await createProjectTestRepo();
-
-  try {
-    // Create files with overlapping content
-    const file1Content = `# Document 1
-
-## Common Section
-This is a common section that appears in both files.
-
-## Unique Section 1
-This is unique to file 1.
-`;
-
-    const file2Content = `# Document 2
-
-## Common Section
-This is a common section that appears in both files.
-
-## Unique Section 2
-This is unique to file 2.
-`;
-
-    await Deno.writeTextFile(`${testRepo.path}/doc1.md`, file1Content);
-    await Deno.writeTextFile(`${testRepo.path}/doc2.md`, file2Content);
-
-    // Run meld command with deduplicate option
-    const result = await runDnCommand([
-      "meld",
-      "doc1.md",
-      "doc2.md",
-      "--output",
-      "dedup.md",
-      "--deduplicate",
-    ], { cwd: testRepo.path });
-
-    assert(result.success);
-
-    // Check deduplicated file content
-    const dedupContent = await Deno.readTextFile(`${testRepo.path}/dedup.md`);
-    assert(dedupContent.includes("Document 1"));
-    assert(dedupContent.includes("Document 2"));
-    assert(dedupContent.includes("Common Section"));
-    assert(dedupContent.includes("Unique Section 1"));
-    assert(dedupContent.includes("Unique Section 2"));
-
-    // Common section should only appear once
-    const commonSectionMatches = dedupContent.match(/Common Section/g);
-    assert(commonSectionMatches ? commonSectionMatches.length === 1 : false);
   } finally {
     await cleanupTestRepo(testRepo);
   }
@@ -367,6 +250,7 @@ Content from source 2.
       "source2.md",
       "--output",
       "merged.md",
+      "--dry-run",
     ], { cwd: testRepo.path });
 
     assert(result.success);
@@ -416,6 +300,7 @@ Testing workspace root option.
       "merged.md",
       "--workspace-root",
       testRepo.path,
+      "--dry-run",
     ], { cwd: subDir });
 
     assert(result.success);

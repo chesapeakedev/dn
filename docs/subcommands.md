@@ -427,40 +427,53 @@ dn --agent codex loop --plan-file plans/issue-123.plan.md
 
 `dn loop` requires a plan file created by `dn prep`.
 
-## `dn meld` — Merge sources and run plan phase
+## `dn meld` — Merge sources and run contextual planning
 
 Merges one or more markdown sources (local files and/or GitHub issue URLs) into
-a single DRY document with an Acceptance Criteria section, then runs the plan
-phase (prep) using that content as context. The merged markdown is not written
-to a file unless you pass `--output`; by default it is used only as context for
-the plan phase and a plan file is produced.
+a single DRY document with an Acceptance Criteria section, then runs the shared
+prep/plan-phase agent harness on that markdown.
+
+- **Merged input (`--output`, `-o`)** — Intermediate markdown persisted for
+  reuse. Omitting `-o` still keeps a temp snapshot used only as planner context.
+- **`--target`** — Planner output (`README.md`, `AGENTS.md`, `CONTRIBUTING.md`,
+  arbitrary `.md`, `plans/*.plan.md`, `github:issue:<ref>`,
+  `github:comment:<ref>`). Omit for the historical default (`plans/*.plan.md`).
+- **`--overwrite` / confirmations** — Overwriting or creating files prompts on a
+  TTY; unattended merges need `--yes` or `DN_YES=1`; GitHub mutations also
+  require `--yes` when non-interactive.
+- **`--list`, `-l`** — Expects newline-separated paths (POSIX style). Paths may
+  contain commas safely.
+- **`prep` vs `meld`** — `prep` stays the single-issue shortcut while `meld`
+  excels at merging many sources before planning; internals now share the same
+  orchestrator.
 
 ```bash
-# Single source: local file or issue URL
+# Single source: local file or issue URL (default plan naming)
 dn meld plan.md
 dn meld https://github.com/owner/repo/issues/123
 
-# Multiple sources; plan phase runs at the end
+# Multiple sources; planner runs afterward
 dn meld a.md b.md
 dn meld -l sources.txt
 
-# Write merged markdown to a file (also used as context)
+# Write merged markdown to disk (still distinct from planner output targets)
 dn meld a.md b.md -o plans/merged.md --plan-name merged
 
-# Cursor mode: frontmatter + Cursor agent for plan phase
+# Update AGENTS.md with summarized guidance (merge mode by default)
+dn meld research.md ops-notes.md --target AGENTS.md
+
+# Append a synthesized GitHub comment (requires GitHub credentials)
+dn meld handoff.md --target github:comment:123 --dry-run
+
+# Cursor / Claude / Codex harness parity with prep
 dn meld a.md https://github.com/owner/repo/issues/123 --cursor
-
-# Claude mode: no frontmatter + Claude Code for plan phase
 dn meld a.md https://github.com/owner/repo/issues/123 --claude
-
-# Codex CLI with default markdown formatting
 dn --agent codex meld a.md https://github.com/owner/repo/issues/123
 ```
 
-Options include `--list, -l <path>`, `--output, -o <path>`,
-`--plan-name <name>`, `--workspace-root <path>`, `--cursor, -c`, `--claude`, and
-`--opencode`. Top-level `--agent codex` is supported for Codex CLI. See
-`dn meld --help` for details.
+Flags mirror `dn prep`'s unattended behavior for agent harness selection; see
+`dn meld --help` for `--target`, `--overwrite`, `--dry-run`, `--yes`,
+`--workspace-root`, and planner selection options.
 
 ## `dn archive` — Derive a commit message from a plan file
 

@@ -4,11 +4,12 @@
 /**
  * dn meld subcommand handler
  *
- * Merges multiple markdown sources (local files and/or GitHub issue URLs)
- * into a single DRY document with an Acceptance Criteria section.
+ * Merges multiple markdown sources (local paths and/or GitHub issue URLs) into DRY input
+ * for the contextual planning workflow.
  */
 
-import { runPlanPhase } from "../kickstart/lib.ts";
+import type { KickstartConfig } from "../kickstart/lib.ts";
+import { runMeldPhase } from "../kickstart/lib.ts";
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
 import {
   deduplicateBlocks,
@@ -36,6 +37,11 @@ interface MeldArgs {
   agentHarness: AgentHarness;
   planName: string | null;
   workspaceRoot: string | undefined;
+  target: string | null;
+  overwrite: boolean;
+  dryRun: boolean;
+  autoYes: boolean;
+  allowCrossRepo: boolean;
 }
 
 async function parseArgs(
@@ -49,6 +55,11 @@ async function parseArgs(
   let agentOnlyFlag = false;
   let planName: string | null = null;
   let workspaceRoot: string | undefined = undefined;
+  let target: string | null = null;
+  let overwrite = false;
+  let dryRun = false;
+  let autoYes = false;
+  let allowCrossRepo = false;
   const positionals: string[] = [];
 
   for (let i = 0; i < args.length; i++) {
@@ -67,6 +78,16 @@ async function parseArgs(
       }
     } else if (arg === "--workspace-root" && i + 1 < args.length) {
       workspaceRoot = args[++i];
+    } else if (arg === "--target" && i + 1 < args.length) {
+      target = args[++i];
+    } else if (arg === "--overwrite") {
+      overwrite = true;
+    } else if (arg === "--dry-run") {
+      dryRun = true;
+    } else if (arg === "--yes" || arg === "-y") {
+      autoYes = true;
+    } else if (arg === "--allow-cross-repo") {
+      allowCrossRepo = true;
     } else if (arg === "--cursor" || arg === "-c") {
       mode = "cursor";
       explicitAgent = "cursor";
@@ -110,58 +131,104 @@ async function parseArgs(
   const agentHarness = globalAgent ?? explicitAgent ??
     meldModeToAgentHarness(mode);
 
-  return { sources, outputPath, mode, agentHarness, planName, workspaceRoot };
+  return {
+    sources,
+    outputPath,
+    mode,
+    agentHarness,
+    planName,
+    workspaceRoot,
+    target,
+    overwrite,
+    dryRun,
+    autoYes,
+    allowCrossRepo,
+  };
 }
 
 function showHelp(): void {
-  console.log("dn meld - Merge markdown sources and run plan phase\n");
+  console.log("dn meld - Merge markdown sources and run contextual planning\n");
   console.log("Usage:");
   console.log("  dn meld [options] <source> [source ...]");
   console.log("  dn meld --list <file> [options]\n");
   console.log(
-    "Sources: one or more local .md paths and/or GitHub issue URLs.",
+    "Sources: local .md paths and/or GitHub issue URLs.",
   );
-  console.log("Merged content is used as context for the plan phase (prep).");
+  console.log(
+    "Merged markdown feeds the planner; `--target` selects where agent output lands.",
+  );
   console.log("Options:");
-  console.log("  --list, -l <path>    Newline-separated list of sources");
+  console.log("  --target <path-or-github> Output file or GitHub specifier");
   console.log(
-    "  --output, -o <path>   Write merged markdown to file (also used as context)",
+    "    Supports README.md, AGENTS.md, CONTRIBUTING.md, plans/*.plan.md, other *.md paths,",
   );
   console.log(
-    "  --plan-name <name>    Plan name for output (avoids prompt when non-interactive)",
+    "    plus `github:issue:<ref>` or `github:comment:<ref>` for the checked-out repo.",
   );
   console.log(
-    "  --workspace-root <path>  Workspace root (default: cwd)",
+    "  --overwrite             Replace targets instead of merge-style edits",
   );
   console.log(
-    "  --cursor, -c          Cursor mode: add YAML frontmatter; use Cursor agent for plan phase",
+    "  --dry-run               Resolve prompts/paths without invoking agents or GitHub mutations",
   );
   console.log(
-    "  --claude              Claude mode: no frontmatter; use Claude agent for plan phase",
+    "  --yes, -y               Auto-approve prompts in unattended merges",
+  );
+  console.log("  --allow-cross-repo      Allow mismatched repos (prep parity)");
+  console.log(
+    "  --list, -l <path>       Newline-separated sources (POSIX style)",
   );
   console.log(
-    "  --codex               Use Codex CLI for plan phase (opencode markdown formatting)",
+    "  --output, -o <path>     Write merged *input* markdown before planner runs",
   );
   console.log(
-    "  --opencode            Opencode mode (default): no frontmatter",
+    "  --plan-name <name>      When targeting default plans (`plans/*.plan.md`), skip naming prompt",
   );
-  console.log("  --help, -h            Show this help\n");
+  console.log(
+    "  --workspace-root <path> Workspace root (default cwd / WORKSPACE_ROOT)",
+  );
+  console.log(
+    "  --cursor, -c            Cursor planner harness",
+  );
+  console.log("  --claude                  Claude planner harness");
+  console.log(
+    "  --codex                   Codex planner harness",
+  );
+  console.log(
+    "  --opencode                Opencode planner harness (default)",
+  );
+  console.log("  --help, -h                Print help\n");
+  console.log(
+    "Merged context (`--output`/temp) is pre-agent markdown; `--target` is planner output.",
+  );
   console.log("Examples:");
   console.log("  dn meld plan.md");
-  console.log("  dn meld https://github.com/owner/repo/issues/123");
-  console.log("  dn meld a.md b.md");
-  console.log("  dn meld -l sources.txt -o plans/merged.md --plan-name merged");
   console.log(
-    "  dn meld a.md https://github.com/owner/repo/issues/123 --cursor",
+    "  dn meld findings.md ticket.md --target README.md --workspace-root .",
   );
+  console.log(
+    "  dn meld research.md --target github:comment:120 --overwrite --dry-run",
+  );
+  console.log("  dn meld -l sources.txt -o plans/merged.md --plan-name merged");
 }
 
 export async function handleMeld(
   args: string[],
   globalAgent: AgentHarness | null = null,
 ): Promise<void> {
-  const { sources, outputPath, mode, agentHarness, planName, workspaceRoot } =
-    await parseArgs(args, globalAgent);
+  const {
+    sources,
+    outputPath,
+    mode,
+    agentHarness,
+    planName,
+    workspaceRoot,
+    target,
+    overwrite,
+    dryRun,
+    autoYes,
+    allowCrossRepo,
+  } = await parseArgs(args, globalAgent);
 
   if (sources.length === 0) {
     console.error(
@@ -206,18 +273,30 @@ export async function handleMeld(
 
     await Deno.writeTextFile(contextPath, out);
 
-    const result = await runPlanPhase({
+    const ks: KickstartConfig = {
       awp: false,
       agentHarness,
-      allowCrossRepo: false,
+      allowCrossRepo,
       issueUrl: null,
       contextMarkdownPath: contextPath,
       saveCtx: false,
       savedPlanName: planName,
       workspaceRoot,
-    });
+      meldPhase: {
+        targetRaw: target,
+        overwrite,
+        dryRun,
+        autoYes,
+      },
+    };
 
-    console.log(`\n${result.planFilePath}`);
+    const result = await runMeldPhase(ks);
+
+    if (result.publishedUrl) {
+      console.log(`\n${result.publishedUrl}`);
+    } else {
+      console.log(`\n${result.planFilePath}`);
+    }
     Deno.exit(0);
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));

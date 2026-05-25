@@ -254,7 +254,7 @@ function showUsage(): void {
     "  glance       Project velocity overview",
   );
   console.error(
-    "  meld         Merge and trim markdown sources (local paths and/or GitHub issue URLs)",
+    "  meld         Merge markdown sources and route planner output (--target README/AGENTS/...)",
   );
   console.error(
     "  archive      Derive commit message from plan file; --yolo to commit and delete plan",

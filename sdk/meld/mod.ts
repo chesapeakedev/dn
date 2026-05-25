@@ -8,3 +8,7 @@
  */
 
 export { isGitHubIssueUrl } from "./resolve.ts";
+export { meldTargetSystemPromptFile } from "./prompts.ts";
+export { parseMeldTarget, resolveContributingMarkdownPath } from "./target.ts";
+export type { MeldGitHubTarget, ParsedMeldTarget } from "./target.ts";
+export type { MeldTargetKind } from "./target.ts";

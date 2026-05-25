@@ -7,6 +7,77 @@ import { formatElapsedTime, isTty, isUnattended, Spinner } from "./output.ts";
 const DN_PREFIX = "[dn] ";
 
 /**
+ * Persist an additional `permission.edit.allow` glob into `opencode.plan.json`.
+ *
+ * Ensures canonical plan-phase permissions exist (plans patterns + `/tmp/**`)
+ * without widening global `*` allow rules.
+ *
+ * @param workspaceRoot - Repository root holding `opencode.plan.json`
+ * @param workspaceRelativeForwardSlashPath - Target path (`README.md`, `plans/staging-x.md`)
+ */
+export async function augmentOpenCodePlanEditPermission(
+  workspaceRoot: string,
+  workspaceRelativeForwardSlashPath: string,
+): Promise<void> {
+  const planConfigPath = `${workspaceRoot}/opencode.plan.json`;
+  const rel = workspaceRelativeForwardSlashPath.trim().replace(/^\/+/, "");
+  if (rel.includes("..")) {
+    throw new Error(
+      `Unsafe OpenCode meld staging path segments: "${workspaceRelativeForwardSlashPath}"`,
+    );
+  }
+
+  let parsed: Record<string, unknown>;
+  try {
+    const txt = await Deno.readTextFile(planConfigPath);
+    parsed = JSON.parse(txt);
+  } catch {
+    parsed = {};
+  }
+
+  parsed["$schema"] = parsed["$schema"] ??
+    "https://opencode.ai/config.json";
+
+  const permissionObj = parsed.permission;
+  let permissionRecord: Record<string, unknown>;
+
+  if (permissionObj !== null && typeof permissionObj === "object") {
+    permissionRecord = permissionObj as Record<string, unknown>;
+  } else {
+    permissionRecord = {};
+    parsed.permission = permissionRecord;
+  }
+
+  const editObj = permissionRecord.edit;
+  let editRecord: Record<string, unknown>;
+
+  if (editObj !== null && typeof editObj === "object") {
+    editRecord = editObj as Record<string, unknown>;
+  } else {
+    editRecord = { "*": "deny", "/tmp/**": "allow" };
+    permissionRecord.edit = editRecord;
+  }
+
+  editRecord["plans/**/*.plan.md"] = "allow";
+  editRecord["plans/*.plan.md"] = "allow";
+  editRecord["**/*.plan.md"] = "allow";
+  editRecord["/tmp/**"] = editRecord["/tmp/**"] ?? "allow";
+  editRecord[rel] = "allow";
+
+  const bashSection = permissionRecord.bash ?? { "*": "allow" };
+  permissionRecord.bash = bashSection;
+  permissionRecord.external_directory ??= "allow";
+
+  await Deno.writeTextFile(
+    planConfigPath,
+    JSON.stringify(parsed, null, 2) + "\n",
+  );
+  console.warn(
+    `${DN_PREFIX}[WARN] OpenCode plan edit permission added for meld target: ${rel}`,
+  );
+}
+
+/**
  * Result of an opencode execution.
  */
 export interface OpenCodeResult {

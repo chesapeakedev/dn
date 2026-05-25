@@ -17,6 +17,7 @@ import {
   writeIssueContext,
 } from "../sdk/github/issue.ts";
 import {
+  addIssueComment,
   getCurrentRepoFromRemote,
   updateIssue,
 } from "../sdk/github/github-gql.ts";
@@ -28,7 +29,22 @@ import {
 } from "../sdk/github/vcs.ts";
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
 import { getRunAgent } from "../sdk/github/agentHarness.ts";
+import { isUnattended } from "../sdk/github/output.ts";
+import { augmentOpenCodePlanEditPermission } from "../sdk/github/opencode.ts";
+import {
+  confirmCreateFile,
+  confirmDestructiveOverwrite,
+  confirmMergeIntoExisting,
+  dnAutoApproved,
+} from "../sdk/github/filePrompt.ts";
 import { assembleCombinedPrompt } from "../sdk/github/prompt.ts";
+import { meldTargetSystemPromptFile } from "../sdk/meld/prompts.ts";
+import { parseMeldTarget } from "../sdk/meld/target.ts";
+import {
+  assertNonEmptyGithubBody,
+  checkMeldMarkdownOutput,
+  type MeldNonPlanMarkdownKind,
+} from "../sdk/meld/validate.ts";
 import { createCursorRule, generateAgentsMd } from "./artifacts.ts";
 import {
   formatError,
@@ -314,6 +330,31 @@ export interface KickstartConfig {
   workspaceRoot?: string;
   /** Milestone number or URL to use milestone-linked plan file */
   milestone?: string;
+  /** Optional flags when invoked from {@link dn meld} only */
+  meldPhase?: MeldPhaseCliOptions;
+}
+
+/**
+ * Parsed `--target`/`--overwrite`/`--dry-run` flags exposed from {@link dn meld}.
+ */
+export interface MeldPhaseCliOptions {
+  /** Literal `--target` string or `null` for legacy default plan naming */
+  targetRaw: string | null;
+  /** Replace destinations instead of merge-style edits */
+  overwrite: boolean;
+  /** Resolve paths/context but skip invoking agents/GitHub mutations */
+  dryRun: boolean;
+  /** Non-interactive approval (`--yes` / DN_YES parity) */
+  autoYes: boolean;
+}
+
+function defaultMeldCliOptions(): MeldPhaseCliOptions {
+  return {
+    targetRaw: null,
+    overwrite: false,
+    dryRun: false,
+    autoYes: false,
+  };
 }
 
 /**
@@ -324,6 +365,8 @@ export interface PlanPhaseResult {
   success: boolean;
   /** Path to the created plan file */
   planFilePath: string;
+  /** Issue URL for GitHub meld workflows (optional convenience) */
+  publishedUrl?: string;
   /** Issue data that was resolved */
   issueData: IssueData | null;
   /** Git context (if VCS prep was done) */
@@ -777,18 +820,17 @@ export async function checkAcceptanceCriteriaCompletion(
 }
 
 /**
- * Runs the plan phase (Steps 1-3): resolve issue, VCS prep (if AWP), plan phase
+ * Runs contextual planning for `prep`, `dn meld`, or bespoke markdown/GitHub outputs.
  */
-export async function runPlanPhase(
+export async function runMeldPhase(
   config: KickstartConfig,
 ): Promise<PlanPhaseResult> {
   const workspaceRoot = getWorkspaceRoot(config);
   const normalizedWorkspaceRoot = workspaceRoot.replace(/\/+$/, "");
+  const melOpts = config.meldPhase ?? defaultMeldCliOptions();
 
-  // Ensure plans directory exists
   await ensurePlansDirectory(normalizedWorkspaceRoot);
 
-  // Create temp directory for this run
   const tmpDir = await Deno.makeTempDir({ prefix: "geo-opencode-" });
   const combinedPromptPlanPath = `${tmpDir}/combined_prompt_plan.txt`;
   const planOutputPath = `${tmpDir}/plan_output.txt`;
@@ -796,9 +838,9 @@ export async function runPlanPhase(
   let issueData: IssueData | null = null;
   let issueContextPathFinal: string | undefined;
   let gitContext: GitContext | null = null;
+  let publishedUrl: string | undefined;
 
   try {
-    // Step 1: Resolve issue context
     console.log(formatStep(1, "Resolving issue context..."));
     if (config.contextMarkdownPath) {
       issueContextPathFinal = config.contextMarkdownPath;
@@ -835,104 +877,236 @@ export async function runPlanPhase(
       );
     }
 
-    // Step 2: Prepare VCS state (only in awp mode, requires issue data)
     if (config.awp && issueData !== null) {
       console.log(formatStep(2, "Preparing VCS state..."));
       gitContext = await prepareVcsStateInteractive(issueData);
     }
 
-    // Step 2.5: Resolve plan file path
-    let issueHintForPlanName: IssueData | null = issueData;
+    const parsedTarget = await parseMeldTarget(
+      melOpts.targetRaw,
+      normalizedWorkspaceRoot,
+    );
+
+    let ghIssuePayload: IssueData | null = null;
+    if (
+      parsedTarget.kind === "github-issue" ||
+      parsedTarget.kind === "github-comment"
+    ) {
+      const ghSpec = parsedTarget.github;
+      if (!ghSpec) {
+        throw new Error("GitHub meld target parsing failed unexpectedly.");
+      }
+      const ghResolvedUrl = await resolveIssueUrlInput(ghSpec.issueSpecifier);
+      ghIssuePayload = await fetchIssueFromUrl(ghResolvedUrl);
+      const ghRepoHint = await getCurrentRepoFromRemote();
+      if (
+        ghRepoHint.owner.toLowerCase() !== ghIssuePayload.owner.toLowerCase() ||
+        ghRepoHint.repo.toLowerCase() !== ghIssuePayload.repo.toLowerCase()
+      ) {
+        throw new Error(
+          `GitHub meld targets must reference issues in ${ghRepoHint.owner}/${ghRepoHint.repo}. Issue belongs to ${ghIssuePayload.owner}/${ghIssuePayload.repo}.`,
+        );
+      }
+    }
+
+    let issueHintForPlanName: IssueData | null = ghIssuePayload ?? issueData ??
+      null;
+
     if (!issueHintForPlanName && issueContextPathFinal) {
       issueHintForPlanName = await parseIssueFromFile(issueContextPathFinal);
     }
-    const planFilePath = resolvePlanFilePath(
-      config,
-      normalizedWorkspaceRoot,
-      gitContext,
-      issueHintForPlanName,
-    );
 
-    // Step 2.6: Handle plan continuation (normal mode only)
+    const isGithubOutput = parsedTarget.kind === "github-issue" ||
+      parsedTarget.kind === "github-comment";
+
+    let stagingRelGithub: string | null = null;
+    let outputAbsolute: string;
+
+    if (isGithubOutput) {
+      stagingRelGithub = `plans/.meld-staging-${crypto.randomUUID()}.md`;
+      outputAbsolute = `${normalizedWorkspaceRoot}/${stagingRelGithub}`;
+    } else if (parsedTarget.isDefaultPlan) {
+      outputAbsolute = resolvePlanFilePath(
+        config,
+        normalizedWorkspaceRoot,
+        gitContext,
+        issueHintForPlanName,
+      );
+    } else if (parsedTarget.workspaceRelativePath) {
+      outputAbsolute =
+        `${normalizedWorkspaceRoot}/${parsedTarget.workspaceRelativePath}`;
+    } else {
+      throw new Error("Unable to derive meld output path");
+    }
+
+    const normalizedRootPosix = normalizedWorkspaceRoot.replace(/\\/g, "/")
+      .replace(/\/+$/, "");
+
+    let displayRelative = outputAbsolute.replace(/\\/g, "/").replace(
+      normalizedRootPosix.endsWith("/")
+        ? normalizedRootPosix
+        : normalizedRootPosix + "/",
+      "",
+    );
+    displayRelative = displayRelative.replace(/^\/+/, "");
+
+    const isMarkdownDocTarget = !isGithubOutput && parsedTarget.kind !== "plan";
+
+    let existingDocContent: string | null = null;
+    if (isMarkdownDocTarget) {
+      existingDocContent = await readExistingPlan(outputAbsolute);
+      const docExistsOnDisk = existingDocContent !== null;
+      if (!melOpts.dryRun) {
+        if (!docExistsOnDisk) {
+          if (!confirmCreateFile(displayRelative, melOpts.autoYes)) {
+            throw new Error("Aborted meld confirmation (create declined).");
+          }
+        } else if (melOpts.overwrite) {
+          if (!confirmDestructiveOverwrite(displayRelative, melOpts.autoYes)) {
+            throw new Error(
+              "Aborted meld confirmation (overwrite declined).",
+            );
+          }
+        } else if (
+          !confirmMergeIntoExisting(displayRelative, melOpts.autoYes)
+        ) {
+          throw new Error("Aborted meld confirmation (merge declined).");
+        }
+      }
+    }
+
+    if (
+      isGithubOutput && !melOpts.dryRun && isUnattended() &&
+      !dnAutoApproved(melOpts.autoYes)
+    ) {
+      throw new Error(
+        "GitHub meld outputs require `--yes` or `DN_YES=1` while unattended.",
+      );
+    }
+
+    if (melOpts.dryRun) {
+      console.log(
+        formatInfo(
+          `Dry-run: skipping agent + validation. Output path → ${displayRelative}`,
+        ),
+      );
+      if (stagingRelGithub) {
+        console.log(
+          formatInfo(
+            `GitHub staging would use ./${stagingRelGithub} (${parsedTarget.kind}).`,
+          ),
+        );
+      }
+      return {
+        success: true,
+        planFilePath: outputAbsolute,
+        publishedUrl,
+        issueData: ghIssuePayload ?? issueData,
+        gitContext,
+        tmpDir,
+        planOutputPath,
+        combinedPromptPlanPath,
+      };
+    }
+
+    if (isGithubOutput) {
+      await Deno.writeTextFile(outputAbsolute, "");
+    }
+
+    const shouldAugmentTarget = stagingRelGithub !== null ||
+      !(parsedTarget.isDefaultPlan && parsedTarget.kind === "plan");
+    if (shouldAugmentTarget) {
+      await augmentOpenCodePlanEditPermission(
+        normalizedWorkspaceRoot,
+        stagingRelGithub ?? displayRelative,
+      );
+    }
+
     let existingPlanContent: string | null = null;
     let continueExistingPlan = false;
-    if (!config.awp) {
-      const existingPlan = await readExistingPlan(planFilePath);
+    if (parsedTarget.kind === "plan" && !config.awp) {
+      const existingPlan = await readExistingPlan(outputAbsolute);
       if (existingPlan) {
-        continueExistingPlan = promptContinueOrNewPlan(planFilePath);
+        continueExistingPlan = promptContinueOrNewPlan(outputAbsolute);
         if (continueExistingPlan) {
           existingPlanContent = existingPlan;
         }
       }
     }
 
-    // Step 3: Plan Phase
     console.log(formatStep(3, "Running plan phase (read-only)..."));
 
-    // Load plan system prompt
-    let planSystemPromptPathFinal: string;
+    const promptFilename = meldTargetSystemPromptFile(parsedTarget.kind);
+
+    let systemPromptTmp: string;
     try {
       let promptContent = await readIncludedPrompt(
-        "system.prompt.plan.md",
+        promptFilename,
         workspaceRoot,
       );
 
-      const planPathInstruction =
-        `\n\n## Plan File Path\n\n**IMPORTANT**: You must write the plan file to this exact path:\n\n\`${planFilePath}\`\n\nThis is the ONLY file you are allowed to create or modify.\n`;
+      const pathInjection = parsedTarget.kind === "plan"
+        ? `\n\n## Plan File Path\n\n**IMPORTANT**: You must write the plan file to this exact path:\n\n\`${outputAbsolute}\`\n\nThis is the ONLY file you are allowed to create or modify.\n`
+        : `\n\n## Target Output Path\n\nYou may edit **only**:\n\n\`${outputAbsolute}\`\n\nEvery other writable action is forbidden—operate strictly in READ-ONLY mode away from this path.\n`;
 
-      if (
-        promptContent.includes(
-          "---\n\nThe issue context will be provided below.",
-        )
-      ) {
+      const sentinel = "---\n\nThe issue context will be provided below.";
+      if (promptContent.includes(sentinel)) {
         promptContent = promptContent.replace(
-          "---\n\nThe issue context will be provided below.",
-          planPathInstruction +
-            "\n---\n\nThe issue context will be provided below.",
+          sentinel,
+          pathInjection + "\n" + sentinel,
         );
       } else {
-        promptContent = promptContent + planPathInstruction;
+        promptContent = promptContent + pathInjection;
       }
 
       if (continueExistingPlan) {
         const continuationNote =
-          `\n\n**NOTE**: You are continuing an existing plan. Please review the "Previous Plan" section below and update the plan file accordingly. Preserve valid sections and enhance or correct as needed.\n`;
+          `\n\n**NOTE**: Continuing an existing plan. Review \"Previous Plan\" below; preserve unchanged sections whenever they remain accurate.\n`;
         promptContent = promptContent.replace(
-          planPathInstruction,
-          planPathInstruction + continuationNote,
+          pathInjection,
+          pathInjection + continuationNote,
         );
       }
 
-      planSystemPromptPathFinal = `${tmpDir}/system.prompt.plan.md`;
-      await Deno.writeTextFile(planSystemPromptPathFinal, promptContent);
+      const sanitizedName = promptFilename.replace(/[^\w.-]+/g, "_");
+      systemPromptTmp = `${tmpDir}/runtime.${sanitizedName}`;
+      await Deno.writeTextFile(systemPromptTmp, promptContent);
     } catch (error) {
       throw new Error(
-        `Plan system prompt not found. Error: ${
+        `System prompt (${promptFilename}) missing. ${
           error instanceof Error ? error.message : String(error)
         }`,
       );
     }
 
-    // Assemble prompt for plan phase
+    const mergedDocForPrompt = isMarkdownDocTarget && !melOpts.overwrite &&
+        typeof existingDocContent === "string"
+      ? existingDocContent
+      : undefined;
+
+    const githubBodyForPrompt = parsedTarget.kind === "github-issue"
+      ? (ghIssuePayload?.body ?? "")
+      : undefined;
+
     await assembleCombinedPrompt(
       combinedPromptPlanPath,
-      planSystemPromptPathFinal,
+      systemPromptTmp,
       workspaceRoot,
       issueContextPathFinal,
-      undefined, // planOutputPath (not used in plan phase)
+      undefined,
       continueExistingPlan ? existingPlanContent : null,
+      mergedDocForPrompt,
+      githubBodyForPrompt,
     );
 
-    // Run plan phase (opencode, Cursor, or Claude Code per config)
     const runPlan = getRunAgent(config.agentHarness);
     const planResult = await runPlan(
       "plan",
       combinedPromptPlanPath,
       workspaceRoot,
-      true, // useReadonlyConfig
+      true,
     );
 
-    // Save plan output
     await Deno.writeTextFile(planOutputPath, planResult.stdout);
 
     if (planResult.code !== 0) {
@@ -948,17 +1122,71 @@ export async function runPlanPhase(
       );
     }
 
-    // Check for plan file
-    console.log(formatInfo("Validating plan file..."));
-    await checkPlanFile(planFilePath);
-    console.log(formatInfo(`Plan file location: ${planFilePath}`));
+    if (
+      stagingRelGithub && parsedTarget.kind === "github-issue"
+    ) {
+      const draftedBody = (await Deno.readTextFile(outputAbsolute)).trim();
+      assertNonEmptyGithubBody(parsedTarget.kind, draftedBody);
+      if (!ghIssuePayload) {
+        throw new Error(
+          "Internal error: GitHub issue target missing fetched issue data.",
+        );
+      }
+      const updateRes = await updateIssue(
+        ghIssuePayload.owner,
+        ghIssuePayload.repo,
+        ghIssuePayload.number,
+        { body: draftedBody },
+      );
+      publishedUrl = updateRes.url;
+      try {
+        await Deno.remove(outputAbsolute);
+      } catch {
+        // best-effort cleanup
+      }
+    } else if (
+      stagingRelGithub && parsedTarget.kind === "github-comment"
+    ) {
+      const commentBody = (await Deno.readTextFile(outputAbsolute)).trim();
+      assertNonEmptyGithubBody(parsedTarget.kind, commentBody);
+      if (!ghIssuePayload) {
+        throw new Error(
+          "Internal error: GitHub comment target missing fetched issue data.",
+        );
+      }
+      const commentResult = await addIssueComment(
+        ghIssuePayload.owner,
+        ghIssuePayload.repo,
+        ghIssuePayload.number,
+        commentBody,
+      );
+      publishedUrl = commentResult.url;
+      try {
+        await Deno.remove(outputAbsolute);
+      } catch {
+        // non-fatal
+      }
+    } else if (parsedTarget.kind === "plan") {
+      console.log(formatInfo("Validating plan file..."));
+      await checkPlanFile(outputAbsolute);
+      console.log(formatInfo(`Plan file location: ${outputAbsolute}`));
+    } else if (isMarkdownDocTarget) {
+      await checkMeldMarkdownOutput(
+        parsedTarget.kind as MeldNonPlanMarkdownKind,
+        outputAbsolute,
+      );
+      console.log(
+        formatInfo(`Meld markdown output refreshed (${displayRelative}).`),
+      );
+    }
 
     console.log(formatSuccess("Plan phase completed successfully"));
 
     return {
       success: true,
-      planFilePath,
-      issueData,
+      planFilePath: outputAbsolute,
+      publishedUrl,
+      issueData: ghIssuePayload ?? issueData,
       gitContext,
       tmpDir,
       planOutputPath,
@@ -972,6 +1200,12 @@ export async function runPlanPhase(
     );
     throw error;
   }
+}
+
+export async function runPlanPhase(
+  config: KickstartConfig,
+): Promise<PlanPhaseResult> {
+  return await runMeldPhase(config);
 }
 
 /**
