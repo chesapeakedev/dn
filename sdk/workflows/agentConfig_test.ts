@@ -1,0 +1,58 @@
+// Copyright 2026 Chesapeake Computing
+// SPDX-License-Identifier: Apache-2.0
+
+import { assertEquals, assertThrows } from "@std/assert";
+import {
+  extractAgentFlag,
+  formatDnWorkflowAgentConfig,
+  installWorkflowSupport,
+  parseDnWorkflowAgentConfig,
+  readDnWorkflowAgentConfig,
+  requiredSecretForAgent,
+} from "./agentConfig.ts";
+
+Deno.test("parseDnWorkflowAgentConfig accepts valid agent", () => {
+  const config = parseDnWorkflowAgentConfig(
+    formatDnWorkflowAgentConfig("claude"),
+  );
+  assertEquals(config.agent, "claude");
+});
+
+Deno.test("parseDnWorkflowAgentConfig rejects invalid agent", () => {
+  assertThrows(
+    () => {
+      parseDnWorkflowAgentConfig(
+        JSON.stringify({ schema_version: "1.0", agent: "gpt" }),
+      );
+    },
+    Error,
+    "Invalid agent",
+  );
+});
+
+Deno.test("extractAgentFlag parses and removes --agent", () => {
+  const parsed = extractAgentFlag(["install", "--agent", "cursor", "--json"]);
+  assertEquals(parsed.agent, "cursor");
+  assertEquals(parsed.rest, ["install", "--json"]);
+});
+
+Deno.test("requiredSecretForAgent maps harness to secret name", () => {
+  assertEquals(requiredSecretForAgent("claude"), "ANTHROPIC_API_KEY");
+  assertEquals(requiredSecretForAgent("cursor"), "CURSOR_API_KEY");
+  assertEquals(requiredSecretForAgent("opencode"), "OPENAI_API_KEY");
+  assertEquals(requiredSecretForAgent("codex"), "OPENAI_API_KEY");
+});
+
+Deno.test("installWorkflowSupport writes config when agent is provided", async () => {
+  const repoRoot = await Deno.makeTempDir({ prefix: "dn-agent-config-" });
+  try {
+    const results = await installWorkflowSupport(repoRoot, {
+      agent: "claude",
+    });
+    assertEquals(results.length, 2);
+    const config = await readDnWorkflowAgentConfig(repoRoot);
+    assertEquals(config?.agent, "claude");
+  } finally {
+    await Deno.remove(repoRoot, { recursive: true });
+  }
+});

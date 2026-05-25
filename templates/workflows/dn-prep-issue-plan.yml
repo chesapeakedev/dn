@@ -34,28 +34,54 @@ jobs:
             }
             core.setOutput("issue", hasIssueUrl ? String(payload.issue_url) : String(payload.issue_number));
             core.setOutput("plan_name", payload.plan_name ? String(payload.plan_name) : "");
-            core.setOutput("agent", payload.agent ? String(payload.agent) : "");
 
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      - name: Load dn agent config
+        id: dn-config
+        run: |
+          set -euo pipefail
+          config=".github/dn/config.json"
+          if [ ! -f "$config" ]; then
+            echo "::error::Missing $config. Run: dn init workflows --agent <opencode|cursor|claude|codex> and commit the file." >&2
+            exit 1
+          fi
+          agent=$(jq -r '.agent // empty' "$config")
+          case "$agent" in
+            opencode|cursor|claude|codex) ;;
+            *)
+              echo "::error::Invalid agent in $config: $agent" >&2
+              exit 1
+              ;;
+          esac
+          echo "agent=$agent" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js for Codex
+        if: steps.dn-config.outputs.agent == 'codex'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       - name: Install dn
         uses: chesapeakedev/dn-action@v1
+
+      - name: Install agent harness
+        run: bash .github/dn/install-agent.sh
 
       - name: Run dn prep
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          CLAUDE_CODE_BARE: "1"
           NO_COLOR: "1"
         run: |
-          AGENT_ARG=""
-          if [ -n "${{ steps.payload.outputs.agent }}" ]; then
-            AGENT_ARG="--agent ${{ steps.payload.outputs.agent }}"
-          fi
-
           PLAN_ARG=""
           if [ -n "${{ steps.payload.outputs.plan_name }}" ]; then
             PLAN_ARG="--plan-name ${{ steps.payload.outputs.plan_name }}"
           fi
 
-          dn $AGENT_ARG prep $PLAN_ARG "${{ steps.payload.outputs.issue }}"
+          dn --agent "${{ steps.dn-config.outputs.agent }}" prep $PLAN_ARG "${{ steps.payload.outputs.issue }}"

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { assertEquals } from "@std/assert";
+import { installWorkflowSupport } from "./agentConfig.ts";
 import {
   computeSha256,
   installWorkflowTemplates,
@@ -31,6 +32,7 @@ Deno.test("workflow install, update, and validate report expected status", async
       "missing",
     ]);
 
+    await installWorkflowSupport(repoRoot, { agent: "opencode" });
     const installed = await installWorkflowTemplates(repoRoot);
     assertEquals(installed.length, 3);
 

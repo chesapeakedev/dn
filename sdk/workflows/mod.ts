@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { dirname, fromFileUrl, join } from "@std/path";
+import { validateWorkflowAgentSetup } from "./agentConfig.ts";
 
 const WORKFLOW_ROOT = dirname(dirname(dirname(fromFileUrl(import.meta.url))));
 const MANIFEST_PATH = join(
@@ -334,10 +335,22 @@ export async function validateWorkflowInstallation(
     }
   }
 
+  for (const warning of await validateWorkflowAgentSetup(repoRoot)) {
+    warnings.push({
+      code: warning.code,
+      template_id: "dn.agent",
+      message: warning.message,
+    });
+  }
+
+  const blockingWarnings = warnings.filter((warning) =>
+    warning.code !== "agent_secret_check_skipped"
+  );
+
   return {
     templates,
     warnings,
-    ok: warnings.length === 0,
+    ok: blockingWarnings.length === 0,
   };
 }
 
@@ -385,3 +398,19 @@ export type {
   RepositoryDispatchClientPayload,
   WorkflowRunDispatchMode,
 } from "./dispatch.ts";
+export {
+  DN_CONFIG_REL_PATH,
+  DN_INSTALL_SCRIPT_REL_PATH,
+  extractAgentFlag,
+  formatDnWorkflowAgentConfig,
+  installWorkflowSupport,
+  parseDnWorkflowAgentConfig,
+  readDnWorkflowAgentConfig,
+  requiredSecretForAgent,
+  secretSetupHint,
+  validateWorkflowAgentSetup,
+} from "./agentConfig.ts";
+export type {
+  DnWorkflowAgentConfig,
+  WorkflowSupportWriteResult,
+} from "./agentConfig.ts";

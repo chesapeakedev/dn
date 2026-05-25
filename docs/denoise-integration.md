@@ -20,14 +20,20 @@ includes the template version, source path, install path, checksum, required
 permissions, required and optional secrets, supported triggers, payload schema
 version, and minimum compatible `dn` version.
 
-Use the CLI to manage installed workflows:
+Use the CLI to manage installed workflows and the repo agent preference:
 
 ```bash
-dn init workflows
+dn init workflows --agent claude
+gh secret set ANTHROPIC_API_KEY
 dn workflows list --json
 dn workflows update --json
 dn workflows validate --json
 ```
+
+Commit `.github/dn/config.json` and `.github/dn/install-agent.sh`. Every
+canonical workflow reads the configured agent and installs only that harness on
+the runner. Dispatch payloads do not carry `agent`; the repo config is the
+source of truth.
 
 ## Dispatch Payloads
 
@@ -45,7 +51,6 @@ Required fields:
 Optional fields:
 
 - `refresh` defaults to `true`
-- `agent`
 
 ### `dn.prep_issue_plan`
 
@@ -58,7 +63,6 @@ Required fields:
 Optional fields:
 
 - `plan_name`
-- `agent`
 
 ### `dn.kickstart_issue`
 
@@ -70,7 +74,6 @@ Required fields:
 
 Optional fields:
 
-- `agent` defaults to `opencode`
 - `awp` defaults to `true`
 
 Missing required fields fail the workflow before running `dn`. The CLI validates
@@ -106,10 +109,19 @@ automatically for every job. The `permissions` block scopes what that token can
 do; integrators should not treat `GITHUB_TOKEN` as part of `required_secrets`
 when checking the repo’s configured secrets (for example via the GitHub API).
 
-Agent-specific API keys are optional at the manifest level because they depend
-on the selected agent, but `dn.kickstart_issue` exposes `OPENAI_API_KEY`,
-`ANTHROPIC_API_KEY`, and `CURSOR_API_KEY` to support opencode, codex, Claude,
-and Cursor workflows.
+Set the API key for the agent in `.github/dn/config.json` (only one is
+required):
+
+| Agent      | Repository secret   | CI notes                           |
+| ---------- | ------------------- | ---------------------------------- |
+| `opencode` | `OPENAI_API_KEY`    | OpenCode install script            |
+| `codex`    | `OPENAI_API_KEY`    | Node 22 + `npm i -g @openai/codex` |
+| `claude`   | `ANTHROPIC_API_KEY` | `CLAUDE_CODE_BARE=1` in workflow   |
+| `cursor`   | `CURSOR_API_KEY`    | Cursor CLI install script          |
+
+Workflows pass all three secrets to `dn`; unset secrets are ignored. Run
+`dn workflows validate` to check for a missing config file, outdated install
+script, or absent secret when GitHub auth is available.
 
 ## Stack JSON Contract
 

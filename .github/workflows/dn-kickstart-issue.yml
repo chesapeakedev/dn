@@ -34,16 +34,42 @@ jobs:
               return;
             }
             core.setOutput("issue", hasIssueUrl ? String(payload.issue_url) : String(payload.issue_number));
-            core.setOutput("agent", payload.agent ? String(payload.agent) : "opencode");
             core.setOutput("awp", payload.awp === false ? "false" : "true");
 
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      - name: Load dn agent config
+        id: dn-config
+        run: |
+          set -euo pipefail
+          config=".github/dn/config.json"
+          if [ ! -f "$config" ]; then
+            echo "::error::Missing $config. Run: dn init workflows --agent <opencode|cursor|claude|codex> and commit the file." >&2
+            exit 1
+          fi
+          agent=$(jq -r '.agent // empty' "$config")
+          case "$agent" in
+            opencode|cursor|claude|codex) ;;
+            *)
+              echo "::error::Invalid agent in $config: $agent" >&2
+              exit 1
+              ;;
+          esac
+          echo "agent=$agent" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js for Codex
+        if: steps.dn-config.outputs.agent == 'codex'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       - name: Install dn
-        id: dn-install
         uses: chesapeakedev/dn-action@v1
+
+      - name: Install agent harness
+        run: bash .github/dn/install-agent.sh
 
       - name: Run dn kickstart
         env:
@@ -51,6 +77,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          CLAUDE_CODE_BARE: "1"
           IS_OPEN_SOURCE: "true"
           NO_COLOR: "1"
         run: |
@@ -59,4 +86,4 @@ jobs:
             AWP_ARG="--awp"
           fi
 
-          "${{ steps.dn-install.outputs.dn-path }}" --agent "${{ steps.payload.outputs.agent }}" kickstart $AWP_ARG "${{ steps.payload.outputs.issue }}"
+          dn --agent "${{ steps.dn-config.outputs.agent }}" kickstart $AWP_ARG "${{ steps.payload.outputs.issue }}"

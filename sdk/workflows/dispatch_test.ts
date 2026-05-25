@@ -33,7 +33,7 @@ const manifest: WorkflowManifest = {
       payload_schema_version: "1.0",
       payload: {
         required: ["schema_version", "dispatch_id", "milestone"],
-        optional: ["refresh", "agent"],
+        optional: ["refresh"],
       },
       compatibility_notes: "",
     },
@@ -58,7 +58,7 @@ const manifest: WorkflowManifest = {
       payload_schema_version: "1.0",
       payload: {
         required: ["schema_version", "dispatch_id"],
-        optional: ["issue_url", "issue_number", "plan_name", "agent"],
+        optional: ["issue_url", "issue_number", "plan_name"],
       },
       compatibility_notes: "",
     },

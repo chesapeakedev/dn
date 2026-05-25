@@ -24,30 +24,29 @@ jobs:
 
 ## Canonical Workflow Templates
 
-Install the canonical workflow templates shipped in `templates/workflows/`:
+Install the canonical workflow templates and pick one agent for the repository:
 
 ```bash
-dn init workflows
-dn workflows list
+dn init workflows --agent claude
+gh secret set ANTHROPIC_API_KEY
+# Commit .github/dn/config.json, .github/dn/install-agent.sh, and the workflows
 dn workflows validate --json
-dn workflows update
 ```
 
 The templates define stable `repository_dispatch` event contracts for
-`dn.init_stack`, `dn.prep_issue_plan`, and `dn.kickstart_issue`. The
-machine-readable source of truth is `templates/workflows/manifest.json`; see
-[Denoise integration](denoise-integration.md) for payload schemas, permissions,
-secrets, and versioning details.
+`dn.init_stack`, `dn.prep_issue_plan`, and `dn.kickstart_issue`. Each job reads
+`.github/dn/config.json`, installs only that agent harness, and runs
+`dn --agent <configured>`. You do not pass `agent` on each dispatch.
 
-`dn.kickstart_issue` exposes the agent-specific secrets used by `dn kickstart`.
-Add the secrets needed by the agents you plan to dispatch:
+See [Denoise integration](denoise-integration.md) for payload schemas,
+permissions, secrets, and versioning details.
 
-```bash
-gh secret set OPENAI_API_KEY --body "your-key"      # for opencode
-gh secret set CURSOR_API_KEY --body "your-key"      # for cursor
-gh secret set ANTHROPIC_API_KEY --body "your-key"    # for claude
-gh secret set OPENAI_API_KEY --body "your-key"      # for codex
-```
+| Agent      | Set once with                 | Repository secret   |
+| ---------- | ----------------------------- | ------------------- |
+| `opencode` | `dn init workflows` (default) | `OPENAI_API_KEY`    |
+| `claude`   | `--agent claude`              | `ANTHROPIC_API_KEY` |
+| `cursor`   | `--agent cursor`              | `CURSOR_API_KEY`    |
+| `codex`    | `--agent codex`               | `OPENAI_API_KEY`    |
 
 ## Manual workflow setup
 

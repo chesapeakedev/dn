@@ -68,7 +68,8 @@ delegated output.
 ## Agent harness selection
 
 Subcommands that run an LLM agent (`kickstart`, `prep`, `loop`, `fixup`, `meld`,
-and scoring inside `tidy` / no-ticket `kickstart`) pick a **harness**:
+`init stack`, and scoring inside `tidy` / no-ticket `kickstart`) pick a
+**harness**:
 
 | Mechanism          | Effect                       |
 | ------------------ | ---------------------------- |

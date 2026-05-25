@@ -6,7 +6,7 @@
       "version": "1.0.0",
       "source_path": "templates/workflows/dn-init-stack.yml",
       "install_path": ".github/workflows/dn-init-stack.yml",
-      "checksum": "sha256:711a20f8e570472f4edeccc1a3e602c07a9c3921b17c8234af1374f2ce77f8ce",
+      "checksum": "sha256:fc965c07f64251385292fbced67a50159942ca0b40b63d8ed12cd79ac6d839e7",
       "latest_version": "1.0.0",
       "deprecated": false,
       "deprecation_message": null,
@@ -16,7 +16,11 @@
         "issues": "write"
       },
       "required_secrets": [],
-      "optional_secrets": [],
+      "optional_secrets": [
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "CURSOR_API_KEY"
+      ],
       "triggers": {
         "repository_dispatch": ["dn.init_stack"],
         "labels": [],
@@ -25,16 +29,16 @@
       "payload_schema_version": "1.0",
       "payload": {
         "required": ["schema_version", "dispatch_id", "milestone"],
-        "optional": ["refresh", "agent"]
+        "optional": ["refresh"]
       },
-      "compatibility_notes": "Writes plans/{owner}_{repo}_{milestone}.stack.md and plans/{owner}_{repo}_{milestone}.stack.json."
+      "compatibility_notes": "Requires .github/dn/config.json (dn init workflows --agent). Writes plans/{owner}_{repo}_{milestone}.stack.md and plans/{owner}_{repo}_{milestone}.stack.json."
     },
     {
       "id": "dn.prep_issue_plan",
       "version": "1.0.0",
       "source_path": "templates/workflows/dn-prep-issue-plan.yml",
       "install_path": ".github/workflows/dn-prep-issue-plan.yml",
-      "checksum": "sha256:269c9ce73c1c81444f98f66399df3728fd517270ebfb56e61fc5a247870c36b0",
+      "checksum": "sha256:6cbf4de44f4a68acc9aca6bf2fbc325ca5df4cfcca9de8ca0948e8c374bad863",
       "latest_version": "1.0.0",
       "deprecated": false,
       "deprecation_message": null,
@@ -44,7 +48,11 @@
         "issues": "write"
       },
       "required_secrets": [],
-      "optional_secrets": [],
+      "optional_secrets": [
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "CURSOR_API_KEY"
+      ],
       "triggers": {
         "repository_dispatch": ["dn.prep_issue_plan"],
         "labels": [],
@@ -53,16 +61,16 @@
       "payload_schema_version": "1.0",
       "payload": {
         "required": ["schema_version", "dispatch_id"],
-        "optional": ["issue_url", "issue_number", "plan_name", "agent"]
+        "optional": ["issue_url", "issue_number", "plan_name"]
       },
-      "compatibility_notes": "Provide exactly one of issue_url or issue_number."
+      "compatibility_notes": "Requires .github/dn/config.json. Provide exactly one of issue_url or issue_number."
     },
     {
       "id": "dn.kickstart_issue",
       "version": "1.0.0",
       "source_path": "templates/workflows/dn-kickstart-issue.yml",
       "install_path": ".github/workflows/dn-kickstart-issue.yml",
-      "checksum": "sha256:4f038ddfcc7dc4ff0456caeb1f95402a55d43d586c8d379aa7aa71a8a6de0c09",
+      "checksum": "sha256:ef0bcf7dae034c5213646795d92f4aa27c83f1f9370ca5a9b34ef0e31e990052",
       "latest_version": "1.0.0",
       "deprecated": false,
       "deprecation_message": null,
@@ -86,9 +94,9 @@
       "payload_schema_version": "1.0",
       "payload": {
         "required": ["schema_version", "dispatch_id"],
-        "optional": ["issue_url", "issue_number", "agent", "awp"]
+        "optional": ["issue_url", "issue_number", "awp"]
       },
-      "compatibility_notes": "Provide exactly one of issue_url or issue_number. awp defaults to true."
+      "compatibility_notes": "Requires .github/dn/config.json. Provide exactly one of issue_url or issue_number. awp defaults to true. Set the secret for your configured agent only."
     }
   ]
 }

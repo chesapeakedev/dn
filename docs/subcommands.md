@@ -162,16 +162,35 @@ Manages repository setup with `stack`, `workflows`, and `agents`.
 
 ### `dn init workflows` — Install canonical workflow templates
 
-Installs the canonical dn GitHub Actions templates into `.github/workflows/`:
+Installs canonical dn GitHub Actions workflows plus repo agent configuration:
+
+- `.github/workflows/dn-*.yml` — dispatch workflows
+- `.github/dn/config.json` — preferred agent for all dn workflows in this repo
+- `.github/dn/install-agent.sh` — installs that agent on the runner
+
+Choose your agent once (same value for every dispatch):
+
+```bash
+dn init workflows --agent claude
+gh secret set ANTHROPIC_API_KEY
+# Commit .github/dn/config.json and .github/dn/install-agent.sh
+```
+
+Supported agents: `opencode` (default), `cursor`, `claude`, `codex`.
 
 ```bash
 dn init workflows
-dn init workflows --dry-run
+dn init workflows --agent opencode --dry-run
 dn init workflows --json
+dn workflows install --agent cursor
+dn workflows update
+dn workflows validate --json
 ```
 
-This is an alias for `dn workflows install` and only writes missing templates.
-Use `dn workflows update` to replace outdated installed templates.
+`dn workflows install` only writes missing workflow files. Use
+`dn workflows
+update` to refresh outdated templates and the install script.
+Passing `--agent` creates or updates `.github/dn/config.json`.
 
 ### `dn init stack` — Initialize stack from GitHub milestone
 

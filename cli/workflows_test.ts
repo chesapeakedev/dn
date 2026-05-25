@@ -48,6 +48,28 @@ Deno.test("init workflows installs canonical templates", async () => {
       results: Array<{ template: { id: string } }>;
     };
     assertEquals(resultJson.results.length, 3);
+
+    const config = JSON.parse(
+      await Deno.readTextFile(`${repoRoot}/.github/dn/config.json`),
+    ) as { agent: string };
+    assertEquals(config.agent, "opencode");
+  } finally {
+    await Deno.remove(repoRoot, { recursive: true });
+  }
+});
+
+Deno.test("init workflows --agent writes configured agent", async () => {
+  const repoRoot = await Deno.makeTempDir({
+    prefix: "dn-init-workflows-agent-",
+  });
+  try {
+    await runDnCommand(["init", "workflows", "--agent", "claude", "--json"], {
+      cwd: repoRoot,
+    });
+    const config = JSON.parse(
+      await Deno.readTextFile(`${repoRoot}/.github/dn/config.json`),
+    ) as { agent: string };
+    assertEquals(config.agent, "claude");
   } finally {
     await Deno.remove(repoRoot, { recursive: true });
   }
