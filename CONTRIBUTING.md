@@ -41,6 +41,8 @@ instructed to do. Many times the advice generalizes. Quality contributions to
 
 This project uses `make` as a task runner, both locally and in CI. Read through
 the [Makefile](./Makefile) to understand useful commands in the project.
+**`make sync`** runs **`dn sync`** (Sapling pull/rebase, optional restack,
+conditional push to `main`); see **`AGENTS.md`** and **`docs/subcommands.md`**.
 
 ## Documentation
 
@@ -69,7 +71,7 @@ This will:
 4. Bump the patch version in `deno.json`
 5. Run `make precommit`
 6. Commit the version bump with `sl commit`
-7. Run `make sync`
+7. Run `make sync` (same as **`dn sync`**)
 8. Create the GitHub release with `dn release create`
 
 Use a dry run to preview the detected version and generated notes without

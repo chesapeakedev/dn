@@ -80,6 +80,7 @@ import { handleGlance } from "./glance.ts";
 import { handleTodo } from "./todo.ts";
 import { handleTidy } from "./tidy.ts";
 import { handleRelease } from "./release.ts";
+import { handleSync } from "./sync.ts";
 
 /**
  * Parses global flags from args and returns bootstrap options plus remaining args.
@@ -213,6 +214,7 @@ function showUsage(): void {
   console.error("  dn archive [options] <plan_file.plan.md>");
   console.error("  dn todo done [ref]");
   console.error("  dn tidy");
+  console.error("  dn sync");
   console.error("  dn release <subcommand> [options]\n");
   console.error("Subcommands:");
   console.error(
@@ -264,6 +266,9 @@ function showUsage(): void {
   );
   console.error(
     "  tidy         Groom todo list: re-fetch issues, re-score, update ~/.dn/todo.md",
+  );
+  console.error(
+    "  sync         Sapling: lint, pull/rebase onto main, restack/push drafts",
   );
   console.error(
     "  release      Manage GitHub releases (create, list, view, delete)\n",
@@ -364,6 +369,9 @@ async function main(): Promise<void> {
       break;
     case "tidy":
       await handleTidy(subcommandArgs, globalAgent);
+      break;
+    case "sync":
+      await handleSync(subcommandArgs);
       break;
     case "release":
     case "releases":

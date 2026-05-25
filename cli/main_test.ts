@@ -1,6 +1,27 @@
 import { assert } from "@std/assert";
 import { cleanupTestRepo, createTestRepo, runDnCommand } from "./test_utils.ts";
 
+Deno.test("dn sync --help exits zero", async () => {
+  const command = new Deno.Command(Deno.execPath(), {
+    args: [
+      "run",
+      "--allow-env",
+      "--allow-read",
+      "--quiet",
+      "cli/main.ts",
+      "sync",
+      "--help",
+    ],
+    stdout: "piped",
+    stderr: "piped",
+  });
+
+  const { code, stdout } = await command.output();
+
+  assert(code === 0);
+  assert(new TextDecoder().decode(stdout).includes("dn sync"));
+});
+
 Deno.test("CLI rejects unknown subcommand", async () => {
   // The subprocess needs --allow-env because npm packages like graphql
   // access process.env.NODE_ENV at module load time. Deno's scoped env

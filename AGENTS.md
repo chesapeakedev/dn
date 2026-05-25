@@ -410,49 +410,34 @@ Run `sl help COMMAND` for any command's full usage. For deeper topics:
 | `sl help patterns`   | File name pattern syntax (glob, re:, path:)      |
 | `sl help glossary`   | Definitions of common Sapling terms              |
 
-### Workflow: `make sync`
+### Workflow: `make sync` / `dn sync`
 
-The primary push/pull workflow is `make sync` from the repo root. It:
-
-1. Runs lint to ensure nothing is broken
-2. Rebases upstream changes under your local commits
-3. Restacks orphaned draft commits if needed
-4. Pushes draft commits on top of `main` to the remote
-
-Use `make sync` when you sit down (to pull latest) and before you get up (to
-push your work). It only restacks and pushes draft commits on top of `main`.
-
-The full script (`hack/repo_sync.sh`):
+The primary push/pull workflow is **`make sync`** from the repo root — it
+invokes **`dn sync`** (implemented in `cli/sync.ts`). Equivalent for humans who
+prefer the runner:
 
 ```bash
-#!/bin/bash
-set -e
-
-# pass lint before interacting with upstream
-make lint
-
-# rebase upstream over local
-sl pull --rebase -d main
-
-# restack only when the commit graph has orphans — draft commits whose
-# parent was rewritten (amend/absorb) but whose children weren't rebased.
-# "children(obsolete()) - obsolete()" finds exactly these stragglers.
-needs_restack=$(sl log --rev "children(obsolete()) - obsolete()" -T "{node}\n" 2>/dev/null | head -1)
-if [ -n "$needs_restack" ]; then
-  sl restack
-fi
-
-# push when there are draft commits on the stack above main
-# (draft() & ancestors(.) & descendants(main)). Side-branch drafts are
-# ignored so they don't trigger a push.
-draft_on_main=$(sl log --rev "draft() & ancestors(.) & descendants(main)" -T "{node}\n" 2>/dev/null | head -1)
-if [ -n "$draft_on_main" ]; then
-  sl push --to main
-fi
+make sync      # Makefile → deno run … cli/main.ts sync
+dn sync        # after `make configure`, if `dn` is on PATH
 ```
 
-If this script doesn't exist in the repo, add it & the root level `sync` make
-target.
+The workflow runs:
+
+1. **`make lint`** to ensure nothing is broken
+2. **`sl pull --rebase -d main`** — rebase upstream under your commits
+3. **Conditional `sl restack`** when orphaned draft descendants exist (revset
+   **`children(obsolete()) - obsolete()`** — same idea as older shell snippets
+   but inlined in **`dn sync`**, unlike the thinner historical
+   **`repo_sync.sh`** helper)
+4. **Conditional `sl push --to main`** only when
+   **`draft() & ancestors(.) & descendants(main)`** matches — side-branch drafts
+   are ignored
+
+Use **`make sync`** when you sit down (to pull latest) and before you get up (to
+push your work).
+
+`repo_sync.sh` is a deprecated one-line wrapper calling **`dn sync`**; prefer
+**`make sync`** so you always hit the **`Makefile`** **`deno run`** bridge.
 
 For anonymous feature branches (work not on top of `main`), use `sl` directly:
 
