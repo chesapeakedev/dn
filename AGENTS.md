@@ -436,8 +436,8 @@ The workflow runs:
 Use **`make sync`** when you sit down (to pull latest) and before you get up (to
 push your work).
 
-`repo_sync.sh` is a deprecated one-line wrapper calling **`dn sync`**; prefer
-**`make sync`** so you always hit the **`Makefile`** **`deno run`** bridge.
+`repo_sync.sh` has been deleted. **`make sync`** now compiles and installs the
+`dn` binary first, then runs **`dn sync`** directly.
 
 For anonymous feature branches (work not on top of `main`), use `sl` directly:
 
