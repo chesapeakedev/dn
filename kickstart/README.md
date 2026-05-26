@@ -329,7 +329,10 @@ Plan files contain structured information about the implementation:
 
 - **Title**: Issue title (H1)
 - **Overview**: Brief description of implementation goal
-- **Issue Context**: Issue number, description, labels
+- **Issue Context**: Issue number, description, labels; when the backing issue
+  was loaded from GitHub, `writeIssueContext` also appends
+  **`## Relationships`** (parent, sub-issues, blocking, duplicate-of summaries
+  with capped refs)
 - **Implementation Plan**: Detailed breakdown of changes
 - **Acceptance Criteria**: Checklist format (`- [ ]`) for tracking progress
 - **Code Pointers**: Specific files and locations to modify
@@ -375,7 +378,14 @@ instructions for continuing:
 ```
 
 The plan file itself serves as the continuation point, containing all context
-needed to resume the work.
+needed to resume the work. When you continue with **`dn loop`**, the runner
+looks for an issue URL embedded in that plan—if present, `dn` re-fetches the
+issue so the combined implement prompt receives fresh GitHub-backed markdown
+**(including Relationships)** alongside the saved plan checklist.
+
+Agents should prioritize open blockers/parent scopes when interpreting that
+relationship section without assuming every linked issue fits in-context; totals
+exceeding listed URLs are signaled in markdown.
 
 ### Cursor IDE Integration
 

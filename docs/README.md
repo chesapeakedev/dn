@@ -3,6 +3,13 @@
 Reference documentation for `dn`. For installation and quickstart, see the
 [project README](../README.md).
 
+Kickstart and the issue CLI surface GitHub formal relationships (parent
+sub-issue, blocking, duplicate-of summaries) inside generated issue markdown;
+see [`docs/subcommands.md`](docs/subcommands.md) for `dn issue show` and
+`dn issue relationship`. GraphQL-backed reads paginate edges (for example ten
+related issues per relationship group); context files mirror GitHub totals and
+include “more not shown” lines when totals exceed what was loaded.
+
 ## Guides
 
 | Document                                            | Description                                        |

@@ -159,6 +159,13 @@ function showHelp(): void {
     "  # Run loop with a continuation plan (after naming incomplete work)",
   );
   console.log("  dn loop --plan-file plans/my-feature.plan.md");
+  console.log("");
+  console.log(
+    "If the plan text includes a github.com issue URL, the loop phase refetches",
+  );
+  console.log(
+    "that issue so the combined implement prompt carries `## Relationships` data.",
+  );
 }
 
 /**

@@ -40,6 +40,11 @@ console.log(issue.relationships.blockedBySummary.totalCount);
 console.log(issue.relationships.parent?.title ?? "no parent");
 ```
 
+Fetched relationship arrays aggregate at most ten related-issue nodes per
+GraphQL edge (GitHub’s default page size here); summaries still report full
+totals (`…Summary.totalCount`). Use those counts—or `writeIssueContext` /
+`dn issue show`—when you cannot assume an exhaustive list.
+
 ## GitHub App Installation Flow
 
 When your GitHub App needs to be installed on organizations (not only personal

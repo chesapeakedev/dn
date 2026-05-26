@@ -203,4 +203,15 @@ If you cannot complete the planning task:
 
 ---
 
+### GitHub issue context (relationship metadata)
+
+Fetched issue bodies are prefixed with `# Issue #[n]` and include **Labels** and
+**Relationships** sections aligned with GitHub’s issue UI (parent, sub-issues,
+blocking, duplicate-of). Use those edges to prioritize work (for example unblock
+closed dependencies first)—lists may omit some references because GraphQL paging
+loads a bounded preview per edge; rely on totals and truncation notes
+in-context.
+
+---
+
 The issue context will be provided below.

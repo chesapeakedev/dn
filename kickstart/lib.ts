@@ -1215,7 +1215,7 @@ export async function runLoopPhase(
   config: KickstartConfig,
   planFilePath: string,
   planOutputPath: string,
-  _issueData: IssueData | null,
+  issueData: IssueData | null,
   tmpDir: string,
 ): Promise<LoopPhaseResult> {
   const workspaceRoot = getWorkspaceRoot(config);
@@ -1256,12 +1256,19 @@ export async function runLoopPhase(
       );
     }
 
-    // Assemble prompt for implement phase (include plan output)
+    let issueContextPathForPrompt: string | undefined;
+    if (issueData) {
+      const issueMarkdownPath = `${tmpDir}/issue-context.md`;
+      await writeIssueContext(issueData, issueMarkdownPath);
+      issueContextPathForPrompt = issueMarkdownPath;
+    }
+
+    // Assemble prompt for implement phase (include plan output and optional issue markdown)
     await assembleCombinedPrompt(
       combinedPromptImplementPath,
       implementSystemPromptPathFinal,
       workspaceRoot,
-      undefined, // issueContextPath - not needed in loop phase, plan file contains context
+      issueContextPathForPrompt,
       planOutputPath, // Include plan output
     );
 

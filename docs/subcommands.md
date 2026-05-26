@@ -621,4 +621,6 @@ full URL. `--repo owner/repo` sets the repository used for numeric refs and for
 commands without an issue ref, such as `list` and `create`; full URLs keep using
 the repository from the URL. `dn issue show` includes relationship metadata such
 as parent issue, sub-issues, blockers, blocked issues, and duplicate-of when
-GitHub exposes it for the issue.
+GitHub exposes it for the issue. Those reads follow GitHub’s GraphQL paging: at
+most ten related-issue references appear per blocking/sub-issue edge unless the
+totals-only summary shows a larger total count (“more not shown”).

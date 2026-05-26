@@ -10,14 +10,14 @@
  * 5. Previous target file content (`dn meld` merge mode, when rewriting docs)
  * 6. Plan output (if provided, for implement phase)
  * 7. Current GitHub issue body (optional, for `--target github:issue:*` meld prompts)
- * 8. Issue context (merged sources / issue markdown)
+ * 8. Issue context (`writeIssueContext` markdown, including Relationships when fetched from GitHub)
  *
  * Each section is separated by markdown horizontal rules (`---`).
  *
  * @param outputPath - Path where the combined prompt file should be written
  * @param systemPromptPath - Path to the system prompt file (plan or implement)
  * @param projectRoot - Root directory of the project
- * @param issueContextPath - Path to the issue context markdown file
+ * @param issueContextPath - Path to issue context markdown (`writeIssueContext` output), also used during `dn loop` when an issue URL in the plan is re-fetched
  * @param planOutputPath - Optional path to plan phase output to include
  * @param existingPlanContent - Optional existing plan content to include (for continuation)
  * @param existingMeldTargetContent - Optional contents of destination file (`dn meld` merge)
