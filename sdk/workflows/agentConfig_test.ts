@@ -39,7 +39,7 @@ Deno.test("extractAgentFlag parses and removes --agent", () => {
 Deno.test("requiredSecretForAgent maps harness to secret name", () => {
   assertEquals(requiredSecretForAgent("claude"), "ANTHROPIC_API_KEY");
   assertEquals(requiredSecretForAgent("cursor"), "CURSOR_API_KEY");
-  assertEquals(requiredSecretForAgent("opencode"), "OPENAI_API_KEY");
+  assertEquals(requiredSecretForAgent("opencode"), null);
   assertEquals(requiredSecretForAgent("codex"), "OPENAI_API_KEY");
 });
 

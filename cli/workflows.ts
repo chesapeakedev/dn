@@ -129,11 +129,12 @@ function printAgentSetupHint(
 ): void {
   console.log("");
   console.log(`Agent: ${agent}`);
-  console.log(
-    `Set repository secret (${requiredSecretForAgent(agent)}): ${
-      secretSetupHint(agent)
-    }`,
-  );
+  const secret = requiredSecretForAgent(agent);
+  if (secret) {
+    console.log(
+      `Set repository secret (${secret}): ${secretSetupHint(agent)}`,
+    );
+  }
   console.log(
     "Commit .github/dn/config.json and .github/dn/install-agent.sh, then re-run workflows.",
   );

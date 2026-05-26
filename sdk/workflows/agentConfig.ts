@@ -48,8 +48,12 @@ export interface WorkflowSupportWriteResult {
 
 /**
  * Returns the GitHub Actions secret name required for an agent harness in CI.
+ * Returns `null` when the agent does not need any secret.
  */
-export function requiredSecretForAgent(agent: AgentHarness): string {
+export function requiredSecretForAgent(agent: AgentHarness): string | null {
+  if (agent === "opencode") {
+    return null;
+  }
   if (agent === "claude") {
     return "ANTHROPIC_API_KEY";
   }
@@ -64,6 +68,9 @@ export function requiredSecretForAgent(agent: AgentHarness): string {
  */
 export function secretSetupHint(agent: AgentHarness): string {
   const secret = requiredSecretForAgent(agent);
+  if (!secret) {
+    return "No secret required";
+  }
   return `gh secret set ${secret}`;
 }
 
@@ -328,6 +335,9 @@ export async function validateWorkflowAgentSetup(
   }
 
   const requiredSecret = requiredSecretForAgent(config.agent);
+  if (!requiredSecret) {
+    return warnings;
+  }
   try {
     const resolved = await resolveRepoFromRoot(repoRoot);
     if (!resolved) {
