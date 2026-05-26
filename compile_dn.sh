@@ -74,6 +74,7 @@ echo "    - ${WORKFLOW_TEMPLATE_DIR}/manifest.json"
 echo "    - ${WORKFLOW_TEMPLATE_DIR}/dn-init-stack.yml"
 echo "    - ${WORKFLOW_TEMPLATE_DIR}/dn-prep-issue-plan.yml"
 echo "    - ${WORKFLOW_TEMPLATE_DIR}/dn-kickstart-issue.yml"
+echo "    - ${WORKFLOW_TEMPLATE_DIR}/install-agent.sh"
 echo ""
 
 cd "${DN_REPO_ROOT}"
@@ -93,6 +94,7 @@ COMPILE_ARGS=(
   --include "${WORKFLOW_TEMPLATE_DIR}/dn-init-stack.yml"
   --include "${WORKFLOW_TEMPLATE_DIR}/dn-prep-issue-plan.yml"
   --include "${WORKFLOW_TEMPLATE_DIR}/dn-kickstart-issue.yml"
+  --include "${WORKFLOW_TEMPLATE_DIR}/install-agent.sh"
 )
 
 if [ -n "${TARGET}" ]; then
