@@ -24,7 +24,7 @@ echo "Installing agent harness: ${agent}"
 
 case "${agent}" in
   opencode)
-    curl -fsSL https://opencode.dev/install | bash
+    curl -fsSL https://opencode.ai/install | bash
     echo "${HOME}/.opencode/bin" >> "${GITHUB_PATH}"
     ;;
   claude)
