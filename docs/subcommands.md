@@ -302,28 +302,32 @@ dn init stack 42 --refresh
 
 See `dn init stack --help` for all options.
 
-## `dn workflow` — Trigger GitHub Actions workflows
+## `dn workflows` — Run and manage GitHub Actions workflows
 
-Triggers `workflow_dispatch` or `repository_dispatch` events. Canonical dn
-templates (`dn.init_stack`, `dn.prep_issue_plan`, `dn.kickstart_issue`) use
-`repository_dispatch` and are auto-detected from the shipped manifest. Other
-workflows with `on.workflow_dispatch` use the same path as `gh workflow run`.
-This is distinct from `dn workflows`, which installs canonical template files.
+Triggers `workflow_dispatch` / `repository_dispatch` events and manages
+canonical dn workflow templates.
+
+### Running workflows
+
+Canonical dn templates (`dn.init_stack`, `dn.prep_issue_plan`,
+`dn.kickstart_issue`) use `repository_dispatch` and are auto-detected from the
+shipped manifest. Other workflows with `on.workflow_dispatch` use the same path
+as `gh workflow run`.
 
 ```bash
-dn workflow run release.yml
-dn workflow run triage.yml --ref my-branch
-dn workflow run triage.yml -f name=scully -f greeting=hello
-echo '{"name":"scully"}' | dn workflow run triage.yml --json
-dn workflow run smoke.yml --repo owner/repo
+dn workflows run release.yml
+dn workflows run triage.yml --ref my-branch
+dn workflows run triage.yml -f name=scully -f greeting=hello
+echo '{"name":"scully"}' | dn workflows run triage.yml --json
+dn workflows run smoke.yml --repo owner/repo
 
 # repository_dispatch (canonical dn templates)
 echo '{"schema_version":"1.0","dispatch_id":"'"$(uuidgen)"'","milestone":"1"}' \
-  | dn workflow run dn.init_stack --repo owner/repo --json
-dn workflow run dn-prep-issue-plan.yml --repo owner/repo --json '<payload>'
+  | dn workflows run dn.init_stack --repo owner/repo --json
+dn workflows run dn-prep-issue-plan.yml --repo owner/repo --json '<payload>'
 ```
 
-Options:
+Options for `run`:
 
 - `--repo`, `-R` — target `owner/repo` (default: current remote)
 - `--ref`, `-r` — branch or tag containing the workflow file (default: default
@@ -340,9 +344,9 @@ command prints `event_type`, `dispatch_id`, and a polling hint such as
 `gh run list --repo owner/repo --event repository_dispatch`. Interactive
 workflow and input prompts are not implemented yet.
 
-## `dn workflows` — Manage canonical workflow templates
+### Managing templates
 
-Manages workflow templates and reports machine-readable status for integrations:
+Manage workflow templates and report machine-readable status for integrations:
 
 ```bash
 dn workflows list

@@ -1,6 +1,7 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
+import { handleWorkflowRun } from "./workflow/run.ts";
 import {
   extractAgentFlag,
   installWorkflowSupport,
@@ -22,10 +23,11 @@ interface WorkflowCommandConfig {
 }
 
 function showHelp(): void {
-  console.log("dn workflows - Manage canonical dn GitHub Actions workflows\n");
+  console.log("dn workflows - Manage and run dn GitHub Actions workflows\n");
   console.log("Usage:");
   console.log("  dn workflows <subcommand> [options]\n");
   console.log("Subcommands:");
+  console.log("  run        Trigger workflow_dispatch or repository_dispatch");
   console.log("  list       Show installed vs canonical workflow templates");
   console.log("  install    Install missing canonical workflow templates");
   console.log(
@@ -43,6 +45,8 @@ function showHelp(): void {
   console.log("  --dry-run       Show what install/update would write");
   console.log("  --help, -h      Show this help message\n");
   console.log("Examples:");
+  console.log("  dn workflows run release.yml");
+  console.log("  dn workflows run dn.init_stack --repo owner/repo --json");
   console.log("  dn init workflows --agent claude");
   console.log("  dn workflows install --agent opencode --dry-run");
   console.log("  dn workflows validate --json");
@@ -196,6 +200,13 @@ async function runInstall(
  * Handle `dn workflows` subcommands.
  */
 export async function handleWorkflows(args: string[]): Promise<void> {
+  // `run` has its own --json flag (stdin JSON vs output JSON), so bypass
+  // the shared config parser to avoid a flag collision.
+  if (args[0] === "run") {
+    await handleWorkflowRun(args.slice(1));
+    return;
+  }
+
   const { config, agent, rest } = parseConfigAndAgent(args);
   const subcommand = rest[0];
 

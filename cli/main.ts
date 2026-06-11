@@ -20,7 +20,6 @@ import { handleFixup } from "./fixup.ts";
 import { handleInitAgents } from "./init-agents.ts";
 import { handleInitStack } from "./init-stack.ts";
 import { handleIssue } from "./issue.ts";
-import { handleWorkflow } from "./workflow.ts";
 import { handleInitWorkflows, handleWorkflows } from "./workflows.ts";
 import {
   type AgentHarness,
@@ -186,7 +185,7 @@ function parseBootstrapFlags(
  * Shows usage information
  */
 function showUsage(): void {
-  console.error("dn - A CLI for kickstart-style workflows\n");
+  console.error("dn - A CLI for managing agentic workflows\n");
   console.error("Usage:");
   console.error("  dn [global options] <subcommand> [options]\n");
   console.error("Global options:");
@@ -200,24 +199,7 @@ function showUsage(): void {
   console.error("  --unattended      Disable interactive output affordances");
   console.error("  --no-color        Disable color output");
   console.error("  --color           Force color output\n");
-  console.error("Subcommand usage:");
-  console.error("  dn auth");
-  console.error("  dn context check <file-or-directory> [options]");
-  console.error("  dn init <subcommand> [options]");
-  console.error("  dn issue <subcommand> [options]");
-  console.error("  dn workflow run [<workflow>] [options]");
-  console.error("  dn kickstart [options] <issue_url_or_number>");
-  console.error("  dn prep [options] <issue_url_or_number>");
-  console.error("  dn loop [options] --plan-file <path>");
-  console.error("  dn fixup [options] <pr_url>");
-  console.error("  dn glance [options]");
-  console.error("  dn peek [options]");
-  console.error("  dn meld [options] <source> [source ...]");
-  console.error("  dn archive [options] <plan_file.plan.md>");
-  console.error("  dn todo done [ref]");
-  console.error("  dn tidy");
-  console.error("  dn sync");
-  console.error("  dn release <subcommand> [options]\n");
+
   console.error("Subcommands:");
   console.error(
     "  auth         Sign in to GitHub in the browser (caches token for dn)",
@@ -239,10 +221,7 @@ function showUsage(): void {
     "  issue        Manage GitHub issues and relationships",
   );
   console.error(
-    "  workflow     Trigger GitHub Actions workflows (dispatch or repository)",
-  );
-  console.error(
-    "  workflows    Manage canonical GitHub Actions workflow templates",
+    "  workflows    Run, install, and manage GitHub Actions workflows",
   );
   console.error(
     "  kickstart    Run full kickstart workflow (plan + implement)",
@@ -341,9 +320,6 @@ async function main(): Promise<void> {
     case "issue":
     case "issues":
       await handleIssue(subcommandArgs);
-      break;
-    case "workflow":
-      await handleWorkflow(subcommandArgs);
       break;
     case "workflows":
       await handleWorkflows(subcommandArgs);

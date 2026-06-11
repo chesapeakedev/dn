@@ -81,7 +81,7 @@ the same rules before dispatch:
 
 ```bash
 echo '{"schema_version":"1.0","dispatch_id":"'"$(uuidgen)"'","milestone":"1"}' \
-  | dn workflow run dn.init_stack --repo owner/repo --json
+  | dn workflows run dn.init_stack --repo owner/repo --json
 ```
 
 `repository_dispatch` returns HTTP 204 with no run id. After dispatch, poll for
@@ -91,7 +91,7 @@ runs:
 gh run list --repo owner/repo --event repository_dispatch
 ```
 
-Use `dn workflow run --wait` to block until a new run appears, then print its
+Use `dn workflows run --wait` to block until a new run appears, then print its
 URL.
 
 ## Permissions And Secrets
