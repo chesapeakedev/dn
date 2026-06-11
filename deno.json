@@ -5,6 +5,7 @@
   "exports": {
     ".": "./sdk/mod.ts"
   },
+  "exclude": [".opencode/"],
   "publish": {
     "include": [
       "LICENSE",
@@ -21,7 +22,7 @@
   },
   "tasks": {
     "dev": "deno run --watch cli/main.ts",
-    "lint": "deno lint **/*.ts",
+    "lint": "deno lint --ignore=.opencode/ **/*.ts",
     "typecheck": "deno check **/*.ts",
     "fmt": "deno fmt **/*.ts",
     "precommit": "deno fmt && deno lint && deno check **/*.ts",
