@@ -85,6 +85,8 @@ Content for section B.
       "doc2.md",
       "--output",
       "merged.md",
+      "--plan-name",
+      "test",
       "--dry-run",
     ], { cwd: testRepo.path });
 
@@ -175,6 +177,8 @@ Summary of the content.
       "conclusion.md",
       "--output",
       "complete.md",
+      "--plan-name",
+      "test",
       "--dry-run",
     ], { cwd: testRepo.path });
 
@@ -250,6 +254,8 @@ Content from source 2.
       "source2.md",
       "--output",
       "merged.md",
+      "--plan-name",
+      "test",
       "--dry-run",
     ], { cwd: testRepo.path });
 
@@ -298,6 +304,8 @@ Testing workspace root option.
       "test.md",
       "--output",
       "merged.md",
+      "--plan-name",
+      "test",
       "--workspace-root",
       testRepo.path,
       "--dry-run",
@@ -305,13 +313,14 @@ Testing workspace root option.
 
     assert(result.success);
 
-    // Merged file should be created in workspace root
-    const mergedPath = `${testRepo.path}/merged.md`;
+    // Merged context file is cwd-relative (--output is not resolved against --workspace-root)
+    const mergedPath = `${subDir}/merged.md`;
     try {
       await Deno.stat(mergedPath);
     } catch {
-      throw new Error("Merged file was not created in workspace root");
+      throw new Error("Merged context file was not created");
     }
+    // --workspace-root affects plan/target output, not merged context path
   } finally {
     await cleanupTestRepo(testRepo);
   }

@@ -54,6 +54,6 @@ complete.
     are changing or being replaced
   - diagrams of target state, using ASCII or mermaidjs so that target can be
     compared to current
-- phased plan recorded as markdown checklist
-  - sections of the phased plan that are not obvious should have references to
-    the target state section of the plan
+- linear plan recorded as markdown checklist of milestones
+  - sections of the plan that are not obvious should have references to the
+    target state section of the plan
