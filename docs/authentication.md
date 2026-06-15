@@ -9,9 +9,10 @@ URLs).
 `dn` checks for a token in this order and uses the first one found:
 
 1. **`GITHUB_TOKEN` environment variable** (or legacy `DANGEROUS_GITHUB_TOKEN`)
-2. **Cached device-flow token** from `dn auth` (stored in `~/.dn/`)
-3. **GitHub CLI** — if `gh` is installed and authenticated, `dn` shells out to
+2. **GitHub CLI** — if `gh` is installed and authenticated, `dn` shells out to
    `gh auth token`
+3. **Cached device-flow token** from `dn auth` (stored in `~/.config/dn/` on
+   Unix-like systems or `%APPDATA%\dn` on Windows)
 
 ## Interactive: GitHub CLI (recommended)
 

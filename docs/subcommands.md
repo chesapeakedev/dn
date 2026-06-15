@@ -188,8 +188,7 @@ dn workflows validate --json
 ```
 
 `dn workflows install` only writes missing workflow files. Use
-`dn workflows
-update` to refresh outdated templates and the install script.
+`dn workflows update` to refresh outdated templates and the install script.
 Passing `--agent` creates or updates `.github/dn/config.json`.
 
 ### `dn init agents` — Update AGENTS.md or install agent skill
