@@ -71,6 +71,7 @@ jobs:
           fi
 
           # Bare 'dn' runs and prints usage (exits 1); confirms the binary is functional.
+          # shellcheck disable=SC2016
           check "bare 'dn' prints top-level usage" bash -c '
             set +o pipefail
             usage="$(dn 2>&1 || true)"

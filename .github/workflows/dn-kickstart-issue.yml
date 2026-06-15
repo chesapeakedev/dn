@@ -81,9 +81,9 @@ jobs:
           IS_OPEN_SOURCE: "true"
           NO_COLOR: "1"
         run: |
-          AWP_ARG=""
+          AWP_ARGS=()
           if [ "${{ steps.payload.outputs.awp }}" = "true" ]; then
-            AWP_ARG="--awp"
+            AWP_ARGS+=(--awp)
           fi
 
-          dn --agent "${{ steps.dn-config.outputs.agent }}" kickstart $AWP_ARG "${{ steps.payload.outputs.issue }}"
+          dn --agent "${{ steps.dn-config.outputs.agent }}" kickstart "${AWP_ARGS[@]}" "${{ steps.payload.outputs.issue }}"

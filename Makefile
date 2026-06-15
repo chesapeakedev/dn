@@ -13,6 +13,7 @@ include deslop.mk
 .PHONY: \
 	fmt \
 	lint \
+	actionlint \
 	precommit \
 	configure \
 	sync \
@@ -35,7 +36,8 @@ include deslop.mk
 	bump_patch bump_minor bump_major release
 
 fmt: ; deno fmt
-lint: fmt ; deno task typecheck && deno task lint
+lint: fmt actionlint ; deno task typecheck && deno task lint
+actionlint: ; @hash actionlint 2>/dev/null || go install github.com/rhysd/actionlint/cmd/actionlint@latest >/dev/null; actionlint .github/workflows/*.yml
 precommit: ; deno task precommit
 # NOTE: We use --allow-env instead of --allow-env=NODE_ENV because npm packages
 # like graphql access process.env.NODE_ENV at module load time. Deno's scoped

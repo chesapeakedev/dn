@@ -79,9 +79,9 @@ jobs:
           CLAUDE_CODE_BARE: "1"
           NO_COLOR: "1"
         run: |
-          PLAN_ARG=""
+          PLAN_ARGS=()
           if [ -n "${{ steps.payload.outputs.plan_name }}" ]; then
-            PLAN_ARG="--plan-name ${{ steps.payload.outputs.plan_name }}"
+            PLAN_ARGS+=(--plan-name "${{ steps.payload.outputs.plan_name }}")
           fi
 
-          dn --agent "${{ steps.dn-config.outputs.agent }}" prep $PLAN_ARG "${{ steps.payload.outputs.issue }}"
+          dn --agent "${{ steps.dn-config.outputs.agent }}" prep "${PLAN_ARGS[@]}" "${{ steps.payload.outputs.issue }}"

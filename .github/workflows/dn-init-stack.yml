@@ -77,9 +77,9 @@ jobs:
           CLAUDE_CODE_BARE: "1"
           NO_COLOR: "1"
         run: |
-          REFRESH_ARG=""
-          if [ "${{ steps.payload.outputs.refresh }}" = "true" ]; then
-            REFRESH_ARG="--refresh"
+          REFRESH_ARGS=()
+          if [ "${{ steps.payload.outputs.refresh }}" = "false" ]; then
+            REFRESH_ARGS+=(--refresh)
           fi
 
-          dn --agent "${{ steps.dn-config.outputs.agent }}" init stack "${{ steps.payload.outputs.milestone }}" $REFRESH_ARG
+          dn --agent "${{ steps.dn-config.outputs.agent }}" init stack "${{ steps.payload.outputs.milestone }}" "${REFRESH_ARGS[@]}"
