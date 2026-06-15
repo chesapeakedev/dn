@@ -192,6 +192,45 @@ dn workflows validate --json
 update` to refresh outdated templates and the install script.
 Passing `--agent` creates or updates `.github/dn/config.json`.
 
+### `dn init agents` — Update AGENTS.md or install agent skill
+
+Without flags, updates or creates `AGENTS.md` with dn workflow instructions:
+
+```bash
+dn init agents
+```
+
+Pass `--skill` to install native skill files for one explicitly selected
+supported agent. `--agent` is required with `--skill`.
+
+```bash
+dn init agents --skill --agent codex
+dn init agents --skill --agent claude
+dn init agents --skill --agent opencode
+dn init agents --skill --agent cursor
+dn init agents --skill --agent codex --scope user
+dn init agents --skill --agent claude --dry-run --json
+```
+
+Supported skill agents: `codex`, `claude`, `opencode`, `cursor`.
+
+Repo-scope installs write:
+
+- `codex`, `opencode`: `.agents/skills/dn/SKILL.md` and
+  `.agents/skills/dn/agents/openai.yaml`
+- `claude`: `.claude/skills/dn/SKILL.md`
+- `cursor`: `.cursor/rules/dn.mdc`
+
+User-scope installs write:
+
+- `codex`, `opencode`: `~/.agents/skills/dn/SKILL.md` and
+  `~/.agents/skills/dn/agents/openai.yaml`
+- `claude`: `~/.claude/skills/dn/SKILL.md`
+
+Cursor skill installation is repo-scoped. Managed files are idempotent; existing
+unmanaged files are left untouched unless `--force` is passed. Use `--dry-run`
+to inspect planned writes, skips, and conflicts without changing files.
+
 ### `dn init stack` — Initialize stack from GitHub milestone
 
 Creates a prioritized task list from a GitHub milestone. The command:

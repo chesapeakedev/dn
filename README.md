@@ -152,6 +152,24 @@ dn --agent cursor loop --plan-file plans/issue-123.plan.md
 dn --agent codex kickstart --awp <issue_url>
 ```
 
+### Install agent skill
+
+Install the portable `dn` skill for one explicitly selected agent:
+
+```bash
+dn init agents --skill --agent codex
+dn init agents --skill --agent claude
+dn init agents --skill --agent opencode
+dn init agents --skill --agent cursor
+```
+
+Use `--scope user` for user-level Codex, OpenCode, or Claude installs:
+
+```bash
+dn init agents --skill --agent codex --scope user
+dn init agents --skill --agent claude --dry-run --json
+```
+
 For CI or isolated Claude runs, set `CLAUDE_CODE_BARE=1` and
 `ANTHROPIC_API_KEY`. Optional: add a root `CLAUDE.md` in your repo for
 project-specific instructions.
