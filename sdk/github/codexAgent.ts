@@ -8,10 +8,33 @@ import { formatElapsedTime, isTty, isUnattended, Spinner } from "./output.ts";
 const DN_PREFIX = "[dn] ";
 
 /**
+ * Builds the Codex CLI arguments for non-interactive agent execution.
+ *
+ * @param workspaceRoot - Root directory of the workspace Codex should operate in
+ * @param promptInstruction - Initial Codex prompt or instruction text
+ * @returns Arguments to pass after the `codex` executable
+ */
+export function buildCodexExecArgs(
+  workspaceRoot: string,
+  promptInstruction: string,
+): string[] {
+  return [
+    "exec",
+    "--sandbox",
+    "workspace-write",
+    "--skip-git-repo-check",
+    "-C",
+    workspaceRoot,
+    promptInstruction,
+  ];
+}
+
+/**
  * Executes the OpenAI Codex CLI non-interactively with the combined prompt file.
  *
- * Uses `codex exec --full-auto -C <workspaceRoot>` so Codex can edit within the
- * target workspace without interactive approval prompts.
+ * Uses `codex exec --sandbox workspace-write --skip-git-repo-check -C
+ * <workspaceRoot>` so Codex can edit within the target workspace without
+ * interactive approval prompts.
  *
  * **Environment**
  *
@@ -102,13 +125,13 @@ export async function runCodexAgent(
 
   const promptInstruction =
     `Read and execute the instructions in this file: ${absolutePromptPath}`;
-  const codexCommand =
-    $`codex exec --full-auto -C ${workspaceRoot} ${promptInstruction}`
-      .cwd(workspaceRoot)
-      .noThrow()
-      .stdout("piped")
-      .stderr("piped")
-      .stdin("null");
+  const codexArgs = buildCodexExecArgs(workspaceRoot, promptInstruction);
+  const codexCommand = $`codex ${codexArgs}`
+    .cwd(workspaceRoot)
+    .noThrow()
+    .stdout("piped")
+    .stderr("piped")
+    .stdin("null");
 
   const timeoutPromise = new Promise<never>((_, reject) => {
     setTimeout(() => {
