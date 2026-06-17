@@ -9,11 +9,12 @@ dispatch agent workflows without scraping markdown or duplicating trigger logic.
 Templates live in `templates/workflows/` and install into consumer repositories
 under `.github/workflows/`.
 
-| ID                   | Dispatch event       | Install path                               |
-| -------------------- | -------------------- | ------------------------------------------ |
-| `dn.init_stack`      | `dn.init_stack`      | `.github/workflows/dn-init-stack.yml`      |
-| `dn.prep_issue_plan` | `dn.prep_issue_plan` | `.github/workflows/dn-prep-issue-plan.yml` |
-| `dn.kickstart_issue` | `dn.kickstart_issue` | `.github/workflows/dn-kickstart-issue.yml` |
+| ID                   | Triggers                        | Install path                               |
+| -------------------- | ------------------------------- | ------------------------------------------ |
+| `dn.init_stack`      | `repository_dispatch`           | `.github/workflows/dn-init-stack.yml`      |
+| `dn.prep_issue_plan` | `repository_dispatch`           | `.github/workflows/dn-prep-issue-plan.yml` |
+| `dn.kickstart_issue` | `repository_dispatch`           | `.github/workflows/dn-kickstart-issue.yml` |
+| `dn.daily_kickstart` | `schedule`, `workflow_dispatch` | `.github/workflows/dn-daily-kickstart.yml` |
 
 The machine-readable contract is `templates/workflows/manifest.json`. Each entry
 includes the template version, source path, install path, checksum, required
@@ -94,6 +95,30 @@ gh run list --repo owner/repo --event repository_dispatch
 Use `dn workflows run --wait` to block until a new run appears, then print its
 URL.
 
+## Daily Kickstart
+
+`dn.daily_kickstart` is not a `repository_dispatch` contract. It runs on the
+template schedule and supports manual `workflow_dispatch` with optional
+`milestone` input. Scheduled runs read the repository variable
+`DN_DAILY_KICKSTART_MILESTONE`.
+
+Before enabling the schedule, create and commit the deterministic queue:
+
+```bash
+dn init stack 42
+gh variable set DN_DAILY_KICKSTART_MILESTONE --body 42
+```
+
+The workflow runs:
+
+```bash
+dn --agent <configured> kickstart --awp --milestone <milestone> --once
+```
+
+It processes the first unchecked item in
+`plans/{owner}_{repo}_{milestone}.stack.md`, marks that item done after a
+successful kickstart, and exits.
+
 ## Permissions And Secrets
 
 Canonical templates request the minimum permissions needed for their workflow:
@@ -101,6 +126,8 @@ Canonical templates request the minimum permissions needed for their workflow:
 - `dn.init_stack`: `contents: write`, `issues: write`
 - `dn.prep_issue_plan`: `contents: write`, `issues: write`
 - `dn.kickstart_issue`: `contents: write`, `pull-requests: write`,
+  `issues: write`
+- `dn.daily_kickstart`: `contents: write`, `pull-requests: write`,
   `issues: write`
 
 Templates pass `GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}` into `dn`. That value

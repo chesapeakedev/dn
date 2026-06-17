@@ -158,13 +158,37 @@ later files.
 
 ## `dn init` — Initialize repository context
 
-Manages repository setup with `stack`, `workflows`, and `agents`.
+Manages repository setup with `stack`, `build`, `workflows`, and `agents`.
+
+### `dn init build` — Install build automation workflows
+
+Installs the same canonical GitHub Actions support as `dn init workflows`,
+including the daily kickstart workflow. Use it as the short setup path when a
+repo wants dn-managed automation:
+
+```bash
+dn init build --agent claude
+gh secret set ANTHROPIC_API_KEY
+gh variable set DN_DAILY_KICKSTART_MILESTONE --body 42
+dn init stack 42
+# Commit .github/dn/, .github/workflows/, and plans/owner_repo_42.stack.md
+```
+
+The daily workflow runs:
+
+```bash
+dn --agent <configured> kickstart --awp --milestone <milestone> --once
+```
+
+It processes exactly one unchecked item from the committed milestone stack file
+per run. Scheduled runs read `DN_DAILY_KICKSTART_MILESTONE`; manual
+`workflow_dispatch` runs can pass a `milestone` input instead.
 
 ### `dn init workflows` — Install canonical workflow templates
 
 Installs canonical dn GitHub Actions workflows plus repo agent configuration:
 
-- `.github/workflows/dn-*.yml` — dispatch workflows
+- `.github/workflows/dn-*.yml` — dispatch and scheduled workflows
 - `.github/dn/config.json` — preferred agent for all dn workflows in this repo
 - `.github/dn/install-agent.sh` — installs that agent on the runner
 
@@ -180,6 +204,7 @@ Supported agents: `opencode` (default), `cursor`, `claude`, `codex`.
 
 ```bash
 dn init workflows
+dn init build
 dn init workflows --agent opencode --dry-run
 dn init workflows --json
 dn workflows install --agent cursor
@@ -300,13 +325,18 @@ dn kickstart --awp --milestone 42
 
 # Run every remaining unchecked stack item in order (no y/n between tasks)
 dn kickstart --milestone 42 --complete
+
+# Run exactly one unchecked stack item for CI
+dn kickstart --awp --milestone 42 --once
 ```
 
-`--complete` must be used with `--milestone` and **without** an issue argument
-or `ISSUE` env var. It skips only the milestone queue prompts in the kickstart
-CLI (proceed / mark done / next task). Plan and implement phases can still
-prompt internally (for example existing plan continuation or plan naming); use
-`--saved-plan` or other flags as needed for unattended agent runs.
+`--complete` and `--once` must be used with `--milestone` and **without** an
+issue argument or `ISSUE` env var. `--complete` runs every remaining stack item
+in order. `--once` runs the first unchecked stack item, marks that one item
+done, and exits. Both flags skip only the milestone queue prompts in the
+kickstart CLI; plan and implement phases can still prompt internally (for
+example existing plan continuation or plan naming). Use `--saved-plan` or other
+flags as needed for unattended agent runs.
 
 The milestone-aware kickstart reads from
 `plans/{owner}_{repo}_{milestone}.stack.md` and uses the first unchecked item as
@@ -330,7 +360,7 @@ When the plan file is in the repo, external tools (like Denoise) can read it to:
 
 1. Discover the milestone
 2. Show a button to trigger kickstart on the next unchecked task
-3. Execute `dn kickstart --awp --milestone <num-or-url>` for that issue
+3. Execute `dn kickstart --awp --milestone <num-or-url> --once` for that issue
 
 To refresh the plan (re-fetch issues and re-score), run:
 
@@ -347,10 +377,11 @@ canonical dn workflow templates.
 
 ### Running workflows
 
-Canonical dn templates (`dn.init_stack`, `dn.prep_issue_plan`,
+Canonical dispatch templates (`dn.init_stack`, `dn.prep_issue_plan`,
 `dn.kickstart_issue`) use `repository_dispatch` and are auto-detected from the
-shipped manifest. Other workflows with `on.workflow_dispatch` use the same path
-as `gh workflow run`.
+shipped manifest. `dn.daily_kickstart` uses schedule and `workflow_dispatch`.
+Other workflows with `on.workflow_dispatch` use the same path as
+`gh workflow run`.
 
 ```bash
 dn workflows run release.yml

@@ -33,6 +33,10 @@ export interface WorkflowPayloadContract {
 export interface WorkflowTriggerContract {
   /** repository_dispatch event types accepted by the workflow. */
   repository_dispatch: string[];
+  /** Whether the workflow accepts manual workflow_dispatch runs. */
+  workflow_dispatch?: boolean;
+  /** Cron schedules accepted by the workflow. */
+  schedule?: string[];
   /** Legacy issue labels that map to related behavior. */
   labels: string[];
   /** Legacy issue comments that map to related behavior. */
@@ -192,9 +196,12 @@ export function validateWorkflowManifest(manifest: WorkflowManifest): void {
         `Workflow template ${template.id} checksum must be sha256`,
       );
     }
-    if (template.triggers.repository_dispatch.length === 0) {
+    const hasDispatch = template.triggers.repository_dispatch.length > 0;
+    const hasManual = template.triggers.workflow_dispatch === true;
+    const hasSchedule = (template.triggers.schedule?.length ?? 0) > 0;
+    if (!hasDispatch && !hasManual && !hasSchedule) {
       throw new Error(
-        `Workflow template ${template.id} needs a dispatch trigger`,
+        `Workflow template ${template.id} needs at least one trigger`,
       );
     }
   }

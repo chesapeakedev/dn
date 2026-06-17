@@ -13,7 +13,7 @@ Deno.test("workflows CLI installs and validates templates with JSON output", asy
     const installJson = JSON.parse(install.stdout) as {
       results: Array<{ template: { id: string }; written: boolean }>;
     };
-    assertEquals(installJson.results.length, 3);
+    assertEquals(installJson.results.length, 4);
     assertEquals(installJson.results.every((result) => result.written), true);
 
     const list = await runDnCommand(["workflows", "list", "--json"], {
@@ -23,6 +23,7 @@ Deno.test("workflows CLI installs and validates templates with JSON output", asy
       templates: Array<{ status: string }>;
     };
     assertEquals(listJson.templates.map((status) => status.status), [
+      "current",
       "current",
       "current",
       "current",
@@ -47,12 +48,32 @@ Deno.test("init workflows installs canonical templates", async () => {
     const resultJson = JSON.parse(result.stdout) as {
       results: Array<{ template: { id: string } }>;
     };
-    assertEquals(resultJson.results.length, 3);
+    assertEquals(resultJson.results.length, 4);
 
     const config = JSON.parse(
       await Deno.readTextFile(`${repoRoot}/.github/dn/config.json`),
     ) as { agent: string };
     assertEquals(config.agent, "opencode");
+  } finally {
+    await Deno.remove(repoRoot, { recursive: true });
+  }
+});
+
+Deno.test("init build installs canonical workflow automation", async () => {
+  const repoRoot = await Deno.makeTempDir({ prefix: "dn-init-build-cli-" });
+  try {
+    const result = await runDnCommand(["init", "build", "--json"], {
+      cwd: repoRoot,
+    });
+    const resultJson = JSON.parse(result.stdout) as {
+      results: Array<{ template: { id: string } }>;
+    };
+    assertEquals(
+      resultJson.results.map((result) => result.template.id).includes(
+        "dn.daily_kickstart",
+      ),
+      true,
+    );
   } finally {
     await Deno.remove(repoRoot, { recursive: true });
   }

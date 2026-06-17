@@ -30,14 +30,16 @@ Deno.test("workflow install, update, and validate report expected status", async
       "missing",
       "missing",
       "missing",
+      "missing",
     ]);
 
     await installWorkflowSupport(repoRoot, { agent: "opencode" });
     const installed = await installWorkflowTemplates(repoRoot);
-    assertEquals(installed.length, 3);
+    assertEquals(installed.length, 4);
 
     statuses = await listWorkflowStatuses(repoRoot);
     assertEquals(statuses.map((status) => status.status), [
+      "current",
       "current",
       "current",
       "current",

@@ -97,6 +97,41 @@
         "optional": ["issue_url", "issue_number", "awp"]
       },
       "compatibility_notes": "Requires .github/dn/config.json. Provide exactly one of issue_url or issue_number. awp defaults to true. Set the secret for your configured agent only."
+    },
+    {
+      "id": "dn.daily_kickstart",
+      "version": "1.0.0",
+      "source_path": "templates/workflows/dn-daily-kickstart.yml",
+      "install_path": ".github/workflows/dn-daily-kickstart.yml",
+      "checksum": "sha256:cc80dc3829bf551b24836c1181d7fa1634d174fa0d644c6f0af87d05a2c21f31",
+      "latest_version": "1.0.0",
+      "deprecated": false,
+      "deprecation_message": null,
+      "minimum_dn_version": "0.0.29",
+      "permissions": {
+        "contents": "write",
+        "pull-requests": "write",
+        "issues": "write"
+      },
+      "required_secrets": [],
+      "optional_secrets": [
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "CURSOR_API_KEY"
+      ],
+      "triggers": {
+        "repository_dispatch": [],
+        "workflow_dispatch": true,
+        "schedule": ["17 13 * * *"],
+        "labels": [],
+        "comments": []
+      },
+      "payload_schema_version": "1.0",
+      "payload": {
+        "required": [],
+        "optional": ["milestone"]
+      },
+      "compatibility_notes": "Requires .github/dn/config.json and a committed plans/{owner}_{repo}_{milestone}.stack.md from dn init stack. Scheduled runs read DN_DAILY_KICKSTART_MILESTONE; manual workflow_dispatch can pass milestone. Runs dn kickstart --awp --milestone <milestone> --once."
     }
   ]
 }

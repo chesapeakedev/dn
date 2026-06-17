@@ -42,7 +42,7 @@ async function handleInit(
     return;
   }
 
-  if (subcommand === "workflows") {
+  if (subcommand === "workflows" || subcommand === "build") {
     await handleInitWorkflows(args.slice(1));
     return;
   }
@@ -56,9 +56,11 @@ async function handleInit(
     console.log("  dn init <subcommand> [options]\n");
     console.log("Subcommands:");
     console.log("  stack    Initialize stack context from GitHub milestone");
+    console.log("  build    Install GitHub Actions workflow automation");
     console.log("  workflows Install canonical GitHub Actions workflows");
     console.log("  agents   Update AGENTS.md with dn instructions\n");
     console.log("Examples:");
+    console.log("  dn init build");
     console.log("  dn init workflows");
     console.log("  dn init stack 42");
     console.log(
@@ -68,7 +70,7 @@ async function handleInit(
   }
 
   console.error(`Unknown init subcommand: ${subcommand}\n`);
-  console.error("Valid subcommands: stack, workflows, agents");
+  console.error("Valid subcommands: stack, build, workflows, agents");
   Deno.exit(1);
 }
 import { handleKickstart } from "./kickstart.ts";
@@ -212,6 +214,9 @@ function showUsage(): void {
   );
   console.error(
     "    stack      Initialize stack context from GitHub milestone",
+  );
+  console.error(
+    "    build      Install GitHub Actions workflow automation",
   );
   console.error(
     "    workflows  Install canonical GitHub Actions workflows",

@@ -34,9 +34,28 @@ dn workflows validate --json
 ```
 
 The templates define stable `repository_dispatch` event contracts for
-`dn.init_stack`, `dn.prep_issue_plan`, and `dn.kickstart_issue`. Each job reads
+`dn.init_stack`, `dn.prep_issue_plan`, and `dn.kickstart_issue`, plus the
+scheduled/manual `dn.daily_kickstart` workflow. Each job reads
 `.github/dn/config.json`, installs only that agent harness, and runs
 `dn --agent <configured>`. You do not pass `agent` on each dispatch.
+
+For daily kickstart automation, initialize and commit a milestone stack, then
+set the repository variable used by scheduled runs:
+
+```bash
+dn init build --agent claude
+dn init stack 42
+gh variable set DN_DAILY_KICKSTART_MILESTONE --body 42
+# Commit .github/dn/, .github/workflows/, and plans/owner_repo_42.stack.md
+```
+
+`.github/workflows/dn-daily-kickstart.yml` runs once per day and also supports
+manual `workflow_dispatch` with a `milestone` input. Each run executes one queue
+item:
+
+```bash
+dn --agent <configured> kickstart --awp --milestone <milestone> --once
+```
 
 See [Denoise integration](denoise-integration.md) for payload schemas,
 permissions, secrets, and versioning details.

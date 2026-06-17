@@ -44,6 +44,8 @@ type KickstartCliConfig = KickstartConfig & {
   milestoneStackMarkdownPath?: string;
   /** When true with `--complete` and `--milestone`, skip milestone queue y/n prompts in this module. */
   milestoneAutoAdvance?: boolean;
+  /** When true with `--milestone`, run the first unchecked stack item, mark it done, and exit. */
+  milestoneRunOnce?: boolean;
 };
 
 function classifyInput(input: string): {
@@ -75,6 +77,7 @@ function parseArgs(
   let workspaceRoot: string | undefined = undefined;
   let milestone: string | undefined = undefined;
   let milestoneAutoAdvance = false;
+  let milestoneRunOnce = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -92,6 +95,8 @@ function parseArgs(
       allowCrossRepo = true;
     } else if (arg === "--complete") {
       milestoneAutoAdvance = true;
+    } else if (arg === "--once") {
+      milestoneRunOnce = true;
     } else if (arg === "--saved-plan" && i + 1 < args.length) {
       savedPlanName = args[++i];
     } else if (arg === "--workspace-root" && i + 1 < args.length) {
@@ -135,6 +140,7 @@ function parseArgs(
     workspaceRoot,
     milestone,
     ...(milestoneAutoAdvance ? { milestoneAutoAdvance: true } : {}),
+    ...(milestoneRunOnce ? { milestoneRunOnce: true } : {}),
   };
 }
 
@@ -170,6 +176,9 @@ function showHelp(): void {
   console.log(
     "  --complete               With --milestone only: run all unchecked stack tasks without y/n prompts between them",
   );
+  console.log(
+    "  --once                   With --milestone only: run one unchecked stack task without y/n prompts",
+  );
   console.log("  --saved-plan <name>      Use a specific plan name");
   console.log("  --workspace-root <path>  Workspace root directory");
   console.log("  --help, -h               Show this help message\n");
@@ -193,6 +202,9 @@ function showHelp(): void {
   console.log("  dn kickstart --milestone 42");
   console.log(
     "  dn kickstart --milestone 42 --complete   # chain every unchecked stack item",
+  );
+  console.log(
+    "  dn kickstart --awp --milestone 42 --once # one queued issue for CI",
   );
   console.log("  dn kickstart --awp --cursor <issue_url_or_number>");
   console.log("  dn kickstart --awp --claude <issue_url_or_number>");
@@ -257,6 +269,7 @@ async function runNoTicketFlow(
       const ref = suggested.ref;
       if (
         !config.milestoneAutoAdvance &&
+        !config.milestoneRunOnce &&
         !promptYesNo(`Proceed with ${ref}?`)
       ) {
         console.error("Cancelled.");
@@ -397,6 +410,24 @@ export async function handleKickstart(
       Deno.exit(1);
     }
   }
+  if (config.milestoneRunOnce) {
+    if (!config.milestone) {
+      console.error(
+        "--once requires --milestone <number-or-url>.",
+      );
+      Deno.exit(1);
+    }
+    if (config.milestoneAutoAdvance) {
+      console.error("--once cannot be combined with --complete.");
+      Deno.exit(1);
+    }
+    if (config.issueUrl || config.contextMarkdownPath) {
+      console.error(
+        "--once only applies when no issue argument or ISSUE is set (use `dn kickstart --milestone … --once` to pick from the stack file).",
+      );
+      Deno.exit(1);
+    }
+  }
 
   if (!config.issueUrl && !config.contextMarkdownPath) {
     const resolved = await runNoTicketFlow(config);
@@ -437,7 +468,8 @@ export async function handleKickstart(
     if (!ref) break;
 
     const skipMilestoneQueuePrompts = Boolean(
-      config.milestoneAutoAdvance && config.milestoneStackMarkdownPath,
+      (config.milestoneAutoAdvance || config.milestoneRunOnce) &&
+        config.milestoneStackMarkdownPath,
     );
     if (
       !skipMilestoneQueuePrompts &&
@@ -457,6 +489,12 @@ export async function handleKickstart(
           await completeGitHubIssueForRef(gh, {
             closeComment: "Completed via dn kickstart",
           });
+        }
+        if (config.milestoneRunOnce) {
+          console.log(
+            "Completed one milestone stack task. Commit the updated stack file when ready.",
+          );
+          Deno.exit(0);
         }
         const stackContent = await Deno.readTextFile(stackPath);
         const { body } = parseFrontmatter(stackContent);
