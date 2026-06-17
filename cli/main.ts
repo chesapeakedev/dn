@@ -243,7 +243,7 @@ function showUsage(): void {
     "  meld         Merge markdown sources and route planner output (--target README/AGENTS/...)",
   );
   console.error(
-    "  archive      Derive commit message from plan file; --yolo to commit and delete plan",
+    "  archive      Commit workspace with a plan-derived message; --dry-run to preview",
   );
   console.error(
     "  todo         Manage prioritized task list (~/.dn/todo.md); 'done' marks item and closes issue",

@@ -588,17 +588,31 @@ Flags mirror `dn prep`'s unattended behavior for agent harness selection; see
 `dn meld --help` for `--target`, `--overwrite`, `--dry-run`, `--yes`,
 `--workspace-root`, and planner selection options.
 
-## `dn archive` — Derive a commit message from a plan file
+## `dn archive` — Commit workspace with a plan-derived message
 
-Reads a plan file and prints a commit message (summary + body). With `--yolo`,
-it commits staged files with that message and deletes the plan file:
+Use `dn archive` after a plan-backed task is complete and the workspace contains
+the changes you want in one commit. The command reads the plan file, derives a
+commit message from its title and overview, deletes the plan file, adds/removes
+workspace files, and commits the result.
 
 ```bash
 dn archive plans/issue-123.plan.md
-
-# Commit staged files with derived message, then delete the plan file
-dn archive plans/issue-123.plan.md --yolo
 ```
+
+`dn archive` reviews the current workspace state at commit time. It does not
+require a staging step: in Sapling repositories it runs `sl addremove`; in Git
+repositories it runs `git add -A`. Any tracked or untracked workspace changes
+that are not ignored by the VCS can be included in the commit.
+
+Use `--dry-run` to preview the derived commit message without committing or
+deleting the plan file:
+
+```bash
+dn archive plans/issue-123.plan.md --dry-run
+```
+
+If the commit step fails after the plan file is removed, `dn archive` attempts
+to restore the plan file before exiting with an error.
 
 See `dn archive --help` for all options.
 

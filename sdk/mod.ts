@@ -346,7 +346,7 @@ export { runOpenCode } from "./github/opencode.ts";
 // Archive - Archive utilities
 // ============================================================================
 
-export { commitStaged } from "./archive/commit.ts";
+export { commitStaged, commitWorkspace } from "./archive/commit.ts";
 export { deriveCommitMessage } from "./archive/derive.ts";
 export {
   formatCommitMessage,

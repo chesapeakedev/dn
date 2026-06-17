@@ -191,7 +191,7 @@ Deno.test("prep command fails without arguments", async () => {
 Test git-related functionality:
 
 ```typescript
-Deno.test("archive command commits with --yolo", async () => {
+Deno.test("archive command commits workspace changes", async () => {
   const testRepo = await createProjectTestRepo();
 
   try {
@@ -202,11 +202,9 @@ Deno.test("archive command commits with --yolo", async () => {
     );
     await Deno.writeTextFile(`${testRepo.path}/plan.plan.md`, planContent);
 
-    // Stage changes
-    await runCommand(["git", "add", "."], { cwd: testRepo.path });
-
-    // Run archive with --yolo
-    await runDnCommand(["archive", "plan.plan.md", "--yolo"], {
+    // Run archive. No staging step is required; archive adds/removes workspace
+    // files before committing.
+    await runDnCommand(["archive", "plan.plan.md"], {
       cwd: testRepo.path,
     });
 

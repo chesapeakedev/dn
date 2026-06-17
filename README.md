@@ -23,8 +23,8 @@ agents with `--cursor`, `--claude`, and other flags
   milestone with `dn init stack <milestone>`; work through tasks in order
 - **Project Insights** — Quick velocity reports (`dn glance`) and heuristic
   “what should I look at next?” suggestions (`dn peek`)
-- **Git History Automation** — Derive clean commit messages from plan files
-  automatically with `dn archive`
+- **Git History Automation** — Commit the current workspace with a clean,
+  plan-derived message using `dn archive`
 - **Instruction Context Auditing** — Inspect inherited `AGENTS.md` size and
   optional Claude token estimates with `dn context check <file>`
 - **GitHub Actions Integration** — Trigger agentic workflows with canonical

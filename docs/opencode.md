@@ -108,13 +108,15 @@ Combines multiple markdown sources into a single plan-ready document.
 
 ### dn_archive
 
-Derives a commit message from a plan file and optionally commits changes.
+Derives a commit message from a plan file, deletes the plan, and commits the
+current workspace. Use `dryRun=true` to preview the commit message without
+changing files or creating a commit.
 
-**Arguments:** `planFile` (required), `yolo` (optional)
+**Arguments:** `planFile` (required), `dryRun` (optional)
 
 ```bash
 /dn_archive planFile="plans/feature-xyz.plan.md"
-/dn_archive planFile="plans/feature-xyz.plan.md" yolo=true
+/dn_archive planFile="plans/feature-xyz.plan.md" dryRun=true
 ```
 
 ## Best Practices
@@ -142,8 +144,8 @@ Derives a commit message from a plan file and optionally commits changes.
    generated plan
 3. **Iterate with `dn_loop`**: Run multiple loop cycles as needed for complex
    features
-4. **Clean up with `dn_archive`**: Derive meaningful commit messages and
-   maintain repository hygiene
+4. **Clean up with `dn_archive`**: Commit the completed workspace with a
+   plan-derived message and remove the plan file
 
 ### Environment Variables
 
@@ -208,7 +210,7 @@ For batch processing, use the CLI outside OpenCode:
 for issue in 101 102 103; do
   dn prep $issue
   dn loop --plan-file plans/issue-$issue.plan.md
-  dn archive plans/issue-$issue.plan.md --yolo
+  dn archive plans/issue-$issue.plan.md
 done
 ```
 

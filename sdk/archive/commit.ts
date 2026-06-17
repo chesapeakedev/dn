@@ -34,3 +34,27 @@ export async function commitStaged(message: CommitMessage): Promise<void> {
     }
   }
 }
+
+/**
+ * Adds/removes current workspace files and commits them with the given message.
+ * Uses Sapling (sl) or git depending on repo.
+ *
+ * @param message - Commit summary and optional body
+ * @throws Error if not in a VCS repo or commit fails
+ */
+export async function commitWorkspace(message: CommitMessage): Promise<void> {
+  const ctx = await detectVcs();
+  if (!ctx) {
+    throw new Error(
+      "Not in a git or sapling repository. Run from a repo root.",
+    );
+  }
+
+  if (ctx.vcs === "sapling") {
+    await $`sl addremove`;
+  } else {
+    await $`git add -A`;
+  }
+
+  await commitStaged(message);
+}

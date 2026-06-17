@@ -26,7 +26,7 @@ Deno.test("archive command shows help", async () => {
     });
 
     assert(result.stdout.includes("dn archive"));
-    assert(result.stdout.includes("--yolo"));
+    assert(result.stdout.includes("--dry-run"));
     assert(result.success);
   } finally {
     await cleanupTestRepo(testRepo);
@@ -135,16 +135,15 @@ JWT tokens have reasonable expiration times and secure signing.
     const result = await runDnCommand([
       "archive",
       "auth-feature.plan.md",
+      "--dry-run",
     ], { cwd: testRepo.path });
 
     assert(result.success);
 
     // Check that the output contains a derived commit message
     assert(
-      result.stdout.includes("commit") || result.stdout.includes("message"),
-    );
-    assert(
-      result.stdout.includes("authentication") ||
+      result.stdout.includes("Feature Implementation") ||
+        result.stdout.includes("authentication") ||
         result.stdout.includes("feature"),
     );
   } finally {
@@ -152,7 +151,7 @@ JWT tokens have reasonable expiration times and secure signing.
   }
 });
 
-Deno.test("archive command with --yolo commits and deletes plan", async () => {
+Deno.test("archive command commits workspace and deletes plan", async () => {
   const testRepo = await createProjectTestRepo();
 
   try {
@@ -184,25 +183,21 @@ Implement a simple new feature.
       planContent,
     );
 
-    // Stage the changes
-    await runDnCommand(["git", "add", "."], { cwd: testRepo.path });
-
     // Get initial git state
     await assertGitState(testRepo.path, {
       commits: 1,
       files: ["README.md", "deno.json", "main.ts"],
     });
 
-    // Run archive with --yolo (this will commit and delete the plan)
+    // Run archive (this will commit workspace changes and delete the plan)
     const result = await runDnCommand([
       "archive",
       "new-feature.plan.md",
-      "--yolo",
     ], { cwd: testRepo.path });
 
     assert(result.success);
 
-    // Check git state after yolo
+    // Check git state after archive
     await assertGitState(testRepo.path, {
       commits: 2, // Should have created a new commit
       files: ["README.md", "deno.json", "main.ts", "new-feature.ts"],
@@ -211,7 +206,7 @@ Implement a simple new feature.
     // Plan file should be deleted
     try {
       await Deno.stat(`${testRepo.path}/new-feature.plan.md`);
-      throw new Error("Plan file should have been deleted with --yolo option");
+      throw new Error("Plan file should have been deleted");
     } catch (error) {
       if (!(error instanceof Deno.errors.NotFound)) {
         throw error;
@@ -282,6 +277,7 @@ Testing workspace root option in archive command.
       "workspace-test.plan.md",
       "--workspace-root",
       testRepo.path,
+      "--dry-run",
     ], { cwd: subDir });
 
     assert(result.success);
@@ -419,6 +415,7 @@ This is a comprehensive system overhaul that will significantly improve performa
     const result = await runDnCommand([
       "archive",
       "system-overhaul.plan.md",
+      "--dry-run",
     ], { cwd: testRepo.path });
 
     assert(result.success);
@@ -434,7 +431,7 @@ This is a comprehensive system overhaul that will significantly improve performa
   }
 });
 
-Deno.test("archive command creates expected git state without --yolo", async () => {
+Deno.test("archive command dry-run preserves workspace state", async () => {
   const testRepo = await createProjectTestRepo();
 
   try {
@@ -468,19 +465,17 @@ Implement a test feature.
       planContent,
     );
 
-    // Stage the changes
-    await runDnCommand(["git", "add", "."], { cwd: testRepo.path });
-
     // Get initial git state
     await assertGitState(testRepo.path, {
       commits: 1,
       files: ["README.md", "deno.json", "main.ts"],
     });
 
-    // Run archive without --yolo (should not commit)
+    // Run archive with --dry-run (should not commit)
     const result = await runDnCommand([
       "archive",
       "test-feature.plan.md",
+      "--dry-run",
     ], { cwd: testRepo.path });
 
     assert(result.success);
@@ -497,18 +492,18 @@ Implement a test feature.
       ],
     });
 
-    // Plan file should still exist (no --yolo)
+    // Plan file should still exist
     try {
       await Deno.stat(`${testRepo.path}/test-feature.plan.md`);
     } catch {
-      throw new Error("Plan file should still exist without --yolo option");
+      throw new Error("Plan file should still exist with --dry-run option");
     }
   } finally {
     await cleanupTestRepo(testRepo);
   }
 });
 
-Deno.test("archive command with unstaged changes", async () => {
+Deno.test("archive command commits unstaged workspace changes", async () => {
   const testRepo = await createProjectTestRepo();
 
   try {
@@ -536,7 +531,6 @@ Test archive with unstaged changes.
 
     await Deno.writeTextFile(`${testRepo.path}/unstaged.plan.md`, planContent);
 
-    // Run archive without staging changes
     const result = await runDnCommand([
       "archive",
       "unstaged.plan.md",
@@ -544,11 +538,19 @@ Test archive with unstaged changes.
 
     assert(result.success);
 
-    // Should still work but warn about unstaged changes
-    assert(
-      result.stdout.includes("unstaged") || result.stdout.includes("changes") ||
-        result.stderr.includes("unstaged") || result.stderr.includes("changes"),
-    );
+    await assertGitState(testRepo.path, {
+      commits: 2,
+      files: ["README.md", "deno.json", "main.ts", "unstaged.ts"],
+    });
+
+    try {
+      await Deno.stat(`${testRepo.path}/unstaged.plan.md`);
+      throw new Error("Plan file should have been deleted");
+    } catch (error) {
+      if (!(error instanceof Deno.errors.NotFound)) {
+        throw error;
+      }
+    }
   } finally {
     await cleanupTestRepo(testRepo);
   }
