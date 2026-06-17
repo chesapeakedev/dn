@@ -49,8 +49,8 @@ configure: install
 publish: ; deno task publish
 # sync your local changes with trunk, rebasing trunk under your work
 # leaves branches alone
-sync: install
-	dn sync
+sync: lint
+	deno run --allow-all $(CURDIR)/cli/main.ts sync --skip-lint
 
 # compile & install dn locally for the current user
 TARGET_DIR=~/.local/bin

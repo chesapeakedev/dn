@@ -417,7 +417,7 @@ invokes **`dn sync`** (implemented in `cli/sync.ts`). Equivalent for humans who
 prefer the runner:
 
 ```bash
-make sync      # Makefile → deno run … cli/main.ts sync
+make sync      # Makefile → lint once, then deno run … cli/main.ts sync --skip-lint
 dn sync        # after `make configure`, if `dn` is on PATH
 ```
 
@@ -436,8 +436,9 @@ The workflow runs:
 Use **`make sync`** when you sit down (to pull latest) and before you get up (to
 push your work).
 
-`repo_sync.sh` has been deleted. **`make sync`** now compiles and installs the
-`dn` binary first, then runs **`dn sync`** directly.
+`repo_sync.sh` has been deleted. **`make sync`** runs the local TypeScript
+entrypoint directly after linting, so it does not need to compile/install `dn`
+or run the same lint checks twice.
 
 For anonymous feature branches (work not on top of `main`), use `sl` directly:
 

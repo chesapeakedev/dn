@@ -117,10 +117,12 @@ async function revsetProducesCommits(
 
 interface SyncParsedArgs {
   workspaceRootCandidate: string;
+  skipLint: boolean;
 }
 
 function parseSyncArgs(raw: string[]): SyncParsedArgs {
   let workspaceRootCandidate = Deno.cwd();
+  let skipLint = false;
 
   for (let i = 0; i < raw.length; i++) {
     const arg = raw[i];
@@ -133,6 +135,8 @@ function parseSyncArgs(raw: string[]): SyncParsedArgs {
         throw new Error("--workspace-root requires a path");
       }
       workspaceRootCandidate = path.resolve(raw[++i]);
+    } else if (arg === "--skip-lint") {
+      skipLint = true;
     } else if (arg.startsWith("-")) {
       throw new Error(`Unknown flag: ${arg}`);
     } else {
@@ -142,7 +146,7 @@ function parseSyncArgs(raw: string[]): SyncParsedArgs {
     }
   }
 
-  return { workspaceRootCandidate };
+  return { workspaceRootCandidate, skipLint };
 }
 
 function printSyncHelp(): void {
@@ -150,7 +154,7 @@ function printSyncHelp(): void {
     "dn sync — Rebase onto remote main; restack if needed; push drafts\n",
   );
   console.log(
-    "Runs `make lint`, then Sapling pull/rebase onto main, conditional restack,",
+    "Runs `make lint` unless skipped, then Sapling pull/rebase onto main, conditional restack,",
   );
   console.log(
     "and `sl push --to main` only when drafts exist on the main-line stack.",
@@ -163,6 +167,9 @@ function printSyncHelp(): void {
   console.log("Options:");
   console.log(
     "  --workspace-root <path>  Directory inside the Sapling repo (default: cwd)",
+  );
+  console.log(
+    "  --skip-lint              Skip `make lint` (used by `make sync`)",
   );
   console.log("  --help, -h               Show this help\n");
 }
@@ -179,8 +186,12 @@ export async function handleSync(args: string[]): Promise<void> {
   const repoRoot = await saplingRepoRoot(parsed.workspaceRootCandidate);
   console.log(`[dn sync] repo root: ${repoRoot}`);
 
-  console.log("[dn sync] running make lint...");
-  await runInherited("make", ["lint"], repoRoot);
+  if (parsed.skipLint) {
+    console.log("[dn sync] skipping make lint (--skip-lint).");
+  } else {
+    console.log("[dn sync] running make lint...");
+    await runInherited("make", ["lint"], repoRoot);
+  }
 
   console.log("[dn sync] sl pull --rebase -d main");
   await runInherited("sl", ["pull", "--rebase", "-d", "main"], repoRoot);

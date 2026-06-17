@@ -18,8 +18,11 @@ Deno.test("dn sync --help exits zero", async () => {
 
   const { code, stdout } = await command.output();
 
+  const helpText = new TextDecoder().decode(stdout);
+
   assert(code === 0);
-  assert(new TextDecoder().decode(stdout).includes("dn sync"));
+  assert(helpText.includes("dn sync"));
+  assert(helpText.includes("--skip-lint"));
 });
 
 Deno.test("CLI rejects unknown subcommand", async () => {

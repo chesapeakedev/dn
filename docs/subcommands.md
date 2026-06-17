@@ -486,7 +486,8 @@ PATH, and **Deno** (what `make lint` already uses).
 
 **Steps (in order, fail-fast):**
 
-1. **`make lint`** at the Sapling repo root (format + typecheck + lint).
+1. **`make lint`** at the Sapling repo root (format + typecheck + lint), unless
+   **`--skip-lint`** is passed.
 2. **`sl pull --rebase -d main`** — inherits stdout/stderr; resolve conflicts
    manually if needed.
 3. **Conditional `sl restack`** when revset
@@ -507,6 +508,10 @@ From a subdirectory of the checkout:
 dn sync --workspace-root /path/to/checkout
 ```
 
+`make sync` runs the repository lint target once, then invokes the local
+TypeScript entrypoint with `sync --skip-lint` so it does not repeat the same
+validation.
+
 Troubleshooting:
 
 - **`sl`** “not found” — install Sapling and ensure `sl` is on PATH.
@@ -515,7 +520,8 @@ Troubleshooting:
 - **`sl push`** auth errors — configure remote credentials (**`gh auth login`**,
   SSH remote, or a helper); see Sapling docs for **`sl push`**.
 - **`make`** missing — install **make**; on this repo **`make configure`**
-  installs `dn`; **`make sync`** runs **`dn sync`** via **`deno run`**.
+  installs `dn`; **`make sync`** runs the local TypeScript entrypoint via
+  **`deno run`**.
 
 See also [`AGENTS.md`](../AGENTS.md) (Workflow: `make sync`) and `cli/sync.ts`.
 
