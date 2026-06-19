@@ -1,7 +1,7 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertStringIncludes } from "@std/assert";
 import { runDnCommand } from "./test_utils.ts";
 
 Deno.test("workflows CLI installs and validates templates with JSON output", async () => {
@@ -91,6 +91,65 @@ Deno.test("init workflows --agent writes configured agent", async () => {
       await Deno.readTextFile(`${repoRoot}/.github/dn/config.json`),
     ) as { agent: string };
     assertEquals(config.agent, "claude");
+  } finally {
+    await Deno.remove(repoRoot, { recursive: true });
+  }
+});
+
+Deno.test("workflows run is rejected after dispatch rename", async () => {
+  const result = await runDnCommand(["workflows", "run", "ci.yml"], {
+    expectFailure: true,
+  });
+  assertStringIncludes(result.stderr, "Unknown workflows subcommand: run");
+});
+
+Deno.test("workflows exec --validate-only writes summary and outputs", async () => {
+  const repoRoot = await Deno.makeTempDir({ prefix: "dn-workflows-exec-" });
+  try {
+    await Deno.mkdir(`${repoRoot}/.github/dn`, { recursive: true });
+    await Deno.writeTextFile(
+      `${repoRoot}/.github/dn/config.json`,
+      '{"schema_version":"1.0","agent":"opencode"}\n',
+    );
+    await Deno.writeTextFile(
+      `${repoRoot}/event.json`,
+      JSON.stringify({
+        action: "dn.kickstart_issue",
+        client_payload: {
+          schema_version: "1.0",
+          dispatch_id: "verify-1",
+          issue_number: 42,
+          validate_only: true,
+        },
+      }),
+    );
+    const summaryPath = `${repoRoot}/summary.md`;
+    const outputPath = `${repoRoot}/output.txt`;
+    await runDnCommand([
+      "workflows",
+      "exec",
+      "dn.kickstart_issue",
+      "--validate-only",
+    ], {
+      cwd: repoRoot,
+      env: {
+        GITHUB_ACTIONS: "true",
+        GITHUB_WORKSPACE: repoRoot,
+        GITHUB_EVENT_NAME: "repository_dispatch",
+        GITHUB_EVENT_PATH: `${repoRoot}/event.json`,
+        GITHUB_STEP_SUMMARY: summaryPath,
+        GITHUB_OUTPUT: outputPath,
+        OPENAI_API_KEY: "test-secret",
+      },
+    });
+    assertStringIncludes(
+      await Deno.readTextFile(summaryPath),
+      "**Status:** validated",
+    );
+    assertStringIncludes(
+      await Deno.readTextFile(outputPath),
+      "phase=validation",
+    );
   } finally {
     await Deno.remove(repoRoot, { recursive: true });
   }

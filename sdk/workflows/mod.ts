@@ -403,7 +403,7 @@ export {
 } from "./dispatch.ts";
 export type {
   RepositoryDispatchClientPayload,
-  WorkflowRunDispatchMode,
+  WorkflowDispatchMode,
 } from "./dispatch.ts";
 export {
   DN_CONFIG_REL_PATH,
@@ -413,6 +413,7 @@ export {
   installWorkflowSupport,
   parseDnWorkflowAgentConfig,
   readDnWorkflowAgentConfig,
+  removeLegacyInstallScript,
   requiredSecretForAgent,
   secretSetupHint,
   validateWorkflowAgentSetup,

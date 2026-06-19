@@ -190,14 +190,13 @@ Installs canonical dn GitHub Actions workflows plus repo agent configuration:
 
 - `.github/workflows/dn-*.yml` — dispatch and scheduled workflows
 - `.github/dn/config.json` — preferred agent for all dn workflows in this repo
-- `.github/dn/install-agent.sh` — installs that agent on the runner
 
 Choose your agent once (same value for every dispatch):
 
 ```bash
 dn init workflows --agent claude
 gh secret set ANTHROPIC_API_KEY
-# Commit .github/dn/config.json and .github/dn/install-agent.sh
+# Commit .github/dn/config.json and the installed workflows
 ```
 
 Supported agents: `opencode` (default), `cursor`, `claude`, `codex`.
@@ -372,8 +371,8 @@ See `dn init stack --help` for all options.
 
 ## `dn workflows` — Run and manage GitHub Actions workflows
 
-Triggers `workflow_dispatch` / `repository_dispatch` events and manages
-canonical dn workflow templates.
+Dispatches `workflow_dispatch` / `repository_dispatch` events, executes
+canonical workflows inside Actions, and manages installed templates.
 
 ### Running workflows
 
@@ -384,19 +383,19 @@ Other workflows with `on.workflow_dispatch` use the same path as
 `gh workflow run`.
 
 ```bash
-dn workflows run release.yml
-dn workflows run triage.yml --ref my-branch
-dn workflows run triage.yml -f name=scully -f greeting=hello
-echo '{"name":"scully"}' | dn workflows run triage.yml --json
-dn workflows run smoke.yml --repo owner/repo
+dn workflows dispatch release.yml
+dn workflows dispatch triage.yml --ref my-branch
+dn workflows dispatch triage.yml -f name=scully -f greeting=hello
+echo '{"name":"scully"}' | dn workflows dispatch triage.yml --json
+dn workflows dispatch smoke.yml --repo owner/repo
 
 # repository_dispatch (canonical dn templates)
 echo '{"schema_version":"1.0","dispatch_id":"'"$(uuidgen)"'","milestone":"1"}' \
-  | dn workflows run dn.init_stack --repo owner/repo --json
-dn workflows run dn-prep-issue-plan.yml --repo owner/repo --json '<payload>'
+  | dn workflows dispatch dn.init_stack --repo owner/repo --json
+dn workflows dispatch dn-prep-issue-plan.yml --repo owner/repo --json '<payload>'
 ```
 
-Options for `run`:
+Options for `dispatch`:
 
 - `--repo`, `-R` — target `owner/repo` (default: current remote)
 - `--ref`, `-r` — branch or tag containing the workflow file (default: default
@@ -412,6 +411,21 @@ returns it. For `repository_dispatch`, the API returns 204 with no run id; the
 command prints `event_type`, `dispatch_id`, and a polling hint such as
 `gh run list --repo owner/repo --event repository_dispatch`. Interactive
 workflow and input prompts are not implemented yet.
+
+### Executing inside GitHub Actions
+
+`dn workflows exec <template-id>` is the runner-side command used by
+`chesapeakedev/dn-action`. It validates the GitHub event, repository agent
+configuration, and required credential before installing the agent harness and
+running the mapped dn command.
+
+```bash
+dn workflows exec dn.kickstart_issue
+dn workflows exec dn.kickstart_issue --validate-only
+```
+
+The command writes validation and execution details to `GITHUB_STEP_SUMMARY`.
+`--validate-only` stops before agent installation and command execution.
 
 ### Managing templates
 

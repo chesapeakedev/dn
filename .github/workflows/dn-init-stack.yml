@@ -12,74 +12,13 @@ jobs:
   init-stack:
     runs-on: ubuntu-latest
     steps:
-      - name: Validate dispatch payload
-        id: payload
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const payload = context.payload.client_payload || {};
-            if (payload.schema_version !== "1.0") {
-              core.setFailed("client_payload.schema_version must be 1.0");
-              return;
-            }
-            if (!payload.dispatch_id) {
-              core.setFailed("client_payload.dispatch_id is required");
-              return;
-            }
-            if (!payload.milestone) {
-              core.setFailed("client_payload.milestone is required");
-              return;
-            }
-            core.setOutput("milestone", String(payload.milestone));
-            core.setOutput("refresh", payload.refresh === false ? "false" : "true");
-
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Load dn agent config
-        id: dn-config
-        run: |
-          set -euo pipefail
-          config=".github/dn/config.json"
-          if [ ! -f "$config" ]; then
-            echo "::error::Missing $config. Run: dn init workflows --agent <opencode|cursor|claude|codex> and commit the file." >&2
-            exit 1
-          fi
-          agent=$(jq -r '.agent // empty' "$config")
-          case "$agent" in
-            opencode|cursor|claude|codex) ;;
-            *)
-              echo "::error::Invalid agent in $config: $agent" >&2
-              exit 1
-              ;;
-          esac
-          echo "agent=$agent" >> "$GITHUB_OUTPUT"
-
-      - name: Setup Node.js for Codex
-        if: steps.dn-config.outputs.agent == 'codex'
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Install dn
-        uses: chesapeakedev/dn-action@v1
-
-      - name: Install agent harness
-        run: bash .github/dn/install-agent.sh
-
       - name: Run dn init stack
+        uses: chesapeakedev/dn-action@v1
+        with:
+          workflow: dn.init_stack
+          validate-only: ${{ github.event.client_payload.validate_only == true }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
-          CLAUDE_CODE_BARE: "1"
           NO_COLOR: "1"
-        run: |
-          REFRESH_ARGS=()
-          if [ "${{ steps.payload.outputs.refresh }}" = "false" ]; then
-            REFRESH_ARGS+=(--refresh)
-          fi
-
-          dn --agent "${{ steps.dn-config.outputs.agent }}" init stack "${{ steps.payload.outputs.milestone }}" "${REFRESH_ARGS[@]}"

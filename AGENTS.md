@@ -222,9 +222,9 @@ $ dn issue comment 123 --body-file update.md
 $ dn issue edit 123 --body-file revised.md
 
 # Trigger workflow_dispatch or repository_dispatch (canonical dn templates)
-$ dn workflow run release.yml --ref main -f tag=v1.0.0
+$ dn workflows dispatch release.yml --ref main -f tag=v1.0.0
 $ echo '{"schema_version":"1.0","dispatch_id":"'"$(uuidgen)"'","milestone":"1"}' \
-  | dn workflow run dn.init_stack --repo owner/repo --json
+  | dn workflows dispatch dn.init_stack --repo owner/repo --json
 ```
 
 Guideline: if a task involves GitHub state, plans, or iteration across steps,

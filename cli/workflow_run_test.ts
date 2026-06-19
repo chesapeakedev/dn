@@ -2,16 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Tests for `dn workflow run` flag parsing.
+ * Tests for `dn workflows dispatch` flag parsing.
  * Requires --allow-read because importing the run handler pulls in modules
  * that may load .env via @std/dotenv at init time.
  */
 
 import { assert } from "@std/assert";
-import { parseWorkflowRunArgs } from "./workflow/run.ts";
+import { parseWorkflowDispatchArgs } from "./workflow/run.ts";
 
-Deno.test("parseWorkflowRunArgs extracts repo and fields", async () => {
-  const options = await parseWorkflowRunArgs([
+Deno.test("parseWorkflowDispatchArgs extracts repo and fields", async () => {
+  const options = await parseWorkflowDispatchArgs([
     "release.yml",
     "--repo",
     "acme/platform",
@@ -32,8 +32,8 @@ Deno.test("parseWorkflowRunArgs extracts repo and fields", async () => {
   assert(options.wait === false);
 });
 
-Deno.test("parseWorkflowRunArgs parses dispatch mode and wait", async () => {
-  const options = await parseWorkflowRunArgs([
+Deno.test("parseWorkflowDispatchArgs parses dispatch mode and wait", async () => {
+  const options = await parseWorkflowDispatchArgs([
     "dn.init_stack",
     "--dispatch",
     "repository",
@@ -48,10 +48,10 @@ Deno.test("parseWorkflowRunArgs parses dispatch mode and wait", async () => {
   assert(options.repo?.owner === "acme");
 });
 
-Deno.test("parseWorkflowRunArgs requires workflow when fields passed", async () => {
+Deno.test("parseWorkflowDispatchArgs requires workflow when fields passed", async () => {
   let threw = false;
   try {
-    await parseWorkflowRunArgs(["-f", "name=value"]);
+    await parseWorkflowDispatchArgs(["-f", "name=value"]);
   } catch (error) {
     threw = true;
     assert(
@@ -62,10 +62,10 @@ Deno.test("parseWorkflowRunArgs requires workflow when fields passed", async () 
   assert(threw);
 });
 
-Deno.test("parseWorkflowRunArgs requires selector when not interactive", async () => {
+Deno.test("parseWorkflowDispatchArgs requires selector when not interactive", async () => {
   let threw = false;
   try {
-    await parseWorkflowRunArgs([]);
+    await parseWorkflowDispatchArgs([]);
   } catch (error) {
     threw = true;
     assert(
@@ -76,13 +76,13 @@ Deno.test("parseWorkflowRunArgs requires selector when not interactive", async (
   assert(threw);
 });
 
-Deno.test("parseWorkflowRunArgs rejects --json on a tty", async () => {
+Deno.test("parseWorkflowDispatchArgs rejects --json on a tty", async () => {
   if (!Deno.stdin.isTerminal()) {
     return;
   }
   let threw = false;
   try {
-    await parseWorkflowRunArgs(["ci.yml", "--json"]);
+    await parseWorkflowDispatchArgs(["ci.yml", "--json"]);
   } catch (error) {
     threw = true;
     assert(

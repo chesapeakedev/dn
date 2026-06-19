@@ -1,6 +1,7 @@
 # GitHub Actions
 
-Use `dn` in automated workflows to trigger kickstart from GitHub Actions.
+Use `dn` in automated workflows to validate and run kickstart from GitHub
+Actions.
 
 ## Quick setup
 
@@ -13,13 +14,12 @@ jobs:
   kickstart:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install dn
-        uses: chesapeakedev/dn-action@v1
-
       - name: Run kickstart
-        run: dn --agent opencode kickstart --awp "${{ github.event.issue.html_url }}"
+        uses: chesapeakedev/dn-action@v1
+        with:
+          workflow: dn.kickstart_issue
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 ```
 
 ## Canonical Workflow Templates
@@ -29,15 +29,16 @@ Install the canonical workflow templates and pick one agent for the repository:
 ```bash
 dn init workflows --agent claude
 gh secret set ANTHROPIC_API_KEY
-# Commit .github/dn/config.json, .github/dn/install-agent.sh, and the workflows
+# Commit .github/dn/config.json and the workflows
 dn workflows validate --json
 ```
 
 The templates define stable `repository_dispatch` event contracts for
 `dn.init_stack`, `dn.prep_issue_plan`, and `dn.kickstart_issue`, plus the
-scheduled/manual `dn.daily_kickstart` workflow. Each job reads
-`.github/dn/config.json`, installs only that agent harness, and runs
-`dn --agent <configured>`. You do not pass `agent` on each dispatch.
+scheduled/manual `dn.daily_kickstart` workflow. Each job uses one action step
+that reads `.github/dn/config.json`, validates the event, installs the
+configured agent harness, runs `dn --agent <configured>`, and writes a workflow
+summary. You do not pass `agent` on each dispatch.
 
 For daily kickstart automation, initialize and commit a milestone stack, then
 set the repository variable used by scheduled runs:

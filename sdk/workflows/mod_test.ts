@@ -1,7 +1,7 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertFalse, assertStringIncludes } from "@std/assert";
 import { installWorkflowSupport } from "./agentConfig.ts";
 import {
   computeSha256,
@@ -19,6 +19,17 @@ Deno.test("workflow manifest checksums match shipped templates", async () => {
   for (const template of manifest.templates) {
     const content = await readWorkflowTemplate(template);
     assertEquals(await computeSha256(content), template.checksum);
+  }
+});
+
+Deno.test("canonical workflows delegate runtime setup to one action step", async () => {
+  const manifest = await loadWorkflowManifest();
+  for (const template of manifest.templates) {
+    const content = await readWorkflowTemplate(template);
+    assertStringIncludes(content, "uses: chesapeakedev/dn-action@v1");
+    assertStringIncludes(content, `workflow: ${template.id}`);
+    assertFalse(content.includes("actions/checkout"));
+    assertFalse(content.includes("install-agent.sh"));
   }
 });
 

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * `dn workflow run` — trigger workflow_dispatch or repository_dispatch events.
+ * `dn workflows dispatch` — trigger workflow_dispatch or repository_dispatch events.
  */
 
 import {
@@ -25,29 +25,29 @@ import {
   repositoryDispatchEventType,
   resolveManifestTemplate,
   validateDispatchPayload,
-  type WorkflowRunDispatchMode,
+  type WorkflowDispatchMode,
 } from "../../sdk/workflows/mod.ts";
 import { isTty } from "../output.ts";
 import { parseRepoRef, type RepoRef } from "../issue.ts";
 
-interface RunOptions {
+interface DispatchOptions {
   selector: string;
   ref?: string;
   repo?: RepoRef;
   rawFields: string[];
   magicFields: string[];
   jsonInput?: string;
-  dispatchMode?: WorkflowRunDispatchMode;
+  dispatchMode?: WorkflowDispatchMode;
   wait: boolean;
 }
 
 function showHelp(): void {
   console.log(
-    "dn workflow run - Trigger workflow_dispatch or repository_dispatch\n",
+    "dn workflows dispatch - Trigger workflow_dispatch or repository_dispatch\n",
   );
   console.log("Usage:");
   console.log(
-    "  dn workflow run [<workflow-id> | <workflow-name>] [options]\n",
+    "  dn workflows dispatch [<workflow-id> | <workflow-name>] [options]\n",
   );
   console.log("Options:");
   console.log(
@@ -70,21 +70,23 @@ function showHelp(): void {
     "  --json                    JSON from stdin: workflow inputs or client_payload\n",
   );
   console.log("Examples:");
-  console.log("  dn workflow run release.yml");
-  console.log("  dn workflow run triage.yml --ref my-branch");
-  console.log("  dn workflow run triage.yml -f name=scully -f greeting=hello");
+  console.log("  dn workflows dispatch release.yml");
+  console.log("  dn workflows dispatch triage.yml --ref my-branch");
   console.log(
-    '  echo \'{"name":"scully"}\' | dn workflow run triage.yml --json',
+    "  dn workflows dispatch triage.yml -f name=scully -f greeting=hello",
+  );
+  console.log(
+    '  echo \'{"name":"scully"}\' | dn workflows dispatch triage.yml --json',
   );
   console.log(
     '  echo \'{"schema_version":"1.0","dispatch_id":"' +
       '$(uuidgen)","milestone":"1"}\' \\',
   );
   console.log(
-    "    | dn workflow run dn.init_stack --repo owner/repo --json",
+    "    | dn workflows dispatch dn.init_stack --repo owner/repo --json",
   );
   console.log(
-    "  dn workflow run dn-prep-issue-plan.yml --repo owner/repo --json '<payload>'",
+    "  dn workflows dispatch dn-prep-issue-plan.yml --repo owner/repo --json '<payload>'",
   );
   console.log("\nNot yet implemented:");
   console.log(
@@ -93,18 +95,18 @@ function showHelp(): void {
 }
 
 /**
- * Parse flags and positional args for `dn workflow run`.
+ * Parse flags and positional args for `dn workflows dispatch`.
  * Exported for unit tests.
  */
-export async function parseWorkflowRunArgs(
+export async function parseWorkflowDispatchArgs(
   args: string[],
-): Promise<RunOptions> {
+): Promise<DispatchOptions> {
   const rawFields: string[] = [];
   const magicFields: string[] = [];
   let repo: RepoRef | undefined;
   let ref: string | undefined;
   let json = false;
-  let dispatchMode: WorkflowRunDispatchMode | undefined;
+  let dispatchMode: WorkflowDispatchMode | undefined;
   let wait = false;
   const positional: string[] = [];
 
@@ -239,7 +241,7 @@ async function resolveRepo(repoOverride?: RepoRef): Promise<RepoRef> {
 }
 
 async function readWorkflowDispatchInputs(
-  options: RunOptions,
+  options: DispatchOptions,
 ): Promise<WorkflowDispatchInputs> {
   if (options.jsonInput !== undefined) {
     const parsed = JSON.parse(options.jsonInput) as unknown;
@@ -270,7 +272,7 @@ async function readWorkflowDispatchInputs(
 }
 
 function readRepositoryDispatchPayload(
-  options: RunOptions,
+  options: DispatchOptions,
 ): Record<string, unknown> {
   if (options.jsonInput === undefined) {
     throw new Error(
@@ -290,8 +292,8 @@ async function resolveRunMode(
   repo: string,
   selector: string,
   ref: string,
-  forced?: WorkflowRunDispatchMode,
-): Promise<WorkflowRunDispatchMode> {
+  forced?: WorkflowDispatchMode,
+): Promise<WorkflowDispatchMode> {
   if (forced) {
     return forced;
   }
@@ -350,7 +352,7 @@ async function runRepositoryDispatch(
   repo: string,
   selector: string,
   ref: string,
-  options: RunOptions,
+  options: DispatchOptions,
 ): Promise<void> {
   const manifest = await loadWorkflowManifest();
   const template = resolveManifestTemplate(selector, manifest);
@@ -416,7 +418,7 @@ async function runWorkflowDispatch(
   repo: string,
   selector: string,
   ref: string,
-  options: RunOptions,
+  options: DispatchOptions,
 ): Promise<void> {
   const workflow = await resolveWorkflow(owner, repo, selector);
   const inputs = await readWorkflowDispatchInputs(options);
@@ -443,17 +445,17 @@ async function runWorkflowDispatch(
 }
 
 /**
- * Handle `dn workflow run`.
+ * Handle `dn workflows dispatch`.
  */
-export async function handleWorkflowRun(args: string[]): Promise<void> {
+export async function handleWorkflowDispatch(args: string[]): Promise<void> {
   if (args.length === 0 || args[0] === "--help" || args[0] === "-h") {
     showHelp();
     return;
   }
 
-  let options: RunOptions;
+  let options: DispatchOptions;
   try {
-    options = await parseWorkflowRunArgs(args);
+    options = await parseWorkflowDispatchArgs(args);
   } catch (error) {
     console.error(
       `Error: ${error instanceof Error ? error.message : String(error)}`,

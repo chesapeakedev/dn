@@ -9,6 +9,11 @@ on:
         description: "Milestone number or GitHub milestone URL"
         required: false
         type: string
+      validate_only:
+        description: "Validate configuration without running kickstart"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -19,63 +24,15 @@ jobs:
   daily-kickstart:
     runs-on: ubuntu-latest
     steps:
-      - name: Resolve milestone
-        id: payload
-        run: |
-          set -euo pipefail
-          milestone="${{ inputs.milestone }}"
-          if [ -z "$milestone" ]; then
-            milestone="${{ vars.DN_DAILY_KICKSTART_MILESTONE }}"
-          fi
-          if [ -z "$milestone" ]; then
-            echo "::error::Set repository variable DN_DAILY_KICKSTART_MILESTONE or pass workflow_dispatch input milestone." >&2
-            exit 1
-          fi
-          echo "milestone=$milestone" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Load dn agent config
-        id: dn-config
-        run: |
-          set -euo pipefail
-          config=".github/dn/config.json"
-          if [ ! -f "$config" ]; then
-            echo "::error::Missing $config. Run: dn init workflows --agent <opencode|cursor|claude|codex> and commit the file." >&2
-            exit 1
-          fi
-          agent=$(jq -r '.agent // empty' "$config")
-          case "$agent" in
-            opencode|cursor|claude|codex) ;;
-            *)
-              echo "::error::Invalid agent in $config: $agent" >&2
-              exit 1
-              ;;
-          esac
-          echo "agent=$agent" >> "$GITHUB_OUTPUT"
-
-      - name: Setup Node.js for Codex
-        if: steps.dn-config.outputs.agent == 'codex'
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Install dn
-        uses: chesapeakedev/dn-action@v1
-
-      - name: Install agent harness
-        run: bash .github/dn/install-agent.sh
-
       - name: Run dn kickstart once
+        uses: chesapeakedev/dn-action@v1
+        with:
+          workflow: dn.daily_kickstart
+          validate-only: ${{ inputs.validate_only }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DN_DAILY_KICKSTART_MILESTONE: ${{ vars.DN_DAILY_KICKSTART_MILESTONE }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
-          CLAUDE_CODE_BARE: "1"
           IS_OPEN_SOURCE: "true"
           NO_COLOR: "1"
-        run: |
-          dn --agent "${{ steps.dn-config.outputs.agent }}" kickstart --awp --milestone "${{ steps.payload.outputs.milestone }}" --once

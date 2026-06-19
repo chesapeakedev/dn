@@ -1,12 +1,14 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
-import { handleWorkflowRun } from "./workflow/run.ts";
+import { handleWorkflowDispatch } from "./workflow/run.ts";
+import { handleWorkflowExec } from "./workflow/exec.ts";
 import {
   extractAgentFlag,
   installWorkflowSupport,
   installWorkflowTemplates,
   listWorkflowStatuses,
+  removeLegacyInstallScript,
   requiredSecretForAgent,
   secretSetupHint,
   updateWorkflowTemplates,
@@ -27,7 +29,10 @@ function showHelp(): void {
   console.log("Usage:");
   console.log("  dn workflows <subcommand> [options]\n");
   console.log("Subcommands:");
-  console.log("  run        Trigger workflow_dispatch or repository_dispatch");
+  console.log("  dispatch   Trigger workflow_dispatch or repository_dispatch");
+  console.log(
+    "  exec       Validate and execute a canonical workflow in GitHub Actions",
+  );
   console.log("  list       Show installed vs canonical workflow templates");
   console.log("  install    Install missing canonical workflow templates");
   console.log(
@@ -45,8 +50,9 @@ function showHelp(): void {
   console.log("  --dry-run       Show what install/update would write");
   console.log("  --help, -h      Show this help message\n");
   console.log("Examples:");
-  console.log("  dn workflows run release.yml");
-  console.log("  dn workflows run dn.init_stack --repo owner/repo --json");
+  console.log("  dn workflows dispatch release.yml");
+  console.log("  dn workflows dispatch dn.init_stack --repo owner/repo --json");
+  console.log("  dn workflows exec dn.init_stack");
   console.log("  dn init workflows --agent claude");
   console.log("  dn workflows install --agent opencode --dry-run");
   console.log("  dn workflows validate --json");
@@ -134,13 +140,11 @@ function printAgentSetupHint(
   console.log("");
   console.log(`Agent: ${agent}`);
   const secret = requiredSecretForAgent(agent);
-  if (secret) {
-    console.log(
-      `Set repository secret (${secret}): ${secretSetupHint(agent)}`,
-    );
-  }
   console.log(
-    "Commit .github/dn/config.json and .github/dn/install-agent.sh, then re-run workflows.",
+    `Set repository secret (${secret}): ${secretSetupHint(agent)}`,
+  );
+  console.log(
+    "Commit .github/dn/config.json and the installed workflows, then re-run workflows.",
   );
 }
 
@@ -178,7 +182,6 @@ async function runInstall(
   const support = await installWorkflowSupport(repoRoot, {
     agent,
     dryRun: config.dryRun,
-    updateScript: false,
   });
   const results = await installWorkflowTemplates(repoRoot, {
     dryRun: config.dryRun,
@@ -200,10 +203,15 @@ async function runInstall(
  * Handle `dn workflows` subcommands.
  */
 export async function handleWorkflows(args: string[]): Promise<void> {
-  // `run` has its own --json flag (stdin JSON vs output JSON), so bypass
+  // `dispatch` has its own --json flag (stdin JSON vs output JSON), so bypass
   // the shared config parser to avoid a flag collision.
-  if (args[0] === "run") {
-    await handleWorkflowRun(args.slice(1));
+  if (args[0] === "dispatch") {
+    await handleWorkflowDispatch(args.slice(1));
+    return;
+  }
+
+  if (args[0] === "exec") {
+    await handleWorkflowExec(args.slice(1));
     return;
   }
 
@@ -235,16 +243,34 @@ export async function handleWorkflows(args: string[]): Promise<void> {
     const support = await installWorkflowSupport(repoRoot, {
       agent,
       dryRun: config.dryRun,
-      updateScript: true,
+    });
+    const legacyScript = await removeLegacyInstallScript(repoRoot, {
+      dryRun: config.dryRun,
     });
     const results = await updateWorkflowTemplates(repoRoot, {
       dryRun: config.dryRun,
     });
     if (config.json) {
-      printJson({ dry_run: config.dryRun, support, results });
+      printJson({
+        dry_run: config.dryRun,
+        support,
+        legacy_script: legacyScript,
+        results,
+      });
     } else {
       printSupportResults(support, "update");
       printWriteResults(results, "update");
+      if (legacyScript === "removed") {
+        console.log(
+          `${
+            config.dryRun ? "Would remove" : "Removed"
+          }: .github/dn/install-agent.sh`,
+        );
+      } else if (legacyScript === "modified") {
+        console.log(
+          "Preserved modified legacy file: .github/dn/install-agent.sh",
+        );
+      }
       if (agent) {
         printAgentSetupHint(agent);
       }

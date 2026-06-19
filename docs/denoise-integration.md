@@ -31,10 +31,10 @@ dn workflows update --json
 dn workflows validate --json
 ```
 
-Commit `.github/dn/config.json` and `.github/dn/install-agent.sh`. Every
-canonical workflow reads the configured agent and installs only that harness on
-the runner. Dispatch payloads do not carry `agent`; the repo config is the
-source of truth.
+Commit `.github/dn/config.json` and the generated workflows. The action reads
+the configured agent, validates the event, and installs only that harness on the
+runner. Dispatch payloads do not carry `agent`; the repo config is the source of
+truth.
 
 ## Dispatch Payloads
 
@@ -52,6 +52,7 @@ Required fields:
 Optional fields:
 
 - `refresh` defaults to `true`
+- `validate_only` validates configuration without running the mapped command
 
 ### `dn.prep_issue_plan`
 
@@ -64,6 +65,7 @@ Required fields:
 Optional fields:
 
 - `plan_name`
+- `validate_only` validates configuration without running the mapped command
 
 ### `dn.kickstart_issue`
 
@@ -76,13 +78,14 @@ Required fields:
 Optional fields:
 
 - `awp` defaults to `true`
+- `validate_only` validates configuration without running the mapped command
 
-Missing required fields fail the workflow before running `dn`. The CLI validates
-the same rules before dispatch:
+Missing required fields fail the action before running the mapped dn command.
+The CLI validates the same rules before dispatch:
 
 ```bash
 echo '{"schema_version":"1.0","dispatch_id":"'"$(uuidgen)"'","milestone":"1"}' \
-  | dn workflows run dn.init_stack --repo owner/repo --json
+  | dn workflows dispatch dn.init_stack --repo owner/repo --json
 ```
 
 `repository_dispatch` returns HTTP 204 with no run id. After dispatch, poll for
@@ -92,8 +95,8 @@ runs:
 gh run list --repo owner/repo --event repository_dispatch
 ```
 
-Use `dn workflows run --wait` to block until a new run appears, then print its
-URL.
+Use `dn workflows dispatch --wait` to block until a new run appears, then print
+its URL.
 
 ## Daily Kickstart
 
@@ -139,12 +142,12 @@ when checking the repo’s configured secrets (for example via the GitHub API).
 Set the API key for the agent in `.github/dn/config.json` (only one is
 required):
 
-| Agent      | Repository secret   | CI notes                           |
-| ---------- | ------------------- | ---------------------------------- |
-| `opencode` | `OPENAI_API_KEY`    | OpenCode install script            |
-| `codex`    | `OPENAI_API_KEY`    | Node 22 + `npm i -g @openai/codex` |
-| `claude`   | `ANTHROPIC_API_KEY` | `CLAUDE_CODE_BARE=1` in workflow   |
-| `cursor`   | `CURSOR_API_KEY`    | Cursor CLI install script          |
+| Agent      | Repository secret   | CI notes                          |
+| ---------- | ------------------- | --------------------------------- |
+| `opencode` | `OPENAI_API_KEY`    | OpenCode install script           |
+| `codex`    | `OPENAI_API_KEY`    | Official Codex CLI install script |
+| `claude`   | `ANTHROPIC_API_KEY` | `CLAUDE_CODE_BARE=1` in workflow  |
+| `cursor`   | `CURSOR_API_KEY`    | Cursor CLI install script         |
 
 Workflows pass all three secrets to `dn`; unset secrets are ignored. Run
 `dn workflows validate` to check for a missing config file, outdated install

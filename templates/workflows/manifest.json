@@ -3,14 +3,14 @@
   "templates": [
     {
       "id": "dn.init_stack",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "source_path": "templates/workflows/dn-init-stack.yml",
       "install_path": ".github/workflows/dn-init-stack.yml",
-      "checksum": "sha256:fc965c07f64251385292fbced67a50159942ca0b40b63d8ed12cd79ac6d839e7",
-      "latest_version": "1.0.0",
+      "checksum": "sha256:be7612cabaead1aa9d978b40a51b6c937484c577e4f9025b2c5792c2cf629875",
+      "latest_version": "2.0.0",
       "deprecated": false,
       "deprecation_message": null,
-      "minimum_dn_version": "0.0.21",
+      "minimum_dn_version": "0.0.30",
       "permissions": {
         "contents": "write",
         "issues": "write"
@@ -29,20 +29,20 @@
       "payload_schema_version": "1.0",
       "payload": {
         "required": ["schema_version", "dispatch_id", "milestone"],
-        "optional": ["refresh"]
+        "optional": ["refresh", "validate_only"]
       },
-      "compatibility_notes": "Requires .github/dn/config.json (dn init workflows --agent). Writes plans/{owner}_{repo}_{milestone}.stack.md and plans/{owner}_{repo}_{milestone}.stack.json."
+      "compatibility_notes": "Requires .github/dn/config.json (dn init workflows --agent) and chesapeakedev/dn-action with workflow execution support. Writes plans/{owner}_{repo}_{milestone}.stack.md and plans/{owner}_{repo}_{milestone}.stack.json."
     },
     {
       "id": "dn.prep_issue_plan",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "source_path": "templates/workflows/dn-prep-issue-plan.yml",
       "install_path": ".github/workflows/dn-prep-issue-plan.yml",
-      "checksum": "sha256:6cbf4de44f4a68acc9aca6bf2fbc325ca5df4cfcca9de8ca0948e8c374bad863",
-      "latest_version": "1.0.0",
+      "checksum": "sha256:e84d16c3b13a0e6b7548764d02711fb9ecc836b63c9c0d3b9450047af7f8d676",
+      "latest_version": "2.0.0",
       "deprecated": false,
       "deprecation_message": null,
-      "minimum_dn_version": "0.0.21",
+      "minimum_dn_version": "0.0.30",
       "permissions": {
         "contents": "write",
         "issues": "write"
@@ -61,20 +61,20 @@
       "payload_schema_version": "1.0",
       "payload": {
         "required": ["schema_version", "dispatch_id"],
-        "optional": ["issue_url", "issue_number", "plan_name"]
+        "optional": ["issue_url", "issue_number", "plan_name", "validate_only"]
       },
       "compatibility_notes": "Requires .github/dn/config.json. Provide exactly one of issue_url or issue_number."
     },
     {
       "id": "dn.kickstart_issue",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "source_path": "templates/workflows/dn-kickstart-issue.yml",
       "install_path": ".github/workflows/dn-kickstart-issue.yml",
-      "checksum": "sha256:ef0bcf7dae034c5213646795d92f4aa27c83f1f9370ca5a9b34ef0e31e990052",
-      "latest_version": "1.0.0",
+      "checksum": "sha256:4adaddebb9292948c085ae4d04ad8df2d54226e7dcb17582a260622d56bcc022",
+      "latest_version": "2.0.0",
       "deprecated": false,
       "deprecation_message": null,
-      "minimum_dn_version": "0.0.21",
+      "minimum_dn_version": "0.0.30",
       "permissions": {
         "contents": "write",
         "pull-requests": "write",
@@ -94,20 +94,20 @@
       "payload_schema_version": "1.0",
       "payload": {
         "required": ["schema_version", "dispatch_id"],
-        "optional": ["issue_url", "issue_number", "awp"]
+        "optional": ["issue_url", "issue_number", "awp", "validate_only"]
       },
       "compatibility_notes": "Requires .github/dn/config.json. Provide exactly one of issue_url or issue_number. awp defaults to true. Set the secret for your configured agent only."
     },
     {
       "id": "dn.daily_kickstart",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "source_path": "templates/workflows/dn-daily-kickstart.yml",
       "install_path": ".github/workflows/dn-daily-kickstart.yml",
-      "checksum": "sha256:cc80dc3829bf551b24836c1181d7fa1634d174fa0d644c6f0af87d05a2c21f31",
-      "latest_version": "1.0.0",
+      "checksum": "sha256:11ab2259f28dd2bc203eebfecbc61542efda2ab3095afdcd18abe8e4bd55b507",
+      "latest_version": "2.0.0",
       "deprecated": false,
       "deprecation_message": null,
-      "minimum_dn_version": "0.0.29",
+      "minimum_dn_version": "0.0.30",
       "permissions": {
         "contents": "write",
         "pull-requests": "write",
@@ -129,7 +129,7 @@
       "payload_schema_version": "1.0",
       "payload": {
         "required": [],
-        "optional": ["milestone"]
+        "optional": ["milestone", "validate_only"]
       },
       "compatibility_notes": "Requires .github/dn/config.json and a committed plans/{owner}_{repo}_{milestone}.stack.md from dn init stack. Scheduled runs read DN_DAILY_KICKSTART_MILESTONE; manual workflow_dispatch can pass milestone. Runs dn kickstart --awp --milestone <milestone> --once."
     }

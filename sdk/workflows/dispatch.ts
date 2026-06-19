@@ -5,9 +5,9 @@ import { basename } from "@std/path";
 import type { WorkflowManifest, WorkflowTemplateManifestEntry } from "./mod.ts";
 
 /**
- * Forced trigger mode for `dn workflow run`.
+ * Forced trigger mode for `dn workflows dispatch`.
  */
-export type WorkflowRunDispatchMode = "repository" | "workflow";
+export type WorkflowDispatchMode = "repository" | "workflow";
 
 /**
  * `client_payload` object for a `repository_dispatch` event.

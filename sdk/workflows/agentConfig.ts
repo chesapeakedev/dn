@@ -14,7 +14,7 @@ const WORKFLOW_ROOT = dirname(dirname(dirname(fromFileUrl(import.meta.url))));
 /** Relative path to the repo agent config consumed by workflows. */
 export const DN_CONFIG_REL_PATH = ".github/dn/config.json";
 
-/** Relative path to the shared agent install script. */
+/** Relative path to the retired generated agent install script. */
 export const DN_INSTALL_SCRIPT_REL_PATH = ".github/dn/install-agent.sh";
 
 const INSTALL_SCRIPT_TEMPLATE_PATH = join(
@@ -35,7 +35,7 @@ export interface DnWorkflowAgentConfig {
 }
 
 /**
- * Result of installing workflow support files (config + install script).
+ * Result of installing workflow support files.
  */
 export interface WorkflowSupportWriteResult {
   /** Absolute path written or targeted. */
@@ -48,12 +48,11 @@ export interface WorkflowSupportWriteResult {
 
 /**
  * Returns the GitHub Actions secret name required for an agent harness in CI.
- * Returns `null` when the agent does not need any secret.
  */
-export function requiredSecretForAgent(agent: AgentHarness): string | null {
-  if (agent === "opencode") {
-    return null;
-  }
+export function requiredSecretForAgent(
+  agent: AgentHarness,
+): "OPENAI_API_KEY" | "ANTHROPIC_API_KEY" | "CURSOR_API_KEY" {
+  if (agent === "opencode") return "OPENAI_API_KEY";
   if (agent === "claude") {
     return "ANTHROPIC_API_KEY";
   }
@@ -68,9 +67,6 @@ export function requiredSecretForAgent(agent: AgentHarness): string | null {
  */
 export function secretSetupHint(agent: AgentHarness): string {
   const secret = requiredSecretForAgent(agent);
-  if (!secret) {
-    return "No secret required";
-  }
   return `gh secret set ${secret}`;
 }
 
@@ -129,23 +125,20 @@ async function readSupportTemplate(path: string): Promise<string> {
 }
 
 /**
- * Installs `.github/dn/config.json` and `.github/dn/install-agent.sh`.
+ * Installs `.github/dn/config.json`.
  *
  * - When `agent` is set, writes or updates the config with that agent.
  * - When `agent` is omitted and config is missing, writes default `opencode`.
- * - The install script is written when missing or when `updateScript` is true.
  */
 export async function installWorkflowSupport(
   repoRoot: string,
   options: {
     agent?: AgentHarness;
     dryRun?: boolean;
-    updateScript?: boolean;
   } = {},
 ): Promise<WorkflowSupportWriteResult[]> {
   const results: WorkflowSupportWriteResult[] = [];
   const configPath = join(repoRoot, DN_CONFIG_REL_PATH);
-  const scriptPath = join(repoRoot, DN_INSTALL_SCRIPT_REL_PATH);
   const dryRun = options.dryRun === true;
 
   let shouldWriteConfig = options.agent !== undefined;
@@ -175,35 +168,28 @@ export async function installWorkflowSupport(
     });
   }
 
-  let shouldWriteScript = options.updateScript === true;
-  if (!shouldWriteScript) {
-    try {
-      await Deno.stat(scriptPath);
-    } catch (error) {
-      if (error instanceof Deno.errors.NotFound) {
-        shouldWriteScript = true;
-      } else {
-        throw error;
-      }
-    }
-  } else {
-    shouldWriteScript = true;
-  }
-
-  if (shouldWriteScript) {
-    const script = await readSupportTemplate(INSTALL_SCRIPT_TEMPLATE_PATH);
-    if (!dryRun) {
-      await Deno.mkdir(dirname(scriptPath), { recursive: true });
-      await Deno.writeTextFile(scriptPath, script, { mode: 0o755 });
-    }
-    results.push({
-      path: scriptPath,
-      written: !dryRun,
-      dry_run: dryRun,
-    });
-  }
-
   return results;
+}
+
+/**
+ * Removes the retired generated install script when it was not customized.
+ * Returns `"modified"` without removing user-owned content.
+ */
+export async function removeLegacyInstallScript(
+  repoRoot: string,
+  options: { dryRun?: boolean } = {},
+): Promise<"missing" | "removed" | "modified"> {
+  const scriptPath = join(repoRoot, DN_INSTALL_SCRIPT_REL_PATH);
+  try {
+    const installed = await Deno.readTextFile(scriptPath);
+    const canonical = await readSupportTemplate(INSTALL_SCRIPT_TEMPLATE_PATH);
+    if (installed !== canonical) return "modified";
+    if (options.dryRun !== true) await Deno.remove(scriptPath);
+    return "removed";
+  } catch (error) {
+    if (error instanceof Deno.errors.NotFound) return "missing";
+    throw error;
+  }
 }
 
 /**
@@ -282,6 +268,18 @@ function parseGitHubRemoteUrl(
 export async function resolveRepoFromRoot(
   repoRoot: string,
 ): Promise<{ owner: string; repo: string } | null> {
+  let hasRepositoryMetadata = false;
+  for (const metadata of [".git", ".sl"]) {
+    try {
+      await Deno.stat(join(repoRoot, metadata));
+      hasRepositoryMetadata = true;
+      break;
+    } catch (error) {
+      if (!(error instanceof Deno.errors.NotFound)) throw error;
+    }
+  }
+  if (!hasRepositoryMetadata) return null;
+
   const commands = [
     () => $`git -C ${repoRoot} remote get-url origin`.text(),
     () => $`sl -R ${repoRoot} paths default`.text(),
@@ -320,24 +318,15 @@ export async function validateWorkflowAgentSetup(
   }
 
   const scriptStatus = await getInstallScriptStatus(repoRoot);
-  if (scriptStatus === "missing") {
+  if (scriptStatus !== "missing") {
     warnings.push({
-      code: "dn_install_script_missing",
+      code: "dn_install_script_deprecated",
       message:
-        `${DN_INSTALL_SCRIPT_REL_PATH} is not installed. Run: dn workflows update`,
-    });
-  } else if (scriptStatus === "outdated") {
-    warnings.push({
-      code: "dn_install_script_outdated",
-      message:
-        `${DN_INSTALL_SCRIPT_REL_PATH} differs from the canonical template. Run: dn workflows update`,
+        `${DN_INSTALL_SCRIPT_REL_PATH} is no longer used. Remove it after preserving any customizations`,
     });
   }
 
   const requiredSecret = requiredSecretForAgent(config.agent);
-  if (!requiredSecret) {
-    return warnings;
-  }
   try {
     const resolved = await resolveRepoFromRoot(repoRoot);
     if (!resolved) {

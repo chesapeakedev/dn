@@ -8,6 +8,7 @@ import {
   installWorkflowSupport,
   parseDnWorkflowAgentConfig,
   readDnWorkflowAgentConfig,
+  removeLegacyInstallScript,
   requiredSecretForAgent,
 } from "./agentConfig.ts";
 
@@ -16,6 +17,25 @@ Deno.test("parseDnWorkflowAgentConfig accepts valid agent", () => {
     formatDnWorkflowAgentConfig("claude"),
   );
   assertEquals(config.agent, "claude");
+});
+
+Deno.test("removeLegacyInstallScript removes canonical and preserves modified files", async () => {
+  const repoRoot = await Deno.makeTempDir({ prefix: "dn-agent-migration-" });
+  try {
+    await Deno.mkdir(`${repoRoot}/.github/dn`, { recursive: true });
+    const canonical = await Deno.readTextFile(
+      new URL("../../templates/workflows/install-agent.sh", import.meta.url),
+    );
+    const path = `${repoRoot}/.github/dn/install-agent.sh`;
+    await Deno.writeTextFile(path, canonical);
+    assertEquals(await removeLegacyInstallScript(repoRoot), "removed");
+
+    await Deno.writeTextFile(path, `${canonical}\n# customized\n`);
+    assertEquals(await removeLegacyInstallScript(repoRoot), "modified");
+    assertEquals((await Deno.stat(path)).isFile, true);
+  } finally {
+    await Deno.remove(repoRoot, { recursive: true });
+  }
 });
 
 Deno.test("parseDnWorkflowAgentConfig rejects invalid agent", () => {
@@ -39,7 +59,7 @@ Deno.test("extractAgentFlag parses and removes --agent", () => {
 Deno.test("requiredSecretForAgent maps harness to secret name", () => {
   assertEquals(requiredSecretForAgent("claude"), "ANTHROPIC_API_KEY");
   assertEquals(requiredSecretForAgent("cursor"), "CURSOR_API_KEY");
-  assertEquals(requiredSecretForAgent("opencode"), null);
+  assertEquals(requiredSecretForAgent("opencode"), "OPENAI_API_KEY");
   assertEquals(requiredSecretForAgent("codex"), "OPENAI_API_KEY");
 });
 
@@ -49,7 +69,7 @@ Deno.test("installWorkflowSupport writes config when agent is provided", async (
     const results = await installWorkflowSupport(repoRoot, {
       agent: "claude",
     });
-    assertEquals(results.length, 2);
+    assertEquals(results.length, 1);
     const config = await readDnWorkflowAgentConfig(repoRoot);
     assertEquals(config?.agent, "claude");
   } finally {

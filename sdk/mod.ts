@@ -386,11 +386,11 @@ export {
 } from "./workflows/mod.ts";
 export type {
   RepositoryDispatchClientPayload,
+  WorkflowDispatchMode,
   WorkflowInstallStatus,
   WorkflowManifest,
   WorkflowPayloadContract,
   WorkflowPermission,
-  WorkflowRunDispatchMode,
   WorkflowTemplateManifestEntry,
   WorkflowTemplateStatus,
   WorkflowTriggerContract,
