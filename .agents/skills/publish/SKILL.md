@@ -21,9 +21,13 @@ workflows.
 6. Report the released version and pushed commit.
 
 The release command runs `make precommit`, commits only `deno.json`, and runs
-`make sync`. Do not separately call `deno publish`, `dn release create`,
-`gh
-release create`, or the GitHub release workflow.
+`make sync`. Do not separately invoke publication commands or workflows,
+including:
+
+- `deno publish`
+- `dn release create`
+- `gh release create`
+- The GitHub release workflow
 
 ## GitHub Actions boundary
 
