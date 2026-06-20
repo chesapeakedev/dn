@@ -25,21 +25,21 @@
 
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
 import { resolveAgentHarnessFromFlagsAndEnv } from "../sdk/github/agentHarness.ts";
+import type { PublishMode } from "../sdk/github/publish.ts";
+import { parsePublishMode } from "../sdk/github/publish.ts";
 import { type OrchestratorConfig, runOrchestrator } from "./orchestrator.ts";
 
 /**
  * Parses command-line arguments to extract flags and issue source.
- *
- * @returns Object with awp mode flag, agent harness, issue URL, and plan options
  */
 function parseArgs(): {
-  awp: boolean;
+  publish: PublishMode;
   agentHarness: AgentHarness;
   issueUrl: string | null;
   savedPlanName: string | null;
 } {
   const args = Deno.args;
-  let awp = false;
+  let publish: PublishMode = "none";
   let cursorFlag = false;
   let claudeFlag = false;
   let codexFlag = false;
@@ -50,7 +50,9 @@ function parseArgs(): {
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === "--awp") {
-      awp = true;
+      publish = "pr";
+    } else if (arg === "--publish" && i + 1 < args.length) {
+      publish = parsePublishMode(args[++i]);
     } else if (arg === "--cursor" || arg === "-c") {
       cursorFlag = true;
     } else if (arg === "--claude") {
@@ -79,7 +81,7 @@ function parseArgs(): {
     opencodeFlag,
   });
 
-  return { awp, agentHarness, issueUrl, savedPlanName };
+  return { publish, agentHarness, issueUrl, savedPlanName };
 }
 
 /**
@@ -111,12 +113,12 @@ function parseArgs(): {
  * On failure, preserves debug files in a temp directory for inspection.
  */
 async function main() {
-  let awp: boolean;
+  let publish: PublishMode;
   let agentHarness: AgentHarness;
   let issueUrl: string | null;
   let savedPlanName: string | null;
   try {
-    ({ awp, agentHarness, issueUrl, savedPlanName } = parseArgs());
+    ({ publish, agentHarness, issueUrl, savedPlanName } = parseArgs());
   } catch (e) {
     console.error(e instanceof Error ? e.message : String(e));
     Deno.exit(1);
@@ -169,7 +171,7 @@ async function main() {
   }
 
   const config: OrchestratorConfig = {
-    awp,
+    publish,
     agentHarness,
     issueUrl,
     saveCtx,

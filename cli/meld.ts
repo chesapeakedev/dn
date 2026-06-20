@@ -274,7 +274,7 @@ export async function handleMeld(
     await Deno.writeTextFile(contextPath, out);
 
     const ks: KickstartConfig = {
-      awp: false,
+      publish: "none" as const,
       agentHarness,
       allowCrossRepo,
       issueUrl: null,

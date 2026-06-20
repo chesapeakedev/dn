@@ -20,7 +20,36 @@ Deno.test("resolveWorkflowArguments maps init stack payload", () => {
       },
       "claude",
     ),
-    ["--agent", "claude", "init", "stack", "42"],
+    ["--agent", "claude", "init", "stack", "42", "--publish", "direct"],
+  );
+});
+
+Deno.test("resolveWorkflowArguments maps init stack refresh payload", () => {
+  assertEquals(
+    resolveWorkflowArguments(
+      "dn.init_stack",
+      "repository_dispatch",
+      {
+        action: "dn.init_stack",
+        client_payload: {
+          schema_version: "1.0",
+          dispatch_id: "dispatch-1b",
+          milestone: 42,
+          stack_mode: "refresh",
+        },
+      },
+      "claude",
+    ),
+    [
+      "--agent",
+      "claude",
+      "init",
+      "stack",
+      "42",
+      "--refresh",
+      "--publish",
+      "direct",
+    ],
   );
 });
 
@@ -41,11 +70,31 @@ Deno.test("resolveWorkflowArguments preserves issue URL as one argument", () => 
       },
       "cursor",
     ),
-    ["--agent", "cursor", "kickstart", "--awp", issue],
+    ["--agent", "cursor", "kickstart", "--publish", "pr", issue],
   );
 });
 
-Deno.test("resolveWorkflowArguments rejects string booleans", () => {
+Deno.test("resolveWorkflowArguments maps kickstart publish direct", () => {
+  assertEquals(
+    resolveWorkflowArguments(
+      "dn.kickstart_issue",
+      "repository_dispatch",
+      {
+        action: "dn.kickstart_issue",
+        client_payload: {
+          schema_version: "1.0",
+          dispatch_id: "dispatch-2b",
+          issue_number: 42,
+          publish: "direct",
+        },
+      },
+      "cursor",
+    ),
+    ["--agent", "cursor", "kickstart", "--publish", "direct", "42"],
+  );
+});
+
+Deno.test("resolveWorkflowArguments rejects invalid publish mode", () => {
   assertThrows(
     () =>
       resolveWorkflowArguments(
@@ -57,13 +106,13 @@ Deno.test("resolveWorkflowArguments rejects string booleans", () => {
             schema_version: "1.0",
             dispatch_id: "dispatch-3",
             issue_number: 42,
-            awp: "true",
+            publish: "invalid",
           },
         },
         "opencode",
       ),
     Error,
-    "client_payload.awp must be a boolean",
+    'Invalid publish mode "invalid"',
   );
 });
 
@@ -80,7 +129,8 @@ Deno.test("resolveWorkflowArguments uses scheduled milestone environment", () =>
       "--agent",
       "codex",
       "kickstart",
-      "--awp",
+      "--publish",
+      "pr",
       "--milestone",
       "7",
       "--once",

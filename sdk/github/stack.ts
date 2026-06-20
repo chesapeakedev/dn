@@ -8,6 +8,57 @@ import {
   type TodoItem,
 } from "../todo/todo.ts";
 
+/** Normalize stack checklist refs for comparison (#123 vs issue URL). */
+export function normalizeStackRef(ref: string): string {
+  const trimmed = ref.trim();
+  if (GITHUB_ISSUE_URL_RE.test(trimmed)) {
+    const match = trimmed.match(/\/issues\/(\d+)$/);
+    return match ? `#${match[1]}` : trimmed;
+  }
+  return trimmed.replace(/^#?/, "#");
+}
+
+/**
+ * Merges checked state from an existing stack markdown file into newly generated content.
+ */
+export function mergeStackCheckmarks(
+  newContent: string,
+  existingMarkdown: string,
+): string {
+  const { body: existingBody } = parseFrontmatter(existingMarkdown);
+  const existingItems = parseStackTodoItems(existingBody);
+  const checkedRefs = new Set(
+    existingItems
+      .filter((item) => item.checked)
+      .map((item) => normalizeStackRef(item.ref)),
+  );
+
+  if (checkedRefs.size === 0) {
+    return newContent;
+  }
+
+  const { frontmatter, body } = parseFrontmatter(newContent);
+  const lines = body.split(/\r?\n/).map((line) => {
+    const trimmed = line.trim();
+    const match = trimmed.match(STACK_TODO_LINE_RE);
+    if (!match || match[1].toLowerCase() === "x") {
+      return line;
+    }
+    const rawRef = match[3];
+    const normalized = GITHUB_ISSUE_URL_RE.test(rawRef)
+      ? normalizeStackRef(rawRef)
+      : normalizeStackRef(rawRef);
+    if (!checkedRefs.has(normalized)) {
+      return line;
+    }
+    const lead = line.match(/^\s*/)?.[0] ?? "";
+    const updated = trimmed.replace(/^-\s+\[ \]/, "- [x]");
+    return lead + updated;
+  });
+
+  return stringifyFrontmatter(frontmatter, lines.join("\n"));
+}
+
 const GITHUB_ISSUE_URL_RE =
   /^https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/issues\/\d+$/;
 

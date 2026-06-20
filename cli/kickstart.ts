@@ -36,6 +36,11 @@ import {
   markMilestoneStackItemDone,
   parseStackTodoItems,
 } from "../sdk/github/stack.ts";
+import { isCI } from "../sdk/github/output.ts";
+import type { PublishMode } from "../sdk/github/publish.ts";
+import { parsePublishMode } from "../sdk/github/publish.ts";
+import { publishStackProgressUpdate } from "../sdk/github/vcs.ts";
+import { writeGithubActionVcsOutputs } from "../sdk/github/publish.ts";
 
 const ISSUE_NUMBER_PATTERN = /^#?\d+$/;
 
@@ -67,7 +72,7 @@ function parseArgs(
   globalAgent: AgentHarness | null = null,
 ): KickstartCliConfig {
   let input: string | null = null;
-  let awp = false;
+  let publish: PublishMode = "none";
   let cursorFlag = false;
   let claudeFlag = false;
   let codexFlag = false;
@@ -82,7 +87,9 @@ function parseArgs(
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === "--awp") {
-      awp = true;
+      publish = "pr";
+    } else if (arg === "--publish" && i + 1 < args.length) {
+      publish = parsePublishMode(args[++i]);
     } else if (arg === "--cursor" || arg === "-c") {
       cursorFlag = true;
     } else if (arg === "--claude") {
@@ -130,7 +137,7 @@ function parseArgs(
   const saveCtx = Deno.env.get("SAVE_CTX") === "1";
 
   return {
-    awp,
+    publish,
     agentHarness,
     allowCrossRepo,
     issueUrl,
@@ -161,7 +168,10 @@ function showHelp(): void {
   );
   console.log("Options:");
   console.log(
-    "  --awp                    Enable AWP mode (branches, commits, PRs)",
+    "  --publish <none|pr|direct> How to publish changes (default: none)",
+  );
+  console.log(
+    "  --awp                    Alias for --publish pr (branches, commits, PRs)",
   );
   console.log(
     "  --allow-cross-repo       Allow implementing issues from different repositories",
@@ -483,7 +493,27 @@ export async function handleKickstart(
 
     try {
       if (stackPath) {
-        await markMilestoneStackItemDone(stackPath, ref);
+        const shouldPublishStack = config.publish !== "none" || isCI();
+        if (shouldPublishStack) {
+          const repoRoot = config.workspaceRoot ?? Deno.cwd();
+          const stackResult = await publishStackProgressUpdate(
+            repoRoot,
+            stackPath,
+            ref,
+            `dn: mark milestone stack item done (${ref})`,
+          );
+          await writeGithubActionVcsOutputs({
+            ...stackResult,
+            publishMode: "direct",
+          });
+          console.log(
+            `Published stack progress to ${stackResult.branchName} (${
+              stackResult.commitSha.slice(0, 7)
+            }).`,
+          );
+        } else {
+          await markMilestoneStackItemDone(stackPath, ref);
+        }
         const gh = await resolveGitHubRef(ref);
         if (gh) {
           await completeGitHubIssueForRef(gh, {
@@ -491,9 +521,13 @@ export async function handleKickstart(
           });
         }
         if (config.milestoneRunOnce) {
-          console.log(
-            "Completed one milestone stack task. Commit the updated stack file when ready.",
-          );
+          if (!shouldPublishStack) {
+            console.log(
+              "Completed one milestone stack task. Commit the updated stack file when ready.",
+            );
+          } else {
+            console.log("Completed one milestone stack task.");
+          }
           Deno.exit(0);
         }
         const stackContent = await Deno.readTextFile(stackPath);
@@ -501,9 +535,13 @@ export async function handleKickstart(
         const stackItems = parseStackTodoItems(body);
         const next = firstUnchecked({ meta: {}, items: stackItems });
         if (!next) {
-          console.log(
-            "No more unchecked tasks in this milestone stack. Commit the updated stack file when ready.",
-          );
+          if (!shouldPublishStack) {
+            console.log(
+              "No more unchecked tasks in this milestone stack. Commit the updated stack file when ready.",
+            );
+          } else {
+            console.log("No more unchecked tasks in this milestone stack.");
+          }
           Deno.exit(0);
         }
         if (

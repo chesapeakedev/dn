@@ -11,7 +11,19 @@ import { runScoring } from "../kickstart/score.ts";
 import { resolveAgentHarnessFromFlagsAndEnv } from "../sdk/github/agentHarness.ts";
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
 import { stringifyFrontmatter } from "../sdk/todo/frontmatter.ts";
-import { getStackArtifactPaths } from "../sdk/github/stack.ts";
+import {
+  getStackArtifactPaths,
+  mergeStackCheckmarks,
+} from "../sdk/github/stack.ts";
+import type { PublishMode, StackMode } from "../sdk/github/publish.ts";
+import {
+  parsePublishMode,
+  resolveInitStackPublishMode,
+  writeGithubActionVcsOutputs,
+} from "../sdk/github/publish.ts";
+import { isCI, isUnattended } from "../sdk/github/output.ts";
+import { confirmDestructiveOverwrite } from "../sdk/github/filePrompt.ts";
+import { commitStackArtifacts } from "../sdk/github/vcs.ts";
 
 /**
  * Parsed CLI flags for `dn init stack`.
@@ -22,8 +34,11 @@ import { getStackArtifactPaths } from "../sdk/github/stack.ts";
  */
 interface InitStackConfig {
   milestone: string | null;
-  reset: boolean;
+  stackMode: StackMode | null;
   refresh: boolean;
+  overwrite: boolean;
+  publish: PublishMode | null;
+  autoYes: boolean;
   help: boolean;
 }
 
@@ -42,8 +57,18 @@ function showHelp(): void {
     "  <milestone-id-or-url>  GitHub milestone number or URL (required)",
   );
   console.log("Options:");
-  console.log("  --refresh                     Re-fetch and regenerate plan");
-  console.log("  --reset                       Clear any stored context");
+  console.log(
+    "  --refresh                     Regenerate stack, preserving completed checkmarks",
+  );
+  console.log(
+    "  --overwrite                   Replace the entire stack file (destructive)",
+  );
+  console.log(
+    "  --publish <direct|none>       Commit and push stack files (default: none locally, direct in CI)",
+  );
+  console.log(
+    "  --yes                         Approve destructive overwrite without prompting",
+  );
   console.log("  --help, -h                    Show this help message\n");
   console.log("Examples:");
   console.log("  dn init stack 42");
@@ -70,8 +95,11 @@ function showHelp(): void {
 function parseArgs(args: string[]): InitStackConfig {
   const config: InitStackConfig = {
     milestone: null,
-    reset: false,
+    stackMode: null,
     refresh: false,
+    overwrite: false,
+    publish: null,
+    autoYes: false,
     help: false,
   };
 
@@ -79,10 +107,14 @@ function parseArgs(args: string[]): InitStackConfig {
     const arg = args[i];
     if (arg === "--help" || arg === "-h") {
       config.help = true;
-    } else if (arg === "--reset") {
-      config.reset = true;
     } else if (arg === "--refresh") {
       config.refresh = true;
+    } else if (arg === "--overwrite") {
+      config.overwrite = true;
+    } else if (arg === "--yes" || arg === "-y") {
+      config.autoYes = true;
+    } else if (arg === "--publish" && i + 1 < args.length) {
+      config.publish = parsePublishMode(args[++i]);
     } else if (!arg.startsWith("-")) {
       config.milestone = arg;
     }
@@ -97,12 +129,26 @@ function parseArgs(args: string[]): InitStackConfig {
  * Interactive milestone selection is only safe when a TTY is present. Any
  * runtime failure while probing terminal state is treated as non-interactive.
  */
-function isTty(): boolean {
-  try {
-    return Deno.stderr.isTerminal();
-  } catch {
-    return false;
+function resolveInitStackMode(config: InitStackConfig): StackMode {
+  if (config.stackMode) return config.stackMode;
+  if (config.overwrite) return "overwrite";
+  if (config.refresh) return "refresh";
+  return "create";
+}
+
+function promptStackUpdateMode(): StackMode {
+  console.log("\nA stack file already exists for this milestone.");
+  console.log(
+    "  1) Refresh — update scores/order and preserve completed tasks",
+  );
+  console.log("  2) Overwrite — regenerate from scratch (loses checkmarks)");
+  console.log("  3) Cancel");
+  const input = prompt("Choose an option [1/2/3]: ")?.trim();
+  if (input === "2") return "overwrite";
+  if (input === "3" || input?.toLowerCase() === "c") {
+    throw new Error("Stack initialization cancelled.");
   }
+  return "refresh";
 }
 
 /**
@@ -378,10 +424,10 @@ export async function handleInitStack(
     }
     console.log("");
 
-    const tty = isTty();
+    const tty = isUnattended() === false && Deno.stdin.isTerminal?.() === true;
     if (!tty) {
       throw new Error(
-        "No milestone specified and not in interactive mode. Use --milestone flag.",
+        "No milestone specified and not in interactive mode. Pass a milestone number or URL.",
       );
     }
 
@@ -470,12 +516,38 @@ export async function handleInitStack(
     };
   });
 
-  const { id, markdownPath } = getStackArtifactPaths(
+  const { id, markdownPath, jsonPath } = getStackArtifactPaths(
     repoRoot,
     owner,
     repo,
     milestone.number,
   );
+
+  let stackMode = resolveInitStackMode(config);
+  const stackExists = await Deno.stat(markdownPath).then(() => true).catch(
+    () => false,
+  );
+
+  if (stackExists) {
+    if (stackMode === "create") {
+      if (isUnattended()) {
+        stackMode = "refresh";
+      } else {
+        stackMode = promptStackUpdateMode();
+      }
+    }
+    if (stackMode === "overwrite") {
+      const approved = confirmDestructiveOverwrite(
+        markdownPath.replace(`${repoRoot}/`, ""),
+        config.autoYes,
+      );
+      if (!approved) {
+        throw new Error("Stack overwrite cancelled.");
+      }
+    }
+  } else if (stackMode === "overwrite") {
+    stackMode = "create";
+  }
 
   try {
     await Deno.mkdir(`${repoRoot}/plans`, { recursive: true });
@@ -483,7 +555,7 @@ export async function handleInitStack(
     // Directory may already exist
   }
 
-  const content = formatPlanFile(
+  let content = formatPlanFile(
     milestone,
     owner,
     repo,
@@ -491,6 +563,13 @@ export async function handleInitStack(
     disqualified,
     useIssueUrls,
   );
+
+  if (stackMode === "refresh" && stackExists) {
+    const existing = await Deno.readTextFile(markdownPath);
+    content = mergeStackCheckmarks(content, existing);
+    console.log("Preserved completed checklist items from the existing stack.");
+  }
+
   await Deno.writeTextFile(markdownPath, content);
 
   await writeStackIndex(
@@ -502,28 +581,55 @@ export async function handleInitStack(
     disqualified,
   );
 
-  const action = config.refresh ? "Refreshed" : "Created";
-  console.log(`${action}: ${markdownPath}`);
-  console.log("");
-  console.log("Next steps:");
-  console.log(`  1. Review and commit the plan file:`);
-  console.log(`     sl add plans/${id}.stack.md plans/${id}.stack.json`);
-  console.log(
-    `     sl commit -m "Add ${owner}/${repo} milestone ${milestone.number} stack"`,
-  );
-  console.log(
-    `  2. Run 'dn kickstart --milestone ${milestone.number}' to start working`,
-  );
-  console.log("");
-  console.log(
-    "To refresh the milestone plan later, run:",
-  );
-  console.log(
-    `  dn init stack ${milestone.number} --refresh`,
-  );
-  console.log("");
-  console.log(
-    "To trigger from a linked interface, commit this file to the repo.",
-  );
+  const actionLabel = stackMode === "create"
+    ? "Created"
+    : stackMode === "refresh"
+    ? "Refreshed"
+    : "Overwrote";
+  console.log(`${actionLabel}: ${markdownPath}`);
+
+  const publishMode = resolveInitStackPublishMode({
+    publish: config.publish,
+    defaultMode: isCI() ? "direct" : "none",
+  });
+
+  if (publishMode === "direct") {
+    const publishResult = await commitStackArtifacts(
+      repoRoot,
+      [markdownPath, jsonPath],
+      `${actionLabel.toLowerCase()} ${owner}/${repo} milestone ${milestone.number} stack`,
+    );
+    await writeGithubActionVcsOutputs({
+      ...publishResult,
+      publishMode: "direct",
+    });
+    console.log(
+      `Published stack artifacts to ${publishResult.branchName} (${
+        publishResult.commitSha.slice(0, 7)
+      }).`,
+    );
+  } else {
+    console.log("");
+    console.log("Next steps:");
+    console.log(`  1. Review and commit the plan file:`);
+    console.log(`     sl add plans/${id}.stack.md plans/${id}.stack.json`);
+    console.log(
+      `     sl commit -m "Add ${owner}/${repo} milestone ${milestone.number} stack"`,
+    );
+    console.log(
+      `  2. Run 'dn kickstart --milestone ${milestone.number}' to start working`,
+    );
+    console.log("");
+    console.log(
+      "To refresh the milestone plan later, run:",
+    );
+    console.log(
+      `  dn init stack ${milestone.number} --refresh`,
+    );
+    console.log("");
+    console.log(
+      "To trigger from a linked interface, commit this file to the repo.",
+    );
+  }
   Deno.exit(0);
 }

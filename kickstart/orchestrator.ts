@@ -13,16 +13,22 @@ import type { GitContext } from "../sdk/github/vcs.ts";
 import {
   checkForChanges,
   cleanupBranch,
-  commitAndPush,
   detectVcs,
-  prepareVcsStateInteractive,
+  prepareVcsForKickstart,
+  publishChanges,
 } from "../sdk/github/vcs.ts";
+import type { PublishMode } from "../sdk/github/publish.ts";
+import {
+  assertPublishAllowedInCi,
+  writeGithubActionVcsOutputs,
+} from "../sdk/github/publish.ts";
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
 import { getRunAgent } from "../sdk/github/agentHarness.ts";
 import { assembleCombinedPrompt } from "../sdk/github/prompt.ts";
 import { createPR } from "../sdk/github/github.ts";
 import type { PRPlanSummary } from "../sdk/github/github.ts";
 import { createCursorRule } from "./artifacts.ts";
+import { formatSummary } from "../sdk/archive/format.ts";
 import { extractPlanSummary } from "./lib.ts";
 import type { PlanSummary } from "./lib.ts";
 import {
@@ -143,8 +149,8 @@ async function readIncludedPrompt(filename: string): Promise<string> {
  * Configuration for orchestrator execution.
  */
 export interface OrchestratorConfig {
-  /** Whether to run in awp mode (branches, commits, PRs) */
-  awp: boolean;
+  /** How changes are published to the remote repository */
+  publish: PublishMode;
   /** Agent harness; Cursor also enables `.cursor/rules/kickstart.mdc` artifact */
   agentHarness: AgentHarness;
   /** Issue URL to fetch (mutually exclusive with contextMarkdownPath) */
@@ -717,7 +723,9 @@ export async function runOrchestrator(
 ): Promise<OrchestratorResult> {
   // CI and color policy are bootstrapped at CLI entry (cli/main.ts)
 
-  const { awp, issueUrl, saveCtx } = config;
+  const { publish, issueUrl, saveCtx } = config;
+  assertPublishAllowedInCi(publish);
+  const publishesChanges = publish !== "none";
 
   // Normalize path to avoid double slashes
   const normalizedWorkspaceRoot = WORKSPACE_ROOT.replace(/\/+$/, "");
@@ -757,11 +765,11 @@ export async function runOrchestrator(
       );
     }
 
-    // Step 2: Prepare VCS state (only in awp mode, requires issue data)
-    if (awp && issueData !== null) {
+    // Step 2: Prepare VCS state (only when publishing, requires issue data)
+    if (publishesChanges && issueData !== null) {
       console.log(formatStep(2, "Preparing VCS state..."));
-      gitContext = await prepareVcsStateInteractive(issueData);
-      vcsType = gitContext.vcs;
+      gitContext = await prepareVcsForKickstart(publish, issueData);
+      vcsType = gitContext?.vcs ?? null;
     }
     // In default mode, we don't interact with VCS at the beginning.
     // VCS will be detected lazily only when needed (e.g., to show changes).
@@ -781,7 +789,7 @@ export async function runOrchestrator(
     // Step 2.6: Handle plan continuation (normal mode only)
     let existingPlanContent: string | null = null;
     let continueExistingPlan = false;
-    if (!awp) {
+    if (!publishesChanges) {
       // In normal mode, check if plan exists and prompt to continue
       const existingPlan = await readExistingPlan(planFilePath);
       if (existingPlan) {
@@ -1045,8 +1053,8 @@ export async function runOrchestrator(
             `\n${formatSuccess("All acceptance criteria completed!")}`,
           );
 
-          // Delete plan file when all criteria are complete (AWP mode only)
-          if (awp) {
+          // Delete plan file when all criteria are complete (publish mode only)
+          if (publishesChanges) {
             try {
               await Deno.remove(planFilePath);
               console.log(
@@ -1168,7 +1176,7 @@ export async function runOrchestrator(
 
     // In non-AWP mode, detect VCS lazily only when needed (to show changes)
     // In AWP mode, vcsType is already set from prepareVcsStateInteractive
-    if (!vcsType && !awp) {
+    if (!vcsType && !publishesChanges) {
       const vcsContext = await detectVcs();
       if (vcsContext) {
         vcsType = vcsContext.vcs;
@@ -1199,7 +1207,7 @@ export async function runOrchestrator(
     const hasChanges = await checkForChanges(vcsType);
     if (!hasChanges) {
       console.log(formatInfo("No changes were made by the agent."));
-      if (awp && gitContext) {
+      if (publishesChanges && gitContext) {
         await cleanupBranch(gitContext);
       }
       if (!saveCtx) {
@@ -1216,44 +1224,63 @@ export async function runOrchestrator(
       };
     }
 
-    if (awp) {
+    if (publishesChanges) {
       // Step 8: Commit and push
       console.log(`\n${formatStep(8, "Committing and pushing changes...")}`);
       if (!issueData || !gitContext) {
         throw new Error("Issue data and git context required for commit");
       }
-      await commitAndPush(gitContext, issueData);
-
-      // Step 9: Create PR
-      console.log(`\n${formatStep(9, "Creating PR...")}`);
-
-      // Convert PlanSummary to PRPlanSummary for createPR (if available)
-      let prPlanSummary: PRPlanSummary | undefined;
-      if (planSummary) {
-        prPlanSummary = {
-          overview: planSummary.overview,
-          acceptanceCriteria: planSummary.acceptanceCriteria,
-        };
-      }
-
-      const prUrl = await createPR(
-        issueData,
-        gitContext.branchName,
-        gitContext.vcs,
-        prPlanSummary,
+      const commitMessage = formatSummary(
+        `#${issueData.number} ${issueData.title}`,
       );
-      if (prUrl) {
-        console.log(`\n${formatSuccess(`PR created: ${prUrl}`)}`);
+      const publishResult = await publishChanges(gitContext, {
+        message: commitMessage,
+        mode: publish,
+      });
+
+      let prUrl: string | undefined;
+      if (publish === "pr") {
+        // Step 9: Create PR
+        console.log(`\n${formatStep(9, "Creating PR...")}`);
+
+        // Convert PlanSummary to PRPlanSummary for createPR (if available)
+        let prPlanSummary: PRPlanSummary | undefined;
+        if (planSummary) {
+          prPlanSummary = {
+            overview: planSummary.overview,
+            acceptanceCriteria: planSummary.acceptanceCriteria,
+          };
+        }
+
+        prUrl = await createPR(
+          issueData,
+          gitContext.branchName,
+          gitContext.vcs,
+          prPlanSummary,
+        ) ?? undefined;
+        if (prUrl) {
+          console.log(`\n${formatSuccess(`PR created: ${prUrl}`)}`);
+        } else {
+          console.log(
+            `\n${formatInfo(`PR creation skipped (using ${gitContext.vcs}).`)}`,
+          );
+          console.log(
+            formatInfo(
+              "   Please use the link shown in the push output above to create the PR manually.",
+            ),
+          );
+        }
       } else {
         console.log(
-          `\n${formatInfo(`PR creation skipped (using ${gitContext.vcs}).`)}`,
-        );
-        console.log(
-          formatInfo(
-            "   Please use the link shown in the push output above to create the PR manually.",
-          ),
+          `\n${formatSuccess(`Changes pushed to ${gitContext.branchName}.`)}`,
         );
       }
+
+      await writeGithubActionVcsOutputs({
+        ...publishResult,
+        prUrl,
+        publishMode: publish,
+      });
     } else {
       console.log(`\n${formatSuccess("Changes applied to workspace.")}`);
       console.log(
@@ -1298,7 +1325,7 @@ export async function runOrchestrator(
     }
     console.error(`\nDebug files preserved in: ${tmpDir}`);
     console.error("Set SAVE_CTX=1 to preserve files on success as well.");
-    if (awp && gitContext) {
+    if (publishesChanges && gitContext) {
       console.error(
         "\nNote: If a branch was created, you may need to manually clean it up.",
       );

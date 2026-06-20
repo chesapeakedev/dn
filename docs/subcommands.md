@@ -262,7 +262,8 @@ Creates a prioritized task list from a GitHub milestone. The command:
 2. Scores each issue for kickstart readiness (Fibonacci: 1, 2, 3, 5, 8)
 3. Creates `plans/{owner}_{repo}_{milestone-number}.stack.md` with sorted tasks
    (easiest first)
-4. Outputs instructions to commit the file to the repo
+4. Commits stack artifacts in CI (`--publish direct`) or prints manual commit
+   steps
 
 ```bash
 # Using milestone number
@@ -271,8 +272,14 @@ dn init stack 42
 # Using full milestone URL
 dn init stack https://github.com/owner/repo/milestone/3
 
-# Re-fetch and regenerate an existing stack
+# Refresh scores/order while preserving completed checklist items
 dn init stack 42 --refresh
+
+# Replace the stack from scratch (destructive)
+dn init stack 42 --overwrite --yes
+
+# Commit stack files to the default branch explicitly
+dn init stack 42 --refresh --publish direct
 ```
 
 #### Stack File Format

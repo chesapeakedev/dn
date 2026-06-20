@@ -3,11 +3,11 @@
   "templates": [
     {
       "id": "dn.init_stack",
-      "version": "2.0.0",
+      "version": "3.0.0",
       "source_path": "templates/workflows/dn-init-stack.yml",
       "install_path": ".github/workflows/dn-init-stack.yml",
       "checksum": "sha256:be7612cabaead1aa9d978b40a51b6c937484c577e4f9025b2c5792c2cf629875",
-      "latest_version": "2.0.0",
+      "latest_version": "3.0.0",
       "deprecated": false,
       "deprecation_message": null,
       "minimum_dn_version": "0.0.30",
@@ -29,9 +29,14 @@
       "payload_schema_version": "1.0",
       "payload": {
         "required": ["schema_version", "dispatch_id", "milestone"],
-        "optional": ["refresh", "validate_only"]
+        "optional": [
+          "refresh",
+          "stack_mode",
+          "publish",
+          "validate_only"
+        ]
       },
-      "compatibility_notes": "Requires .github/dn/config.json (dn init workflows --agent) and chesapeakedev/dn-action with workflow execution support. Writes plans/{owner}_{repo}_{milestone}.stack.md and plans/{owner}_{repo}_{milestone}.stack.json."
+      "compatibility_notes": "Requires .github/dn/config.json and chesapeakedev/dn-action. Writes and commits plans/{owner}_{repo}_{milestone}.stack.{md,json} when publish defaults to direct in CI. stack_mode refresh preserves completed checklist items; refresh=true maps to refresh, refresh=false maps to create."
     },
     {
       "id": "dn.prep_issue_plan",
@@ -67,11 +72,11 @@
     },
     {
       "id": "dn.kickstart_issue",
-      "version": "2.0.0",
+      "version": "3.0.0",
       "source_path": "templates/workflows/dn-kickstart-issue.yml",
       "install_path": ".github/workflows/dn-kickstart-issue.yml",
       "checksum": "sha256:4adaddebb9292948c085ae4d04ad8df2d54226e7dcb17582a260622d56bcc022",
-      "latest_version": "2.0.0",
+      "latest_version": "3.0.0",
       "deprecated": false,
       "deprecation_message": null,
       "minimum_dn_version": "0.0.30",
@@ -94,17 +99,23 @@
       "payload_schema_version": "1.0",
       "payload": {
         "required": ["schema_version", "dispatch_id"],
-        "optional": ["issue_url", "issue_number", "awp", "validate_only"]
+        "optional": [
+          "issue_url",
+          "issue_number",
+          "publish",
+          "awp",
+          "validate_only"
+        ]
       },
-      "compatibility_notes": "Requires .github/dn/config.json. Provide exactly one of issue_url or issue_number. awp defaults to true. Set the secret for your configured agent only."
+      "compatibility_notes": "Requires .github/dn/config.json. Provide exactly one of issue_url or issue_number. publish defaults to pr; awp=true|false maps to pr|none for compatibility. publish=direct commits to the default branch without opening a PR."
     },
     {
       "id": "dn.daily_kickstart",
-      "version": "2.0.0",
+      "version": "3.0.0",
       "source_path": "templates/workflows/dn-daily-kickstart.yml",
       "install_path": ".github/workflows/dn-daily-kickstart.yml",
       "checksum": "sha256:11ab2259f28dd2bc203eebfecbc61542efda2ab3095afdcd18abe8e4bd55b507",
-      "latest_version": "2.0.0",
+      "latest_version": "3.0.0",
       "deprecated": false,
       "deprecation_message": null,
       "minimum_dn_version": "0.0.30",
@@ -131,7 +142,7 @@
         "required": [],
         "optional": ["milestone", "validate_only"]
       },
-      "compatibility_notes": "Requires .github/dn/config.json and a committed plans/{owner}_{repo}_{milestone}.stack.md from dn init stack. Scheduled runs read DN_DAILY_KICKSTART_MILESTONE; manual workflow_dispatch can pass milestone. Runs dn kickstart --awp --milestone <milestone> --once."
+      "compatibility_notes": "Requires .github/dn/config.json and a committed plans/{owner}_{repo}_{milestone}.stack.md from dn init stack. Runs dn kickstart --publish pr --milestone <milestone> --once and commits stack progress to the default branch."
     }
   ]
 }

@@ -77,8 +77,19 @@ Required fields:
 
 Optional fields:
 
-- `awp` defaults to `true`
+- `publish` defaults to `pr` in workflow dispatch (`none`, `pr`, or `direct`)
+- `awp` legacy boolean still maps to `pr`/`none`
 - `validate_only` validates configuration without running the mapped command
+
+### `dn.init_stack`
+
+Optional fields:
+
+- `stack_mode` defaults to `refresh` in workflow dispatch (`create`, `refresh`,
+  or `overwrite`)
+- `refresh` legacy boolean maps to `stack_mode` (`true` → refresh, `false` →
+  create)
+- `publish` defaults to `direct` in CI workflow dispatch
 
 Missing required fields fail the action before running the mapped dn command.
 The CLI validates the same rules before dispatch:
@@ -115,7 +126,7 @@ gh variable set DN_DAILY_KICKSTART_MILESTONE --body 42
 The workflow runs:
 
 ```bash
-dn --agent <configured> kickstart --awp --milestone <milestone> --once
+dn --agent <configured> kickstart --publish pr --milestone <milestone> --once
 ```
 
 It processes the first unchecked item in

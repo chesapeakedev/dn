@@ -4,6 +4,10 @@
 import { join } from "@std/path";
 import type { AgentHarness } from "../../sdk/github/agentHarness.ts";
 import {
+  resolveKickstartPublishMode,
+  resolveStackMode,
+} from "../../sdk/github/publish.ts";
+import {
   loadWorkflowManifest,
   readDnWorkflowAgentConfig,
   requiredSecretForAgent,
@@ -204,7 +208,8 @@ export function resolveWorkflowArguments(
     return [
       ...prefix,
       "kickstart",
-      "--awp",
+      "--publish",
+      "pr",
       "--milestone",
       milestone,
       "--once",
@@ -225,10 +230,18 @@ export function resolveWorkflowArguments(
       payload.milestone,
       "client_payload.milestone",
     );
+    const stackMode = resolveStackMode({
+      stackMode: payload.stack_mode,
+      refresh: payload.refresh,
+      defaultMode: "refresh",
+    });
     const args = [...prefix, "init", "stack", milestone];
-    if (requireBoolean(payload.refresh, "client_payload.refresh", true)) {
+    if (stackMode === "refresh") {
       args.push("--refresh");
+    } else if (stackMode === "overwrite") {
+      args.push("--overwrite", "--yes");
     }
+    args.push("--publish", "direct");
     return args;
   }
 
@@ -245,10 +258,12 @@ export function resolveWorkflowArguments(
   }
 
   if (workflowId === "dn.kickstart_issue") {
-    const args = [...prefix, "kickstart"];
-    if (requireBoolean(payload.awp, "client_payload.awp", true)) {
-      args.push("--awp");
-    }
+    const publish = resolveKickstartPublishMode({
+      publish: payload.publish,
+      awp: payload.awp,
+      defaultMode: "pr",
+    });
+    const args = [...prefix, "kickstart", "--publish", publish];
     args.push(resolveIssue(payload));
     return args;
   }

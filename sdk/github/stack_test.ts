@@ -6,6 +6,7 @@ import {
   formatStackArtifactId,
   getStackArtifactPaths,
   markMilestoneStackItemDone,
+  mergeStackCheckmarks,
   parseStackTodoItems,
   sanitizeStackFilenamePart,
 } from "./stack.ts";
@@ -90,6 +91,28 @@ repo: owner/repo
   } finally {
     await Deno.remove(path);
   }
+});
+
+Deno.test("mergeStackCheckmarks preserves completed items", () => {
+  const existing = `---
+milestone: 1
+---
+
+- [x] 1 #45 Done task
+- [ ] 2 #46 Pending task
+`;
+  const regenerated = `---
+milestone: 1
+---
+
+- [ ] 3 #45 Done task
+- [ ] 1 #46 Pending task
+- [ ] 2 #47 New task
+`;
+  const merged = mergeStackCheckmarks(regenerated, existing);
+  assertEquals(merged.includes("- [x] 3 #45 Done task"), true);
+  assertEquals(merged.includes("- [ ] 1 #46 Pending task"), true);
+  assertEquals(merged.includes("- [ ] 2 #47 New task"), true);
 });
 
 Deno.test("markMilestoneStackItemDone throws when ref not in stack", async () => {

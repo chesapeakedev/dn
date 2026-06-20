@@ -25,10 +25,11 @@ import type { GitContext } from "../sdk/github/vcs.ts";
 import {
   checkForChanges,
   detectVcs,
-  prepareVcsStateInteractive,
+  prepareVcsForKickstart,
 } from "../sdk/github/vcs.ts";
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
 import { getRunAgent } from "../sdk/github/agentHarness.ts";
+import type { PublishMode } from "../sdk/github/publish.ts";
 import { isUnattended } from "../sdk/github/output.ts";
 import { augmentOpenCodePlanEditPermission } from "../sdk/github/opencode.ts";
 import {
@@ -312,8 +313,8 @@ export interface FillEmptyIssueSectionsResult {
  * Extended configuration that includes workspace root
  */
 export interface KickstartConfig {
-  /** Whether to run in awp mode (branches, commits, PRs) */
-  awp: boolean;
+  /** How changes are published to the remote repository */
+  publish: PublishMode;
   /** Which agent harness runs plan/implement phases (OpenCode, Cursor, or Claude Code) */
   agentHarness: AgentHarness;
   /** Whether to allow cross-repository operations */
@@ -858,7 +859,7 @@ export async function runMeldPhase(
             `Issue URL points to a different repository (${issueData.owner}/${issueData.repo}) than the current workspace (${currentRepo.owner}/${currentRepo.repo}). Use --allow-cross-repo to enable cross-repository operations.`,
           );
         }
-        if (config.awp) {
+        if (config.publish !== "none") {
           throw new Error(
             `Cross-repository operations are not supported with AWP mode. AWP involves VCS operations that require the issue and current workspace to be in the same repository.`,
           );
@@ -877,9 +878,9 @@ export async function runMeldPhase(
       );
     }
 
-    if (config.awp && issueData !== null) {
+    if (config.publish !== "none" && issueData !== null) {
       console.log(formatStep(2, "Preparing VCS state..."));
-      gitContext = await prepareVcsStateInteractive(issueData);
+      gitContext = await prepareVcsForKickstart(config.publish, issueData);
     }
 
     const parsedTarget = await parseMeldTarget(
@@ -1024,7 +1025,7 @@ export async function runMeldPhase(
 
     let existingPlanContent: string | null = null;
     let continueExistingPlan = false;
-    if (parsedTarget.kind === "plan" && !config.awp) {
+    if (parsedTarget.kind === "plan" && config.publish === "none") {
       const existingPlan = await readExistingPlan(outputAbsolute);
       if (existingPlan) {
         continueExistingPlan = promptContinueOrNewPlan(outputAbsolute);
@@ -1360,7 +1361,7 @@ export async function runLoopPhase(
         console.log(`\n${formatSuccess("All acceptance criteria completed!")}`);
 
         // Delete plan file when all criteria are complete (AWP mode only)
-        if (config.awp) {
+        if (config.publish !== "none") {
           try {
             await Deno.remove(planFilePath);
             console.log(
@@ -1636,7 +1637,7 @@ export async function runFullKickstart(
 
   // Convert KickstartConfig to OrchestratorConfig (they're compatible, just drop workspaceRoot)
   const orchestratorConfig: OrchestratorConfig = {
-    awp: config.awp,
+    publish: config.publish,
     agentHarness: config.agentHarness,
     issueUrl: config.issueUrl,
     contextMarkdownPath: config.contextMarkdownPath,

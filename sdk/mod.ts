@@ -336,7 +336,28 @@ export {
 
 // VCS utilities
 export type { GitContext } from "./github/vcs.ts";
-export { commitAndPush, detectVcs } from "./github/vcs.ts";
+export type {
+  PublishMode,
+  PublishResult,
+  StackMode,
+} from "./github/publish.ts";
+export {
+  commitAndPush,
+  commitStackArtifacts,
+  detectVcs,
+  prepareVcsForPublish,
+  publishChanges,
+  publishStackProgressUpdate,
+} from "./github/vcs.ts";
+export {
+  assertPublishAllowedInCi,
+  parsePublishMode,
+  parseStackMode,
+  resolveInitStackPublishMode,
+  resolveKickstartPublishMode,
+  resolveStackMode,
+  writeGithubActionVcsOutputs,
+} from "./github/publish.ts";
 
 // OpenCode execution
 export type { OpenCodeResult } from "./github/opencode.ts";

@@ -104,7 +104,7 @@ function parseArgs(
   });
 
   return {
-    awp: false, // Loop phase doesn't use AWP mode
+    publish: "none" as const,
     agentHarness,
     allowCrossRepo: false,
     issueUrl: null,

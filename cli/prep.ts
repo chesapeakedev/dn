@@ -103,7 +103,7 @@ function parseArgs(
   });
 
   return {
-    awp: false,
+    publish: "none" as const,
     agentHarness,
     allowCrossRepo,
     issueUrl,
