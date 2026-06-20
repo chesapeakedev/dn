@@ -2,7 +2,8 @@
 
 `dn` is a CLI for developers who use coding agents. It turns issues and local
 specifications into durable plans, routes those plans to your preferred agent,
-and helps carry work from implementation through review.
+and helps carry work from implementation through review. We built Denoise
+because coding got faster, but building software did not.
 
 Use `dn` with OpenCode, Cursor, Claude Code, or Codex CLI. Plans live as
 markdown files in your workspace, so work can move between agents and resume
