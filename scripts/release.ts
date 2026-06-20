@@ -267,6 +267,7 @@ async function runRelease(options: ReleaseOptions): Promise<void> {
     previousVersion,
     commits,
   );
+  const releaseNotes = formatReleaseNotes(previousVersion, commits);
   console.log(`Preparing dn ${newVersion}`);
   console.log(
     `Previous release: ${previousRelease.node} ${previousRelease.subject}`,
@@ -297,11 +298,24 @@ async function runRelease(options: ReleaseOptions): Promise<void> {
   }
 
   const messagePath = await writeTempFile("dn-release-message-", commitMessage);
+  const notesPath = await writeTempFile("dn-release-notes-", releaseNotes);
   try {
     await runInteractive(["sl", "commit", "-l", messagePath, "deno.json"]);
     await runInteractive(["make", "sync"]);
+    await runInteractive([
+      "dn",
+      "release",
+      "create",
+      `v${newVersion}`,
+      "--title",
+      `v${newVersion}`,
+      "--notes-file",
+      notesPath,
+      "--verify-tag",
+    ]);
   } finally {
     await Deno.remove(messagePath).catch(() => {});
+    await Deno.remove(notesPath).catch(() => {});
   }
 }
 

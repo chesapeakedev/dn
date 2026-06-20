@@ -1,4 +1,4 @@
 interface:
   display_name: "Publish dn"
-  short_description: "Bump and push a dn release version"
-  default_prompt: "Use $publish to bump the dn version, validate it, commit it, and push it."
+  short_description: "Run the canonical dn release workflow"
+  default_prompt: "Use $publish to run the canonical dn release workflow."
