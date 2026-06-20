@@ -130,6 +130,7 @@ bump_major:
 	$(SED_INPLACE) "s/\"version\": \"$$current\"/\"version\": \"$$new_version\"/" deno.json; \
 	echo "Bumped version from $$current to $$new_version"
 
-# Bump patch version, commit, sync, and create a GitHub release
+# Bump the version, commit, sync, and create a GitHub release.
+# Pass VERSION=x.y.z for an explicit version; the default is the next patch.
 release:
-	deno run --allow-read --allow-write --allow-run scripts/release.ts
+	deno run --allow-read --allow-write --allow-run scripts/release.ts $(if $(VERSION),--version $(VERSION),)

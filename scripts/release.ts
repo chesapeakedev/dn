@@ -14,14 +14,22 @@ export interface CommitEntry {
 
 interface ReleaseOptions {
   dryRun: boolean;
+  version?: string;
 }
 
 function parseArgs(args: string[]): ReleaseOptions {
   let dryRun = false;
+  let version: string | undefined;
 
-  for (const arg of args) {
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
     if (arg === "--dry-run") {
       dryRun = true;
+    } else if (arg === "--version") {
+      version = args[++index];
+      if (!version) {
+        throw new Error("--version requires a semantic version");
+      }
     } else if (arg === "--help" || arg === "-h") {
       showHelp();
       Deno.exit(0);
@@ -30,18 +38,18 @@ function parseArgs(args: string[]): ReleaseOptions {
     }
   }
 
-  return { dryRun };
+  return { dryRun, version };
 }
 
 function showHelp(): void {
-  console.log("release.ts - Run the dn patch release workflow\n");
+  console.log("release.ts - Run the dn release workflow\n");
   console.log("Usage:");
   console.log(
-    "  deno run --allow-read --allow-write --allow-run scripts/release.ts",
+    "  deno run --allow-read --allow-write --allow-run scripts/release.ts [--version <version>] [--dry-run]",
   );
-  console.log(
-    "  deno run --allow-read --allow-write --allow-run scripts/release.ts --dry-run",
-  );
+  console.log("\nOptions:");
+  console.log("  --version <version>  Release an explicit semantic version");
+  console.log("  --dry-run            Show the release without changing files");
 }
 
 async function runCommand(args: string[]): Promise<CommandResult> {
@@ -121,6 +129,32 @@ export function bumpPatchVersion(version: string): string {
   }
 
   return `${major}.${minor}.${patch + 1}`;
+}
+
+export function validateReleaseVersion(
+  currentVersion: string,
+  releaseVersion: string,
+): string {
+  const semanticVersion = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+  const currentMatch = currentVersion.match(semanticVersion);
+  const releaseMatch = releaseVersion.match(semanticVersion);
+  if (!currentMatch || !releaseMatch) {
+    throw new Error(`Invalid semantic version: ${releaseVersion}`);
+  }
+
+  const current = currentMatch.slice(1).map(Number);
+  const release = releaseMatch.slice(1).map(Number);
+  const isNewer = release.some((part, index) =>
+    part > current[index] &&
+    release.slice(0, index).every((value, prefix) => value === current[prefix])
+  );
+  if (!isNewer) {
+    throw new Error(
+      `Release version ${releaseVersion} must be newer than ${currentVersion}`,
+    );
+  }
+
+  return releaseVersion;
 }
 
 export function formatReleaseNotes(
@@ -207,7 +241,9 @@ async function runRelease(options: ReleaseOptions): Promise<void> {
   await assertCleanWorkingCopy();
 
   const previousVersion = await readCurrentVersion();
-  const newVersion = bumpPatchVersion(previousVersion);
+  const newVersion = options.version
+    ? validateReleaseVersion(previousVersion, options.version)
+    : bumpPatchVersion(previousVersion);
   const previousRelease = findPreviousReleaseCommit(
     await listAncestorCommits(),
     previousVersion,
@@ -244,7 +280,14 @@ async function runRelease(options: ReleaseOptions): Promise<void> {
     return;
   }
 
-  await runInteractive(["make", "bump_patch"]);
+  const configText = await Deno.readTextFile("deno.json");
+  await Deno.writeTextFile(
+    "deno.json",
+    configText.replace(
+      `"version": "${previousVersion}"`,
+      `"version": "${newVersion}"`,
+    ),
+  );
   await runInteractive(["make", "precommit"]);
   await assertOnlyVersionChanged();
 
