@@ -30,6 +30,36 @@ agents with `--cursor`, `--claude`, and other flags
 - **GitHub Actions Integration** — Trigger agentic workflows with canonical
   repository dispatch templates installed by `dn init workflows`
 
+## Kickstart workflow
+
+`dn kickstart` turns a GitHub issue or local markdown specification into a plan
+and implementation. The plan phase analyzes the repository and writes a named
+file under `plans/`; the implementation phase applies the changes and updates
+the plan's acceptance-criteria checklist.
+
+```bash
+# Apply changes in the current workspace
+dn kickstart 123
+
+# Use a local specification without fetching GitHub context
+dn kickstart docs/spec.md
+
+# Create a branch or bookmark, commit, push, and open a pull request
+dn kickstart --awp https://github.com/owner/repo/issues/123
+```
+
+Plan files are persistent workspace artifacts. If a run leaves acceptance
+criteria incomplete, resume from the saved plan:
+
+```bash
+dn loop --plan-file plans/feature-name.plan.md
+```
+
+Use `--saved-plan <name>` to choose a plan name without a prompt. See the
+[`dn kickstart` command reference](docs/subcommands.md#dn-kickstart--full-workflow)
+for publishing modes, cross-repository constraints, milestone queues, and agent
+selection.
+
 ## Getting Started
 
 `dn` requires the following in your local development environment:
@@ -119,6 +149,7 @@ See [docs/authentication.md](docs/authentication.md) for details.
 | `PLAN`                 | Plan file path; used by `loop` when `--plan-file` is not passed                        |
 | `PR_URL`               | PR URL; used by `fixup` when no positional arg is given                                |
 | `WORKSPACE_ROOT`       | Override the working directory for plan execution (defaults to `cwd`)                  |
+| `SAVE_CTX`             | Set to `1` to preserve temporary prompt and agent-output files after successful runs   |
 | `OPENCODE_TIMEOUT_MS`  | Timeout in ms for OpenCode agent invocations (default `600000`)                        |
 | `CURSOR_TIMEOUT_MS`    | Timeout in ms for Cursor agent invocations (falls back to `OPENCODE_TIMEOUT_MS`)       |
 | `CLAUDE_TIMEOUT_MS`    | Timeout in ms for Claude Code invocations (falls back to `OPENCODE_TIMEOUT_MS`)        |

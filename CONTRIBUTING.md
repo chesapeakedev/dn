@@ -55,6 +55,34 @@ improvements are always welcome and an important part of quality control:
 - Improve TSDoc comments
 - Update README or AGENTS.md
 
+## Kickstart internals
+
+Kickstart is part of the `dn` CLI, not a separately invoked application. Its
+phase-specific system prompts live under `kickstart/system.prompt.*.md` and are
+embedded in release binaries by `compile_dn.sh`. When adding a prompt, update
+the include list in that script so development and compiled executions behave
+the same way.
+
+The plan phase may write only its target plan. A valid plan contains a title,
+`Overview`, `Implementation Plan`, and `Acceptance Criteria` sections, with at
+least one markdown checkbox under `Acceptance Criteria`. Plans normally live at
+`plans/<name>.plan.md`. The implementation phase must update those checkboxes;
+`dn` uses them to report completion and make the plan resumable with `dn loop`.
+
+Agent prompts are assembled in this order, with markdown horizontal rules
+between sections:
+
+1. The phase-specific system prompt
+2. The workspace's `AGENTS.md`, when present
+3. The workspace's `deno.json`, when present
+4. Existing plan or target content, when continuing or merging
+5. Plan-phase output, for implementation
+6. GitHub issue or local markdown context
+
+GitHub issue context includes a curated `Relationships` section for parent,
+sub-issue, blocker, and duplicate relationships. Keep this representation
+compact: relationship totals may exceed the listed references.
+
 ## Creating GitHub Releases
 
 Run the release target from a clean working copy:
@@ -172,18 +200,6 @@ Different workflow phases write different debug files to the temp directory:
 | `system.prompt.prep.md`         | prep                   | Prep system prompt                       |
 | `system.prompt.merge.md`        | merge                  | Merge system prompt                      |
 | `system.prompt.fixup.md`        | fixup                  | Fixup system prompt                      |
-
-### Combined prompt structure
-
-Each `combined_prompt_*.txt` file is assembled from multiple sources in order,
-separated by `---`:
-
-1. System prompt (phase-specific)
-2. `AGENTS.md` (if present in project root)
-3. `deno.json` (if present in project root)
-4. Previous plan content (in continuation mode)
-5. Plan output (in implement phase)
-6. Issue context (when fetched from GitHub)
 
 ### On failure
 
