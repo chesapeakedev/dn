@@ -257,7 +257,7 @@ function showUsage(): void {
     "  tidy         Groom todo list: re-fetch issues, re-score, update ~/.dn/todo.md",
   );
   console.error(
-    "  sync         Sapling: lint, pull/rebase onto main, restack/push drafts",
+    "  sync         Git/Sapling: lint, rebase onto main, publish local commits",
   );
   console.error(
     "  release      Manage GitHub releases (create, list, view, delete)\n",

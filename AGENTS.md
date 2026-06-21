@@ -421,17 +421,25 @@ make sync      # Makefile → lint once, then deno run … cli/main.ts sync --sk
 dn sync        # after `make configure`, if `dn` is on PATH
 ```
 
-The workflow runs:
+The workflow auto-detects Sapling first, then Git. Both paths run:
 
 1. **`make lint`** to ensure nothing is broken
-2. **`sl pull --rebase -d main`** — rebase upstream under your commits
-3. **Conditional `sl restack`** when orphaned draft descendants exist (revset
-   **`children(obsolete()) - obsolete()`** — same idea as older shell snippets
-   but inlined in **`dn sync`**, unlike the thinner historical
-   **`repo_sync.sh`** helper)
-4. **Conditional `sl push --to main`** only when
-   **`draft() & ancestors(.) & descendants(main)`** matches — side-branch drafts
-   are ignored
+2. Rebase remote **`main`** under your local commits
+3. Publish local commits directly to remote **`main`**, skipping the push when
+   no local commits remain
+
+The Sapling path uses **`sl pull --rebase -d main`**, followed by conditional
+**`sl restack`** when orphaned draft descendants exist (revset
+**`children(obsolete()) - obsolete()`** — same idea as older shell snippets but
+inlined in **`dn sync`**, unlike the thinner historical **`repo_sync.sh`**
+helper). It runs **`sl push --to main`** only when
+**`draft() & ancestors(.) & descendants(main)`** matches.
+
+The Git path selects the remote tracked by local **`main`**, falling back to
+**`origin`**. It fetches remote **`main`**, rebases onto **`FETCH_HEAD`**, and
+runs **`git push <remote> HEAD:main`** only when **`FETCH_HEAD..HEAD`** contains
+commits. Git has no restack step because rebase performs the applicable history
+rewrite.
 
 Use **`make sync`** when you sit down (to pull latest) and before you get up (to
 push your work).
@@ -440,7 +448,9 @@ push your work).
 entrypoint directly after linting, so it does not need to compile/install `dn`
 or run the same lint checks twice.
 
-For anonymous feature branches (work not on top of `main`), use `sl` directly:
+`dn sync` is a trunk-landing workflow: both VCS paths publish the current
+rebased commits directly to remote `main`. To share a feature branch without
+landing it, use the VCS directly. For anonymous Sapling feature branches:
 
 - `sl goto <rev>` to switch to the branch tip
 - `sl rebase -s <tip> -d main` when ready to land

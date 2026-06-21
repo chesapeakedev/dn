@@ -2,19 +2,24 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * **`dn sync`** — Sapling workflow to pull/rebase onto `main`, optionally
- * restack orphaned drafts, and push draft commits on the main-line stack.
+ * **`dn sync`** — Git and Sapling workflow to rebase onto remote `main` and
+ * publish commits on the main-line stack.
  *
- * Mirrors the canonical steps documented under **Workflow: `make sync`** in
- * `AGENTS.md`. Sapling **`push`** uses remote credentials configured for the
- * repository (`gh auth`, credential helpers, or SSH); **`dn auth`** applies to
- * GitHub API callers, not directly to Sapling HTTPS push.
+ * Sapling and Git use the credentials configured for their repository
+ * remotes. **`dn auth`** applies to GitHub API callers, not VCS pushes.
  */
 
 import * as path from "@std/path";
 
 const RESTACK_REVSET = "children(obsolete()) - obsolete()";
 const PUSH_REVSET = "draft() & ancestors(.) & descendants(main)";
+
+type SyncVcs = "git" | "sapling";
+
+interface SyncRepo {
+  root: string;
+  vcs: SyncVcs;
+}
 
 async function commandOutput(
   command: string | URL,
@@ -35,36 +40,59 @@ async function commandOutput(
   return { code, stdout, stderr };
 }
 
-/**
- * Runs **`sl root`** starting from **`candidateDir`** and returns the canonical
- * repository root path.
- *
- * @param candidateDir - Directory to probe (typically the current workspace)
- * @returns Absolute Sapling repo root from `sl root`
- * @throws Error when `sl` fails or emits an empty root
- */
-async function saplingRepoRoot(candidateDir: string): Promise<string> {
-  const { code, stdout, stderr } = await commandOutput(
-    "sl",
-    ["root"],
-    candidateDir,
+function firstOutputLine(output: string): string | undefined {
+  return output.trim().split(/\r?\n/).find((line) => line.length > 0);
+}
+
+async function pathExists(candidate: string): Promise<boolean> {
+  try {
+    await Deno.stat(candidate);
+    return true;
+  } catch (error) {
+    if (error instanceof Deno.errors.NotFound) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+/** Detects the repository root, preferring Sapling in dual-compatible repos. */
+async function detectSyncRepo(candidateDir: string): Promise<SyncRepo> {
+  try {
+    const sapling = await commandOutput("sl", ["root"], candidateDir);
+    const root = firstOutputLine(sapling.stdout);
+    // Sapling can operate directly on plain Git checkouts. Require native
+    // checkout metadata so an installed `sl` does not capture every Git repo.
+    if (
+      sapling.code === 0 && root && await pathExists(path.join(root, ".sl"))
+    ) {
+      return { root: path.resolve(root), vcs: "sapling" };
+    }
+  } catch (error) {
+    if (!(error instanceof Deno.errors.NotFound)) {
+      throw error;
+    }
+  }
+
+  try {
+    const git = await commandOutput(
+      "git",
+      ["rev-parse", "--show-toplevel"],
+      candidateDir,
+    );
+    const root = firstOutputLine(git.stdout);
+    if (git.code === 0 && root) {
+      return { root: path.resolve(root), vcs: "git" };
+    }
+  } catch (error) {
+    if (!(error instanceof Deno.errors.NotFound)) {
+      throw error;
+    }
+  }
+
+  throw new Error(
+    `Not a Sapling or Git checkout (starting from ${candidateDir})`,
   );
-  if (code !== 0) {
-    throw new Error(
-      `Not a Sapling checkout (failed to run 'sl root' from ${candidateDir}):\n${
-        stderr.trim() ||
-        stdout.trim() ||
-        `exit ${code}`
-      }`,
-    );
-  }
-  const root = stdout.trim().split(/\r?\n/).find((l) => l.length > 0);
-  if (!root) {
-    throw new Error(
-      `'sl root' returned no path (cwd hint: ${candidateDir})`,
-    );
-  }
-  return path.resolve(root);
 }
 
 async function runInherited(
@@ -86,9 +114,7 @@ async function runInherited(
   }
 }
 
-/**
- * Returns **`true`** when **`sl log --rev`** prints at least one revision line.
- */
+/** Returns `true` when `sl log --rev` prints at least one revision line. */
 async function revsetProducesCommits(
   repoRoot: string,
   revset: string,
@@ -109,10 +135,63 @@ async function revsetProducesCommits(
     );
   }
 
-  const firstLine = stdout.split(/\r?\n/).find((l) =>
-    l.replace(/\s/g, "").length > 0
+  return firstOutputLine(stdout) !== undefined;
+}
+
+async function gitRemoteExists(
+  repoRoot: string,
+  remote: string,
+): Promise<boolean> {
+  const result = await commandOutput(
+    "git",
+    ["remote", "get-url", remote],
+    repoRoot,
   );
-  return firstLine !== undefined;
+  return result.code === 0 && firstOutputLine(result.stdout) !== undefined;
+}
+
+/** Resolves the remote tracked by local `main`, falling back to `origin`. */
+async function resolveGitRemote(repoRoot: string): Promise<string> {
+  const configured = await commandOutput(
+    "git",
+    ["config", "--get", "branch.main.remote"],
+    repoRoot,
+  );
+  const trackedRemote = firstOutputLine(configured.stdout);
+  if (
+    configured.code === 0 && trackedRemote && trackedRemote !== "." &&
+    await gitRemoteExists(repoRoot, trackedRemote)
+  ) {
+    return trackedRemote;
+  }
+  if (await gitRemoteExists(repoRoot, "origin")) {
+    return "origin";
+  }
+  throw new Error(
+    "Git main has no usable tracked remote and no origin remote is configured",
+  );
+}
+
+async function gitHasCommitsToPublish(repoRoot: string): Promise<boolean> {
+  const { code, stdout, stderr } = await commandOutput(
+    "git",
+    ["rev-list", "--count", "FETCH_HEAD..HEAD"],
+    repoRoot,
+  );
+  if (code !== 0) {
+    throw new Error(
+      `'git rev-list' failed checking commits to publish:${
+        stderr.trim() ? `\n${stderr.trim()}` : ` (exit ${code})`
+      }`,
+    );
+  }
+  const count = Number.parseInt(stdout.trim(), 10);
+  if (!Number.isInteger(count)) {
+    throw new Error(
+      `'git rev-list' returned an invalid count: ${stdout.trim()}`,
+    );
+  }
+  return count > 0;
 }
 
 interface SyncParsedArgs {
@@ -141,7 +220,7 @@ function parseSyncArgs(raw: string[]): SyncParsedArgs {
       throw new Error(`Unknown flag: ${arg}`);
     } else {
       throw new Error(
-        `Unexpected argument: ${arg}\n(use --workspace-root <path> for the Sapling repo)`,
+        `Unexpected argument: ${arg}\n(use --workspace-root <path> for the repository)`,
       );
     }
   }
@@ -150,23 +229,21 @@ function parseSyncArgs(raw: string[]): SyncParsedArgs {
 }
 
 function printSyncHelp(): void {
+  console.log("dn sync — Rebase onto remote main and publish local commits\n");
   console.log(
-    "dn sync — Rebase onto remote main; restack if needed; push drafts\n",
+    "Runs `make lint` unless skipped, then auto-detects Sapling or Git and rebases onto",
   );
   console.log(
-    "Runs `make lint` unless skipped, then Sapling pull/rebase onto main, conditional restack,",
+    "remote main. Sapling also restacks obsolete descendants when needed.",
   );
   console.log(
-    "and `sl push --to main` only when drafts exist on the main-line stack.",
-  );
-  console.log(
-    "Requires Sapling (`sl`), GNU/BSD make, and Deno (same prerequisites as make lint).\n",
+    "Pushes only when local commits remain after the rebase.\n",
   );
   console.log("Usage:");
   console.log("  dn sync [--workspace-root <path>]\n");
   console.log("Options:");
   console.log(
-    "  --workspace-root <path>  Directory inside the Sapling repo (default: cwd)",
+    "  --workspace-root <path>  Directory inside the repository (default: cwd)",
   );
   console.log(
     "  --skip-lint              Skip `make lint` (used by `make sync`)",
@@ -174,40 +251,18 @@ function printSyncHelp(): void {
   console.log("  --help, -h               Show this help\n");
 }
 
-/**
- * Executes the Sapling-aligned sync workflow.
- *
- * @param args — CLI tokens after **`sync`** (excluding global flags consumed by **`main`**)
- */
-export async function handleSync(args: string[]): Promise<void> {
-  const parsed = parseSyncArgs(args);
-
-  console.log("[dn sync] resolving Sapling repo root...");
-  const repoRoot = await saplingRepoRoot(parsed.workspaceRootCandidate);
-  console.log(`[dn sync] repo root: ${repoRoot}`);
-
-  if (parsed.skipLint) {
-    console.log("[dn sync] skipping make lint (--skip-lint).");
-  } else {
-    console.log("[dn sync] running make lint...");
-    await runInherited("make", ["lint"], repoRoot);
-  }
-
+async function syncSapling(repoRoot: string): Promise<void> {
   console.log("[dn sync] sl pull --rebase -d main");
   await runInherited("sl", ["pull", "--rebase", "-d", "main"], repoRoot);
 
-  const needsRestack = await revsetProducesCommits(repoRoot, RESTACK_REVSET);
-  if (needsRestack) {
-    console.log(
-      `[dn sync] restacking (revset matched: ${RESTACK_REVSET})...`,
-    );
+  if (await revsetProducesCommits(repoRoot, RESTACK_REVSET)) {
+    console.log(`[dn sync] restacking (revset matched: ${RESTACK_REVSET})...`);
     await runInherited("sl", ["restack"], repoRoot);
   } else {
     console.log("[dn sync] skipping restack (no obsolete children matched).");
   }
 
-  const draftsToPublish = await revsetProducesCommits(repoRoot, PUSH_REVSET);
-  if (draftsToPublish) {
+  if (await revsetProducesCommits(repoRoot, PUSH_REVSET)) {
     console.log(
       `[dn sync] pushing drafts on main lineage (revset ${PUSH_REVSET})...`,
     );
@@ -216,6 +271,46 @@ export async function handleSync(args: string[]): Promise<void> {
     console.log(
       "[dn sync] skipping push — no draft commits on this stack branch from main.",
     );
+  }
+}
+
+async function syncGit(repoRoot: string): Promise<void> {
+  const remote = await resolveGitRemote(repoRoot);
+  console.log(`[dn sync] using Git remote: ${remote}`);
+  console.log(`[dn sync] git fetch ${remote} main`);
+  await runInherited("git", ["fetch", remote, "main"], repoRoot);
+  console.log("[dn sync] git rebase FETCH_HEAD");
+  await runInherited("git", ["rebase", "FETCH_HEAD"], repoRoot);
+
+  if (await gitHasCommitsToPublish(repoRoot)) {
+    console.log(`[dn sync] pushing local commits to ${remote}/main...`);
+    await runInherited("git", ["push", remote, "HEAD:main"], repoRoot);
+  } else {
+    console.log(
+      "[dn sync] skipping push — no local commits ahead of remote main.",
+    );
+  }
+}
+
+/** Executes the VCS-aligned sync workflow. */
+export async function handleSync(args: string[]): Promise<void> {
+  const parsed = parseSyncArgs(args);
+
+  console.log("[dn sync] resolving repository root...");
+  const repo = await detectSyncRepo(parsed.workspaceRootCandidate);
+  console.log(`[dn sync] detected ${repo.vcs}; repo root: ${repo.root}`);
+
+  if (parsed.skipLint) {
+    console.log("[dn sync] skipping make lint (--skip-lint).");
+  } else {
+    console.log("[dn sync] running make lint...");
+    await runInherited("make", ["lint"], repo.root);
+  }
+
+  if (repo.vcs === "sapling") {
+    await syncSapling(repo.root);
+  } else {
+    await syncGit(repo.root);
   }
 
   console.log("[dn sync] finished.");

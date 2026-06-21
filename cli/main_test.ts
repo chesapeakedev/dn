@@ -23,6 +23,7 @@ Deno.test("dn sync --help exits zero", async () => {
   assert(code === 0);
   assert(helpText.includes("dn sync"));
   assert(helpText.includes("--skip-lint"));
+  assert(helpText.includes("Sapling or Git"));
 });
 
 Deno.test("CLI rejects unknown subcommand", async () => {

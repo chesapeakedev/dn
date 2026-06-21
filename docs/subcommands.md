@@ -499,29 +499,32 @@ Output includes a heuristic **score** line per issue and optional `--verbose`
 boost breakdown. Respect global color/unattended flags the same way as
 `dn glance`.
 
-## `dn sync` — Sapling: lint, pull, rebase, restack/push drafts
+## `dn sync` — Git/Sapling: lint, rebase, publish
 
-Runs the Sapling-aligned “sync with trunk” flow from `AGENTS.md` (same steps as
-`make sync` in this repo). **Prerequisites:** Sapling (`sl`), **`make`** on
+Runs the “sync with trunk” flow from `AGENTS.md` (the same flow as `make sync`
+in this repo). It prefers Sapling when both VCS tools recognize the checkout,
+then falls back to Git. **Prerequisites:** Git or Sapling (`sl`), **`make`** on
 PATH, and **Deno** (what `make lint` already uses).
 
 **Steps (in order, fail-fast):**
 
-1. **`make lint`** at the Sapling repo root (format + typecheck + lint), unless
+1. **`make lint`** at the repository root (format + typecheck + lint), unless
    **`--skip-lint`** is passed.
-2. **`sl pull --rebase -d main`** — inherits stdout/stderr; resolve conflicts
-   manually if needed.
-3. **Conditional `sl restack`** when revset
-   **`children(obsolete()) - obsolete()`** matches commits (stranded draft
-   descendants after rewrite).
-4. **Conditional `sl push --to main`** only when drafts exist on the main-line
-   stack (`draft() & ancestors(.) & descendants(main)`); otherwise skips push
-   with a short message.
+2. Rebase the current work onto remote **`main`**.
+3. Publish the rebased local commits directly to remote **`main`**, or skip the
+   push when no local commits remain.
+
+Sapling uses **`sl pull --rebase -d main`**, conditionally runs **`sl restack`**
+for `children(obsolete()) - obsolete()`, and publishes with
+**`sl push --to main`**. Git resolves the remote tracked by local **`main`**
+(falling back to **`origin`**), fetches **`main`**, rebases onto
+**`FETCH_HEAD`**, and publishes with **`git push <remote> HEAD:main`**. Git does
+not need an equivalent restack step.
 
 **Credentials:** `dn auth` configures the GitHub API token (`dn issue`, etc.).
-Sapling **push** still uses repo remotes (**HTTPS credential helper**,
-**`gh auth`** HTTPS, or SSH) — failures usually point at remote auth, not OAuth
-cache.
+Git and Sapling pushes use repository credentials (**HTTPS credential helper**,
+**`gh auth`** HTTPS, or SSH) — failures usually point at remote auth, not the
+OAuth cache.
 
 From a subdirectory of the checkout:
 
@@ -535,11 +538,11 @@ validation.
 
 Troubleshooting:
 
-- **`sl`** “not found” — install Sapling and ensure `sl` is on PATH.
-- **merge/rebase aborted** — fix conflicts Sapling reports, then re-run
+- **VCS not found** — install Git or Sapling and ensure it is on PATH.
+- **merge/rebase aborted** — fix conflicts reported by the VCS, then re-run
   **`dn sync`**.
-- **`sl push`** auth errors — configure remote credentials (**`gh auth login`**,
-  SSH remote, or a helper); see Sapling docs for **`sl push`**.
+- **push auth errors** — configure remote credentials (**`gh auth login`**, SSH
+  remote, or a helper).
 - **`make`** missing — install **make**; on this repo **`make configure`**
   installs `dn`; **`make sync`** runs the local TypeScript entrypoint via
   **`deno run`**.

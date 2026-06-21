@@ -102,7 +102,7 @@ dn loop --plan-file plans/task.plan.md     # Implement from an existing plan
 dn fixup <pull-request-url>                # Address PR review feedback
 dn meld a.md b.md --plan-name merged       # Merge sources, then run prep
 dn init stack 42                           # Create a milestone task stack
-dn sync                                    # Sapling lint, pull/rebase, restack, push
+dn sync                                    # Git/Sapling lint, rebase, publish
 \`\`\`
 
 Use \`dn issue show <ref>\` before editing GitHub issue state. Prefer
