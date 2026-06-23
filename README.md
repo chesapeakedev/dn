@@ -9,6 +9,9 @@ Use `dn` with OpenCode, Cursor, Claude Code, or Codex CLI. Plans live as
 markdown files in your workspace, so work can move between agents and resume
 across sessions without depending on a conversational interface.
 
+For in-depth documentation, check out
+[the docs site](https://docs.denoise.cloud/introduction/)
+
 ## Features
 
 - **From issue to implementation** — Turn a GitHub issue or local specification
