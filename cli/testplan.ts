@@ -56,6 +56,7 @@ function parseArgs(
   let cursorFlag = false;
   let claudeFlag = false;
   let codexFlag = false;
+  let copilotFlag = false;
   let opencodeFlag = false;
 
   for (let i = 0; i < args.length; i++) {
@@ -72,6 +73,8 @@ function parseArgs(
       claudeFlag = true;
     } else if (arg === "--codex") {
       codexFlag = true;
+    } else if (arg === "--copilot") {
+      copilotFlag = true;
     } else if (arg === "--opencode") {
       opencodeFlag = true;
     } else if (arg === "--help" || arg === "-h") {
@@ -91,6 +94,7 @@ function parseArgs(
     cursorFlag,
     claudeFlag,
     codexFlag,
+    copilotFlag,
     opencodeFlag,
   });
 
@@ -122,6 +126,7 @@ function showHelp(): void {
   console.log("  --cursor, -c             Use Cursor headless agent");
   console.log("  --claude                 Use Claude Code CLI");
   console.log("  --codex                  Use Codex CLI");
+  console.log("  --copilot                Use GitHub Copilot CLI (`copilot -p`)");
   console.log("  --opencode               Use OpenCode CLI (default)");
   console.log("  --help, -h               Show this help message\n");
   console.log("Examples:");

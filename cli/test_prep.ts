@@ -27,7 +27,31 @@ Deno.test("prep command shows help", async () => {
 
     assert(result.stdout.includes("dn prep"));
     assert(result.stdout.includes("--plan-name"));
+    assert(result.stdout.includes("--copilot"));
     assert(result.success);
+  } finally {
+    await cleanupTestRepo(testRepo);
+  }
+});
+
+Deno.test("prep --copilot conflicts with other agent flags", async () => {
+  const testRepo = await createTestRepo();
+
+  try {
+    const result = await runDnCommand(
+      [
+        "prep",
+        "--copilot",
+        "--cursor",
+        "https://github.com/owner/repo/issues/1",
+      ],
+      {
+        cwd: testRepo.path,
+        expectFailure: true,
+      },
+    );
+
+    assert(result.stderr.includes("Conflicting agent flags"));
   } finally {
     await cleanupTestRepo(testRepo);
   }

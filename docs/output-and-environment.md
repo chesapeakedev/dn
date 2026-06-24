@@ -71,19 +71,22 @@ Subcommands that run an LLM agent (`kickstart`, `prep`, `loop`, `fixup`, `meld`,
 `testplan`, `init stack`, and scoring inside `tidy` / no-ticket `kickstart`)
 pick a **harness**:
 
-| Mechanism          | Effect                       |
-| ------------------ | ---------------------------- |
-| (default)          | OpenCode                     |
-| `--agent opencode` | OpenCode                     |
-| `--agent cursor`   | Cursor headless `agent` CLI  |
-| `--agent claude`   | Claude Code `claude -p`      |
-| `--agent codex`    | Codex CLI `codex exec`       |
-| `--cursor` / `-c`  | Legacy alias for Cursor      |
-| `--claude`         | Legacy alias for Claude Code |
-| `--codex`          | Legacy alias for Codex CLI   |
-| `CURSOR_ENABLED=1` | Same as `--agent cursor`     |
-| `CLAUDE_ENABLED=1` | Same as `--agent claude`     |
-| `CODEX_ENABLED=1`  | Same as `--agent codex`      |
+| Mechanism           | Effect                       |
+| ------------------- | ---------------------------- |
+| (default)           | OpenCode                     |
+| `--agent opencode`  | OpenCode                     |
+| `--agent cursor`    | Cursor headless `agent` CLI  |
+| `--agent claude`    | Claude Code `claude -p`      |
+| `--agent codex`     | Codex CLI `codex exec`       |
+| `--agent copilot`   | GitHub Copilot CLI `copilot` |
+| `--cursor` / `-c`   | Legacy alias for Cursor      |
+| `--claude`          | Legacy alias for Claude Code |
+| `--codex`           | Legacy alias for Codex CLI   |
+| `--copilot`         | Legacy alias for Copilot CLI |
+| `CURSOR_ENABLED=1`  | Same as `--agent cursor`     |
+| `CLAUDE_ENABLED=1`  | Same as `--agent claude`     |
+| `CODEX_ENABLED=1`   | Same as `--agent codex`      |
+| `COPILOT_ENABLED=1` | Same as `--agent copilot`    |
 
 Top-level agent options apply to each supported subcommand, for example
 `dn --agent codex prep <issue-url>`. Explicit command-level aliases cannot be
@@ -105,6 +108,15 @@ only when no explicit CLI selection was provided.
 | ------------------ | ---------------------------------------------------- |
 | `OPENAI_API_KEY`   | API key used by Codex CLI when not already logged in |
 | `CODEX_TIMEOUT_MS` | Phase timeout (falls back to `OPENCODE_TIMEOUT_MS`)  |
+
+### Copilot-specific variables
+
+| Variable                | Purpose                                                  |
+| ----------------------- | -------------------------------------------------------- |
+| `COPILOT_GITHUB_TOKEN`  | Token used by Copilot CLI in headless environments       |
+| `COPILOT_TIMEOUT_MS`    | Phase timeout (falls back to `OPENCODE_TIMEOUT_MS`)      |
+| `COPILOT_ALLOWED_TOOLS` | Override default `--allow-tool` passed to Copilot CLI    |
+| `COPILOT_MODEL`         | Optional model name passed to Copilot CLI with `--model` |
 
 ## Exit codes
 

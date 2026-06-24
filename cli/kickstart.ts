@@ -184,7 +184,7 @@ function showHelp(): void {
   console.log("  --claude                  Use Claude Code CLI (`claude -p`)");
   console.log("  --codex                   Use Codex CLI (`codex exec`)");
   console.log(
-    "  --copilot                 Use GitHub Copilot CLI (`gh copilot suggest`)",
+    "  --copilot                 Use GitHub Copilot CLI (`copilot -p`)",
   );
   console.log("  --opencode                Use OpenCode CLI (default)");
   console.log(

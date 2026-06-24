@@ -6,22 +6,61 @@ import type { OpenCodeResult } from "./opencode.ts";
 import { formatElapsedTime, isTty, isUnattended, Spinner } from "./output.ts";
 
 const DN_PREFIX = "[dn] ";
+const DEFAULT_ALLOWED_TOOLS =
+  "write, shell(deno:*), shell(make:*), shell(sl:*)";
 
 /**
- * Executes the GitHub Copilot CLI (`gh copilot suggest`) with the specified
- * phase and prompt file.
+ * Options used to build a non-interactive GitHub Copilot CLI invocation.
+ */
+export interface CopilotExecOptions {
+  /** Tool permissions to pass to `--allow-tool`. */
+  allowedTools?: string;
+  /** Optional Copilot model name to pass to `--model`. */
+  model?: string;
+}
+
+/**
+ * Builds the GitHub Copilot CLI arguments for non-interactive agent execution.
  *
- * Uses `gh copilot suggest -t shell` to generate shell commands from the
- * combined prompt instruction. This provides a Copilot-driven suggestion
- * stream for plan and implement phases.
+ * @param promptInstruction - Initial Copilot prompt or instruction text
+ * @param options - Optional model and tool permission overrides
+ * @returns Arguments to pass after the `copilot` executable
+ */
+export function buildCopilotExecArgs(
+  promptInstruction: string,
+  options: CopilotExecOptions = {},
+): string[] {
+  const allowedTools = options.allowedTools?.trim() || DEFAULT_ALLOWED_TOOLS;
+  const args = [
+    "-p",
+    promptInstruction,
+    "-s",
+    "--no-ask-user",
+    `--allow-tool=${allowedTools}`,
+  ];
+  const model = options.model?.trim();
+  if (model) {
+    args.push("--model", model);
+  }
+  return args;
+}
+
+/**
+ * Executes the GitHub Copilot CLI (`copilot`) with the specified phase and
+ * prompt file.
+ *
+ * Uses `copilot -p` in silent, non-interactive mode so Copilot can run as an
+ * agent-backed workflow harness, matching the shape of the Cursor, Claude, and
+ * Codex integrations.
  *
  * **Prerequisites**
  *
- * - GitHub CLI (`gh`) must be installed and authenticated.
- * - The `gh copilot` extension must be installed (`gh extension install github/gh-copilot`).
+ * - GitHub Copilot CLI (`copilot`) must be installed and authenticated.
  *
  * **Environment**
  *
+ * - `COPILOT_ALLOWED_TOOLS` — overrides the default `--allow-tool` permissions.
+ * - `COPILOT_MODEL` — optional model name passed to `--model`.
  * - `COPILOT_TIMEOUT_MS` — phase timeout; falls back to `OPENCODE_TIMEOUT_MS`, then 10 minutes.
  *
  * @param phase - The phase to run ("plan" or "implement"); used for log/spinner text
@@ -29,8 +68,7 @@ const DN_PREFIX = "[dn] ";
  * @param workspaceRoot - Root directory of the workspace (cwd for the agent)
  * @param _useReadonlyConfig - Unused; Copilot has no plan vs implement config files
  * @returns Promise resolving to execution result with code, stdout, and stderr
- * @throws Error if `gh` is not installed, the `copilot` extension is missing,
- *               or the prompt path is invalid
+ * @throws Error if `copilot` is not installed or the prompt path is invalid
  */
 export async function runCopilotAgent(
   phase: "plan" | "implement",
@@ -39,33 +77,10 @@ export async function runCopilotAgent(
   _useReadonlyConfig?: boolean,
 ): Promise<OpenCodeResult> {
   try {
-    await $`which gh`.quiet();
+    await $`which copilot`.quiet();
   } catch {
     throw new Error(
-      "GitHub CLI (gh) not found. Install it from https://cli.github.com/ and authenticate with `gh auth login`.",
-    );
-  }
-
-  try {
-    const extCheck = await $`gh extension list`.quiet().stdout("piped");
-    if (
-      !extCheck.stdout.includes("gh-copilot") &&
-      !extCheck.stdout.includes("copilot")
-    ) {
-      throw new Error(
-        "gh copilot extension not found. Install it with: gh extension install github/gh-copilot",
-      );
-    }
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      (error.message.includes("gh copilot extension not found") ||
-        error.message.includes("GitHub CLI"))
-    ) {
-      throw error;
-    }
-    throw new Error(
-      "gh copilot extension not found. Install it with: gh extension install github/gh-copilot",
+      "GitHub Copilot CLI (copilot) not found. Install it from https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli and authenticate with `copilot login`.",
     );
   }
 
@@ -133,8 +148,12 @@ export async function runCopilotAgent(
 
   const promptInstruction =
     `Read and execute the instructions in this file: ${absolutePromptPath}`;
+  const copilotArgs = buildCopilotExecArgs(promptInstruction, {
+    allowedTools: Deno.env.get("COPILOT_ALLOWED_TOOLS"),
+    model: Deno.env.get("COPILOT_MODEL"),
+  });
 
-  const copilotCommand = $`gh copilot suggest -t shell ${promptInstruction}`
+  const copilotCommand = $`copilot ${copilotArgs}`
     .cwd(workspaceRoot)
     .noThrow()
     .stdout("piped")

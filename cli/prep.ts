@@ -53,6 +53,7 @@ function parseArgs(
   let cursorFlag = false;
   let claudeFlag = false;
   let codexFlag = false;
+  let copilotFlag = false;
   let opencodeFlag = false;
   let allowCrossRepo = false;
 
@@ -74,6 +75,8 @@ function parseArgs(
       claudeFlag = true;
     } else if (arg === "--codex") {
       codexFlag = true;
+    } else if (arg === "--copilot") {
+      copilotFlag = true;
     } else if (arg === "--opencode") {
       opencodeFlag = true;
     } else if (arg === "--allow-cross-repo") {
@@ -99,6 +102,7 @@ function parseArgs(
     cursorFlag,
     claudeFlag,
     codexFlag,
+    copilotFlag,
     opencodeFlag,
   });
 
@@ -158,6 +162,9 @@ function showHelp(): void {
     "  --codex                   Use Codex CLI instead of opencode",
   );
   console.log(
+    "  --copilot                 Use GitHub Copilot CLI (`copilot -p`)",
+  );
+  console.log(
     "  --opencode                Use OpenCode CLI (default)",
   );
   console.log(
@@ -181,7 +188,10 @@ function showHelp(): void {
   console.log(
     "  CLAUDE_ENABLED            Set to '1' to use Claude Code (not with CURSOR_ENABLED)\n",
   );
-  console.log("  CODEX_ENABLED             Set to '1' to use Codex CLI\n");
+  console.log("  CODEX_ENABLED             Set to '1' to use Codex CLI");
+  console.log(
+    "  COPILOT_ENABLED           Set to '1' to use GitHub Copilot CLI\n",
+  );
   console.log("Examples:");
   console.log("  # Run plan phase with opencode");
   console.log("  dn prep https://github.com/owner/repo/issues/123");

@@ -15,7 +15,7 @@ import { runOpenCode } from "./opencode.ts";
  * - `cursor` — Cursor headless `agent` CLI
  * - `claude` — Anthropic Claude Code CLI (`claude -p`)
  * - `codex` — OpenAI Codex CLI (`codex exec`)
- * - `copilot` — GitHub Copilot CLI (`gh copilot suggest`)
+ * - `copilot` — GitHub Copilot CLI (`copilot -p`)
  */
 export type AgentHarness =
   | "opencode"
@@ -32,6 +32,55 @@ export const AGENT_HARNESSES: readonly AgentHarness[] = [
   "codex",
   "copilot",
 ];
+
+/** Individual harness flag toggles parsed from CLI arguments. */
+export interface AgentHarnessFlagSet {
+  cursorFlag: boolean;
+  claudeFlag: boolean;
+  codexFlag: boolean;
+  copilotFlag: boolean;
+  opencodeFlag: boolean;
+}
+
+/**
+ * Returns an empty agent flag set (all flags false).
+ */
+export function emptyAgentHarnessFlags(): AgentHarnessFlagSet {
+  return {
+    cursorFlag: false,
+    claudeFlag: false,
+    codexFlag: false,
+    copilotFlag: false,
+    opencodeFlag: false,
+  };
+}
+
+/**
+ * Detects legacy per-command agent flags in a CLI argument list.
+ *
+ * Scans every token; flags may appear anywhere among subcommand arguments.
+ *
+ * @param args - Subcommand arguments (not including the subcommand name)
+ */
+export function parseAgentHarnessFlagsFromArgs(
+  args: readonly string[],
+): AgentHarnessFlagSet {
+  const flags = emptyAgentHarnessFlags();
+  for (const arg of args) {
+    if (arg === "--cursor" || arg === "-c") {
+      flags.cursorFlag = true;
+    } else if (arg === "--claude") {
+      flags.claudeFlag = true;
+    } else if (arg === "--codex") {
+      flags.codexFlag = true;
+    } else if (arg === "--copilot") {
+      flags.copilotFlag = true;
+    } else if (arg === "--opencode") {
+      flags.opencodeFlag = true;
+    }
+  }
+  return flags;
+}
 
 /**
  * Function type for running a plan or implement phase against a combined prompt file.

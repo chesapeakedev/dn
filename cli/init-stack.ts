@@ -8,7 +8,10 @@ import {
   type Milestone,
 } from "../sdk/github/milestone.ts";
 import { runScoring } from "../kickstart/score.ts";
-import { resolveAgentHarnessFromFlagsAndEnv } from "../sdk/github/agentHarness.ts";
+import {
+  parseAgentHarnessFlagsFromArgs,
+  resolveAgentHarnessFromFlagsAndEnv,
+} from "../sdk/github/agentHarness.ts";
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
 import { stringifyFrontmatter } from "../sdk/todo/frontmatter.ts";
 import {
@@ -69,7 +72,20 @@ function showHelp(): void {
   console.log(
     "  --yes                         Approve destructive overwrite without prompting",
   );
-  console.log("  --help, -h                    Show this help message\n");
+  console.log("  --help, -h                    Show this help message");
+  console.log(
+    "  --cursor, -c                  Use Cursor headless agent for issue scoring",
+  );
+  console.log(
+    "  --claude                      Use Claude Code CLI for issue scoring",
+  );
+  console.log("  --codex                       Use Codex CLI for issue scoring");
+  console.log(
+    "  --copilot                     Use GitHub Copilot CLI for issue scoring",
+  );
+  console.log(
+    "  --opencode                    Use OpenCode CLI for issue scoring (default)\n",
+  );
   console.log("Examples:");
   console.log("  dn init stack 42");
   console.log(
@@ -471,8 +487,7 @@ export async function handleInitStack(
 
   const agentHarness = resolveAgentHarnessFromFlagsAndEnv({
     agent: globalAgent,
-    cursorFlag: false,
-    claudeFlag: false,
+    ...parseAgentHarnessFlagsFromArgs(args),
   });
 
   console.log("Scoring issues for kickstart readiness...");

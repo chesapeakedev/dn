@@ -29,7 +29,26 @@ Deno.test("meld command shows help", async () => {
     assert(result.stdout.includes("--output"));
     assert(result.stdout.includes("--target"));
     assert(result.stdout.includes("--dry-run"));
+    assert(result.stdout.includes("--copilot"));
     assert(result.success);
+  } finally {
+    await cleanupTestRepo(testRepo);
+  }
+});
+
+Deno.test("meld --copilot conflicts with other agent flags", async () => {
+  const testRepo = await createTestRepo();
+
+  try {
+    const result = await runDnCommand(
+      ["meld", "--copilot", "--cursor", "doc.md"],
+      {
+        cwd: testRepo.path,
+        expectFailure: true,
+      },
+    );
+
+    assert(result.stderr.includes("Conflicting agent flags"));
   } finally {
     await cleanupTestRepo(testRepo);
   }

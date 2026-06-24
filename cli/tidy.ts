@@ -22,7 +22,10 @@ import {
   type TodoItem,
   writeTodoList,
 } from "../sdk/todo/todo.ts";
-import { resolveAgentHarnessFromFlagsAndEnv } from "../sdk/github/agentHarness.ts";
+import {
+  parseAgentHarnessFlagsFromArgs,
+  resolveAgentHarnessFromFlagsAndEnv,
+} from "../sdk/github/agentHarness.ts";
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
 
 function promptYesNo(message: string): boolean {
@@ -48,6 +51,11 @@ export async function handleTidy(
     );
     console.log("Options:");
     console.log("  --limit <n>   Max issues to fetch (default: 5)");
+    console.log("  --cursor, -c  Use Cursor headless agent for issue scoring");
+    console.log("  --claude      Use Claude Code CLI for issue scoring");
+    console.log("  --codex       Use Codex CLI for issue scoring");
+    console.log("  --copilot     Use GitHub Copilot CLI for issue scoring");
+    console.log("  --opencode    Use OpenCode CLI for issue scoring (default)");
     console.log("  --help, -h    Show this help");
     return;
   }
@@ -90,8 +98,7 @@ export async function handleTidy(
 
   const agentHarness = resolveAgentHarnessFromFlagsAndEnv({
     agent: globalAgent,
-    cursorFlag: false,
-    claudeFlag: false,
+    ...parseAgentHarnessFlagsFromArgs(args),
   });
   const scoring = await runScoring(
     workspaceRoot,

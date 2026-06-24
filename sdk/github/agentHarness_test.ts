@@ -4,8 +4,27 @@
 import { assertEquals, assertThrows } from "@std/assert";
 import {
   parseAgentHarness,
+  parseAgentHarnessFlagsFromArgs,
   resolveAgentHarnessFromFlagsAndEnv,
 } from "./agentHarness.ts";
+
+Deno.test("parseAgentHarnessFlagsFromArgs detects subcommand agent flags", () => {
+  assertEquals(
+    parseAgentHarnessFlagsFromArgs([
+      "prep",
+      "--update-issue",
+      "--copilot",
+      "123",
+    ]),
+    {
+      cursorFlag: false,
+      claudeFlag: false,
+      codexFlag: false,
+      copilotFlag: true,
+      opencodeFlag: false,
+    },
+  );
+});
 
 Deno.test("parseAgentHarness accepts codex", () => {
   assertEquals(parseAgentHarness("codex"), "codex");

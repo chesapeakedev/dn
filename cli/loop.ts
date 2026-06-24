@@ -258,6 +258,7 @@ function parseArgs(
   let cursorFlag = false;
   let claudeFlag = false;
   let codexFlag = false;
+  let copilotFlag = false;
   let opencodeFlag = false;
   let workspaceRoot: string | undefined = undefined;
   let allowCrossRepo = false;
@@ -274,6 +275,8 @@ function parseArgs(
       claudeFlag = true;
     } else if (arg === "--codex") {
       codexFlag = true;
+    } else if (arg === "--copilot") {
+      copilotFlag = true;
     } else if (arg === "--opencode") {
       opencodeFlag = true;
     } else if (arg === "--workspace-root" && i + 1 < args.length) {
@@ -302,6 +305,7 @@ function parseArgs(
     cursorFlag,
     claudeFlag,
     codexFlag,
+    copilotFlag,
     opencodeFlag,
   });
 
@@ -341,6 +345,7 @@ function showHelp(): void {
   console.log("  --cursor, -c             Use Cursor headless agent");
   console.log("  --claude                 Use Claude Code CLI");
   console.log("  --codex                  Use Codex CLI");
+  console.log("  --copilot                Use GitHub Copilot CLI (`copilot -p`)");
   console.log("  --opencode               Use OpenCode CLI (default)");
   console.log("  --workspace-root <path>  Workspace root directory");
   console.log("  --help, -h               Show this help message\n");

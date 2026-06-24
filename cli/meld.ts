@@ -12,6 +12,10 @@ import type { KickstartConfig } from "../kickstart/lib.ts";
 import { runMeldPhase } from "../kickstart/lib.ts";
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
 import {
+  parseAgentHarnessFlagsFromArgs,
+  resolveAgentHarnessFromFlagsAndEnv,
+} from "../sdk/github/agentHarness.ts";
+import {
   deduplicateBlocks,
   ensureAcceptanceCriteriaSection,
   type MeldMode,
@@ -20,11 +24,11 @@ import {
   resolveSource,
 } from "../sdk/mod.ts";
 
-function meldModeToAgentHarness(mode: MeldMode): AgentHarness {
-  if (mode === "cursor") {
+function agentHarnessToMeldMode(harness: AgentHarness): MeldMode {
+  if (harness === "cursor") {
     return "cursor";
   }
-  if (mode === "claude") {
+  if (harness === "claude") {
     return "claude";
   }
   return "opencode";
@@ -50,9 +54,6 @@ async function parseArgs(
 ): Promise<MeldArgs> {
   let listPath: string | null = null;
   let outputPath: string | null = null;
-  let mode: MeldMode = "opencode";
-  let explicitAgent: AgentHarness | null = null;
-  let agentOnlyFlag = false;
   let planName: string | null = null;
   let workspaceRoot: string | undefined = undefined;
   let target: string | null = null;
@@ -88,18 +89,11 @@ async function parseArgs(
       autoYes = true;
     } else if (arg === "--allow-cross-repo") {
       allowCrossRepo = true;
-    } else if (arg === "--cursor" || arg === "-c") {
-      mode = "cursor";
-      explicitAgent = "cursor";
-    } else if (arg === "--claude") {
-      mode = "claude";
-      explicitAgent = "claude";
-    } else if (arg === "--opencode") {
-      mode = "opencode";
-      explicitAgent = "opencode";
-    } else if (arg === "--codex") {
-      explicitAgent = "codex";
-      agentOnlyFlag = true;
+    } else if (
+      arg === "--cursor" || arg === "-c" || arg === "--claude" ||
+      arg === "--opencode" || arg === "--codex" || arg === "--copilot"
+    ) {
+      // Agent flags are resolved after the loop via parseAgentHarnessFlagsFromArgs.
     } else if (arg === "--help" || arg === "-h") {
       showHelp();
       Deno.exit(0);
@@ -122,14 +116,11 @@ async function parseArgs(
     }
   }
 
-  if (globalAgent && agentOnlyFlag && explicitAgent !== globalAgent) {
-    throw new Error(
-      `Conflicting agent selections: --agent ${globalAgent} and --${explicitAgent}. Select only one agent.`,
-    );
-  }
-
-  const agentHarness = globalAgent ?? explicitAgent ??
-    meldModeToAgentHarness(mode);
+  const agentHarness = resolveAgentHarnessFromFlagsAndEnv({
+    agent: globalAgent,
+    ...parseAgentHarnessFlagsFromArgs(args),
+  });
+  const mode = agentHarnessToMeldMode(agentHarness);
 
   return {
     sources,
@@ -193,6 +184,9 @@ function showHelp(): void {
   console.log("  --claude                  Claude planner harness");
   console.log(
     "  --codex                   Codex planner harness",
+  );
+  console.log(
+    "  --copilot                 GitHub Copilot CLI (`copilot -p`)",
   );
   console.log(
     "  --opencode                Opencode planner harness (default)",
