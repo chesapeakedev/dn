@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ObsidianClient } from "@chesapeake/obsidian-gql";
-import type { IssueData } from "./issue.ts";
 import { getCurrentRepoFromRemote, getDefaultBranch } from "./github-gql.ts";
+import type { IssueData } from "./issue.ts";
 import { resolveGitHubToken } from "./token.ts";
 
 const GET_REPOSITORY_ID_QUERY = `
