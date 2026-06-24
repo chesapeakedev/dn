@@ -239,8 +239,28 @@ export async function addToTodoList(
 }
 
 /**
- * Prompts "Add this plan to your todo? (y/n)" and, on y, appends the items via addToTodoList.
- * Use after prep or loop to optionally add the plan to the todo list.
+ * Formats the interactive prompt for queueing work in ~/.dn/todo.md.
+ */
+export function formatTodoQueuePrompt(
+  items: Omit<TodoItem, "checked">[],
+): string {
+  const todoPath = getTodoPath();
+  const formatItem = (item: Omit<TodoItem, "checked">): string =>
+    item.title ? `\`${item.ref}\` ("${item.title}")` : `\`${item.ref}\``;
+
+  if (items.length === 1) {
+    return `Queue ${
+      formatItem(items[0])
+    } in ${todoPath} for future dn kickstart sessions? (y/n): `;
+  }
+
+  const lines = items.map((item) => `  - ${formatItem(item)}`).join("\n");
+  return `Queue these items in ${todoPath} for future dn kickstart sessions?\n${lines}\n(y/n): `;
+}
+
+/**
+ * Prompts to queue items in ~/.dn/todo.md and, on confirmation, appends via addToTodoList.
+ * Use after prep or loop to optionally add a plan or issue for a later kickstart run.
  *
  * @returns true if the user confirmed and items were added, false otherwise.
  */
@@ -248,7 +268,7 @@ export async function promptAndAddToTodoList(
   items: Omit<TodoItem, "checked">[],
   options?: { repo?: string; updated?: string },
 ): Promise<boolean> {
-  const answer = prompt("Add this plan to your todo? (y/n): ")?.trim()
+  const answer = prompt(formatTodoQueuePrompt(items))?.trim()
     .toLowerCase();
   if (answer !== "y" && answer !== "yes") return false;
   await addToTodoList(items, options);

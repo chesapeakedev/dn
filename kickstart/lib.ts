@@ -46,7 +46,8 @@ import {
   checkMeldMarkdownOutput,
   type MeldNonPlanMarkdownKind,
 } from "../sdk/meld/validate.ts";
-import { createCursorRule, generateAgentsMd } from "./artifacts.ts";
+import { createCursorRule } from "./artifacts.ts";
+import { completionStatusFromPlanContent } from "./planCompletion.ts";
 import {
   formatError,
   formatInfo,
@@ -758,55 +759,7 @@ export async function checkAcceptanceCriteriaCompletion(
 }> {
   try {
     const content = await Deno.readTextFile(planFilePath);
-
-    // Find the Acceptance Criteria section
-    const acceptanceCriteriaMatch = content.match(
-      /^##\s+Acceptance\s+Criteria\s*$/mi,
-    );
-    if (!acceptanceCriteriaMatch) {
-      // No acceptance criteria section found
-      return {
-        complete: false,
-        total: 0,
-        completed: 0,
-        incomplete: [],
-      };
-    }
-
-    // Extract content from Acceptance Criteria section to end of file or next H2
-    const startIndex = acceptanceCriteriaMatch.index! +
-      acceptanceCriteriaMatch[0].length;
-    const restOfContent = content.slice(startIndex);
-
-    // Find the next H2 section (##) or end of file
-    const nextSectionMatch = restOfContent.match(/^##\s+/m);
-    const acceptanceCriteriaContent = nextSectionMatch
-      ? restOfContent.slice(0, nextSectionMatch.index)
-      : restOfContent;
-
-    // Parse checkboxes: `- [ ]` (incomplete) and `- [x]` (complete)
-    const checkboxPattern = /^-\s+\[([\sx])\]\s+(.+)$/gm;
-    const checkboxes: Array<{ completed: boolean; text: string }> = [];
-    let match;
-
-    while ((match = checkboxPattern.exec(acceptanceCriteriaContent)) !== null) {
-      const isCompleted = match[1].toLowerCase() === "x";
-      const text = match[2].trim();
-      checkboxes.push({ completed: isCompleted, text });
-    }
-
-    const total = checkboxes.length;
-    const completed = checkboxes.filter((cb) => cb.completed).length;
-    const incomplete = checkboxes
-      .filter((cb) => !cb.completed)
-      .map((cb) => cb.text);
-
-    return {
-      complete: total > 0 && completed === total,
-      total,
-      completed,
-      incomplete,
-    };
+    return completionStatusFromPlanContent(content);
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) {
       return {
@@ -1449,48 +1402,6 @@ export async function runLoopPhase(
     // Step 6: Generate artifacts
     console.log(`\n${formatStep(6, "Generating workspace artifacts...")}`);
     try {
-      let existingAgentsMd: string | undefined;
-      try {
-        existingAgentsMd = await Deno.readTextFile(
-          `${workspaceRoot}/AGENTS.md`,
-        );
-      } catch {
-        // AGENTS.md doesn't exist, that's fine
-      }
-
-      const wasNewFile = !existingAgentsMd;
-      const agentsMdContent = await generateAgentsMd(
-        workspaceRoot,
-        existingAgentsMd,
-      );
-      await Deno.writeTextFile(
-        `${workspaceRoot}/AGENTS.md`,
-        agentsMdContent,
-      );
-      console.log(formatSuccess("Updated AGENTS.md with project guidelines"));
-
-      if (wasNewFile) {
-        console.log(
-          `\n${formatInfo("AGENTS.md has been created for this repository.")}`,
-        );
-        console.log(
-          formatInfo("   This file is crucial for agentic coding workflows:"),
-        );
-        console.log(
-          formatInfo(
-            "   - It provides essential context to AI agents about your project",
-          ),
-        );
-        console.log(
-          formatInfo("   - It documents build, lint, and test commands"),
-        );
-        console.log(
-          formatInfo(
-            "   - It includes instructions for using kickstart as a subagent",
-          ),
-        );
-      }
-
       if (config.agentHarness === "cursor") {
         await createCursorRule(workspaceRoot);
         console.log(

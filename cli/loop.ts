@@ -509,24 +509,27 @@ export async function handleLoop(
       console.log(`\nContinuation prompt: ${result.continuationPromptPath}`);
     }
 
-    let title: string | undefined;
-    try {
-      const planContent = await Deno.readTextFile(effectivePlanFilePath);
-      const titleMatch = planContent.match(/^#\s+(.+)$/m);
-      title = titleMatch ? titleMatch[1].trim() : undefined;
-    } catch {
-      title = undefined;
+    const { completionStatus } = result;
+    if (completionStatus.total > 0 && !completionStatus.complete) {
+      let title: string | undefined;
+      try {
+        const planContent = await Deno.readTextFile(effectivePlanFilePath);
+        const titleMatch = planContent.match(/^#\s+(.+)$/m);
+        title = titleMatch ? titleMatch[1].trim() : undefined;
+      } catch {
+        title = undefined;
+      }
+      const repo = await getCurrentRepoFromRemote().then(
+        (r) => `${r.owner}/${r.repo}`,
+      ).catch(() => undefined);
+      await promptAndAddToTodoList(
+        [{ ref: explicitIssueUrl ?? effectivePlanFilePath, title }],
+        {
+          repo,
+          updated: new Date().toISOString().slice(0, 10),
+        },
+      );
     }
-    const repo = await getCurrentRepoFromRemote().then(
-      (r) => `${r.owner}/${r.repo}`,
-    ).catch(() => undefined);
-    await promptAndAddToTodoList(
-      [{ ref: explicitIssueUrl ?? effectivePlanFilePath, title }],
-      {
-        repo,
-        updated: new Date().toISOString().slice(0, 10),
-      },
-    );
 
     Deno.exit(0);
   } catch (error) {

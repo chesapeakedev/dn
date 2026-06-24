@@ -441,7 +441,7 @@ dn kickstart <issue_url>
 
 - Kickstart runs opencode in two phases: plan (read-only) and implement
 - It automatically includes AGENTS.md and deno.json (or package.json) in prompts
-- After implementation, it updates AGENTS.md and runs linting
+- After implementation, it runs linting
 - It can create branches, commit changes, and open draft PRs (AWP mode)
 
 ### Workflow
@@ -449,7 +449,7 @@ dn kickstart <issue_url>
 1. **Plan Phase**: Kickstart analyzes the issue and creates an implementation plan (read-only)
 2. **Implement Phase**: Kickstart applies the changes to the codebase
 3. **Linting**: Kickstart runs linting to improve code quality
-4. **Artifacts**: Kickstart updates AGENTS.md with project guidelines
+4. **Artifacts**: Kickstart may create Cursor integration files when configured
 5. **VCS** (AWP mode): Kickstart creates branch, commits, and opens draft PR
 
 ### Managing GitHub Issues

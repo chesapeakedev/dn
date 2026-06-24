@@ -29,7 +29,10 @@ import { createPR } from "../sdk/github/github.ts";
 import type { PRPlanSummary } from "../sdk/github/github.ts";
 import { createCursorRule } from "./artifacts.ts";
 import { formatSummary } from "../sdk/archive/format.ts";
-import { extractPlanSummary } from "./lib.ts";
+import {
+  checkAcceptanceCriteriaCompletion,
+  extractPlanSummary,
+} from "./lib.ts";
 import type { PlanSummary } from "./lib.ts";
 import {
   formatError,
@@ -354,84 +357,6 @@ async function checkPlanFile(planFilePath: string): Promise<boolean> {
       throw new Error(
         `Plan file not found at ${planFilePath}. Plan phase must create a plan file with all required sections.`,
       );
-    }
-    throw error;
-  }
-}
-
-/**
- * Checks the completion status of acceptance criteria in a plan file.
- *
- * @param planFilePath - Path to the plan file
- * @returns Promise resolving to completion status with metrics
- */
-async function checkAcceptanceCriteriaCompletion(
-  planFilePath: string,
-): Promise<{
-  complete: boolean;
-  total: number;
-  completed: number;
-  incomplete: string[];
-}> {
-  try {
-    const content = await Deno.readTextFile(planFilePath);
-
-    // Find the Acceptance Criteria section
-    const acceptanceCriteriaMatch = content.match(
-      /^##\s+Acceptance\s+Criteria\s*$/mi,
-    );
-    if (!acceptanceCriteriaMatch) {
-      // No acceptance criteria section found
-      return {
-        complete: false,
-        total: 0,
-        completed: 0,
-        incomplete: [],
-      };
-    }
-
-    // Extract content from Acceptance Criteria section to end of file or next H2
-    const startIndex = acceptanceCriteriaMatch.index! +
-      acceptanceCriteriaMatch[0].length;
-    const restOfContent = content.slice(startIndex);
-
-    // Find the next H2 section (##) or end of file
-    const nextSectionMatch = restOfContent.match(/^##\s+/m);
-    const acceptanceCriteriaContent = nextSectionMatch
-      ? restOfContent.slice(0, nextSectionMatch.index)
-      : restOfContent;
-
-    // Parse checkboxes: `- [ ]` (incomplete) and `- [x]` (complete)
-    const checkboxPattern = /^-\s+\[([\sx])\]\s+(.+)$/gm;
-    const checkboxes: Array<{ completed: boolean; text: string }> = [];
-    let match;
-
-    while ((match = checkboxPattern.exec(acceptanceCriteriaContent)) !== null) {
-      const isCompleted = match[1].toLowerCase() === "x";
-      const text = match[2].trim();
-      checkboxes.push({ completed: isCompleted, text });
-    }
-
-    const total = checkboxes.length;
-    const completed = checkboxes.filter((cb) => cb.completed).length;
-    const incomplete = checkboxes
-      .filter((cb) => !cb.completed)
-      .map((cb) => cb.text);
-
-    return {
-      complete: total > 0 && completed === total,
-      total,
-      completed,
-      incomplete,
-    };
-  } catch (error) {
-    if (error instanceof Deno.errors.NotFound) {
-      return {
-        complete: false,
-        total: 0,
-        completed: 0,
-        incomplete: [],
-      };
     }
     throw error;
   }
