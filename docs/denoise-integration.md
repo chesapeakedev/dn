@@ -15,6 +15,7 @@ under `.github/workflows/`.
 | `dn.prep_issue_plan` | `repository_dispatch`           | `.github/workflows/dn-prep-issue-plan.yml` |
 | `dn.kickstart_issue` | `repository_dispatch`           | `.github/workflows/dn-kickstart-issue.yml` |
 | `dn.daily_kickstart` | `schedule`, `workflow_dispatch` | `.github/workflows/dn-daily-kickstart.yml` |
+| `dn.todo_loop`       | `schedule`, `workflow_dispatch` | `.github/workflows/dn-todo-loop.yml`       |
 
 The machine-readable contract is `templates/workflows/manifest.json`. Each entry
 includes the template version, source path, install path, checksum, required

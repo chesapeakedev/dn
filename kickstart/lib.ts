@@ -1352,7 +1352,7 @@ export async function runLoopPhase(
         console.log(
           `\n${
             formatInfo(
-              "To continue this work, run: dn loop --plan-file " +
+              "To continue this work, run: dn loop " +
                 planFilePath.replace(workspaceRoot + "/", "") + "",
             )
           }`,

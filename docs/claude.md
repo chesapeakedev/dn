@@ -19,7 +19,7 @@ in print mode (`claude -p`), including GitHub Actions patterns.
 ```bash
 dn --agent claude kickstart https://github.com/owner/repo/issues/123
 dn --agent claude prep https://github.com/owner/repo/issues/123
-dn --agent claude loop --plan-file plans/issue-123.plan.md
+dn --agent claude loop plans/issue-123.plan.md
 dn --agent claude fixup https://github.com/owner/repo/pull/123
 dn meld a.md b.md --claude
 ```

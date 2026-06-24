@@ -9,7 +9,7 @@
  * Usage:
  *   dn kickstart <issue_url_or_number>    # Full kickstart workflow
  *   dn prep <issue_url_or_number>          # Plan phase only
- *   dn loop --plan-file <path>   # Loop phase only
+ *   dn loop <plan-file-or-issue>  # Loop phase only
  */
 
 import { handleArchive } from "./archive.ts";

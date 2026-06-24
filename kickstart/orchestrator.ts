@@ -1043,7 +1043,7 @@ export async function runOrchestrator(
           console.log(
             `\n${
               formatInfo(
-                "To continue this work, run: dn loop --plan-file " +
+                "To continue this work, run: dn loop " +
                   finalPlanFilePath.replace(WORKSPACE_ROOT + "/", "") + "",
               )
             }`,

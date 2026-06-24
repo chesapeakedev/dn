@@ -209,7 +209,7 @@ For batch processing, use the CLI outside OpenCode:
 ```bash
 for issue in 101 102 103; do
   dn prep $issue
-  dn loop --plan-file plans/issue-$issue.plan.md
+  dn loop plans/issue-$issue.plan.md
   dn archive plans/issue-$issue.plan.md
 done
 ```

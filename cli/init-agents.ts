@@ -98,7 +98,7 @@ dn <subcommand> -h    # help for a specific subcommand
 \`\`\`bash
 dn kickstart <issue-url-or-number>         # Full plan + implement workflow
 dn prep <issue-url-or-number>              # Plan phase only
-dn loop --plan-file plans/task.plan.md     # Implement from an existing plan
+dn loop plans/task.plan.md                 # Implement from an existing plan
 dn fixup <pull-request-url>                # Address PR review feedback
 dn meld a.md b.md --plan-name merged       # Merge sources, then run prep
 dn init stack 42                           # Create a milestone task stack
@@ -135,7 +135,7 @@ Prefer these commands over ad-hoc GitHub scripts:
 dn issue show <ref>
 dn issue comment <ref> --body-file update.md
 dn prep <issue-url-or-number>
-dn loop --plan-file plans/task.plan.md
+dn loop plans/task.plan.md
 dn kickstart <issue-url-or-number>
 dn fixup <pull-request-url>
 dn sync
@@ -347,7 +347,7 @@ Use the command that matches the stage of work:
 \`\`\`bash
 dn kickstart <issue-url-or-number>         # Full plan + implement workflow
 dn prep <issue-url-or-number>              # Plan phase only
-dn loop --plan-file plans/task.plan.md     # Implement from an existing plan
+dn loop plans/task.plan.md                 # Implement from an existing plan
 dn fixup <pull-request-url>                # Address PR review feedback
 dn meld a.md b.md --plan-name merged       # Merge sources, then run prep
 \`\`\`

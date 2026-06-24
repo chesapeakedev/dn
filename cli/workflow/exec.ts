@@ -216,6 +216,23 @@ export function resolveWorkflowArguments(
     ];
   }
 
+  if (workflowId === "dn.todo_loop") {
+    if (eventName !== "schedule" && eventName !== "workflow_dispatch") {
+      throw new WorkflowExecError(
+        "event_mismatch",
+        `dn.todo_loop does not support event ${eventName}`,
+      );
+    }
+    const inputs = event.inputs === undefined
+      ? {}
+      : requireRecord(event.inputs, "inputs");
+    const planFile = requireNonEmptyString(
+      inputs.plan_file || env.DN_TODO_PLAN_PATH || "plans/todo.plan.md",
+      "plan_file",
+    );
+    return [...prefix, "loop", planFile];
+  }
+
   if (eventName !== "repository_dispatch") {
     throw new WorkflowExecError(
       "event_mismatch",

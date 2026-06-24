@@ -138,6 +138,30 @@ Deno.test("resolveWorkflowArguments uses scheduled milestone environment", () =>
   );
 });
 
+Deno.test("resolveWorkflowArguments maps todo loop workflow dispatch input", () => {
+  assertEquals(
+    resolveWorkflowArguments(
+      "dn.todo_loop",
+      "workflow_dispatch",
+      { inputs: { plan_file: "plans/team.plan.md" } },
+      "opencode",
+    ),
+    ["--agent", "opencode", "loop", "plans/team.plan.md"],
+  );
+});
+
+Deno.test("resolveWorkflowArguments uses default todo loop plan path", () => {
+  assertEquals(
+    resolveWorkflowArguments(
+      "dn.todo_loop",
+      "schedule",
+      {},
+      "codex",
+    ),
+    ["--agent", "codex", "loop", "plans/todo.plan.md"],
+  );
+});
+
 Deno.test("renderWorkflowSummary highlights and escapes validation failures", () => {
   const summary = renderWorkflowSummary({
     workflowId: "dn.kickstart_issue",

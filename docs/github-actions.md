@@ -58,6 +58,10 @@ item:
 dn --agent <configured> kickstart --awp --milestone <milestone> --once
 ```
 
+`dn init workflows` also installs `.github/workflows/dn-todo-loop.yml`, a daily
+workflow that runs `dn loop plans/todo.plan.md`. The workflow has a manual
+`workflow_dispatch` input for overriding the plan file path.
+
 See [Denoise integration](denoise-integration.md) for payload schemas,
 permissions, secrets, and versioning details.
 

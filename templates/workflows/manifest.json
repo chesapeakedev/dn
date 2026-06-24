@@ -143,6 +143,40 @@
         "optional": ["milestone", "validate_only"]
       },
       "compatibility_notes": "Requires .github/dn/config.json and a committed plans/{owner}_{repo}_{milestone}.stack.md from dn init stack. Runs dn kickstart --publish pr --milestone <milestone> --once and commits stack progress to the default branch."
+    },
+    {
+      "id": "dn.todo_loop",
+      "version": "1.0.0",
+      "source_path": "templates/workflows/dn-todo-loop.yml",
+      "install_path": ".github/workflows/dn-todo-loop.yml",
+      "checksum": "sha256:b4f163d32465db8331237662855601b03fd37070fd6cbc428c2cb72c34ba3f7e",
+      "latest_version": "1.0.0",
+      "deprecated": false,
+      "deprecation_message": null,
+      "minimum_dn_version": "0.0.31",
+      "permissions": {
+        "contents": "write",
+        "issues": "write"
+      },
+      "required_secrets": [],
+      "optional_secrets": [
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "CURSOR_API_KEY"
+      ],
+      "triggers": {
+        "repository_dispatch": [],
+        "workflow_dispatch": true,
+        "schedule": ["0 9 * * *"],
+        "labels": [],
+        "comments": []
+      },
+      "payload_schema_version": "1.0",
+      "payload": {
+        "required": [],
+        "optional": ["plan_file", "validate_only"]
+      },
+      "compatibility_notes": "Requires .github/dn/config.json and a plans/todo.plan.md file. Runs dn loop <path> to iterate on the todo list. Schedule defaults to daily at 09:00 UTC."
     }
   ]
 }

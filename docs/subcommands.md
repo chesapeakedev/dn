@@ -191,6 +191,9 @@ Installs canonical dn GitHub Actions workflows plus repo agent configuration:
 - `.github/workflows/dn-*.yml` — dispatch and scheduled workflows
 - `.github/dn/config.json` — preferred agent for all dn workflows in this repo
 
+The installed templates include `.github/workflows/dn-todo-loop.yml`, a daily
+todo-loop workflow for `plans/todo.plan.md` that can also be triggered manually.
+
 Choose your agent once (same value for every dispatch):
 
 ```bash
@@ -584,22 +587,26 @@ Runs only the loop phase (steps 4–7: implement, completion, lint, artifacts,
 validate):
 
 ```bash
-dn loop --plan-file plans/issue-123.plan.md
+dn loop plans/issue-123.plan.md
+dn loop https://github.com/owner/repo/issues/123
+dn loop 123
 
 # Or via environment variable
 PLAN=plans/issue-123.plan.md dn loop
 
 # With Cursor integration
-dn --agent cursor loop --plan-file plans/issue-123.plan.md
+dn --agent cursor loop plans/issue-123.plan.md
 
 # With Claude Code
-dn --agent claude loop --plan-file plans/issue-123.plan.md
+dn --agent claude loop plans/issue-123.plan.md
 
 # With Codex CLI
-dn --agent codex loop --plan-file plans/issue-123.plan.md
+dn --agent codex loop plans/issue-123.plan.md
 ```
 
-`dn loop` requires a plan file created by `dn prep`.
+`dn loop` requires an existing plan created by `dn prep`. When you pass an issue
+URL or issue number, `dn` searches `plans/` for a matching plan instead of
+falling back to an unrelated local plan.
 
 ## `dn meld` — Merge sources and run contextual planning
 
