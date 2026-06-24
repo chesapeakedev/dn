@@ -28,7 +28,10 @@ import {
   prepareVcsForKickstart,
 } from "../sdk/github/vcs.ts";
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
-import { getRunAgent } from "../sdk/github/agentHarness.ts";
+import {
+  formatAgentHarnessName,
+  getRunAgent,
+} from "../sdk/github/agentHarness.ts";
 import type { PublishMode } from "../sdk/github/publish.ts";
 import { isUnattended } from "../sdk/github/output.ts";
 import { augmentOpenCodePlanEditPermission } from "../sdk/github/opencode.ts";
@@ -988,7 +991,14 @@ export async function runMeldPhase(
       }
     }
 
-    console.log(formatStep(3, "Running plan phase (read-only)..."));
+    console.log(
+      formatStep(
+        3,
+        `Running ${
+          formatAgentHarnessName(config.agentHarness)
+        } for plan phase (read-only)...`,
+      ),
+    );
 
     const promptFilename = meldTargetSystemPromptFile(parsedTarget.kind);
 
@@ -1178,7 +1188,16 @@ export async function runLoopPhase(
 
   try {
     // Step 4: Implement Phase
-    console.log(`\n${formatStep(4, "Running implement phase...")}`);
+    console.log(
+      `\n${
+        formatStep(
+          4,
+          `Running ${
+            formatAgentHarnessName(config.agentHarness)
+          } for implement phase...`,
+        )
+      }`,
+    );
 
     // Load implement system prompt
     let implementSystemPromptPathFinal: string;
@@ -1697,7 +1716,14 @@ export async function fillEmptyIssueSections(
     }
 
     // Step 3: Load system prompt and run LLM
-    console.log(formatStep(3, "Running LLM to fill empty sections..."));
+    console.log(
+      formatStep(
+        3,
+        `Running ${
+          formatAgentHarnessName(agentHarness)
+        } to fill empty sections...`,
+      ),
+    );
 
     // Create temp directory for this run
     const tmpDir = await Deno.makeTempDir({ prefix: "geo-prep-" });

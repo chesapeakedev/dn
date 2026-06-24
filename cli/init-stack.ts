@@ -79,7 +79,9 @@ function showHelp(): void {
   console.log(
     "  --claude                      Use Claude Code CLI for issue scoring",
   );
-  console.log("  --codex                       Use Codex CLI for issue scoring");
+  console.log(
+    "  --codex                       Use Codex CLI for issue scoring",
+  );
   console.log(
     "  --copilot                     Use GitHub Copilot CLI for issue scoring",
   );

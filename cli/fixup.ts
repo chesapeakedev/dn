@@ -15,7 +15,10 @@ import {
   parsePullRequestUrl,
 } from "../sdk/github/github-gql.ts";
 import type { PRReview, PullRequestData } from "../sdk/github/github-gql.ts";
-import { getRunAgent } from "../sdk/github/agentHarness.ts";
+import {
+  formatAgentHarnessName,
+  getRunAgent,
+} from "../sdk/github/agentHarness.ts";
 import { resolveAgentHarnessFromFlagsAndEnv } from "../sdk/github/agentHarness.ts";
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
 import { detectVcs } from "../sdk/github/vcs.ts";
@@ -109,7 +112,9 @@ function showHelp(): void {
   console.log("  --cursor, -c             Use Cursor headless agent");
   console.log("  --claude                 Use Claude Code CLI (`claude -p`)");
   console.log("  --codex                  Use Codex CLI (`codex exec`)");
-  console.log("  --copilot                Use GitHub Copilot CLI (`copilot -p`)");
+  console.log(
+    "  --copilot                Use GitHub Copilot CLI (`copilot -p`)",
+  );
   console.log("  --opencode               Use OpenCode CLI (default)");
   console.log("  --workspace-root <path>  Workspace root directory");
   console.log("  --help, -h               Show this help message\n");
@@ -512,7 +517,14 @@ export async function handleFixup(
     console.log(formatSuccess(`Plan file created: ${planFilePath}`));
 
     // Step 5: Run implement phase
-    console.log(formatStep(5, "Running fixup implementation..."));
+    console.log(
+      formatStep(
+        5,
+        `Running ${
+          formatAgentHarnessName(config.agentHarness)
+        } for fixup implementation...`,
+      ),
+    );
 
     // Load fixup system prompt
     let fixupSystemPromptPath: string;

@@ -33,6 +33,28 @@ export const AGENT_HARNESSES: readonly AgentHarness[] = [
   "copilot",
 ];
 
+/**
+ * Returns the human-readable CLI or product name for an agent harness.
+ *
+ * @param harness - Selected agent backend
+ * @returns Display name suitable for user-facing status output
+ */
+export function formatAgentHarnessName(harness: AgentHarness): string {
+  if (harness === "cursor") {
+    return "Cursor headless agent";
+  }
+  if (harness === "claude") {
+    return "Claude Code";
+  }
+  if (harness === "codex") {
+    return "Codex CLI";
+  }
+  if (harness === "copilot") {
+    return "GitHub Copilot CLI";
+  }
+  return "OpenCode";
+}
+
 /** Individual harness flag toggles parsed from CLI arguments. */
 export interface AgentHarnessFlagSet {
   cursorFlag: boolean;

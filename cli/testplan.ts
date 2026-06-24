@@ -21,6 +21,7 @@ import {
 } from "../sdk/github/github-gql.ts";
 import {
   type AgentHarness,
+  formatAgentHarnessName,
   getRunAgent,
   resolveAgentHarnessFromFlagsAndEnv,
 } from "../sdk/github/agentHarness.ts";
@@ -28,6 +29,7 @@ import {
   normalizeTestPlanSection,
   upsertTestPlanSection,
 } from "../sdk/testplan/section.ts";
+import { formatInfo } from "../kickstart/output.ts";
 import { isAbsolute, join } from "@std/path";
 
 const GITHUB_ISSUE_URL =
@@ -126,7 +128,9 @@ function showHelp(): void {
   console.log("  --cursor, -c             Use Cursor headless agent");
   console.log("  --claude                 Use Claude Code CLI");
   console.log("  --codex                  Use Codex CLI");
-  console.log("  --copilot                Use GitHub Copilot CLI (`copilot -p`)");
+  console.log(
+    "  --copilot                Use GitHub Copilot CLI (`copilot -p`)",
+  );
   console.log("  --opencode               Use OpenCode CLI (default)");
   console.log("  --help, -h               Show this help message\n");
   console.log("Examples:");
@@ -256,6 +260,14 @@ async function generateTestPlanSection(
     issueContextPath,
     undefined,
     existingPlanContent,
+  );
+
+  console.log(
+    formatInfo(
+      `Running ${
+        formatAgentHarnessName(config.agentHarness)
+      } to generate test plan...`,
+    ),
   );
 
   const runAgent = getRunAgent(config.agentHarness);

@@ -23,7 +23,10 @@ import {
   writeGithubActionVcsOutputs,
 } from "../sdk/github/publish.ts";
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
-import { getRunAgent } from "../sdk/github/agentHarness.ts";
+import {
+  formatAgentHarnessName,
+  getRunAgent,
+} from "../sdk/github/agentHarness.ts";
 import { assembleCombinedPrompt } from "../sdk/github/prompt.ts";
 import { createPR } from "../sdk/github/github.ts";
 import type { PRPlanSummary } from "../sdk/github/github.ts";
@@ -726,7 +729,14 @@ export async function runOrchestrator(
     }
 
     // Step 3: Plan Phase
-    console.log(formatStep(3, "Running plan phase (read-only)..."));
+    console.log(
+      formatStep(
+        3,
+        `Running ${
+          formatAgentHarnessName(config.agentHarness)
+        } for plan phase (read-only)...`,
+      ),
+    );
 
     // Load plan system prompt (from included file or file system)
     let planSystemPromptPathFinal: string;
@@ -820,7 +830,16 @@ export async function runOrchestrator(
     console.log(formatSuccess("Plan phase completed successfully"));
 
     // Step 4: Implement Phase
-    console.log(`\n${formatStep(4, "Running implement phase...")}`);
+    console.log(
+      `\n${
+        formatStep(
+          4,
+          `Running ${
+            formatAgentHarnessName(config.agentHarness)
+          } for implement phase...`,
+        )
+      }`,
+    );
 
     // Load implement system prompt (from included file or file system)
     let implementSystemPromptPathFinal: string;

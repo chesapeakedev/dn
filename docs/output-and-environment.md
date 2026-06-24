@@ -9,7 +9,7 @@ branding) and how to control it via environment variables and global flags.
 `dn`:
 
 - Does not show spinners; uses one-line progress (e.g.
-  `[dn] Step 3: Running plan phase...` then `[dn] Step 3 done (12s).`).
+  `[dn] Step 3: Running OpenCode for plan phase (read-only)...`).
 - Uses minimal decoration and ASCII-friendly markers (`[OK]`, `[WARN]`,
   `[ERROR]`) instead of emoji so CI logs stay readable.
 - Never blocks on interactive prompts; uses env or defaults.
@@ -64,6 +64,9 @@ from `dn`. Step and status lines use a consistent style, e.g.:
 When delegating to OpenCode, Cursor, or Claude Code, `dn` streams their output
 unchanged; you may see a short `[dn]` progress line before or after the
 delegated output.
+
+Agent-backed phase lines name the selected harness directly, e.g.
+`[dn] Step 3: Running GitHub Copilot CLI to fill empty sections...`.
 
 ## Agent harness selection
 

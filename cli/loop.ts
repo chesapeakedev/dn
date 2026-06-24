@@ -345,7 +345,9 @@ function showHelp(): void {
   console.log("  --cursor, -c             Use Cursor headless agent");
   console.log("  --claude                 Use Claude Code CLI");
   console.log("  --codex                  Use Codex CLI");
-  console.log("  --copilot                Use GitHub Copilot CLI (`copilot -p`)");
+  console.log(
+    "  --copilot                Use GitHub Copilot CLI (`copilot -p`)",
+  );
   console.log("  --opencode               Use OpenCode CLI (default)");
   console.log("  --workspace-root <path>  Workspace root directory");
   console.log("  --help, -h               Show this help message\n");

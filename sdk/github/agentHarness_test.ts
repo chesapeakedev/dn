@@ -3,6 +3,7 @@
 
 import { assertEquals, assertThrows } from "@std/assert";
 import {
+  formatAgentHarnessName,
   parseAgentHarness,
   parseAgentHarnessFlagsFromArgs,
   resolveAgentHarnessFromFlagsAndEnv,
@@ -28,6 +29,14 @@ Deno.test("parseAgentHarnessFlagsFromArgs detects subcommand agent flags", () =>
 
 Deno.test("parseAgentHarness accepts codex", () => {
   assertEquals(parseAgentHarness("codex"), "codex");
+});
+
+Deno.test("formatAgentHarnessName returns user-facing harness names", () => {
+  assertEquals(formatAgentHarnessName("opencode"), "OpenCode");
+  assertEquals(formatAgentHarnessName("cursor"), "Cursor headless agent");
+  assertEquals(formatAgentHarnessName("claude"), "Claude Code");
+  assertEquals(formatAgentHarnessName("codex"), "Codex CLI");
+  assertEquals(formatAgentHarnessName("copilot"), "GitHub Copilot CLI");
 });
 
 Deno.test("parseAgentHarness rejects unknown agents", () => {
