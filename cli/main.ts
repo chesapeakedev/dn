@@ -149,6 +149,13 @@ function parseGlobalFlags(
         );
       }
       agent = "codex";
+    } else if (a === "--copilot") {
+      if (agent && agent !== "copilot") {
+        throw new Error(
+          `Conflicting agent selections: ${agent} and copilot. Select only one agent.`,
+        );
+      }
+      agent = "copilot";
     } else {
       rest.push(...args.slice(i));
       break;
@@ -192,12 +199,13 @@ function showUsage(): void {
   console.error("  dn [global options] <subcommand> [options]\n");
   console.error("Global options:");
   console.error(
-    "  --agent <agent>   Agent to use for agent-backed workflows (opencode, cursor, claude, codex)",
+    "  --agent <agent>   Agent to use for agent-backed workflows (opencode, cursor, claude, codex, copilot)",
   );
   console.error("  --opencode        Alias for --agent opencode");
   console.error("  --cursor          Alias for --agent cursor");
   console.error("  --claude          Alias for --agent claude");
   console.error("  --codex           Alias for --agent codex");
+  console.error("  --copilot         Alias for --agent copilot");
   console.error("  --unattended      Disable interactive output affordances");
   console.error("  --no-color        Disable color output");
   console.error("  --color           Force color output\n");

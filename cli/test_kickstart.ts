@@ -618,6 +618,45 @@ Deno.test(
   },
 );
 
+Deno.test("kickstart --copilot flag appears in help output", async () => {
+  const testRepo = await createTestRepo();
+
+  try {
+    const result = await runDnCommand(["kickstart", "--help"], {
+      cwd: testRepo.path,
+    });
+    assert(result.stdout.includes("--copilot"));
+    assert(result.stdout.includes("copilot"));
+    assert(result.success);
+  } finally {
+    await cleanupTestRepo(testRepo);
+  }
+});
+
+Deno.test("kickstart --copilot conflicts with other agent flags", async () => {
+  const testRepo = await createTestRepo();
+
+  try {
+    const result = await runDnCommand(
+      [
+        "kickstart",
+        "--copilot",
+        "--cursor",
+        "https://github.com/owner/repo/issues/1",
+        "--dry-run",
+      ],
+      {
+        cwd: testRepo.path,
+        expectFailure: true,
+      },
+    );
+
+    assert(result.stderr.includes("Conflicting agent flags"));
+  } finally {
+    await cleanupTestRepo(testRepo);
+  }
+});
+
 Deno.test(
   "kickstart --once rejects combined issue argument",
   async () => {

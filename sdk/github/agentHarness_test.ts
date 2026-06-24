@@ -43,22 +43,37 @@ Deno.test("resolveAgentHarnessFromFlagsAndEnv rejects conflicting explicit selec
   );
 });
 
-Deno.test("resolveAgentHarnessFromFlagsAndEnv supports CODEX_ENABLED", () => {
-  const previous = Deno.env.get("CODEX_ENABLED");
+Deno.test("parseAgentHarness accepts copilot", () => {
+  assertEquals(parseAgentHarness("copilot"), "copilot");
+});
+
+Deno.test("resolveAgentHarnessFromFlagsAndEnv supports copilot flag", () => {
+  assertEquals(
+    resolveAgentHarnessFromFlagsAndEnv({
+      cursorFlag: false,
+      claudeFlag: false,
+      copilotFlag: true,
+    }),
+    "copilot",
+  );
+});
+
+Deno.test("resolveAgentHarnessFromFlagsAndEnv supports COPILOT_ENABLED", () => {
+  const previous = Deno.env.get("COPILOT_ENABLED");
   try {
-    Deno.env.set("CODEX_ENABLED", "1");
+    Deno.env.set("COPILOT_ENABLED", "1");
     assertEquals(
       resolveAgentHarnessFromFlagsAndEnv({
         cursorFlag: false,
         claudeFlag: false,
       }),
-      "codex",
+      "copilot",
     );
   } finally {
     if (previous === undefined) {
-      Deno.env.delete("CODEX_ENABLED");
+      Deno.env.delete("COPILOT_ENABLED");
     } else {
-      Deno.env.set("CODEX_ENABLED", previous);
+      Deno.env.set("COPILOT_ENABLED", previous);
     }
   }
 });

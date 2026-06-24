@@ -3,6 +3,7 @@
 
 import { runClaudeAgent } from "./claudeAgent.ts";
 import { runCodexAgent } from "./codexAgent.ts";
+import { runCopilotAgent } from "./copilotAgent.ts";
 import { runCursorAgent } from "./cursorAgent.ts";
 import type { OpenCodeResult } from "./opencode.ts";
 import { runOpenCode } from "./opencode.ts";
@@ -14,8 +15,14 @@ import { runOpenCode } from "./opencode.ts";
  * - `cursor` — Cursor headless `agent` CLI
  * - `claude` — Anthropic Claude Code CLI (`claude -p`)
  * - `codex` — OpenAI Codex CLI (`codex exec`)
+ * - `copilot` — GitHub Copilot CLI (`gh copilot suggest`)
  */
-export type AgentHarness = "opencode" | "cursor" | "claude" | "codex";
+export type AgentHarness =
+  | "opencode"
+  | "cursor"
+  | "claude"
+  | "codex"
+  | "copilot";
 
 /** All supported agent harness identifiers. */
 export const AGENT_HARNESSES: readonly AgentHarness[] = [
@@ -23,6 +30,7 @@ export const AGENT_HARNESSES: readonly AgentHarness[] = [
   "cursor",
   "claude",
   "codex",
+  "copilot",
 ];
 
 /**
@@ -50,6 +58,9 @@ export function getRunAgent(harness: AgentHarness): RunAgentFn {
   }
   if (harness === "codex") {
     return runCodexAgent;
+  }
+  if (harness === "copilot") {
+    return runCopilotAgent;
   }
   return runOpenCode;
 }
@@ -81,6 +92,7 @@ export function parseAgentHarness(value: string): AgentHarness {
  * @param options.cursorFlag - True if `--cursor` or `-c` was passed
  * @param options.claudeFlag - True if `--claude` was passed
  * @param options.codexFlag - True if `--codex` was passed
+ * @param options.copilotFlag - True if `--copilot` was passed
  * @param options.opencodeFlag - True if `--opencode` was passed
  * @returns Resolved harness (default `opencode`)
  * @throws Error if conflicting flags or env vars are set
@@ -90,6 +102,7 @@ export function resolveAgentHarnessFromFlagsAndEnv(options: {
   cursorFlag: boolean;
   claudeFlag: boolean;
   codexFlag?: boolean;
+  copilotFlag?: boolean;
   opencodeFlag?: boolean;
 }): AgentHarness {
   const flagSelections: AgentHarness[] = [];
@@ -104,6 +117,9 @@ export function resolveAgentHarnessFromFlagsAndEnv(options: {
   }
   if (options.codexFlag) {
     flagSelections.push("codex");
+  }
+  if (options.copilotFlag) {
+    flagSelections.push("copilot");
   }
 
   const uniqueFlagSelections = [...new Set(flagSelections)];
@@ -140,6 +156,9 @@ export function resolveAgentHarnessFromFlagsAndEnv(options: {
   }
   if (Deno.env.get("CODEX_ENABLED") === "1") {
     envSelections.push("codex");
+  }
+  if (Deno.env.get("COPILOT_ENABLED") === "1") {
+    envSelections.push("copilot");
   }
 
   const uniqueEnvSelections = [...new Set(envSelections)];

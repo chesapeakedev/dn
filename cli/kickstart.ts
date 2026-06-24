@@ -76,6 +76,7 @@ function parseArgs(
   let cursorFlag = false;
   let claudeFlag = false;
   let codexFlag = false;
+  let copilotFlag = false;
   let opencodeFlag = false;
   let allowCrossRepo = false;
   let savedPlanName: string | null = null;
@@ -96,6 +97,8 @@ function parseArgs(
       claudeFlag = true;
     } else if (arg === "--codex") {
       codexFlag = true;
+    } else if (arg === "--copilot") {
+      copilotFlag = true;
     } else if (arg === "--opencode") {
       opencodeFlag = true;
     } else if (arg === "--allow-cross-repo") {
@@ -131,6 +134,7 @@ function parseArgs(
     cursorFlag,
     claudeFlag,
     codexFlag,
+    copilotFlag,
     opencodeFlag,
   });
 
@@ -179,6 +183,9 @@ function showHelp(): void {
   console.log("  --cursor, -c              Use Cursor headless agent");
   console.log("  --claude                  Use Claude Code CLI (`claude -p`)");
   console.log("  --codex                   Use Codex CLI (`codex exec`)");
+  console.log(
+    "  --copilot                 Use GitHub Copilot CLI (`gh copilot suggest`)",
+  );
   console.log("  --opencode                Use OpenCode CLI (default)");
   console.log(
     "  --milestone <url-or-num>  Use milestone-linked stack file (plans/{owner}_{repo}_{milestone}.stack.md)",
@@ -205,6 +212,9 @@ function showHelp(): void {
     "  CLAUDE_ENABLED           Set to '1' to use Claude Code (not with CURSOR_ENABLED)\n",
   );
   console.log("  CODEX_ENABLED            Set to '1' to use Codex CLI\n");
+  console.log(
+    "  COPILOT_ENABLED          Set to '1' to use GitHub Copilot CLI\n",
+  );
   console.log("Examples:");
   console.log("  dn kickstart https://github.com/owner/repo/issues/123");
   console.log("  dn kickstart 123");
