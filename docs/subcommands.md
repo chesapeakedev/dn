@@ -581,6 +581,29 @@ Cross-repository operations follow the same rules as `dn kickstart` — use
 `--allow-cross-repo` to plan issues from a different repository. The plan file
 path is printed for use with `dn loop`.
 
+## `dn testplan` — Add a concise test checklist
+
+Generates a short `## Test Plan` section after reading a plan file or GitHub
+issue and investigating the codebase. The section is amended into the input
+artifact: local plan files are edited in place, and GitHub issue URLs update the
+issue body.
+
+```bash
+dn testplan plans/issue-123.plan.md
+dn testplan https://github.com/owner/repo/issues/123
+
+# Preview the generated section without writing it
+dn testplan plans/issue-123.plan.md --dry-run
+
+# With Codex CLI
+dn --agent codex testplan plans/issue-123.plan.md
+```
+
+`dn testplan` intentionally produces a compact checklist, not a second
+implementation plan. The generated section targets 5-10 bullets and is capped at
+12 bullets. If the work needs a longer test plan, the command should add a short
+split recommendation instead of expanding the checklist.
+
 ## `dn loop` — Loop phase only
 
 Runs only the loop phase (steps 4–7: implement, completion, lint, artifacts,

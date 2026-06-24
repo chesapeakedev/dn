@@ -83,6 +83,7 @@ import { handleTodo } from "./todo.ts";
 import { handleTidy } from "./tidy.ts";
 import { handleRelease } from "./release.ts";
 import { handleSync } from "./sync.ts";
+import { handleTestPlan } from "./testplan.ts";
 
 /**
  * Parses global flags from args and returns bootstrap options plus remaining args.
@@ -247,6 +248,9 @@ function showUsage(): void {
     "  fixup        Address PR feedback locally (fetch comments, plan, implement)",
   );
   console.error(
+    "  testplan     Add a concise test checklist to a plan file or GitHub issue",
+  );
+  console.error(
     "  glance       Project velocity overview",
   );
   console.error(
@@ -348,6 +352,9 @@ async function main(): Promise<void> {
       break;
     case "fixup":
       await handleFixup(subcommandArgs, globalAgent);
+      break;
+    case "testplan":
+      await handleTestPlan(subcommandArgs, globalAgent);
       break;
     case "meld":
       await handleMeld(subcommandArgs, globalAgent);
