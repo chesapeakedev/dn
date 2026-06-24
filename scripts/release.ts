@@ -14,11 +14,13 @@ export interface CommitEntry {
 
 interface ReleaseOptions {
   dryRun: boolean;
+  previousReleaseVersion?: string;
   version?: string;
 }
 
 function parseArgs(args: string[]): ReleaseOptions {
   let dryRun = false;
+  let previousReleaseVersion: string | undefined;
   let version: string | undefined;
 
   for (let index = 0; index < args.length; index++) {
@@ -30,6 +32,13 @@ function parseArgs(args: string[]): ReleaseOptions {
       if (!version) {
         throw new Error("--version requires a semantic version");
       }
+    } else if (arg === "--previous-release-version") {
+      previousReleaseVersion = args[++index];
+      if (!previousReleaseVersion) {
+        throw new Error(
+          "--previous-release-version requires a semantic version",
+        );
+      }
     } else if (arg === "--help" || arg === "-h") {
       showHelp();
       Deno.exit(0);
@@ -38,7 +47,7 @@ function parseArgs(args: string[]): ReleaseOptions {
     }
   }
 
-  return { dryRun, version };
+  return { dryRun, previousReleaseVersion, version };
 }
 
 function showHelp(): void {
@@ -49,6 +58,9 @@ function showHelp(): void {
   );
   console.log("\nOptions:");
   console.log("  --version <version>  Release an explicit semantic version");
+  console.log(
+    "  --previous-release-version <version>  Use an explicit prior release boundary",
+  );
   console.log("  --dry-run            Show the release without changing files");
 }
 
@@ -157,6 +169,14 @@ export function validateReleaseVersion(
   return releaseVersion;
 }
 
+export function validateSemanticVersion(version: string): string {
+  const semanticVersion = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+  if (!semanticVersion.test(version)) {
+    throw new Error(`Invalid semantic version: ${version}`);
+  }
+  return version;
+}
+
 export function formatReleaseNotes(
   previousVersion: string,
   commits: CommitEntry[],
@@ -244,14 +264,17 @@ async function runRelease(options: ReleaseOptions): Promise<void> {
   const newVersion = options.version
     ? validateReleaseVersion(previousVersion, options.version)
     : bumpPatchVersion(previousVersion);
+  const previousReleaseVersion = options.previousReleaseVersion
+    ? validateSemanticVersion(options.previousReleaseVersion)
+    : previousVersion;
   const previousRelease = findPreviousReleaseCommit(
     await listAncestorCommits(),
-    previousVersion,
+    previousReleaseVersion,
   );
 
   if (!previousRelease) {
     throw new Error(
-      `Could not find an ancestor commit whose subject starts with ${previousVersion}`,
+      `Could not find an ancestor commit whose subject starts with ${previousReleaseVersion}`,
     );
   }
 

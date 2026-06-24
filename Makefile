@@ -132,5 +132,6 @@ bump_major:
 
 # Bump, validate, commit, push, and create the GitHub release.
 # Pass VERSION=x.y.z for an explicit version; the default is the next patch.
+# Pass PREVIOUS_RELEASE_VERSION=x.y.z to recover from a prior bad release label.
 release:
-	deno run --allow-read --allow-write --allow-run scripts/release.ts $(if $(VERSION),--version $(VERSION),)
+	deno run --allow-read --allow-write --allow-run scripts/release.ts $(if $(VERSION),--version $(VERSION),) $(if $(PREVIOUS_RELEASE_VERSION),--previous-release-version $(PREVIOUS_RELEASE_VERSION),)

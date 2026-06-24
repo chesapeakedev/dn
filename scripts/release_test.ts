@@ -9,6 +9,7 @@ import {
   formatReleaseNotes,
   parseSaplingLog,
   validateReleaseVersion,
+  validateSemanticVersion,
 } from "./release.ts";
 
 Deno.test("parseSaplingLog ignores watchman noise", () => {
@@ -69,6 +70,17 @@ Deno.test("validateReleaseVersion rejects invalid or older versions", () => {
   assertThrows(() => validateReleaseVersion("0.0.30", "0.0.30"));
   assertThrows(() => validateReleaseVersion("0.0.30", "0.0.29"));
   assertThrows(() => validateReleaseVersion("0.0.30", "0.01.0"));
+});
+
+Deno.test("validateSemanticVersion accepts semantic versions", () => {
+  assertEquals(validateSemanticVersion("0.31.0"), "0.31.0");
+  assertEquals(validateSemanticVersion("0.0.31"), "0.0.31");
+});
+
+Deno.test("validateSemanticVersion rejects invalid semantic versions", () => {
+  assertThrows(() => validateSemanticVersion("0.31"));
+  assertThrows(() => validateSemanticVersion("0.01.0"));
+  assertThrows(() => validateSemanticVersion("v0.31.0"));
 });
 
 Deno.test("formatReleaseNotes includes commit subjects", () => {
