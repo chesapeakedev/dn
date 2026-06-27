@@ -32,8 +32,9 @@ complete, mark off the corresponding checkbox
 - [ ] `dn kickstart` runs plan then implement phases in order
 - [ ] `dn prep` creates a plan file without running implementation
 - [ ] `dn loop` requires a valid plan file and fails if missing
-- [ ] `dn archive` derives a commit message from a plan file
-- [ ] `dn archive --yolo` commits and removes the plan file
+- [ ] `dn land --single` derives a commit message from a plan file
+- [ ] `dn land --single` commits and removes the plan file
+- [ ] `dn land` creates logical commits from plan context
 - [ ] `dn meld` correctly merges multiple markdown sources
 - [ ] `dn fixup` fetches PR context and prepares a local workflow
 

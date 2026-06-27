@@ -679,33 +679,41 @@ Flags mirror `dn prep`'s unattended behavior for agent harness selection; see
 `dn meld --help` for `--target`, `--overwrite`, `--dry-run`, `--yes`,
 `--workspace-root`, and planner selection options.
 
-## `dn archive` — Commit workspace with a plan-derived message
+## `dn land` — Commit completed work from plan context
 
-Use `dn archive` after a plan-backed task is complete and the workspace contains
-the changes you want in one commit. The command reads the plan file, derives a
-commit message from its title and overview, deletes the plan file, adds/removes
-workspace files, and commits the result.
-
-```bash
-dn archive plans/issue-123.plan.md
-```
-
-`dn archive` reviews the current workspace state at commit time. It does not
-require a staging step: in Sapling repositories it runs `sl addremove`; in Git
-repositories it runs `git add -A`. Any tracked or untracked workspace changes
-that are not ignored by the VCS can be included in the commit.
-
-Use `--dry-run` to preview the derived commit message without committing or
-deleting the plan file:
+Use `dn land` after a plan-backed task is complete and the workspace contains
+the changes you want to commit. Default mode discovers the plan file, uses an
+agent to group changes into logical commits with conventional-commit messages,
+and deletes the plan file on success.
 
 ```bash
-dn archive plans/issue-123.plan.md --dry-run
+dn land
+dn land plans/issue-123.plan.md
 ```
 
-If the commit step fails after the plan file is removed, `dn archive` attempts
-to restore the plan file before exiting with an error.
+Use `--single` for one deterministic commit (no agent): derives a message from
+the plan title and overview, adds/removes workspace files, and commits.
 
-See `dn archive --help` for all options.
+```bash
+dn land --single plans/issue-123.plan.md
+```
+
+`dn land --single` reviews the current workspace state at commit time. It does
+not require a staging step: in Sapling repositories it runs `sl addremove`; in
+Git repositories it runs `git add -A`.
+
+Use `--dry-run` to preview commit messages without committing or deleting plan
+files:
+
+```bash
+dn land plans/issue-123.plan.md --dry-run
+dn land --single plans/issue-123.plan.md --dry-run
+```
+
+If a commit step fails after a plan file is removed, `dn land` attempts to
+restore the plan file before exiting with an error.
+
+See `dn land --help` for all options.
 
 ## `dn fixup` — Address PR feedback
 

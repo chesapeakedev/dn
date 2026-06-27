@@ -121,7 +121,7 @@ Avoid one-letter variable names outside of very small scopes.
 _maintain parity with README.md_
 
 - **`cli/`** - CLI entry point, subcommand implementations (kickstart, prep,
-  loop, meld, archive)
+  loop, meld, land)
   - `kickstart.ts` - Entry point for kickstart CLI workflows
   - `prep.ts` - Workspace and repository preparation logic
   - `loop.ts` - Iterative execution and refinement workflows
@@ -204,7 +204,7 @@ $ dn loop
 $ dn meld
 
 # Archive completed artifacts or reports
-$ dn archive
+$ dn land
 
 # Create a new GitHub issue from a conversation
 $ dn issue create --title "Brief title" --body-file description.md

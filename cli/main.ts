@@ -12,7 +12,7 @@
  *   dn loop <plan-file-or-issue>  # Loop phase only
  */
 
-import { handleArchive } from "./archive.ts";
+import { handleLand } from "./land.ts";
 import { handleAuth } from "./auth.ts";
 import { handleContext } from "./context.ts";
 import { bootstrapFromEnv } from "./output.ts";
@@ -260,7 +260,7 @@ function showUsage(): void {
     "  meld         Merge markdown sources and route planner output (--target README/AGENTS/...)",
   );
   console.error(
-    "  archive      Commit workspace with a plan-derived message; --dry-run to preview",
+    "  land         Commit completed work from plan context; --single for one commit",
   );
   console.error(
     "  todo         Manage prioritized task list (~/.dn/todo.md); 'done' marks item and closes issue",
@@ -359,8 +359,8 @@ async function main(): Promise<void> {
     case "meld":
       await handleMeld(subcommandArgs, globalAgent);
       break;
-    case "archive":
-      await handleArchive(subcommandArgs);
+    case "land":
+      await handleLand(subcommandArgs, globalAgent);
       break;
     case "peek":
       await handlePeek(subcommandArgs);

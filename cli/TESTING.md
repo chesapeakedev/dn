@@ -18,7 +18,7 @@ cli/
 ├── test_loop.ts           # Tests for the loop subcommand
 ├── test_kickstart.ts      # Tests for the kickstart subcommand
 ├── test_meld.ts           # Tests for the meld subcommand
-├── test_archive.ts        # Tests for the archive subcommand
+├── test_land.ts           # Tests for the land subcommand
 └── main_test.ts           # Existing CLI tests
 ```
 
@@ -191,7 +191,7 @@ Deno.test("prep command fails without arguments", async () => {
 Test git-related functionality:
 
 ```typescript
-Deno.test("archive command commits workspace changes", async () => {
+Deno.test("land command commits workspace changes", async () => {
   const testRepo = await createProjectTestRepo();
 
   try {
@@ -202,9 +202,9 @@ Deno.test("archive command commits workspace changes", async () => {
     );
     await Deno.writeTextFile(`${testRepo.path}/plan.plan.md`, planContent);
 
-    // Run archive. No staging step is required; archive adds/removes workspace
+    // Run land --single. No staging step is required; land adds/removes workspace
     // files before committing.
-    await runDnCommand(["archive", "plan.plan.md"], {
+    await runDnCommand(["land", "--single", "plan.plan.md"], {
       cwd: testRepo.path,
     });
 

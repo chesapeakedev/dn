@@ -57,7 +57,7 @@ dn <subcommand> -h    # help for a specific subcommand
 
 ### Workflow lifecycle
 
-Use these in sequence: `prep` → `loop` → `meld` → `archive`.
+Use these in sequence: `prep` → `loop` → `meld` → `land`.
 
 | Subcommand     | Description                                                                                                                                                       |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -66,7 +66,7 @@ Use these in sequence: `prep` → `loop` → `meld` → `archive`.
 | `dn loop`      | Loop phase (steps 4-7). Implement, completion, lint, artifacts, validate. Requires a plan file.                                                                   |
 | `dn fixup`     | Address PR feedback. Fetches PR description + review comments, creates plan, implements fixes locally.                                                            |
 | `dn meld`      | Merge markdown sources + plan into DRY input. Supports `--target` (README.md, AGENTS.md, plans/, github:).                                                        |
-| `dn archive`   | Derive commit message from plan. `--yolo` to commit staged files + delete plan file.                                                                              |
+| `dn land`      | Commit completed work from plan context. `--single` for one deterministic commit.                                                                                 |
 
 ### GitHub issue management
 
@@ -137,8 +137,8 @@ dn loop
 # Combine or reconcile outputs from multiple iterations
 dn meld
 
-# Archive completed artifacts or reports
-dn archive --yolo
+# Land completed work from a plan
+dn land --single plans/my-feature.plan.md
 
 # Create a new GitHub issue from a conversation
 dn issue create --title "Brief title" --body-file description.md

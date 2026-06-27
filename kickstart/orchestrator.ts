@@ -1229,7 +1229,7 @@ export async function runOrchestrator(
       console.log(`\n${formatSuccess("Changes applied to workspace.")}`);
       console.log(
         formatInfo(
-          "You can now review the changes, create a branch, commit, and open a PR as needed.",
+          "Review the changes, then run `dn land` to create commits.",
         ),
       );
     }

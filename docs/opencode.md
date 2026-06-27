@@ -15,7 +15,7 @@ Four tools are available:
 - **`dn_prep`** - Create plan files from GitHub issues or local sources
 - **`dn_loop`** - Execute iterative development using plan files
 - **`dn_meld`** - Combine multiple sources into plan-ready documents
-- **`dn_archive`** - Derive commit messages and complete workflows
+- **`dn_land`** - Commit completed work from plan context
 
 ## Prerequisites
 
@@ -106,17 +106,20 @@ Combines multiple markdown sources into a single plan-ready document.
 /dn_meld sources=["docs/spec.md", "https://github.com/user/repo/issues/123"] output="combined.md"
 ```
 
-### dn_archive
+### dn_land
 
-Derives a commit message from a plan file, deletes the plan, and commits the
-current workspace. Use `dryRun=true` to preview the commit message without
-changing files or creating a commit.
+Commits completed implementation work using plan context. Default mode creates
+logical commits with conventional-commit messages. Use `single=true` for one
+deterministic commit (former archive behavior). Use `dryRun=true` to preview
+without committing.
 
-**Arguments:** `planFile` (required), `dryRun` (optional)
+**Arguments:** `planFile` (optional), `single` (optional), `dryRun` (optional)
 
 ```bash
-/dn_archive planFile="plans/feature-xyz.plan.md"
-/dn_archive planFile="plans/feature-xyz.plan.md" dryRun=true
+/dn_land
+/dn_land planFile="plans/feature-xyz.plan.md"
+/dn_land planFile="plans/feature-xyz.plan.md" single=true
+/dn_land planFile="plans/feature-xyz.plan.md" dryRun=true
 ```
 
 ## Best Practices
@@ -144,8 +147,8 @@ changing files or creating a commit.
    generated plan
 3. **Iterate with `dn_loop`**: Run multiple loop cycles as needed for complex
    features
-4. **Clean up with `dn_archive`**: Commit the completed workspace with a
-   plan-derived message and remove the plan file
+4. **Land with `dn_land`**: Commit the completed workspace and remove the plan
+   file
 
 ### Environment Variables
 
@@ -210,7 +213,7 @@ For batch processing, use the CLI outside OpenCode:
 for issue in 101 102 103; do
   dn prep $issue
   dn loop plans/issue-$issue.plan.md
-  dn archive plans/issue-$issue.plan.md
+  dn land --single plans/issue-$issue.plan.md
 done
 ```
 

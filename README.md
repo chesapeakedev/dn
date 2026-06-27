@@ -28,8 +28,8 @@ For in-depth documentation, check out
 - **Agent context auditing** — Identify oversized inherited `AGENTS.md` context
   with `dn context`
 - **Repository workflow automation** — Generate plan-derived commits with
-  `dn archive` and automate Git or Sapling lint, rebase, and publish workflows
-  with `dn sync`
+  `dn land` and automate Git or Sapling lint, rebase, and publish workflows with
+  `dn sync`
 - **GitHub integration** — Manage issues and run agentic GitHub Actions without
   leaving the CLI
 

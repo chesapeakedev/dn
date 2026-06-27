@@ -364,7 +364,7 @@ export type { OpenCodeResult } from "./github/opencode.ts";
 export { runOpenCode } from "./github/opencode.ts";
 
 // ============================================================================
-// Archive - Archive utilities
+// Archive - Commit message derivation and VCS commit helpers (used by land)
 // ============================================================================
 
 export { commitStaged, commitWorkspace } from "./archive/commit.ts";
@@ -375,6 +375,21 @@ export {
   wrapBody,
 } from "./archive/format.ts";
 export type { CommitMessage } from "./archive/derive.ts";
+
+// ============================================================================
+// Land - Post-implementation commit phase
+// ============================================================================
+
+export { discoverPlanFile, discoverTestPlanFile } from "./land/discover.ts";
+export { commitFiles, executeCommitPlan } from "./land/commit.ts";
+export {
+  extractLandJson,
+  formatCommitPlanPreview,
+  parseCommitPlan,
+} from "./land/parse.ts";
+export { runLandPhase } from "./land/run.ts";
+export { runLandSingle } from "./land/single.ts";
+export type { LandCommitGroup, LandCommitPlan } from "./land/types.ts";
 
 // ============================================================================
 // Meld - Meld utilities
