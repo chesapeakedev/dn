@@ -25,13 +25,24 @@ function normalizePath(path: string): string {
   return path.replace(/^\.\/+/, "");
 }
 
+function isOptionalBody(value: unknown): boolean {
+  return value === undefined || value === null || typeof value === "string";
+}
+
 function isLandCommitGroup(value: unknown): value is LandCommitGroup {
   if (typeof value !== "object" || value === null) return false;
   const obj = value as Record<string, unknown>;
   return Array.isArray(obj.files) &&
     obj.files.every((f) => typeof f === "string") &&
     typeof obj.summary === "string" &&
-    (obj.body === undefined || typeof obj.body === "string");
+    isOptionalBody(obj.body);
+}
+
+function normalizeBody(body: unknown): string | undefined {
+  if (body === undefined || body === null) return undefined;
+  if (typeof body !== "string") return undefined;
+  const trimmed = body.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 }
 
 /**
@@ -50,21 +61,24 @@ export function parseCommitPlan(
   }
 
   const plan: LandCommitPlan = [];
-  for (const item of parsed) {
-    if (!isLandCommitGroup(item)) {
+  for (let i = 0; i < parsed.length; i++) {
+    const rawItem = parsed[i];
+    if (!isLandCommitGroup(rawItem)) {
       throw new Error(
-        "Each commit must have files (string[]), summary (string), and optional body.",
+        `Commit ${
+          i + 1
+        } must have files (string[]), summary (string), and optional body (string, null, or omitted).`,
       );
     }
-    if (!CONVENTIONAL_COMMIT.test(item.summary)) {
+    if (!CONVENTIONAL_COMMIT.test(rawItem.summary)) {
       throw new Error(
-        `Commit summary must use conventional commits: ${item.summary}`,
+        `Commit summary must use conventional commits: ${rawItem.summary}`,
       );
     }
     plan.push({
-      files: item.files.map(normalizePath),
-      summary: item.summary.trim(),
-      body: item.body?.trim() || undefined,
+      files: rawItem.files.map(normalizePath),
+      summary: rawItem.summary.trim(),
+      body: normalizeBody((rawItem as { body?: unknown }).body),
     });
   }
 
