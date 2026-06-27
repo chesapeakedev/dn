@@ -11,6 +11,10 @@ You can pass **global flags** after any subcommand to control output style:
   decoration, ASCII-friendly status).
 - **`--no-color`** – Disable colors.
 - **`--color`** – Enable colors even when stdout is not a TTY.
+- **`--sandbox <none|docker|exe.dev>`** – Select sandbox provider for agent
+  workflows (`kickstart`, `loop`, `meld`). Omit the value to read
+  `sandbox.provider` from `.github/dn/config.json`. See
+  [Sandbox providers](sandbox.md).
 
 In CI, `dn` automatically sets `NO_COLOR` and runs in unattended mode. See
 [Output and environment](output-and-environment.md) for NO_COLOR, FORCE_COLOR,
@@ -51,6 +55,9 @@ dn kickstart --cursor https://github.com/owner/repo/issues/123
 
 # With Claude Code
 dn kickstart --claude https://github.com/owner/repo/issues/123
+
+# Docker sandbox (provisions container; phase 1 still runs agent on host)
+dn kickstart --sandbox docker https://github.com/owner/repo/issues/123
 ```
 
 ### Cross-Repository Operations

@@ -23,6 +23,13 @@ import {
   normalizeMarkdown,
   resolveSource,
 } from "../sdk/mod.ts";
+import type { SandboxFlagValue } from "../sdk/sandbox/resolve.ts";
+import {
+  extractSandboxFlag,
+  resolveSandboxFlagValue,
+} from "../sdk/sandbox/cli.ts";
+import { resolveSandboxConfig } from "../sdk/sandbox/resolve.ts";
+import { runWithSandboxLifecycle } from "../sdk/sandbox/lifecycle.ts";
 
 function agentHarnessToMeldMode(harness: AgentHarness): MeldMode {
   if (harness === "cursor") {
@@ -51,7 +58,8 @@ interface MeldArgs {
 async function parseArgs(
   args: string[],
   globalAgent: AgentHarness | null = null,
-): Promise<MeldArgs> {
+  globalSandbox: SandboxFlagValue | null = null,
+): Promise<MeldArgs & { sandboxFlag: SandboxFlagValue | null }> {
   let listPath: string | null = null;
   let outputPath: string | null = null;
   let planName: string | null = null;
@@ -63,8 +71,11 @@ async function parseArgs(
   let allowCrossRepo = false;
   const positionals: string[] = [];
 
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
+  const { sandbox: localSandbox, rest: flagArgs } = extractSandboxFlag(args);
+  const sandboxFlag = resolveSandboxFlagValue(globalSandbox, localSandbox);
+
+  for (let i = 0; i < flagArgs.length; i++) {
+    const arg = flagArgs[i];
     if (arg === "--list" || arg === "-l") {
       if (i + 1 < args.length) {
         listPath = args[++i];
@@ -134,6 +145,7 @@ async function parseArgs(
     dryRun,
     autoYes,
     allowCrossRepo,
+    sandboxFlag,
   };
 }
 
@@ -209,6 +221,7 @@ function showHelp(): void {
 export async function handleMeld(
   args: string[],
   globalAgent: AgentHarness | null = null,
+  globalSandbox: SandboxFlagValue | null = null,
 ): Promise<void> {
   const {
     sources,
@@ -222,7 +235,8 @@ export async function handleMeld(
     dryRun,
     autoYes,
     allowCrossRepo,
-  } = await parseArgs(args, globalAgent);
+    sandboxFlag,
+  } = await parseArgs(args, globalAgent, globalSandbox);
 
   if (sources.length === 0) {
     console.error(
@@ -284,14 +298,24 @@ export async function handleMeld(
       },
     };
 
-    const result = await runMeldPhase(ks);
+    const repoRoot = workspaceRoot ?? Deno.cwd();
+    const { provider, config: sandboxConfig } = await resolveSandboxConfig(
+      repoRoot,
+      sandboxFlag,
+    );
+    await runWithSandboxLifecycle(
+      { repoRoot, config: sandboxConfig, provider },
+      async () => {
+        const result = await runMeldPhase(ks);
 
-    if (result.publishedUrl) {
-      console.log(`\n${result.publishedUrl}`);
-    } else {
-      console.log(`\n${result.planFilePath}`);
-    }
-    Deno.exit(0);
+        if (result.publishedUrl) {
+          console.log(`\n${result.publishedUrl}`);
+        } else {
+          console.log(`\n${result.planFilePath}`);
+        }
+        Deno.exit(0);
+      },
+    );
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     Deno.exit(1);

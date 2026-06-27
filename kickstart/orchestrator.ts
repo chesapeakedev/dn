@@ -23,10 +23,7 @@ import {
   writeGithubActionVcsOutputs,
 } from "../sdk/github/publish.ts";
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
-import {
-  formatAgentHarnessName,
-  getRunAgent,
-} from "../sdk/github/agentHarness.ts";
+import { formatAgentHarnessName } from "../sdk/github/agentHarness.ts";
 import { assembleCombinedPrompt } from "../sdk/github/prompt.ts";
 import { createPR } from "../sdk/github/github.ts";
 import type { PRPlanSummary } from "../sdk/github/github.ts";
@@ -44,6 +41,11 @@ import {
   formatSuccess,
   formatWarning,
 } from "./output.ts";
+import {
+  getWorkspaceTmpDir,
+  isSandboxActive,
+  runAgentPhaseInSandbox,
+} from "../sdk/sandbox/mod.ts";
 import { $ } from "$dax";
 
 /**
@@ -529,12 +531,12 @@ async function _mergePlanFiles(
       ),
     );
 
-    const runMerge = getRunAgent(agentHarness);
-    const mergeResult = await runMerge(
+    const mergeResult = await runAgentPhaseInSandbox(
       "implement", // Use implement phase for write permissions
       combinedPromptMergePath,
       WORKSPACE_ROOT,
       false, // useReadonlyConfig = false (need write permissions)
+      agentHarness,
     );
 
     if (mergeResult.code !== 0) {
@@ -661,8 +663,15 @@ export async function runOrchestrator(
   // Ensure plans directory exists
   await ensurePlansDirectory(normalizedWorkspaceRoot);
 
-  // Create temp directory for this run
-  const tmpDir = await Deno.makeTempDir({ prefix: "geo-opencode-" });
+  // Create temp directory (workspace-relative when sandbox is active for visibility inside containers/VMs)
+  let tmpDir: string;
+  if (isSandboxActive()) {
+    const baseDir = getWorkspaceTmpDir(normalizedWorkspaceRoot);
+    await Deno.mkdir(baseDir, { recursive: true });
+    tmpDir = await Deno.makeTempDir({ dir: baseDir, prefix: "geo-opencode-" });
+  } else {
+    tmpDir = await Deno.makeTempDir({ prefix: "geo-opencode-" });
+  }
   const combinedPromptPlanPath = `${tmpDir}/combined_prompt_plan.txt`;
   const combinedPromptImplementPath = `${tmpDir}/combined_prompt_implement.txt`;
   const planOutputPath = `${tmpDir}/plan_output.txt`;
@@ -796,12 +805,12 @@ export async function runOrchestrator(
     );
 
     // Run plan phase (opencode, Cursor, or Claude Code per config)
-    const runPlan = getRunAgent(config.agentHarness);
-    const planResult = await runPlan(
+    const planResult = await runAgentPhaseInSandbox(
       "plan",
       combinedPromptPlanPath,
       WORKSPACE_ROOT,
       true, // useReadonlyConfig
+      config.agentHarness,
     );
 
     // Save plan output
@@ -885,12 +894,12 @@ export async function runOrchestrator(
     );
 
     // Run implement phase (opencode, Cursor, or Claude Code per config)
-    const runImplement = getRunAgent(config.agentHarness);
-    const implementResult = await runImplement(
+    const implementResult = await runAgentPhaseInSandbox(
       "implement",
       combinedPromptImplementPath,
       WORKSPACE_ROOT,
       false, // useReadonlyConfig
+      config.agentHarness,
     );
 
     // Save implement output
@@ -1044,51 +1053,83 @@ export async function runOrchestrator(
       `\n${formatStep(5, "Running linting to improve code quality...")}`,
     );
     try {
-      // Check for deno.json first
-      try {
-        await Deno.stat(`${WORKSPACE_ROOT}/deno.json`);
-        // Try deno task check
-        try {
-          await $`cd ${WORKSPACE_ROOT} && deno task check`.quiet();
-          console.log(formatSuccess("Linting passed (deno task check)"));
-        } catch {
-          // If task check fails, try individual commands
+      if (isSandboxActive()) {
+        const ctx = (await import("../sdk/sandbox/context.ts"))
+          .getCurrentSandboxContext();
+        if (ctx) {
           try {
-            await $`cd ${WORKSPACE_ROOT} && deno fmt`.quiet();
-            await $`cd ${WORKSPACE_ROOT} && deno lint`.quiet();
-            console.log(formatSuccess("Linting passed (deno fmt + lint)"));
-          } catch (lintError) {
-            console.warn(formatWarning("Linting found issues (non-blocking):"));
+            const lintResult = await ctx.runner.exec(
+              ctx.handle,
+              ["deno", "task", "check"],
+              { cwd: WORKSPACE_ROOT },
+            );
+            if (lintResult.code === 0) {
+              console.log(
+                formatSuccess("Linting passed (deno task check in sandbox)"),
+              );
+            } else {
+              console.warn(
+                formatWarning(
+                  "Linting found issues in sandbox (non-blocking):",
+                ),
+              );
+              console.warn(lintResult.stderr || lintResult.stdout);
+            }
+          } catch {
             console.warn(
-              lintError instanceof Error
-                ? lintError.message
-                : String(lintError),
+              formatWarning("Linting in sandbox failed (non-blocking)"),
             );
           }
         }
-      } catch {
-        // Not a Deno project, check for package.json
+      } else {
+        // Run lint on host
         try {
-          await Deno.stat(`${WORKSPACE_ROOT}/package.json`);
+          await Deno.stat(`${WORKSPACE_ROOT}/deno.json`);
           try {
-            await $`cd ${WORKSPACE_ROOT} && npm run lint`.quiet();
-            console.log(formatSuccess("Linting passed (npm run lint)"));
-          } catch (lintError) {
-            console.warn(formatWarning("Linting found issues (non-blocking):"));
-            console.warn(
-              lintError instanceof Error
-                ? lintError.message
-                : String(lintError),
-            );
+            await $`cd ${WORKSPACE_ROOT} && deno task check`.quiet();
+            console.log(formatSuccess("Linting passed (deno task check)"));
+          } catch {
+            try {
+              await $`cd ${WORKSPACE_ROOT} && deno fmt`.quiet();
+              await $`cd ${WORKSPACE_ROOT} && deno lint`.quiet();
+              console.log(formatSuccess("Linting passed (deno fmt + lint)"));
+            } catch (lintError) {
+              console.warn(
+                formatWarning("Linting found issues (non-blocking):"),
+              );
+              console.warn(
+                lintError instanceof Error
+                  ? lintError.message
+                  : String(lintError),
+              );
+            }
           }
         } catch {
-          console.log(
-            formatInfo("No linting configuration detected, skipping lint step"),
-          );
+          try {
+            await Deno.stat(`${WORKSPACE_ROOT}/package.json`);
+            try {
+              await $`cd ${WORKSPACE_ROOT} && npm run lint`.quiet();
+              console.log(formatSuccess("Linting passed (npm run lint)"));
+            } catch (lintError) {
+              console.warn(
+                formatWarning("Linting found issues (non-blocking):"),
+              );
+              console.warn(
+                lintError instanceof Error
+                  ? lintError.message
+                  : String(lintError),
+              );
+            }
+          } catch {
+            console.log(
+              formatInfo(
+                "No linting configuration detected, skipping lint step",
+              ),
+            );
+          }
         }
       }
     } catch (error) {
-      // Linting errors are non-blocking, just log a warning
       console.warn(
         formatWarning("Linting step encountered an error (non-blocking):"),
       );

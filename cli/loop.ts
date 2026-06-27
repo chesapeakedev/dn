@@ -19,6 +19,13 @@ import type { IssueData } from "../sdk/github/issue.ts";
 import { promptAndAddToTodoList } from "../sdk/todo/todo.ts";
 import { resolveAgentHarnessFromFlagsAndEnv } from "../sdk/github/agentHarness.ts";
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
+import type { SandboxFlagValue } from "../sdk/sandbox/resolve.ts";
+import {
+  extractSandboxFlag,
+  resolveSandboxFlagValue,
+} from "../sdk/sandbox/cli.ts";
+import { resolveSandboxConfig } from "../sdk/sandbox/resolve.ts";
+import { runWithSandboxLifecycle } from "../sdk/sandbox/lifecycle.ts";
 import { isAbsolute, join } from "@std/path";
 
 const ISSUE_NUMBER_PATTERN = /^#?\d+$/;
@@ -252,6 +259,7 @@ export async function resolveLoopTarget(
 function parseArgs(
   args: string[],
   globalAgent: AgentHarness | null = null,
+  globalSandbox: SandboxFlagValue | null = null,
 ): LoopCliConfig {
   let planFilePath: string | null = null;
   let targetInput: string | null = null;
@@ -263,8 +271,11 @@ function parseArgs(
   let workspaceRoot: string | undefined = undefined;
   let allowCrossRepo = false;
 
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
+  const { sandbox: localSandbox, rest: flagArgs } = extractSandboxFlag(args);
+  const sandboxFlag = resolveSandboxFlagValue(globalSandbox, localSandbox);
+
+  for (let i = 0; i < flagArgs.length; i++) {
+    const arg = flagArgs[i];
     if (arg === "--plan-file" && i + 1 < args.length) {
       planFilePath = args[++i];
     } else if (arg === "--allow-cross-repo") {
@@ -319,6 +330,7 @@ function parseArgs(
     workspaceRoot,
     planFilePath,
     target,
+    sandboxFlag,
   };
 }
 
@@ -438,10 +450,11 @@ async function materializeIssuePlanFile(
 export async function handleLoop(
   args: string[],
   globalAgent: AgentHarness | null = null,
+  globalSandbox: SandboxFlagValue | null = null,
 ): Promise<void> {
   let config: LoopCliConfig;
   try {
-    config = parseArgs(args, globalAgent);
+    config = parseArgs(args, globalAgent, globalSandbox);
   } catch (e) {
     console.error(e instanceof Error ? e.message : String(e));
     Deno.exit(1);
@@ -465,80 +478,92 @@ export async function handleLoop(
   }
 
   try {
-    // Create a temp directory for this run
-    // FIXME: replace geo-opencode with dn-{mode id}
-    const tmpDir = await Deno.makeTempDir({ prefix: "geo-opencode-" });
-    const planOutputPath = `${tmpDir}/plan_output.txt`;
-
-    let issueData: IssueData | null;
-    let effectivePlanFilePath: string;
-    if (config.planFilePath) {
-      try {
-        await Deno.stat(config.planFilePath);
-      } catch {
-        console.error(`Error: Plan file not found: ${config.planFilePath}`);
-        Deno.exit(1);
-      }
-      effectivePlanFilePath = config.planFilePath;
-      ({ issueData } = await extractIssueContextFromPlan(
-        effectivePlanFilePath,
-        explicitIssueUrl,
-      ));
-    } else {
-      if (!explicitIssueUrl || planSource !== "github-issue") {
-        throw new Error("Internal error: no plan file or GitHub issue URL");
-      }
-      const materialized = await materializeIssuePlanFile(
-        explicitIssueUrl,
-        tmpDir,
-      );
-      config.planFilePath = materialized.planFilePath;
-      effectivePlanFilePath = materialized.planFilePath;
-      issueData = materialized.issueData;
-      console.log(
-        `No matching local plan found; using GitHub issue ${explicitIssueUrl} directly for this loop run.`,
-      );
-    }
-
-    // Read plan file content to use as plan output
-    const planContent = await Deno.readTextFile(effectivePlanFilePath);
-    await Deno.writeTextFile(planOutputPath, planContent);
-
-    const result: LoopPhaseResult = await runLoopPhase(
-      config,
-      effectivePlanFilePath,
-      planOutputPath,
-      issueData,
-      tmpDir,
+    const repoRoot = config.workspaceRoot ?? Deno.cwd();
+    const { provider, config: sandboxConfig } = await resolveSandboxConfig(
+      repoRoot,
+      config.sandboxFlag,
     );
+    await runWithSandboxLifecycle(
+      { repoRoot, config: sandboxConfig, provider },
+      async () => {
+        // Create a temp directory for this run
+        // FIXME: replace geo-opencode with dn-{mode id}
+        const tmpDir = await Deno.makeTempDir({ prefix: "geo-opencode-" });
+        const planOutputPath = `${tmpDir}/plan_output.txt`;
 
-    if (result.continuationPromptPath) {
-      console.log(`\nContinuation prompt: ${result.continuationPromptPath}`);
-    }
+        let issueData: IssueData | null;
+        let effectivePlanFilePath: string;
+        if (config.planFilePath) {
+          try {
+            await Deno.stat(config.planFilePath);
+          } catch {
+            console.error(`Error: Plan file not found: ${config.planFilePath}`);
+            Deno.exit(1);
+          }
+          effectivePlanFilePath = config.planFilePath;
+          ({ issueData } = await extractIssueContextFromPlan(
+            effectivePlanFilePath,
+            explicitIssueUrl,
+          ));
+        } else {
+          if (!explicitIssueUrl || planSource !== "github-issue") {
+            throw new Error("Internal error: no plan file or GitHub issue URL");
+          }
+          const materialized = await materializeIssuePlanFile(
+            explicitIssueUrl,
+            tmpDir,
+          );
+          config.planFilePath = materialized.planFilePath;
+          effectivePlanFilePath = materialized.planFilePath;
+          issueData = materialized.issueData;
+          console.log(
+            `No matching local plan found; using GitHub issue ${explicitIssueUrl} directly for this loop run.`,
+          );
+        }
 
-    const { completionStatus } = result;
-    if (completionStatus.total > 0 && !completionStatus.complete) {
-      let title: string | undefined;
-      try {
+        // Read plan file content to use as plan output
         const planContent = await Deno.readTextFile(effectivePlanFilePath);
-        const titleMatch = planContent.match(/^#\s+(.+)$/m);
-        title = titleMatch ? titleMatch[1].trim() : undefined;
-      } catch {
-        title = undefined;
-      }
-      const repo = await getCurrentRepoFromRemote().then(
-        (r) => `${r.owner}/${r.repo}`,
-      ).catch(() => undefined);
-      await promptAndAddToTodoList(
-        [{ ref: explicitIssueUrl ?? effectivePlanFilePath, title }],
-        {
-          repo,
-          updated: new Date().toISOString().slice(0, 10),
-        },
-      );
-    }
+        await Deno.writeTextFile(planOutputPath, planContent);
 
-    Deno.exit(0);
+        const result: LoopPhaseResult = await runLoopPhase(
+          config,
+          effectivePlanFilePath,
+          planOutputPath,
+          issueData,
+          tmpDir,
+        );
+
+        if (result.continuationPromptPath) {
+          console.log(
+            `\nContinuation prompt: ${result.continuationPromptPath}`,
+          );
+        }
+
+        const { completionStatus } = result;
+        if (completionStatus.total > 0 && !completionStatus.complete) {
+          let title: string | undefined;
+          try {
+            const planContent = await Deno.readTextFile(effectivePlanFilePath);
+            const titleMatch = planContent.match(/^#\s+(.+)$/m);
+            title = titleMatch ? titleMatch[1].trim() : undefined;
+          } catch {
+            title = undefined;
+          }
+          const repo = await getCurrentRepoFromRemote().then(
+            (r) => `${r.owner}/${r.repo}`,
+          ).catch(() => undefined);
+          await promptAndAddToTodoList(
+            [{ ref: explicitIssueUrl ?? effectivePlanFilePath, title }],
+            {
+              repo,
+              updated: new Date().toISOString().slice(0, 10),
+            },
+          );
+        }
+
+        Deno.exit(0);
+      },
+    );
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     Deno.exit(1);

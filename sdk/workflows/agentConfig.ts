@@ -6,6 +6,9 @@ import {
   type AgentHarness,
   parseAgentHarness,
 } from "../github/agentHarness.ts";
+import { parseDnSandboxConfig } from "../sandbox/config.ts";
+import type { DnSandboxConfig } from "../sandbox/types.ts";
+import { validateSandboxPrerequisites } from "../sandbox/validate.ts";
 import { $ } from "$dax";
 import { computeSha256 } from "./mod.ts";
 
@@ -29,9 +32,11 @@ const INSTALL_SCRIPT_TEMPLATE_PATH = join(
  */
 export interface DnWorkflowAgentConfig {
   /** Config schema version. */
-  schema_version: "1.0";
+  schema_version: "1.0" | "1.1";
   /** Preferred agent harness for all dn workflows in this repo. */
   agent: AgentHarness;
+  /** Optional sandbox provider settings (schema 1.1). */
+  sandbox?: DnSandboxConfig;
 }
 
 /**
@@ -77,16 +82,29 @@ export function parseDnWorkflowAgentConfig(
   content: string,
 ): DnWorkflowAgentConfig {
   const parsed = JSON.parse(content) as Record<string, unknown>;
-  if (parsed.schema_version !== "1.0") {
+  const schemaVersion = parsed.schema_version;
+  if (schemaVersion !== "1.0" && schemaVersion !== "1.1") {
     throw new Error(
-      `${DN_CONFIG_REL_PATH} schema_version must be "1.0"`,
+      `${DN_CONFIG_REL_PATH} schema_version must be "1.0" or "1.1"`,
     );
   }
   if (typeof parsed.agent !== "string") {
     throw new Error(`${DN_CONFIG_REL_PATH} must include string field "agent"`);
   }
   const agent = parseAgentHarness(parsed.agent);
-  return { schema_version: "1.0", agent };
+
+  if (schemaVersion === "1.0") {
+    return { schema_version: "1.0", agent };
+  }
+
+  const sandbox = parsed.sandbox === undefined
+    ? undefined
+    : parseDnSandboxConfig(parsed.sandbox);
+  return {
+    schema_version: "1.1",
+    agent,
+    ...(sandbox ? { sandbox } : {}),
+  };
 }
 
 /**
@@ -335,22 +353,21 @@ export async function validateWorkflowAgentSetup(
         message:
           `Could not determine GitHub repository from ${repoRoot} to verify ${requiredSecret}`,
       });
-      return warnings;
-    }
-
-    const { listRepositoryActionSecrets } = await import(
-      "../github/secrets.ts"
-    );
-    const { owner, repo } = resolved;
-    const secrets = await listRepositoryActionSecrets(owner, repo);
-    if (!secrets.has(requiredSecret)) {
-      warnings.push({
-        code: "agent_secret_missing",
-        message:
-          `Agent "${config.agent}" requires repository secret ${requiredSecret}. Run: ${
-            secretSetupHint(config.agent)
-          }`,
-      });
+    } else {
+      const { listRepositoryActionSecrets } = await import(
+        "../github/secrets.ts"
+      );
+      const { owner, repo } = resolved;
+      const secrets = await listRepositoryActionSecrets(owner, repo);
+      if (!secrets.has(requiredSecret)) {
+        warnings.push({
+          code: "agent_secret_missing",
+          message:
+            `Agent "${config.agent}" requires repository secret ${requiredSecret}. Run: ${
+              secretSetupHint(config.agent)
+            }`,
+        });
+      }
     }
   } catch (error) {
     warnings.push({
@@ -360,6 +377,13 @@ export async function validateWorkflowAgentSetup(
           error instanceof Error ? error.message : String(error)
         }`,
     });
+  }
+
+  if (config.sandbox) {
+    const sandboxWarnings = await validateSandboxPrerequisites(
+      config.sandbox.provider,
+    );
+    warnings.push(...sandboxWarnings);
   }
 
   return warnings;

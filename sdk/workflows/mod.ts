@@ -422,3 +422,9 @@ export type {
   DnWorkflowAgentConfig,
   WorkflowSupportWriteResult,
 } from "./agentConfig.ts";
+export type { DnSandboxConfig, SandboxProvider } from "../sandbox/types.ts";
+export {
+  parseDnSandboxConfig,
+  parseSandboxProvider,
+} from "../sandbox/config.ts";
+export { validateSandboxPrerequisites } from "../sandbox/validate.ts";

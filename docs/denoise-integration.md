@@ -163,7 +163,13 @@ required):
 
 Workflows pass all three secrets to `dn`; unset secrets are ignored. Run
 `dn workflows validate` to check for a missing config file, outdated install
-script, or absent secret when GitHub auth is available.
+script, absent agent secret when GitHub auth is available, or missing sandbox
+prerequisites when `sandbox.provider` is set in config (see
+[Sandbox providers](sandbox.md)).
+
+Schema `1.1` configs may include a `sandbox` block alongside `agent`. Dispatch
+payloads still do not carry sandbox settings; repo config remains the source of
+truth for CI as well.
 
 ## Stack JSON Contract
 

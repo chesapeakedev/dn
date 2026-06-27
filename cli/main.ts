@@ -25,6 +25,8 @@ import {
   type AgentHarness,
   parseAgentHarness,
 } from "../sdk/github/agentHarness.ts";
+import type { SandboxFlagValue } from "../sdk/sandbox/resolve.ts";
+import { parseSandboxProvider } from "../sdk/sandbox/config.ts";
 
 async function handleInit(
   args: string[],
@@ -96,12 +98,14 @@ function parseGlobalFlags(
   noColor: boolean;
   forceColor: boolean;
   agent: AgentHarness | null;
+  sandbox: SandboxFlagValue | null;
   rest: string[];
 } {
   let unattended = false;
   let noColor = false;
   let forceColor = false;
   let agent: AgentHarness | null = null;
+  let sandbox: SandboxFlagValue | null = null;
   const rest: string[] = [];
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
@@ -111,6 +115,20 @@ function parseGlobalFlags(
       noColor = true;
     } else if (a === "--color") {
       forceColor = true;
+    } else if (a === "--sandbox") {
+      const value = args[i + 1];
+      if (!value || value.startsWith("-")) {
+        sandbox = "from-config";
+        continue;
+      }
+      const parsed = parseSandboxProvider(value);
+      if (sandbox && sandbox !== parsed) {
+        throw new Error(
+          `Conflicting sandbox selections: ${sandbox} and ${parsed}. Select only one provider.`,
+        );
+      }
+      sandbox = parsed;
+      i++;
     } else if (a === "--agent") {
       if (i + 1 >= args.length) {
         throw new Error("Missing value for --agent");
@@ -162,7 +180,7 @@ function parseGlobalFlags(
       break;
     }
   }
-  return { unattended, noColor, forceColor, agent, rest };
+  return { unattended, noColor, forceColor, agent, sandbox, rest };
 }
 
 function parseBootstrapFlags(
@@ -207,6 +225,9 @@ function showUsage(): void {
   console.error("  --claude          Alias for --agent claude");
   console.error("  --codex           Alias for --agent codex");
   console.error("  --copilot         Alias for --agent copilot");
+  console.error(
+    "  --sandbox <none|docker|exe.dev>  Sandbox provider (omit value to read config)",
+  );
   console.error("  --unattended      Disable interactive output affordances");
   console.error("  --no-color        Disable color output");
   console.error("  --color           Force color output\n");
@@ -286,6 +307,7 @@ function showUsage(): void {
 async function main(): Promise<void> {
   let args: string[];
   let globalAgent: AgentHarness | null;
+  let globalSandbox: SandboxFlagValue | null;
   let unattended: boolean;
   let noColor: boolean;
   let forceColor: boolean;
@@ -295,6 +317,7 @@ async function main(): Promise<void> {
       noColor,
       forceColor,
       agent: globalAgent,
+      sandbox: globalSandbox,
       rest: args,
     } = parseGlobalFlags(Deno.args));
   } catch (e) {
@@ -342,10 +365,10 @@ async function main(): Promise<void> {
       await handleWorkflows(subcommandArgs);
       break;
     case "kickstart":
-      await handleKickstart(subcommandArgs, globalAgent);
+      await handleKickstart(subcommandArgs, globalAgent, globalSandbox);
       break;
     case "loop":
-      await handleLoop(subcommandArgs, globalAgent);
+      await handleLoop(subcommandArgs, globalAgent, globalSandbox);
       break;
     case "prep":
       await handlePrep(subcommandArgs, globalAgent);
@@ -357,7 +380,7 @@ async function main(): Promise<void> {
       await handleTestPlan(subcommandArgs, globalAgent);
       break;
     case "meld":
-      await handleMeld(subcommandArgs, globalAgent);
+      await handleMeld(subcommandArgs, globalAgent, globalSandbox);
       break;
     case "land":
       await handleLand(subcommandArgs, globalAgent);

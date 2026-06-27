@@ -28,10 +28,7 @@ import {
   prepareVcsForKickstart,
 } from "../sdk/github/vcs.ts";
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
-import {
-  formatAgentHarnessName,
-  getRunAgent,
-} from "../sdk/github/agentHarness.ts";
+import { formatAgentHarnessName } from "../sdk/github/agentHarness.ts";
 import type { PublishMode } from "../sdk/github/publish.ts";
 import { isUnattended } from "../sdk/github/output.ts";
 import { augmentOpenCodePlanEditPermission } from "../sdk/github/opencode.ts";
@@ -58,6 +55,12 @@ import {
   formatSuccess,
   formatWarning,
 } from "./output.ts";
+import type { SandboxFlagValue } from "../sdk/sandbox/resolve.ts";
+import {
+  getWorkspaceTmpDir,
+  isSandboxActive,
+  runAgentPhaseInSandbox,
+} from "../sdk/sandbox/mod.ts";
 import { $ } from "$dax";
 
 /**
@@ -333,6 +336,8 @@ export interface KickstartConfig {
   savedPlanName: string | null;
   /** Workspace root directory (defaults to cwd) */
   workspaceRoot?: string;
+  /** Sandbox provider override from CLI or env (phase 1: lifecycle only). */
+  sandboxFlag?: SandboxFlagValue | null;
   /** Milestone number or URL to use milestone-linked plan file */
   milestone?: string;
   /** Optional flags when invoked from {@link dn meld} only */
@@ -788,7 +793,14 @@ export async function runMeldPhase(
 
   await ensurePlansDirectory(normalizedWorkspaceRoot);
 
-  const tmpDir = await Deno.makeTempDir({ prefix: "geo-opencode-" });
+  let tmpDir: string;
+  if (isSandboxActive()) {
+    const baseDir = getWorkspaceTmpDir(normalizedWorkspaceRoot);
+    await Deno.mkdir(baseDir, { recursive: true });
+    tmpDir = await Deno.makeTempDir({ dir: baseDir, prefix: "geo-opencode-" });
+  } else {
+    tmpDir = await Deno.makeTempDir({ prefix: "geo-opencode-" });
+  }
   const combinedPromptPlanPath = `${tmpDir}/combined_prompt_plan.txt`;
   const planOutputPath = `${tmpDir}/plan_output.txt`;
 
@@ -1063,12 +1075,12 @@ export async function runMeldPhase(
       githubBodyForPrompt,
     );
 
-    const runPlan = getRunAgent(config.agentHarness);
-    const planResult = await runPlan(
+    const planResult = await runAgentPhaseInSandbox(
       "plan",
       combinedPromptPlanPath,
       workspaceRoot,
       true,
+      config.agentHarness,
     );
 
     await Deno.writeTextFile(planOutputPath, planResult.stdout);
@@ -1246,12 +1258,12 @@ export async function runLoopPhase(
     );
 
     // Run implement phase (opencode, Cursor, or Claude Code per config)
-    const runImplement = getRunAgent(config.agentHarness);
-    const implementResult = await runImplement(
+    const implementResult = await runAgentPhaseInSandbox(
       "implement",
       combinedPromptImplementPath,
       workspaceRoot,
       false, // useReadonlyConfig
+      config.agentHarness,
     );
 
     if (implementResult.code !== 0) {
@@ -1372,43 +1384,79 @@ export async function runLoopPhase(
       `\n${formatStep(5, "Running linting to improve code quality...")}`,
     );
     try {
-      try {
-        await Deno.stat(`${workspaceRoot}/deno.json`);
-        try {
-          await $`cd ${workspaceRoot} && deno task check`.quiet();
-          console.log(formatSuccess("Linting passed (deno task check)"));
-        } catch {
+      if (isSandboxActive()) {
+        const ctx = (await import("../sdk/sandbox/context.ts"))
+          .getCurrentSandboxContext();
+        if (ctx) {
           try {
-            await $`cd ${workspaceRoot} && deno fmt`.quiet();
-            await $`cd ${workspaceRoot} && deno lint`.quiet();
-            console.log(formatSuccess("Linting passed (deno fmt + lint)"));
-          } catch (lintError) {
-            console.warn(formatWarning("Linting found issues (non-blocking):"));
+            const lintResult = await ctx.runner.exec(
+              ctx.handle,
+              ["deno", "task", "check"],
+              { cwd: workspaceRoot },
+            );
+            if (lintResult.code === 0) {
+              console.log(
+                formatSuccess("Linting passed (deno task check in sandbox)"),
+              );
+            } else {
+              console.warn(
+                formatWarning(
+                  "Linting found issues in sandbox (non-blocking):",
+                ),
+              );
+              console.warn(lintResult.stderr || lintResult.stdout);
+            }
+          } catch {
             console.warn(
-              lintError instanceof Error
-                ? lintError.message
-                : String(lintError),
+              formatWarning("Linting in sandbox failed (non-blocking)"),
             );
           }
         }
-      } catch {
+      } else {
         try {
-          await Deno.stat(`${workspaceRoot}/package.json`);
+          await Deno.stat(`${workspaceRoot}/deno.json`);
           try {
-            await $`cd ${workspaceRoot} && npm run lint`.quiet();
-            console.log(formatSuccess("Linting passed (npm run lint)"));
-          } catch (lintError) {
-            console.warn(formatWarning("Linting found issues (non-blocking):"));
-            console.warn(
-              lintError instanceof Error
-                ? lintError.message
-                : String(lintError),
-            );
+            await $`cd ${workspaceRoot} && deno task check`.quiet();
+            console.log(formatSuccess("Linting passed (deno task check)"));
+          } catch {
+            try {
+              await $`cd ${workspaceRoot} && deno fmt`.quiet();
+              await $`cd ${workspaceRoot} && deno lint`.quiet();
+              console.log(formatSuccess("Linting passed (deno fmt + lint)"));
+            } catch (lintError) {
+              console.warn(
+                formatWarning("Linting found issues (non-blocking):"),
+              );
+              console.warn(
+                lintError instanceof Error
+                  ? lintError.message
+                  : String(lintError),
+              );
+            }
           }
         } catch {
-          console.log(
-            formatInfo("No linting configuration detected, skipping lint step"),
-          );
+          try {
+            await Deno.stat(`${workspaceRoot}/package.json`);
+            try {
+              await $`cd ${workspaceRoot} && npm run lint`.quiet();
+              console.log(formatSuccess("Linting passed (npm run lint)"));
+            } catch (lintError) {
+              console.warn(
+                formatWarning("Linting found issues (non-blocking):"),
+              );
+              console.warn(
+                lintError instanceof Error
+                  ? lintError.message
+                  : String(lintError),
+              );
+            }
+          } catch {
+            console.log(
+              formatInfo(
+                "No linting configuration detected, skipping lint step",
+              ),
+            );
+          }
         }
       }
     } catch (error) {
@@ -1789,12 +1837,12 @@ export async function fillEmptyIssueSections(
       );
 
       // Run LLM (opencode, Cursor, or Claude Code per harness)
-      const runLlm = getRunAgent(agentHarness);
-      const result = await runLlm(
+      const result = await runAgentPhaseInSandbox(
         "plan", // Use plan phase (read-only except for output)
         combinedPromptPath,
         workspaceRoot,
         true, // Use readonly config
+        agentHarness,
       );
 
       if (result.code !== 0) {

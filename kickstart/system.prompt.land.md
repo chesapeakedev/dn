@@ -27,6 +27,7 @@ Respond with a single JSON array. Each element is one commit in apply order:
   landing.
 - Group logically: separate feat vs test vs docs when the diff spans concerns.
 - Keep summaries under 72 characters; reference plan intent in body when useful.
+- Omit `body` or set it to `null` when the summary is sufficient.
 - Order commits so dependencies come first (e.g. core change before tests that
   depend on it).
 

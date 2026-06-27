@@ -41,6 +41,13 @@ import type { PublishMode } from "../sdk/github/publish.ts";
 import { parsePublishMode } from "../sdk/github/publish.ts";
 import { publishStackProgressUpdate } from "../sdk/github/vcs.ts";
 import { writeGithubActionVcsOutputs } from "../sdk/github/publish.ts";
+import type { SandboxFlagValue } from "../sdk/sandbox/resolve.ts";
+import {
+  extractSandboxFlag,
+  resolveSandboxFlagValue,
+} from "../sdk/sandbox/cli.ts";
+import { resolveSandboxConfig } from "../sdk/sandbox/resolve.ts";
+import { runWithSandboxLifecycle } from "../sdk/sandbox/lifecycle.ts";
 
 const ISSUE_NUMBER_PATTERN = /^#?\d+$/;
 
@@ -70,6 +77,7 @@ function classifyInput(input: string): {
 function parseArgs(
   args: string[],
   globalAgent: AgentHarness | null = null,
+  globalSandbox: SandboxFlagValue | null = null,
 ): KickstartCliConfig {
   let input: string | null = null;
   let publish: PublishMode = "none";
@@ -85,8 +93,11 @@ function parseArgs(
   let milestoneAutoAdvance = false;
   let milestoneRunOnce = false;
 
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
+  const { sandbox: localSandbox, rest: flagArgs } = extractSandboxFlag(args);
+  const sandboxFlag = resolveSandboxFlagValue(globalSandbox, localSandbox);
+
+  for (let i = 0; i < flagArgs.length; i++) {
+    const arg = flagArgs[i];
     if (arg === "--awp") {
       publish = "pr";
     } else if (arg === "--publish" && i + 1 < args.length) {
@@ -152,6 +163,7 @@ function parseArgs(
     milestone,
     ...(milestoneAutoAdvance ? { milestoneAutoAdvance: true } : {}),
     ...(milestoneRunOnce ? { milestoneRunOnce: true } : {}),
+    sandboxFlag,
   };
 }
 
@@ -187,6 +199,9 @@ function showHelp(): void {
     "  --copilot                 Use GitHub Copilot CLI (`copilot -p`)",
   );
   console.log("  --opencode                Use OpenCode CLI (default)");
+  console.log(
+    "  --sandbox <none|docker|exe.dev>  Sandbox provider (global --sandbox also supported)",
+  );
   console.log(
     "  --milestone <url-or-num>  Use milestone-linked stack file (plans/{owner}_{repo}_{milestone}.stack.md)",
   );
@@ -407,10 +422,11 @@ async function runNoTicketFlow(
 export async function handleKickstart(
   args: string[],
   globalAgent: AgentHarness | null = null,
+  globalSandbox: SandboxFlagValue | null = null,
 ): Promise<void> {
   let config: KickstartCliConfig;
   try {
-    config = parseArgs(args, globalAgent);
+    config = parseArgs(args, globalAgent, globalSandbox);
   } catch (e) {
     console.error(e instanceof Error ? e.message : String(e));
     Deno.exit(1);
@@ -477,8 +493,18 @@ export async function handleKickstart(
   }
 
   for (;;) {
+    const repoRoot = config.workspaceRoot ?? Deno.cwd();
+    const { provider, config: sandboxConfig } = await resolveSandboxConfig(
+      repoRoot,
+      config.sandboxFlag,
+    );
     try {
-      await runFullKickstart(config);
+      await runWithSandboxLifecycle(
+        { repoRoot, config: sandboxConfig, provider },
+        async () => {
+          await runFullKickstart(config);
+        },
+      );
     } catch (error) {
       console.error(error instanceof Error ? error.message : String(error));
       Deno.exit(1);
