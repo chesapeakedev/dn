@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.1",
+  "agent": "opencode",
+  "sandbox": {
+    "provider": "none",
+    "workspace": "/workspace",
+    "sync": {
+      "mode": "bind",
+      "exclude": [".git", "node_modules", ".sl"]
+    },
+    "docker": {
+      "image": "ghcr.io/chesapeakedev/dn-kickstart:latest",
+      "network": "none",
+      "read_only_root": true,
+      "mounts": [
+        { "source": ".", "target": "/workspace" }
+      ],
+      "env_pass_through": [
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "CURSOR_API_KEY"
+      ]
+    },
+    "exe_dev": {
+      "image": "exeuntu",
+      "vm_name_prefix": "dn-kickstart",
+      "ttl": "4h",
+      "integrations": ["github"]
+    }
+  }
+}
