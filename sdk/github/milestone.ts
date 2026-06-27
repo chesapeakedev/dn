@@ -191,6 +191,31 @@ export async function getMilestone(
   };
 }
 
+/**
+ * Finds an open milestone whose title matches the input (case-insensitive).
+ *
+ * @returns The matching milestone number, or `null` when no unique match exists.
+ */
+export function matchMilestoneByTitle(
+  milestones: Array<{ number: number; title: string }>,
+  title: string,
+): number | null {
+  const normalized = title.trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+
+  const matches = milestones.filter(
+    (milestone) => milestone.title.trim().toLowerCase() === normalized,
+  );
+
+  if (matches.length === 1) {
+    return matches[0].number;
+  }
+
+  return null;
+}
+
 export async function getMilestoneFromInput(
   input: string,
 ): Promise<{ milestone: Milestone; owner: string; repo: string }> {
@@ -217,8 +242,16 @@ export async function getMilestoneFromInput(
     return { milestone, owner, repo };
   }
 
+  const { owner, repo } = await getCurrentRepoFromRemote();
+  const openMilestones = await listOpenMilestones(owner, repo);
+  const matchedNumber = matchMilestoneByTitle(openMilestones, trimmed);
+  if (matchedNumber !== null) {
+    const milestone = await getMilestone(owner, repo, matchedNumber);
+    return { milestone, owner, repo };
+  }
+
   throw new Error(
-    `Invalid milestone: ${input}. Provide a milestone URL (https://github.com/owner/repo/milestone/3) or a milestone number.`,
+    `Invalid milestone: ${input}. Provide a milestone URL (https://github.com/owner/repo/milestone/3), a milestone number, or an exact open milestone title.`,
   );
 }
 

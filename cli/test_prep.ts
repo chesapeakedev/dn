@@ -28,6 +28,7 @@ Deno.test("prep command shows help", async () => {
     assert(result.stdout.includes("dn prep"));
     assert(result.stdout.includes("--plan-name"));
     assert(result.stdout.includes("--copilot"));
+    assert(result.stdout.includes("--milestone"));
     assert(result.success);
   } finally {
     await cleanupTestRepo(testRepo);
@@ -268,6 +269,59 @@ Testing plan name validation.
       cwd: testRepo.path,
       expectFailure: true,
     });
+  } finally {
+    await cleanupTestRepo(testRepo);
+  }
+});
+
+Deno.test("prep --milestone requires a milestone reference", async () => {
+  const testRepo = await createTestRepo();
+
+  try {
+    const result = await runDnCommand(["prep", "--milestone"], {
+      cwd: testRepo.path,
+      expectFailure: true,
+    });
+
+    assert(result.stderr.includes("--milestone requires"));
+  } finally {
+    await cleanupTestRepo(testRepo);
+  }
+});
+
+Deno.test("prep --milestone conflicts with issue input", async () => {
+  const testRepo = await createTestRepo();
+
+  try {
+    const result = await runDnCommand(
+      ["prep", "--milestone", "42", "123"],
+      {
+        cwd: testRepo.path,
+        expectFailure: true,
+      },
+    );
+
+    assert(result.stderr.includes("--milestone cannot be used with"));
+  } finally {
+    await cleanupTestRepo(testRepo);
+  }
+});
+
+Deno.test("prep --milestone conflicts with --update-issue", async () => {
+  const testRepo = await createTestRepo();
+
+  try {
+    const result = await runDnCommand(
+      ["prep", "--milestone", "42", "--update-issue"],
+      {
+        cwd: testRepo.path,
+        expectFailure: true,
+      },
+    );
+
+    assert(
+      result.stderr.includes("--milestone cannot be used with --update-issue"),
+    );
   } finally {
     await cleanupTestRepo(testRepo);
   }

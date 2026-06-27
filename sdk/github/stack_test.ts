@@ -4,6 +4,7 @@
 import { assertEquals, assertRejects, assertThrows } from "@std/assert";
 import {
   formatStackArtifactId,
+  getMilestoneDescriptionArtifactPath,
   getStackArtifactPaths,
   markMilestoneStackItemDone,
   mergeStackCheckmarks,
@@ -41,6 +42,13 @@ Deno.test("getStackArtifactPaths returns markdown and JSON stack paths", () => {
       markdownPath: "/repo/plans/owner_repo_3.stack.md",
       jsonPath: "/repo/plans/owner_repo_3.stack.json",
     },
+  );
+});
+
+Deno.test("getMilestoneDescriptionArtifactPath returns description artifact path", () => {
+  assertEquals(
+    getMilestoneDescriptionArtifactPath("/repo", "owner", "repo", 3),
+    "/repo/plans/owner_repo_3.description.md",
   );
 });
 

@@ -39,6 +39,10 @@ import {
   dnAutoApproved,
 } from "../sdk/github/filePrompt.ts";
 import { assembleCombinedPrompt } from "../sdk/github/prompt.ts";
+import { getMilestoneFromInput } from "../sdk/github/milestone.ts";
+import type { Milestone } from "../sdk/github/milestone.ts";
+import { getMilestoneDescriptionArtifactPath } from "../sdk/github/stack.ts";
+import { stringifyFrontmatter } from "../sdk/todo/frontmatter.ts";
 import { meldTargetSystemPromptFile } from "../sdk/meld/prompts.ts";
 import { parseMeldTarget } from "../sdk/meld/target.ts";
 import {
@@ -57,9 +61,10 @@ import {
 } from "./output.ts";
 import type { SandboxFlagValue } from "../sdk/sandbox/resolve.ts";
 import {
-  getWorkspaceTmpDir,
+  createRunTmpDir,
   isSandboxActive,
   runAgentPhaseInSandbox,
+  translateSandboxCwd,
 } from "../sdk/sandbox/mod.ts";
 import { $ } from "$dax";
 
@@ -793,14 +798,10 @@ export async function runMeldPhase(
 
   await ensurePlansDirectory(normalizedWorkspaceRoot);
 
-  let tmpDir: string;
-  if (isSandboxActive()) {
-    const baseDir = getWorkspaceTmpDir(normalizedWorkspaceRoot);
-    await Deno.mkdir(baseDir, { recursive: true });
-    tmpDir = await Deno.makeTempDir({ dir: baseDir, prefix: "geo-opencode-" });
-  } else {
-    tmpDir = await Deno.makeTempDir({ prefix: "geo-opencode-" });
-  }
+  const tmpDir = await createRunTmpDir(
+    normalizedWorkspaceRoot,
+    "geo-opencode-",
+  );
   const combinedPromptPlanPath = `${tmpDir}/combined_prompt_plan.txt`;
   const planOutputPath = `${tmpDir}/plan_output.txt`;
 
@@ -1392,7 +1393,7 @@ export async function runLoopPhase(
             const lintResult = await ctx.runner.exec(
               ctx.handle,
               ["deno", "task", "check"],
-              { cwd: workspaceRoot },
+              { cwd: translateSandboxCwd(workspaceRoot) },
             );
             if (lintResult.code === 0) {
               console.log(
@@ -2011,6 +2012,238 @@ export async function fillEmptyIssueSections(
       body: "",
       filledSections: [],
       skippedSections: [],
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+/**
+ * Result of generating a milestone description artifact.
+ */
+export interface MilestonePrepResult {
+  /** Whether the description artifact was written successfully */
+  success: boolean;
+  /** Path to the generated milestone description file */
+  descriptionFilePath: string;
+  /** Milestone metadata from GitHub */
+  milestone: Milestone | null;
+  /** Error message when generation failed */
+  error?: string;
+}
+
+/**
+ * Reads the milestone prep system prompt (works in compiled binary and development mode).
+ */
+async function readMilestonePrepSystemPrompt(
+  workspaceRoot: string,
+): Promise<string> {
+  const filename = "system.prompt.prep.milestone.md";
+  return await readIncludedPrompt(filename, workspaceRoot);
+}
+
+/**
+ * Formats milestone issue context for the milestone prep LLM prompt.
+ */
+function formatMilestoneIssueContext(
+  milestone: Milestone,
+  owner: string,
+  repo: string,
+): string {
+  const lines: string[] = [];
+  lines.push(`# Milestone #${milestone.number}: ${milestone.title}`);
+  lines.push("");
+  lines.push(`Repository: ${owner}/${repo}`);
+  if (milestone.description?.trim()) {
+    lines.push("");
+    lines.push("## Current Milestone Description");
+    lines.push("");
+    lines.push(milestone.description.trim());
+  }
+  lines.push("");
+  lines.push(`## Issues (${milestone.issues.length})`);
+  lines.push("");
+
+  if (milestone.issues.length === 0) {
+    lines.push("No open issues are assigned to this milestone.");
+    return lines.join("\n");
+  }
+
+  for (const issue of milestone.issues) {
+    lines.push(`### #${issue.number}: ${issue.title}`);
+    lines.push("");
+    lines.push(`URL: ${issue.url}`);
+    if (issue.labels.length > 0) {
+      lines.push(`Labels: ${issue.labels.join(", ")}`);
+    }
+    lines.push("");
+    lines.push(issue.body.trim() || "(No description provided)");
+    lines.push("");
+    lines.push("---");
+    lines.push("");
+  }
+
+  return lines.join("\n").replace(/\n---\n$/, "");
+}
+
+/**
+ * Strips markdown code fences from agent stdout when present.
+ */
+function stripMarkdownCodeFences(output: string): string {
+  let cleaned = output.trim();
+  if (cleaned.startsWith("```markdown") || cleaned.startsWith("```md")) {
+    cleaned = cleaned.replace(/^```(?:markdown|md)?\n/, "").replace(
+      /\n```$/,
+      "",
+    );
+  } else if (cleaned.startsWith("```")) {
+    cleaned = cleaned.replace(/^```\n/, "").replace(/\n```$/, "");
+  }
+  return cleaned.trim();
+}
+
+/**
+ * Fetches milestone issues and generates a user-value-focused description artifact.
+ *
+ * @param milestoneInput - Milestone number, title, or URL
+ * @param workspaceRoot - Root directory of the workspace
+ * @param agentHarness - Which agent runs the prep LLM (default opencode)
+ * @returns Result including the written artifact path
+ */
+export async function generateMilestoneDescription(
+  milestoneInput: string,
+  workspaceRoot: string,
+  agentHarness: AgentHarness = "opencode",
+): Promise<MilestonePrepResult> {
+  const normalizedWorkspaceRoot = workspaceRoot.replace(/\/+$/, "");
+
+  try {
+    console.log(formatStep(1, "Fetching milestone from GitHub..."));
+    const { milestone, owner, repo } = await getMilestoneFromInput(
+      milestoneInput,
+    );
+
+    console.log(
+      formatInfo(
+        `Found milestone #${milestone.number}: ${milestone.title} (${milestone.issues.length} open issue(s))`,
+      ),
+    );
+
+    await ensurePlansDirectory(normalizedWorkspaceRoot);
+    const descriptionFilePath = getMilestoneDescriptionArtifactPath(
+      normalizedWorkspaceRoot,
+      owner,
+      repo,
+      milestone.number,
+    );
+
+    console.log(
+      formatStep(
+        2,
+        `Running ${
+          formatAgentHarnessName(agentHarness)
+        } to synthesize milestone description...`,
+      ),
+    );
+
+    const tmpDir = await Deno.makeTempDir({ prefix: "geo-prep-milestone-" });
+    const combinedPromptPath = `${tmpDir}/combined_prompt_prep_milestone.txt`;
+    const milestoneContextPath = `${tmpDir}/milestone-context.md`;
+
+    try {
+      await Deno.writeTextFile(
+        milestoneContextPath,
+        formatMilestoneIssueContext(milestone, owner, repo),
+      );
+
+      const systemPrompt = await readMilestonePrepSystemPrompt(
+        normalizedWorkspaceRoot,
+      );
+      const systemPromptPath = `${tmpDir}/system.prompt.prep.milestone.md`;
+      await Deno.writeTextFile(systemPromptPath, systemPrompt);
+
+      await assembleCombinedPrompt(
+        combinedPromptPath,
+        systemPromptPath,
+        normalizedWorkspaceRoot,
+        milestoneContextPath,
+      );
+
+      const result = await runAgentPhaseInSandbox(
+        "plan",
+        combinedPromptPath,
+        normalizedWorkspaceRoot,
+        true,
+        agentHarness,
+      );
+
+      if (result.code !== 0) {
+        return {
+          success: false,
+          descriptionFilePath,
+          milestone,
+          error: `LLM failed with exit code ${result.code}: ${result.stderr}`,
+        };
+      }
+
+      const descriptionBody = stripMarkdownCodeFences(result.stdout);
+      if (!descriptionBody) {
+        return {
+          success: false,
+          descriptionFilePath,
+          milestone,
+          error: "LLM returned an empty milestone description.",
+        };
+      }
+
+      console.log(formatStep(3, "Writing milestone description artifact..."));
+
+      const today = new Date().toISOString().slice(0, 10);
+      const generatedAt = new Date().toISOString();
+      const frontmatter: Record<string, string> = {
+        milestone: String(milestone.number),
+        milestone_title: milestone.title,
+        repo: `${owner}/${repo}`,
+        updated: today,
+        generated_at: generatedAt,
+        issue_count: String(milestone.issues.length),
+      };
+
+      const artifact = stringifyFrontmatter(
+        frontmatter,
+        [
+          "<!--",
+          "  SYSTEM: This file is a milestone description generated by `dn prep --milestone`.",
+          "  Paste or adapt the body below into the GitHub milestone description field.",
+          "-->",
+          "",
+          `# Milestone: ${milestone.title}`,
+          "",
+          descriptionBody,
+        ].join("\n"),
+      );
+
+      await Deno.writeTextFile(descriptionFilePath, artifact);
+      console.log(
+        formatSuccess(`Milestone description written: ${descriptionFilePath}`),
+      );
+
+      return {
+        success: true,
+        descriptionFilePath,
+        milestone,
+      };
+    } finally {
+      try {
+        await Deno.remove(tmpDir, { recursive: true });
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
+  } catch (error) {
+    return {
+      success: false,
+      descriptionFilePath: "",
+      milestone: null,
       error: error instanceof Error ? error.message : String(error),
     };
   }

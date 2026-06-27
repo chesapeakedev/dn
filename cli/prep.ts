@@ -9,7 +9,11 @@
  */
 
 import type { KickstartConfig, PlanPhaseResult } from "../kickstart/lib.ts";
-import { fillEmptyIssueSections, runPlanPhase } from "../kickstart/lib.ts";
+import {
+  fillEmptyIssueSections,
+  generateMilestoneDescription,
+  runPlanPhase,
+} from "../kickstart/lib.ts";
 import { isGitHubIssueUrl } from "../sdk/meld/mod.ts";
 import { getCurrentRepoFromRemote } from "../sdk/github/github-gql.ts";
 import { promptAndAddToTodoList } from "../sdk/todo/todo.ts";
@@ -56,6 +60,7 @@ function parseArgs(
   let copilotFlag = false;
   let opencodeFlag = false;
   let allowCrossRepo = false;
+  let milestone: string | null = null;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -69,6 +74,13 @@ function parseArgs(
       updateIssue = true;
     } else if (arg === "--dry-run") {
       dryRun = true;
+    } else if (arg === "--milestone" || arg === "-m") {
+      if (i + 1 >= args.length) {
+        throw new Error(
+          "--milestone requires a milestone number, title, or URL.",
+        );
+      }
+      milestone = args[++i];
     } else if (arg === "--cursor" || arg === "-c") {
       cursorFlag = true;
     } else if (arg === "--claude") {
@@ -117,6 +129,7 @@ function parseArgs(
     workspaceRoot,
     updateIssue,
     dryRun,
+    milestone: milestone ?? undefined,
   };
 }
 
@@ -138,7 +151,10 @@ function showHelp(): void {
   console.log("Modes:");
   console.log("  Default mode:    Run plan phase (Steps 1-3 of kickstart)");
   console.log(
-    "  --update-issue:  Fill empty sections in issue template using LLM\n",
+    "  --update-issue:  Fill empty sections in issue template using LLM",
+  );
+  console.log(
+    "  --milestone:     Generate milestone description from milestone issues\n",
   );
   console.log("Options:");
   console.log(
@@ -172,6 +188,9 @@ function showHelp(): void {
   );
   console.log(
     "  --fill-template           Alias for --update-issue",
+  );
+  console.log(
+    "  --milestone, -m <ref>     Generate milestone description from GitHub milestone issues",
   );
   console.log(
     "  --dry-run                 Preview changes without updating GitHub (use with --update-issue)",
@@ -214,6 +233,15 @@ function showHelp(): void {
   console.log(
     "  dn prep --update-issue https://github.com/owner/repo/issues/123",
   );
+  console.log("");
+  console.log(
+    "  # Generate milestone description from GitHub milestone issues",
+  );
+  console.log("  dn prep --milestone 42");
+  console.log('  dn prep -m "Q2 Features"');
+  console.log(
+    "  dn prep --milestone https://github.com/owner/repo/milestone/3",
+  );
 }
 
 /**
@@ -231,7 +259,22 @@ export async function handlePrep(
     Deno.exit(1);
   }
 
-  if (config.updateIssue) {
+  if (config.milestone) {
+    if (config.updateIssue) {
+      console.error(
+        "Error: --milestone cannot be used with --update-issue.",
+      );
+      console.error("\nUse 'dn prep --help' for usage information.");
+      Deno.exit(1);
+    }
+    if (config.issueUrl || config.contextMarkdownPath) {
+      console.error(
+        "Error: --milestone cannot be used with an issue URL, issue number, or markdown file.",
+      );
+      console.error("\nUse 'dn prep --help' for usage information.");
+      Deno.exit(1);
+    }
+  } else if (config.updateIssue) {
     if (!config.issueUrl) {
       console.error(
         "Error: --update-issue requires an issue URL or issue number (not a markdown file path).",
@@ -266,6 +309,45 @@ export async function handlePrep(
       } else {
         console.error(e instanceof Error ? e.message : String(e));
       }
+      Deno.exit(1);
+    }
+  }
+
+  if (config.milestone) {
+    try {
+      const workspaceRoot = config.workspaceRoot ||
+        Deno.env.get("WORKSPACE_ROOT") || Deno.cwd();
+
+      const result = await generateMilestoneDescription(
+        config.milestone,
+        workspaceRoot,
+        config.agentHarness,
+      );
+
+      if (result.error || !result.success) {
+        console.error(`Error: ${result.error ?? "Milestone prep failed"}`);
+        Deno.exit(1);
+      }
+
+      console.log(`\n${result.descriptionFilePath}`);
+
+      const repo = await getCurrentRepoFromRemote().then(
+        (r) => `${r.owner}/${r.repo}`,
+      ).catch(() => undefined);
+      await promptAndAddToTodoList(
+        [{
+          ref: result.descriptionFilePath,
+          title: result.milestone?.title ?? "Milestone description",
+        }],
+        {
+          repo,
+          updated: new Date().toISOString().slice(0, 10),
+        },
+      );
+
+      Deno.exit(0);
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
       Deno.exit(1);
     }
   }

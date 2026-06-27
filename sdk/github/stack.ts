@@ -129,6 +129,19 @@ export function getStackArtifactPaths(
 }
 
 /**
+ * Returns the path for a generated milestone description artifact.
+ */
+export function getMilestoneDescriptionArtifactPath(
+  repoRoot: string,
+  owner: string,
+  repo: string,
+  milestoneNumber: number,
+): string {
+  const id = formatStackArtifactId(owner, repo, milestoneNumber);
+  return `${repoRoot}/plans/${id}.description.md`;
+}
+
+/**
  * Parses generated stack markdown checklist items into todo entries.
  */
 export function parseStackTodoItems(body: string): TodoItem[] {

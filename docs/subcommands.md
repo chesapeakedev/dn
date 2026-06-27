@@ -56,7 +56,7 @@ dn kickstart --cursor https://github.com/owner/repo/issues/123
 # With Claude Code
 dn kickstart --claude https://github.com/owner/repo/issues/123
 
-# Docker sandbox (provisions container; phase 1 still runs agent on host)
+# Docker sandbox (agent harness runs inside container; workspace bind-mounted)
 dn kickstart --sandbox docker https://github.com/owner/repo/issues/123
 ```
 
@@ -583,6 +583,21 @@ dn --agent claude prep https://github.com/owner/repo/issues/123
 # With Codex CLI
 dn --agent codex prep https://github.com/owner/repo/issues/123
 ```
+
+### Milestone descriptions
+
+When preparing release notes or milestone copy, generate a user-value-focused
+description from all open issues in a GitHub milestone:
+
+```bash
+dn prep --milestone 42
+dn prep -m "Q2 Features"
+dn prep --milestone https://github.com/owner/repo/milestone/3
+```
+
+The command fetches milestone issues, runs an alternative system prompt that
+synthesizes cross-cutting value themes, and writes
+`plans/{owner}_{repo}_{milestone}.description.md` in the workspace.
 
 Cross-repository operations follow the same rules as `dn kickstart` — use
 `--allow-cross-repo` to plan issues from a different repository. The plan file
