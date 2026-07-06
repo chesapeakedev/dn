@@ -4,6 +4,7 @@
 import type { AgentHarness } from "../github/agentHarness.ts";
 import { getRunAgent } from "../github/agentHarness.ts";
 import { getCurrentSandboxContext, isSandboxActive } from "./context.ts";
+import { translateHostPathToSandbox } from "./paths.ts";
 import type { ExecResult } from "./types.ts";
 
 function buildSandboxAgentCommand(
@@ -55,6 +56,20 @@ export async function runAgentPhaseInSandbox(
   }
 
   const ctx = getCurrentSandboxContext()!;
+  const sandboxWorkspace = ctx.handle.workspace;
+  const sandboxPromptPath = translateHostPathToSandbox(
+    combinedPromptPath,
+    ctx.repoRoot,
+    sandboxWorkspace,
+  );
+  const sandboxCwd = translateHostPathToSandbox(
+    workspaceRoot,
+    ctx.repoRoot,
+    sandboxWorkspace,
+  );
+
+  console.log(`[progress] phase.started ${phase} (sandbox=${ctx.provider})`);
+
   const execEnv: Record<string, string> = {
     DN_SANDBOX_PROVIDER: "none",
     DN_IN_SANDBOX: "1",
@@ -68,11 +83,26 @@ export async function runAgentPhaseInSandbox(
   const argv = buildSandboxAgentCommand(
     harness,
     phase,
-    combinedPromptPath,
+    sandboxPromptPath,
   );
 
   return await ctx.runner.exec(ctx.handle, argv, {
-    cwd: workspaceRoot,
+    cwd: sandboxCwd,
     env: execEnv,
   });
+}
+
+/** Resolves host cwd to sandbox cwd for lint and other exec calls. */
+export function translateSandboxCwd(
+  hostCwd: string,
+): string {
+  const ctx = getCurrentSandboxContext();
+  if (!ctx) {
+    return hostCwd;
+  }
+  return translateHostPathToSandbox(
+    hostCwd,
+    ctx.repoRoot,
+    ctx.handle.workspace,
+  );
 }

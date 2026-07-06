@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { createDefaultCommandRunner } from "./prerequisites.ts";
+import { buildGitAddArgv } from "./paths.ts";
 import type { CommandRunner } from "./types.ts";
 import type {
   ExecOptions,
@@ -41,7 +42,7 @@ function requireExeToken(): string {
   const token = Deno.env.get("EXE_TOKEN")?.trim();
   if (!token) {
     throw new Error(
-      "EXE_TOKEN is required for exe.dev sandbox. Run: ssh exe.dev ssh-key generate-api-key",
+      "EXE_TOKEN is required for exe.dev sandbox. Run: make exe_dev_token",
     );
   }
   return token;
@@ -52,9 +53,29 @@ function buildVmName(ctx: SandboxContext): string {
   return `${ctx.config.exe_dev.vm_name_prefix}-${suffix}`;
 }
 
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\"'\"'`)}'`;
+}
+
+function buildRemoteShellCommand(
+  cwd: string,
+  cmd: string[],
+  env?: Record<string, string>,
+): string {
+  const parts: string[] = [`cd ${shellQuote(cwd)}`];
+  if (env) {
+    for (const [key, value] of Object.entries(env)) {
+      parts.push(`export ${key}=${shellQuote(value)}`);
+    }
+  }
+  parts.push(cmd.map(shellQuote).join(" "));
+  return parts.join(" && ");
+}
+
 interface SyncState {
   tempBranch: string;
   originalBranch: string;
+  exclude: string[];
 }
 
 /** Provisions ephemeral VMs on exe.dev. */
@@ -63,6 +84,8 @@ export class ExeDevRunner implements SandboxRunner {
   private readonly http: ExeDevHttpClient;
   private readonly commandRunner: CommandRunner;
   private readonly syncState: Map<string, SyncState> = new Map();
+  private readonly syncExclude: Map<string, string[]> = new Map();
+  private readonly repoRoots: Map<string, string> = new Map();
 
   constructor(
     http: ExeDevHttpClient = createDefaultExeDevHttpClient(),
@@ -107,6 +130,8 @@ export class ExeDevRunner implements SandboxRunner {
     }
 
     console.log(`exe.dev sandbox started: ${vmName}`);
+    this.syncExclude.set(vmName, ctx.config.sync.exclude);
+    this.repoRoots.set(vmName, ctx.repoRoot);
     return {
       provider: "exe.dev",
       id: vmName,
@@ -117,14 +142,12 @@ export class ExeDevRunner implements SandboxRunner {
   async exec(
     handle: SandboxHandle,
     cmd: string[],
-    _opts?: ExecOptions,
+    opts?: ExecOptions,
   ): Promise<ExecResult> {
-    const command = [
-      "ssh",
-      handle.id,
-      "--",
-      ...cmd,
-    ].join(" ");
+    const cwd = opts?.cwd ?? handle.workspace;
+    const remoteCmd = buildRemoteShellCommand(cwd, cmd, opts?.env);
+    const command = ["ssh", handle.id, "--", remoteCmd].join(" ");
+
     if (handle.dryRun) {
       console.log(
         `[sandbox dry-run] Would POST ${EXE_DEV_API_URL}: ${command}`,
@@ -160,6 +183,7 @@ export class ExeDevRunner implements SandboxRunner {
       return;
     }
 
+    const exclude = this.syncExclude.get(handle.id) ?? [];
     const tempBranch = `sandbox-sync-${crypto.randomUUID().slice(0, 12)}`;
     const currentBranchResult = await this.commandRunner.run([
       "git",
@@ -168,10 +192,10 @@ export class ExeDevRunner implements SandboxRunner {
       "HEAD",
     ]);
     const originalBranch = currentBranchResult.stdout.trim() || "main";
-    this.syncState.set(handle.id, { tempBranch, originalBranch });
+    this.syncState.set(handle.id, { tempBranch, originalBranch, exclude });
 
-    const gitDir = Deno.cwd();
-    await this.commandRunner.run(["git", "add", "-A"], { cwd: gitDir });
+    const gitDir = this.repoRoots.get(handle.id) ?? Deno.cwd();
+    await this.commandRunner.run(buildGitAddArgv(exclude), { cwd: gitDir });
     await this.commandRunner.run(
       [
         "git",
@@ -229,23 +253,26 @@ export class ExeDevRunner implements SandboxRunner {
       return;
     }
 
-    const { tempBranch, originalBranch } = state;
+    const { tempBranch, originalBranch, exclude } = state;
     const token = requireExeToken();
-
     const vmPushCmd = [
       "ssh",
       handle.id,
       "--",
       [
-        `cd ${handle.workspace}`,
-        "git add -A",
+        `cd ${shellQuote(handle.workspace)}`,
+        exclude.length > 0
+          ? `git add -A -- . ${
+            exclude.map((p) => `':(exclude)${p}'`).join(" ")
+          }`
+          : "git add -A",
         `git commit --allow-empty -m "sandbox sync out"`,
         `git push origin ${tempBranch}`,
       ].join(" && "),
     ].join(" ");
     await this.http.exec(token, vmPushCmd);
 
-    const gitDir = Deno.cwd();
+    const gitDir = this.repoRoots.get(handle.id) ?? Deno.cwd();
     await this.commandRunner.run(
       ["git", "fetch", "origin", tempBranch],
       { cwd: gitDir },
@@ -270,7 +297,7 @@ export class ExeDevRunner implements SandboxRunner {
   }
 
   async teardown(handle: SandboxHandle): Promise<void> {
-    const destroyCommand = `destroy ${handle.id} --json`;
+    const destroyCommand = `rm ${handle.id} --json`;
     if (handle.dryRun) {
       console.log(
         `[sandbox dry-run] Would POST ${EXE_DEV_API_URL}: ${destroyCommand}`,
@@ -284,5 +311,8 @@ export class ExeDevRunner implements SandboxRunner {
         `exe.dev VM teardown failed (${response.status}): ${response.body}`,
       );
     }
+    this.syncState.delete(handle.id);
+    this.syncExclude.delete(handle.id);
+    this.repoRoots.delete(handle.id);
   }
 }

@@ -1,4 +1,18 @@
 {
-  "schema_version": "1.0",
-  "agent": "opencode"
+  "schema_version": "1.1",
+  "agent": "opencode",
+  "sandbox": {
+    "provider": "exe.dev",
+    "workspace": "/home/exedev/workspace",
+    "sync": {
+      "mode": "git_clone",
+      "exclude": [".git", "node_modules", ".sl"]
+    },
+    "exe_dev": {
+      "image": "exeuntu",
+      "vm_name_prefix": "dn-kickstart",
+      "ttl": "4h",
+      "integrations": ["github"]
+    }
+  }
 }

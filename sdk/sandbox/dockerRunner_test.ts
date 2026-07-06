@@ -124,3 +124,47 @@ Deno.test("DockerRunner.provision dry-run logs planned command", async () => {
     console.log = original;
   }
 });
+
+Deno.test("DockerRunner.exec translates host cwd to sandbox workspace", async () => {
+  let capturedArgv: string[] = [];
+  const runner = new DockerRunner({
+    run(argv) {
+      if (argv[0] === "docker" && argv[1] === "run") {
+        return Promise.resolve({ code: 0, stdout: "abc123\n", stderr: "" });
+      }
+      capturedArgv = argv;
+      return Promise.resolve({ code: 0, stdout: "hello\n", stderr: "" });
+    },
+  });
+
+  const handle = await runner.provision({
+    repoRoot: "/Users/me/repo",
+    dryRun: false,
+    config: {
+      provider: "docker",
+      workspace: "/workspace",
+      sync: { mode: "bind", exclude: [] },
+      docker: {
+        image: "denoland/deno",
+        network: "none",
+        read_only_root: false,
+        mounts: [{ source: ".", target: "/workspace" }],
+        env_pass_through: [],
+      },
+      exe_dev: {
+        image: "exeuntu",
+        vm_name_prefix: "dn-kickstart",
+        ttl: "4h",
+        integrations: [],
+      },
+    },
+  });
+
+  await runner.exec(
+    handle,
+    ["echo", "hello"],
+    { cwd: "/Users/me/repo/.dn/tmp" },
+  );
+
+  assertStringIncludes(capturedArgv.join(" "), "-w /workspace/.dn/tmp");
+});

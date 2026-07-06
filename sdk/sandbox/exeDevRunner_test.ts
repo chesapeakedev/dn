@@ -71,7 +71,7 @@ Deno.test("ExeDevRunner.provision dry-run skips HTTP", async () => {
 });
 
 Deno.test({
-  name: "ExeDevRunner.teardown posts destroy command",
+  name: "ExeDevRunner.teardown posts rm command",
   permissions: { env: true },
 }, async () => {
   const calls: string[] = [];
@@ -89,7 +89,7 @@ Deno.test({
       id: "dn-kickstart-deadbeef",
       workspace: "/workspace",
     });
-    assertEquals(calls[0], "destroy dn-kickstart-deadbeef --json");
+    assertEquals(calls[0], "rm dn-kickstart-deadbeef --json");
   } finally {
     Deno.env.delete("EXE_TOKEN");
   }

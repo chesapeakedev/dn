@@ -42,9 +42,10 @@ import {
   formatWarning,
 } from "./output.ts";
 import {
-  getWorkspaceTmpDir,
+  createRunTmpDir,
   isSandboxActive,
   runAgentPhaseInSandbox,
+  translateSandboxCwd,
 } from "../sdk/sandbox/mod.ts";
 import { $ } from "$dax";
 
@@ -664,14 +665,10 @@ export async function runOrchestrator(
   await ensurePlansDirectory(normalizedWorkspaceRoot);
 
   // Create temp directory (workspace-relative when sandbox is active for visibility inside containers/VMs)
-  let tmpDir: string;
-  if (isSandboxActive()) {
-    const baseDir = getWorkspaceTmpDir(normalizedWorkspaceRoot);
-    await Deno.mkdir(baseDir, { recursive: true });
-    tmpDir = await Deno.makeTempDir({ dir: baseDir, prefix: "geo-opencode-" });
-  } else {
-    tmpDir = await Deno.makeTempDir({ prefix: "geo-opencode-" });
-  }
+  const tmpDir = await createRunTmpDir(
+    normalizedWorkspaceRoot,
+    "geo-opencode-",
+  );
   const combinedPromptPlanPath = `${tmpDir}/combined_prompt_plan.txt`;
   const combinedPromptImplementPath = `${tmpDir}/combined_prompt_implement.txt`;
   const planOutputPath = `${tmpDir}/plan_output.txt`;
@@ -1061,7 +1058,7 @@ export async function runOrchestrator(
             const lintResult = await ctx.runner.exec(
               ctx.handle,
               ["deno", "task", "check"],
-              { cwd: WORKSPACE_ROOT },
+              { cwd: translateSandboxCwd(WORKSPACE_ROOT) },
             );
             if (lintResult.code === 0) {
               console.log(

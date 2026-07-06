@@ -33,6 +33,7 @@ include deslop.mk
 	glance \
 	publish \
 	test_subcommands \
+	exe_dev_token \
 	bump_patch bump_minor bump_major release
 
 fmt: ; deno fmt
@@ -104,6 +105,10 @@ tokei: ; hash tokei || cargo install tokei
 # create temporary git repositories and run dn CLI commands in isolation.
 # They are useful for manual testing but should not be run in CI pipelines.
 test_subcommands: ; deno test cli/test_*.ts --allow-all
+
+# Generate EXE_TOKEN for dn exe.dev sandbox (lobby API cmds: new, ssh, rm).
+# Requires: ssh exe.dev access. Optional: EXE_TOKEN_LABEL, EXE_TOKEN_EXP.
+exe_dev_token: ; @bash ./scripts/exe_dev_token.sh
 
 # Version bumping targets
 bump_patch:

@@ -22,10 +22,10 @@ See `templates/workflows/dn-config.sandbox.example.json` for a full example.
 Secrets never go in `config.json`. Provider credentials are environment
 variables:
 
-| Provider | Env var                                                   |
-| -------- | --------------------------------------------------------- |
-| exe.dev  | `EXE_TOKEN` (from `ssh exe.dev ssh-key generate-api-key`) |
-| docker   | Local Docker socket (no token)                            |
+| Provider | Env var                                                        |
+| -------- | -------------------------------------------------------------- |
+| exe.dev  | `EXE_TOKEN` — see [exe.dev API token](#exedev-api-token) below |
+| docker   | Local Docker socket (no token)                                 |
 
 ## CLI overrides
 
@@ -61,6 +61,18 @@ env vars to prevent recursive sandbox provisioning.
 Combined prompt files are created under `.dn/tmp/` inside the workspace when a
 sandbox is active, ensuring they are visible inside the container or VM.
 
+Host paths are translated to sandbox workspace paths before agent and lint
+commands run inside the container or VM.
+
+## Supported subcommands
+
+| Subcommand  | Sandbox support                        |
+| ----------- | -------------------------------------- |
+| `kickstart` | Full plan + implement inside sandbox   |
+| `loop`      | Implement phase inside sandbox         |
+| `meld`      | Plan phase inside sandbox              |
+| `prep`      | Host only in v1 (no lifecycle wrapper) |
+
 ## Validation
 
 `dn workflows validate` warns when `sandbox.provider` is set but prerequisites
@@ -91,6 +103,42 @@ outbound API access.
 
 ## exe.dev notes
 
+### exe.dev API token
+
+`dn` calls the exe.dev lobby over `POST https://exe.dev/exec` with
+`Authorization: Bearer $EXE_TOKEN`. Each POST body is an SSH-style command.
+
+| Phase              | API command                           | Required token `cmds` |
+| ------------------ | ------------------------------------- | --------------------- |
+| Provision VM       | `new <name> --image … --ttl … --json` | `new`                 |
+| Agent + sync on VM | `ssh <name> -- …`                     | `ssh`                 |
+| Teardown           | `rm <name> --json`                    | `rm`                  |
+
+The default token from `ssh exe.dev ssh-key generate-api-key` includes `new` but
+**not** `ssh` or `rm`. When you pass `--cmds`, it **replaces** the default list
+(does not merge). Generate a dn-scoped token with:
+
+```bash
+make exe_dev_token
+# or manually:
+ssh exe.dev ssh-key generate-api-key \
+  --label=dn-kickstart \
+  --cmds=new,ssh,rm \
+  --exp=90d
+export EXE_TOKEN='exe1....'
+```
+
+Optional: `EXE_TOKEN_LABEL`, `EXE_TOKEN_EXP` env vars for `make exe_dev_token`.
+
+Permissions model:
+[exe.dev HTTPS API — Granular permissions](https://exe.dev/docs/https-api#granular-permissions).
+Do **not** use `--vm` on `generate-api-key` — that creates a VM-scoped token for
+the VM HTTPS proxy, not lobby `new`/`ssh`/`rm`.
+
+Host-side git push/pull uses your local credentials, not `EXE_TOKEN`.
+
+### Runtime behavior
+
 - Control plane: `POST https://exe.dev/exec` with
   `Authorization: Bearer $EXE_TOKEN`
 - HTTPS API timeout is 30s; long-running commands use SSH exec via the API
@@ -98,6 +146,8 @@ outbound API access.
   on `origin`, the VM clones/pulls that branch, and after agent phases the VM
   pushes back. Requires the repo to have a remote configured and the VM to have
   GitHub SSH access (via the `github` integration).
+- `sandbox.sync.exclude` patterns are applied during git sync (pathspec excludes
+  for `node_modules`, `.git`, etc.)
 - Optional LLM gateway inside VMs: `http://169.254.169.254/gateway/`
 
 ## CI behavior

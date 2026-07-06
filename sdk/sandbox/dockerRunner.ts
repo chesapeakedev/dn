@@ -3,6 +3,7 @@
 
 import { resolveMountSource } from "./resolve.ts";
 import { createDefaultCommandRunner } from "./prerequisites.ts";
+import { translateHostPathToSandbox } from "./paths.ts";
 import type { CommandRunner } from "./types.ts";
 import type {
   DnSandboxConfig,
@@ -49,10 +50,11 @@ export function buildDockerRunArgs(
   return args;
 }
 
-/** Runs kickstart/loop inside a Docker container (phase 1: lifecycle). */
+/** Runs kickstart/loop inside a Docker container with bind-mounted workspace. */
 export class DockerRunner implements SandboxRunner {
   readonly provider = "docker" as const;
   private readonly commandRunner: CommandRunner;
+  private readonly repoRoots = new Map<string, string>();
 
   constructor(commandRunner: CommandRunner = createDefaultCommandRunner()) {
     this.commandRunner = commandRunner;
@@ -85,6 +87,7 @@ export class DockerRunner implements SandboxRunner {
       throw new Error("Docker did not return a container id");
     }
 
+    this.repoRoots.set(containerId, ctx.repoRoot);
     console.log(`Docker sandbox started: ${containerId.slice(0, 12)}`);
     return {
       provider: "docker",
@@ -98,25 +101,35 @@ export class DockerRunner implements SandboxRunner {
     cmd: string[],
     opts?: ExecOptions,
   ): Promise<ExecResult> {
+    const repoRoot = this.repoRoots.get(handle.id);
+    let workDir = opts?.cwd ?? handle.workspace;
+    if (repoRoot && opts?.cwd) {
+      workDir = translateHostPathToSandbox(
+        opts.cwd,
+        repoRoot,
+        handle.workspace,
+      );
+    }
+
     if (handle.dryRun) {
       const quoted = cmd.map((part) => JSON.stringify(part)).join(" ");
       console.log(
         `[sandbox dry-run] Would run: docker exec -w ${
-          JSON.stringify(handle.workspace)
+          JSON.stringify(workDir)
         } ${handle.id} ${quoted}`,
       );
       return { code: 0, stdout: "", stderr: "" };
     }
 
-    const argv = [
-      "docker",
-      "exec",
-      "-w",
-      opts?.cwd ?? handle.workspace,
-      handle.id,
-      ...cmd,
-    ];
-    return await this.commandRunner.run(argv, { env: opts?.env });
+    const argv = ["docker", "exec"];
+    if (opts?.env) {
+      for (const [key, value] of Object.entries(opts.env)) {
+        argv.push("-e", `${key}=${value}`);
+      }
+    }
+    argv.push("-w", workDir, handle.id, ...cmd);
+
+    return await this.commandRunner.run(argv);
   }
 
   async syncIn(_handle: SandboxHandle): Promise<void> {
@@ -133,6 +146,7 @@ export class DockerRunner implements SandboxRunner {
       return;
     }
     await this.commandRunner.run(["docker", "stop", handle.id]);
+    this.repoRoots.delete(handle.id);
   }
 }
 

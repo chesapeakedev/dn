@@ -63,10 +63,7 @@ Deno.test("resolveSandboxProvider errors when from-config and config missing", (
   );
 });
 
-Deno.test({
-  name: "resolveSandboxConfig merges repo config with CLI override",
-  permissions: { read: true, write: true, env: true },
-}, async () => {
+Deno.test("resolveSandboxConfig merges repo config with CLI override", async () => {
   const { resolveSandboxConfig } = await import("./resolve.ts");
   const repoRoot = await Deno.makeTempDir({ prefix: "dn-sandbox-resolve-" });
   try {

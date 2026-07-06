@@ -127,6 +127,8 @@ export interface SandboxExecContext {
   runner: SandboxRunner;
   handle: SandboxHandle;
   provider: SandboxProvider;
+  /** Absolute host path to the consumer repository. */
+  repoRoot: string;
 }
 
 /** Injectable command runner for tests. */

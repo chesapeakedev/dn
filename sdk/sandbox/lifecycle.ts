@@ -43,7 +43,12 @@ export async function runWithSandboxLifecycle<T>(
 
   try {
     await runner.syncIn(handle);
-    setCurrentSandboxContext({ runner, handle, provider: options.provider });
+    setCurrentSandboxContext({
+      runner,
+      handle,
+      provider: options.provider,
+      repoRoot: options.repoRoot,
+    });
     return await fn();
   } finally {
     setCurrentSandboxContext(null);

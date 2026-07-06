@@ -22,3 +22,16 @@ export function isSandboxActive(): boolean {
 export function getWorkspaceTmpDir(workspaceRoot: string): string {
   return `${workspaceRoot}/.dn/tmp`;
 }
+
+/** Temp dir under workspace when sandbox is active; system /tmp otherwise. */
+export async function createRunTmpDir(
+  workspaceRoot: string,
+  prefix: string,
+): Promise<string> {
+  if (isSandboxActive()) {
+    const baseDir = getWorkspaceTmpDir(workspaceRoot);
+    await Deno.mkdir(baseDir, { recursive: true });
+    return await Deno.makeTempDir({ dir: baseDir, prefix });
+  }
+  return await Deno.makeTempDir({ prefix });
+}

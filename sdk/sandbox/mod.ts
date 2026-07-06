@@ -53,11 +53,14 @@ export {
 } from "./prerequisites.ts";
 
 export {
+  createRunTmpDir,
   getCurrentSandboxContext,
   getWorkspaceTmpDir,
   isSandboxActive,
   setCurrentSandboxContext,
 } from "./context.ts";
+
+export { buildGitAddArgv, translateHostPathToSandbox } from "./paths.ts";
 
 export { HostRunner } from "./hostRunner.ts";
 export {
@@ -68,4 +71,4 @@ export {
 export { createDefaultExeDevHttpClient, ExeDevRunner } from "./exeDevRunner.ts";
 export { createSandboxRunner } from "./factory.ts";
 export { runWithSandboxLifecycle } from "./lifecycle.ts";
-export { runAgentPhaseInSandbox } from "./agentPhase.ts";
+export { runAgentPhaseInSandbox, translateSandboxCwd } from "./agentPhase.ts";

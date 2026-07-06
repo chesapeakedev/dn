@@ -44,7 +44,7 @@ export async function validateSandboxPrerequisites(
       warnings.push({
         code: "sandbox_exe_token_missing",
         message:
-          'sandbox.provider is "exe.dev" but EXE_TOKEN is not set. Run: ssh exe.dev ssh-key generate-api-key',
+          'sandbox.provider is "exe.dev" but EXE_TOKEN is not set. Run: make exe_dev_token (requires cmds new,ssh,rm)',
       });
     }
     return warnings;

@@ -26,6 +26,7 @@ import {
 } from "../sdk/sandbox/cli.ts";
 import { resolveSandboxConfig } from "../sdk/sandbox/resolve.ts";
 import { runWithSandboxLifecycle } from "../sdk/sandbox/lifecycle.ts";
+import { createRunTmpDir } from "../sdk/sandbox/context.ts";
 import { isAbsolute, join } from "@std/path";
 
 const ISSUE_NUMBER_PATTERN = /^#?\d+$/;
@@ -486,9 +487,8 @@ export async function handleLoop(
     await runWithSandboxLifecycle(
       { repoRoot, config: sandboxConfig, provider },
       async () => {
-        // Create a temp directory for this run
-        // FIXME: replace geo-opencode with dn-{mode id}
-        const tmpDir = await Deno.makeTempDir({ prefix: "geo-opencode-" });
+        const workspaceRoot = config.workspaceRoot ?? Deno.cwd();
+        const tmpDir = await createRunTmpDir(workspaceRoot, "geo-opencode-");
         const planOutputPath = `${tmpDir}/plan_output.txt`;
 
         let issueData: IssueData | null;
