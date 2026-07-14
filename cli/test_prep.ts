@@ -8,7 +8,8 @@
  * to verify its behavior in isolated environments.
  */
 
-import { assert } from "@std/assert";
+import { assert, assertEquals, assertMatch } from "@std/assert";
+import { parseFrontmatter } from "../sdk/todo/frontmatter.ts";
 import {
   assertGitState,
   cleanupTestRepo,
@@ -322,6 +323,67 @@ Deno.test("prep --milestone conflicts with --update-issue", async () => {
     assert(
       result.stderr.includes("--milestone cannot be used with --update-issue"),
     );
+  } finally {
+    await cleanupTestRepo(testRepo);
+  }
+});
+
+Deno.test("prep --milestone writes a description artifact", async () => {
+  const testRepo = await createProjectTestRepo();
+  const milestoneFixture = {
+    owner: "owner",
+    repo: "repo",
+    milestone: {
+      id: "M_1",
+      number: 42,
+      title: "Reliable Sync",
+      description: "Improve sync reliability for customers.",
+      state: "OPEN",
+      dueOn: null,
+      creator: "octocat",
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-02T00:00:00Z",
+      issues: [
+        {
+          number: 123,
+          title: "Retry failed syncs",
+          body: "Retry transient failures without losing work.",
+          state: "OPEN",
+          author: "octocat",
+          labels: ["enhancement"],
+          url: "https://github.com/owner/repo/issues/123",
+        },
+      ],
+    },
+  };
+
+  try {
+    const result = await runDnCommand(["prep", "--milestone", "42"], {
+      cwd: testRepo.path,
+      env: {
+        DN_PREP_MILESTONE_FIXTURE: JSON.stringify(milestoneFixture),
+        DN_PREP_MILESTONE_FAKE_OUTPUT:
+          "```markdown\nA more reliable sync experience.\n\n## What changes\n- Retries transient failures.\n```",
+      },
+    });
+
+    assert(result.success);
+    assert(result.stdout.includes("plans/owner_repo_42.description.md"));
+
+    const artifactPath = `${testRepo.path}/plans/owner_repo_42.description.md`;
+    const artifact = await Deno.readTextFile(artifactPath);
+    const { frontmatter, body } = parseFrontmatter(artifact);
+
+    assertEquals(frontmatter.milestone, "42");
+    assertEquals(frontmatter.milestone_title, "Reliable Sync");
+    assertEquals(frontmatter.repo, "owner/repo");
+    assertEquals(frontmatter.issue_count, "1");
+    assertMatch(frontmatter.updated, /^\d{4}-\d{2}-\d{2}$/);
+    assertMatch(frontmatter.generated_at, /^\d{4}-\d{2}-\d{2}T/);
+    assert(body.includes("SYSTEM: This file is a milestone description"));
+    assert(body.includes("# Milestone: Reliable Sync"));
+    assert(body.includes("A more reliable sync experience."));
+    assert(!body.includes("```"));
   } finally {
     await cleanupTestRepo(testRepo);
   }

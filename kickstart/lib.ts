@@ -68,6 +68,9 @@ import {
 } from "../sdk/sandbox/mod.ts";
 import { $ } from "$dax";
 
+const MILESTONE_PREP_FIXTURE_ENV = "DN_PREP_MILESTONE_FIXTURE";
+const MILESTONE_PREP_FAKE_OUTPUT_ENV = "DN_PREP_MILESTONE_FAKE_OUTPUT";
+
 /**
  * Detects if the implement phase output contains a blocking error.
  * Blocking errors are conditions that prevent implementation from proceeding.
@@ -2101,6 +2104,64 @@ function stripMarkdownCodeFences(output: string): string {
   return cleaned.trim();
 }
 
+function isFixtureRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isMilestonePrepFixture(
+  value: unknown,
+): value is { owner: string; repo: string; milestone: Milestone } {
+  if (!isFixtureRecord(value)) return false;
+  const { owner, repo, milestone } = value;
+  if (
+    typeof owner !== "string" || typeof repo !== "string" ||
+    !isFixtureRecord(milestone) || !Array.isArray(milestone.issues)
+  ) {
+    return false;
+  }
+
+  return typeof milestone.id === "string" &&
+    typeof milestone.number === "number" &&
+    typeof milestone.title === "string" &&
+    (typeof milestone.description === "string" ||
+      milestone.description === null) &&
+    typeof milestone.state === "string" &&
+    (typeof milestone.dueOn === "string" || milestone.dueOn === null) &&
+    typeof milestone.creator === "string" &&
+    typeof milestone.createdAt === "string" &&
+    typeof milestone.updatedAt === "string" &&
+    milestone.issues.every((issue) =>
+      isFixtureRecord(issue) && typeof issue.number === "number" &&
+      typeof issue.title === "string" && typeof issue.body === "string" &&
+      typeof issue.state === "string" && typeof issue.author === "string" &&
+      Array.isArray(issue.labels) &&
+      issue.labels.every((label) => typeof label === "string") &&
+      typeof issue.url === "string"
+    );
+}
+
+async function getMilestoneForPrep(
+  milestoneInput: string,
+): Promise<{ milestone: Milestone; owner: string; repo: string }> {
+  const fixture = Deno.env.get(MILESTONE_PREP_FIXTURE_ENV);
+  if (fixture === undefined) {
+    return await getMilestoneFromInput(milestoneInput);
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fixture);
+  } catch {
+    throw new Error(`${MILESTONE_PREP_FIXTURE_ENV} must contain valid JSON.`);
+  }
+  if (!isMilestonePrepFixture(parsed)) {
+    throw new Error(
+      `${MILESTONE_PREP_FIXTURE_ENV} must contain milestone fixture data.`,
+    );
+  }
+  return parsed;
+}
+
 /**
  * Fetches milestone issues and generates a user-value-focused description artifact.
  *
@@ -2118,7 +2179,7 @@ export async function generateMilestoneDescription(
 
   try {
     console.log(formatStep(1, "Fetching milestone from GitHub..."));
-    const { milestone, owner, repo } = await getMilestoneFromInput(
+    const { milestone, owner, repo } = await getMilestoneForPrep(
       milestoneInput,
     );
 
@@ -2168,13 +2229,16 @@ export async function generateMilestoneDescription(
         milestoneContextPath,
       );
 
-      const result = await runAgentPhaseInSandbox(
-        "plan",
-        combinedPromptPath,
-        normalizedWorkspaceRoot,
-        true,
-        agentHarness,
-      );
+      const fakeOutput = Deno.env.get(MILESTONE_PREP_FAKE_OUTPUT_ENV);
+      const result = fakeOutput === undefined
+        ? await runAgentPhaseInSandbox(
+          "plan",
+          combinedPromptPath,
+          normalizedWorkspaceRoot,
+          true,
+          agentHarness,
+        )
+        : { code: 0, stdout: fakeOutput, stderr: "" };
 
       if (result.code !== 0) {
         return {
