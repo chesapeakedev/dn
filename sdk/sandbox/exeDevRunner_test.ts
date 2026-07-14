@@ -3,7 +3,11 @@
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { ExeDevRunner } from "./exeDevRunner.ts";
-import type { ExeDevHttpClient, SandboxContext } from "./types.ts";
+import type {
+  CommandRunner,
+  ExeDevHttpClient,
+  SandboxContext,
+} from "./types.ts";
 
 const baseCtx = (): SandboxContext => ({
   repoRoot: "/repo",
@@ -90,6 +94,123 @@ Deno.test({
       workspace: "/workspace",
     });
     assertEquals(calls[0], "rm dn-kickstart-deadbeef --json");
+  } finally {
+    Deno.env.delete("EXE_TOKEN");
+  }
+});
+
+Deno.test({
+  name: "ExeDevRunner.syncIn honors sync.exclude and repo root",
+  permissions: { env: true },
+}, async () => {
+  const commands: Array<{ argv: string[]; cwd?: string }> = [];
+  const commandRunner: CommandRunner = {
+    run(argv, options) {
+      commands.push({ argv, cwd: options?.cwd });
+      if (argv.join(" ") === "git rev-parse --abbrev-ref HEAD") {
+        return Promise.resolve({ code: 0, stdout: "feature\n", stderr: "" });
+      }
+      if (argv.join(" ") === "git remote get-url origin") {
+        return Promise.resolve({
+          code: 0,
+          stdout: "git@github.com:owner/repo.git\n",
+          stderr: "",
+        });
+      }
+      return Promise.resolve({ code: 0, stdout: "", stderr: "" });
+    },
+  };
+  const httpCalls: string[] = [];
+  const http: ExeDevHttpClient = {
+    exec(_token, command) {
+      httpCalls.push(command);
+      return Promise.resolve({ status: 200, body: "" });
+    },
+  };
+
+  Deno.env.set("EXE_TOKEN", "exe1.test");
+  try {
+    const runner = new ExeDevRunner(http, commandRunner);
+    const handle = await runner.provision({
+      ...baseCtx(),
+      repoRoot: "/repo",
+      config: {
+        ...baseCtx().config,
+        sync: { mode: "git_clone", exclude: ["node_modules", ".dn/tmp"] },
+      },
+    });
+
+    await runner.syncIn(handle);
+
+    assertEquals(commands[0], {
+      argv: ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+      cwd: "/repo",
+    });
+    assertEquals(commands[1], {
+      argv: [
+        "git",
+        "add",
+        "-A",
+        "--",
+        ".",
+        ":(exclude)node_modules",
+        ":(exclude).dn/tmp",
+      ],
+      cwd: "/repo",
+    });
+    assertStringIncludes(httpCalls.at(-1) ?? "", "git clone");
+    assertStringIncludes(httpCalls.at(-1) ?? "", "--branch sandbox-sync-");
+  } finally {
+    Deno.env.delete("EXE_TOKEN");
+  }
+});
+
+Deno.test({
+  name: "ExeDevRunner.syncOut honors sync.exclude in remote git add",
+  permissions: { env: true },
+}, async () => {
+  const commandRunner: CommandRunner = {
+    run(argv) {
+      if (argv.join(" ") === "git rev-parse --abbrev-ref HEAD") {
+        return Promise.resolve({ code: 0, stdout: "feature\n", stderr: "" });
+      }
+      if (argv.join(" ") === "git remote get-url origin") {
+        return Promise.resolve({
+          code: 0,
+          stdout: "git@github.com:owner/repo.git\n",
+          stderr: "",
+        });
+      }
+      return Promise.resolve({ code: 0, stdout: "", stderr: "" });
+    },
+  };
+  const httpCalls: string[] = [];
+  const http: ExeDevHttpClient = {
+    exec(_token, command) {
+      httpCalls.push(command);
+      return Promise.resolve({ status: 200, body: "" });
+    },
+  };
+
+  Deno.env.set("EXE_TOKEN", "exe1.test");
+  try {
+    const runner = new ExeDevRunner(http, commandRunner);
+    const handle = await runner.provision({
+      ...baseCtx(),
+      config: {
+        ...baseCtx().config,
+        sync: { mode: "git_clone", exclude: ["node_modules", "it's-temp"] },
+      },
+    });
+    await runner.syncIn(handle);
+    await runner.syncOut(handle);
+
+    const syncOutCommand = httpCalls.find((command) =>
+      command.includes("sandbox sync out")
+    ) ?? "";
+    assertStringIncludes(syncOutCommand, "git add -A -- .");
+    assertStringIncludes(syncOutCommand, "':(exclude)node_modules'");
+    assertStringIncludes(syncOutCommand, `':(exclude)it'"'"'s-temp'`);
   } finally {
     Deno.env.delete("EXE_TOKEN");
   }

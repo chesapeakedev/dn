@@ -5,7 +5,11 @@ import { createSandboxRunner } from "./factory.ts";
 import { isSandboxDryRun } from "./resolve.ts";
 import { assertSandboxPrerequisites } from "./validate.ts";
 import { setCurrentSandboxContext } from "./context.ts";
-import type { DnSandboxConfig, SandboxProvider } from "./types.ts";
+import type {
+  DnSandboxConfig,
+  SandboxProvider,
+  SandboxRunner,
+} from "./types.ts";
 
 /**
  * Provisions a sandbox, syncs workspace in, runs `fn`, syncs out, then tears down.
@@ -18,6 +22,8 @@ export async function runWithSandboxLifecycle<T>(
     repoRoot: string;
     config: DnSandboxConfig;
     provider: SandboxProvider;
+    /** Test hook for exercising lifecycle ordering without real infrastructure. */
+    runner?: SandboxRunner;
   },
   fn: () => Promise<T>,
 ): Promise<T> {
@@ -26,10 +32,12 @@ export async function runWithSandboxLifecycle<T>(
     return await fn();
   }
 
-  await assertSandboxPrerequisites(options.provider);
+  if (!options.runner) {
+    await assertSandboxPrerequisites(options.provider);
+  }
 
   const dryRun = isSandboxDryRun();
-  const runner = createSandboxRunner(options.provider);
+  const runner = options.runner ?? createSandboxRunner(options.provider);
   const ctx = {
     repoRoot: options.repoRoot,
     config: options.config,
@@ -52,7 +60,10 @@ export async function runWithSandboxLifecycle<T>(
     return await fn();
   } finally {
     setCurrentSandboxContext(null);
-    await runner.syncOut(handle);
-    await runner.teardown(handle);
+    try {
+      await runner.syncOut(handle);
+    } finally {
+      await runner.teardown(handle);
+    }
   }
 }

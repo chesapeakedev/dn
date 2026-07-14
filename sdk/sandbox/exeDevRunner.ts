@@ -185,16 +185,16 @@ export class ExeDevRunner implements SandboxRunner {
 
     const exclude = this.syncExclude.get(handle.id) ?? [];
     const tempBranch = `sandbox-sync-${crypto.randomUUID().slice(0, 12)}`;
+    const gitDir = this.repoRoots.get(handle.id) ?? Deno.cwd();
     const currentBranchResult = await this.commandRunner.run([
       "git",
       "rev-parse",
       "--abbrev-ref",
       "HEAD",
-    ]);
+    ], { cwd: gitDir });
     const originalBranch = currentBranchResult.stdout.trim() || "main";
     this.syncState.set(handle.id, { tempBranch, originalBranch, exclude });
 
-    const gitDir = this.repoRoots.get(handle.id) ?? Deno.cwd();
     await this.commandRunner.run(buildGitAddArgv(exclude), { cwd: gitDir });
     await this.commandRunner.run(
       [
@@ -263,7 +263,7 @@ export class ExeDevRunner implements SandboxRunner {
         `cd ${shellQuote(handle.workspace)}`,
         exclude.length > 0
           ? `git add -A -- . ${
-            exclude.map((p) => `':(exclude)${p}'`).join(" ")
+            exclude.map((p) => shellQuote(`:(exclude)${p}`)).join(" ")
           }`
           : "git add -A",
         `git commit --allow-empty -m "sandbox sync out"`,
