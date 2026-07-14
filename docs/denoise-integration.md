@@ -110,6 +110,32 @@ gh run list --repo owner/repo --event repository_dispatch
 Use `dn workflows dispatch --wait` to block until a new run appears, then print
 its URL.
 
+## Kickstart Progress Events
+
+`dn workflows exec` copies `client_payload.dispatch_id` to `DN_DISPATCH_ID`
+before it starts `dn`. Reporting remains disabled unless `DN_PROGRESS` selects a
+delivery mode:
+
+| Variable             | Meaning                                                                |
+| -------------------- | ---------------------------------------------------------------------- |
+| `DN_DISPATCH_ID`     | Required invocation correlation id; supplied from repository dispatch. |
+| `DN_PROGRESS=ndjson` | Write one event per JSON line to stderr.                               |
+| `DN_PROGRESS=http`   | POST events to `DN_PROGRESS_URL` using `DN_PROGRESS_TOKEN`.            |
+| `DN_PROGRESS_URL`    | Denoise progress ingest URL for HTTP mode.                             |
+| `DN_PROGRESS_TOKEN`  | Bearer token for HTTP mode; never included in events or logs.          |
+
+Events use schema version `"1.0"` and have `invocation_id`, monotonically
+increasing `seq`, ISO-8601 `ts`, `type`, and a human-readable `message`.
+Optional `phase` values are `plan`, `implement`, `lint`, and `publish`; step
+events include `step`. `publish.completed` may include `data.branch_name` and
+`data.pr_url`. The event types are `invocation.queued`, `invocation.running`,
+`step.started`, `step.completed`, `phase.started`, `phase.completed`,
+`lint.completed`, `publish.completed`, `invocation.succeeded`, and
+`invocation.failed`.
+
+HTTP delivery is best-effort: a failed request logs one safe diagnostic and does
+not fail the kickstart workflow.
+
 ## Daily Kickstart
 
 `dn.daily_kickstart` is not a `repository_dispatch` contract. It runs on the

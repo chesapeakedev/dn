@@ -68,8 +68,6 @@ export async function runAgentPhaseInSandbox(
     sandboxWorkspace,
   );
 
-  console.log(`[progress] phase.started ${phase} (sandbox=${ctx.provider})`);
-
   const execEnv: Record<string, string> = {
     DN_SANDBOX_PROVIDER: "none",
     DN_IN_SANDBOX: "1",

@@ -522,6 +522,14 @@ export async function handleWorkflowExec(args: string[]): Promise<void> {
       status: "passed",
       message: "Event JSON loaded",
     });
+    if (eventName === "repository_dispatch") {
+      const payload = requireRecord(event.client_payload, "client_payload");
+      const dispatchId = requireNonEmptyString(
+        payload.dispatch_id,
+        "client_payload.dispatch_id",
+      );
+      Deno.env.set("DN_DISPATCH_ID", dispatchId);
+    }
 
     const workspace = Deno.env.get("GITHUB_WORKSPACE") ?? Deno.cwd();
     let config;

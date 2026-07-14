@@ -359,6 +359,21 @@ export {
   writeGithubActionVcsOutputs,
 } from "./github/publish.ts";
 
+// Kickstart progress reporting
+export type {
+  KickstartProgressEvent,
+  KickstartProgressEventType,
+  KickstartProgressSchemaVersion,
+  ProgressEventInput,
+  ProgressReporter,
+} from "./github/progress.ts";
+export {
+  createProgressReporter,
+  HttpReporter,
+  NdjsonReporter,
+  NullReporter,
+} from "./github/progress.ts";
+
 // OpenCode execution
 export type { OpenCodeResult } from "./github/opencode.ts";
 export { runOpenCode } from "./github/opencode.ts";

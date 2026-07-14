@@ -27,6 +27,10 @@ import { formatAgentHarnessName } from "../sdk/github/agentHarness.ts";
 import { assembleCombinedPrompt } from "../sdk/github/prompt.ts";
 import { createPR } from "../sdk/github/github.ts";
 import type { PRPlanSummary } from "../sdk/github/github.ts";
+import {
+  createProgressReporter,
+  type ProgressReporter,
+} from "../sdk/github/progress.ts";
 import { createCursorRule } from "./artifacts.ts";
 import { formatSummary } from "../sdk/archive/format.ts";
 import {
@@ -657,6 +661,26 @@ export async function runOrchestrator(
   const { publish, issueUrl, saveCtx } = config;
   assertPublishAllowedInCi(publish);
   const publishesChanges = publish !== "none";
+  const reporter = createProgressReporter();
+
+  const report = async (
+    type:
+      | "invocation.queued"
+      | "invocation.running"
+      | "step.started"
+      | "step.completed"
+      | "phase.started"
+      | "phase.completed"
+      | "lint.completed"
+      | "publish.completed"
+      | "invocation.succeeded"
+      | "invocation.failed",
+    message: string,
+    options: Omit<
+      Parameters<ProgressReporter["report"]>[0],
+      "type" | "message"
+    > = {},
+  ): Promise<void> => await reporter.report({ type, message, ...options });
 
   // Normalize path to avoid double slashes
   const normalizedWorkspaceRoot = WORKSPACE_ROOT.replace(/\/+$/, "");
@@ -683,7 +707,10 @@ export async function runOrchestrator(
   let vcsType: "git" | "sapling" | null = null;
 
   try {
+    await report("invocation.queued", "Kickstart invocation queued");
+    await report("invocation.running", "Kickstart invocation running");
     // Step 1: Resolve issue context
+    await report("step.started", "Resolving issue context", { step: 1 });
     console.log(formatStep(1, "Resolving issue context..."));
     if (config.contextMarkdownPath) {
       issueContextPathFinal = config.contextMarkdownPath;
@@ -698,12 +725,15 @@ export async function runOrchestrator(
         "No issue URL or context path provided. Set issueUrl or contextMarkdownPath.",
       );
     }
+    await report("step.completed", "Resolved issue context", { step: 1 });
 
     // Step 2: Prepare VCS state (only when publishing, requires issue data)
     if (publishesChanges && issueData !== null) {
+      await report("step.started", "Preparing VCS state", { step: 2 });
       console.log(formatStep(2, "Preparing VCS state..."));
       gitContext = await prepareVcsForKickstart(publish, issueData);
       vcsType = gitContext?.vcs ?? null;
+      await report("step.completed", "Prepared VCS state", { step: 2 });
     }
     // In default mode, we don't interact with VCS at the beginning.
     // VCS will be detected lazily only when needed (e.g., to show changes).
@@ -735,6 +765,11 @@ export async function runOrchestrator(
     }
 
     // Step 3: Plan Phase
+    await report("step.started", "Starting plan step", { step: 3 });
+    await report("phase.started", "Plan phase started", {
+      phase: "plan",
+      step: 3,
+    });
     console.log(
       formatStep(
         3,
@@ -827,6 +862,10 @@ export async function runOrchestrator(
         `Plan phase failed with exit code ${planResult.code}${hint}`,
       );
     }
+    await report("phase.completed", "Plan phase completed", {
+      phase: "plan",
+      step: 3,
+    });
 
     // Check for plan file
     console.log(formatInfo("Validating plan file..."));
@@ -834,8 +873,14 @@ export async function runOrchestrator(
     console.log(formatInfo(`Plan file location: ${planFilePath}`));
 
     console.log(formatSuccess("Plan phase completed successfully"));
+    await report("step.completed", "Plan step completed", { step: 3 });
 
     // Step 4: Implement Phase
+    await report("step.started", "Starting implement step", { step: 4 });
+    await report("phase.started", "Implement phase started", {
+      phase: "implement",
+      step: 4,
+    });
     console.log(
       `\n${
         formatStep(
@@ -912,6 +957,10 @@ export async function runOrchestrator(
         `Implement phase failed with exit code ${implementResult.code}`,
       );
     }
+    await report("phase.completed", "Implement phase completed", {
+      phase: "implement",
+      step: 4,
+    });
 
     // Check for blocking errors in the output (even if exit code is 0)
     const blockingError = detectBlockingError(
@@ -936,11 +985,13 @@ export async function runOrchestrator(
         "Implementation blocked: Agent reported a blocking error. See output above for details.",
       );
     }
+    await report("step.completed", "Implement step completed", { step: 4 });
 
     // Note: The agent is responsible for updating the Acceptance Criteria checklist
     // in the plan file. We do not automatically update it here.
 
     // Step 4.5: Check completion status and handle continuation
+    await report("step.started", "Checking completion status", { step: 4.5 });
     console.log(`\n${formatStep(4.5, "Checking completion status...")}`);
     const finalPlanFilePath = planFilePath;
 
@@ -1044,8 +1095,14 @@ export async function runOrchestrator(
       );
       console.warn(error instanceof Error ? error.message : String(error));
     }
+    await report("step.completed", "Checked completion status", { step: 4.5 });
 
     // Step 5: Run linting (non-blocking)
+    await report("step.started", "Starting lint step", { step: 5 });
+    await report("phase.started", "Lint phase started", {
+      phase: "lint",
+      step: 5,
+    });
     console.log(
       `\n${formatStep(5, "Running linting to improve code quality...")}`,
     );
@@ -1132,8 +1189,18 @@ export async function runOrchestrator(
       );
       console.warn(error instanceof Error ? error.message : String(error));
     }
+    await report("lint.completed", "Lint phase completed", {
+      phase: "lint",
+      step: 5,
+    });
+    await report("phase.completed", "Lint phase completed", {
+      phase: "lint",
+      step: 5,
+    });
+    await report("step.completed", "Lint step completed", { step: 5 });
 
     // Step 6: Generate artifacts
+    await report("step.started", "Generating workspace artifacts", { step: 6 });
     console.log(`\n${formatStep(6, "Generating workspace artifacts...")}`);
     try {
       // Create Cursor rule if enabled
@@ -1152,8 +1219,12 @@ export async function runOrchestrator(
       );
       console.warn(error instanceof Error ? error.message : String(error));
     }
+    await report("step.completed", "Generated workspace artifacts", {
+      step: 6,
+    });
 
     // Step 7: Validate changes
+    await report("step.started", "Validating changes", { step: 7 });
     console.log(`\n${formatStep(7, "Validating changes...")}`);
 
     // In non-AWP mode, detect VCS lazily only when needed (to show changes)
@@ -1175,6 +1246,8 @@ export async function runOrchestrator(
       if (!saveCtx) {
         await Deno.remove(tmpDir, { recursive: true });
       }
+      await report("step.completed", "Validated changes", { step: 7 });
+      await report("invocation.succeeded", "Kickstart invocation succeeded");
       return {
         success: true,
         tmpDir,
@@ -1195,6 +1268,8 @@ export async function runOrchestrator(
       if (!saveCtx) {
         await Deno.remove(tmpDir, { recursive: true });
       }
+      await report("step.completed", "Validated changes", { step: 7 });
+      await report("invocation.succeeded", "Kickstart invocation succeeded");
       return {
         success: true,
         tmpDir,
@@ -1208,6 +1283,12 @@ export async function runOrchestrator(
 
     if (publishesChanges) {
       // Step 8: Commit and push
+      await report("step.completed", "Validated changes", { step: 7 });
+      await report("step.started", "Publishing changes", { step: 8 });
+      await report("phase.started", "Publish phase started", {
+        phase: "publish",
+        step: 8,
+      });
       console.log(`\n${formatStep(8, "Committing and pushing changes...")}`);
       if (!issueData || !gitContext) {
         throw new Error("Issue data and git context required for commit");
@@ -1223,6 +1304,7 @@ export async function runOrchestrator(
       let prUrl: string | undefined;
       if (publish === "pr") {
         // Step 9: Create PR
+        await report("step.started", "Creating pull request", { step: 9 });
         console.log(`\n${formatStep(9, "Creating PR...")}`);
 
         // Convert PlanSummary to PRPlanSummary for createPR (if available)
@@ -1252,6 +1334,7 @@ export async function runOrchestrator(
             ),
           );
         }
+        await report("step.completed", "Created pull request", { step: 9 });
       } else {
         console.log(
           `\n${formatSuccess(`Changes pushed to ${gitContext.branchName}.`)}`,
@@ -1263,6 +1346,19 @@ export async function runOrchestrator(
         prUrl,
         publishMode: publish,
       });
+      await report("publish.completed", "Published changes", {
+        phase: "publish",
+        step: 8,
+        data: {
+          branch_name: publishResult.branchName,
+          ...(prUrl === undefined ? {} : { pr_url: prUrl }),
+        },
+      });
+      await report("phase.completed", "Publish phase completed", {
+        phase: "publish",
+        step: 8,
+      });
+      await report("step.completed", "Published changes", { step: 8 });
     } else {
       console.log(`\n${formatSuccess("Changes applied to workspace.")}`);
       console.log(
@@ -1270,6 +1366,7 @@ export async function runOrchestrator(
           "Review the changes, then run `dn land` to create commits.",
         ),
       );
+      await report("step.completed", "Validated changes", { step: 7 });
     }
 
     // Note: .plan.md is a workspace artifact and should NOT be cleaned up
@@ -1279,6 +1376,7 @@ export async function runOrchestrator(
     if (!saveCtx) {
       await Deno.remove(tmpDir, { recursive: true });
     }
+    await report("invocation.succeeded", "Kickstart invocation succeeded");
     return {
       success: true,
       tmpDir,
@@ -1313,6 +1411,7 @@ export async function runOrchestrator(
       );
     }
 
+    await report("invocation.failed", "Kickstart invocation failed");
     throw error;
   }
 }
