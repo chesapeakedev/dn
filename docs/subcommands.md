@@ -12,13 +12,48 @@ You can pass **global flags** after any subcommand to control output style:
 - **`--no-color`** – Disable colors.
 - **`--color`** – Enable colors even when stdout is not a TTY.
 - **`--sandbox <none|docker|exe.dev>`** – Select sandbox provider for agent
-  workflows (`kickstart`, `loop`, `meld`). Omit the value to read
+  workflows (`kickstart`, `loop`, `meld`, `hc`). Omit the value to read
   `sandbox.provider` from `.github/dn/config.json`. See
   [Sandbox providers](sandbox.md).
 
 In CI, `dn` automatically sets `NO_COLOR` and runs in unattended mode. See
 [Output and environment](output-and-environment.md) for NO_COLOR, FORCE_COLOR,
 and how unattended mode is detected.
+
+## `dn hc` — Generator/verifier gambits
+
+Runs a bounded generator/verifier loop from a JSON config file. Use it for a
+goal that needs repeated implementation attempts and a deterministic completion
+check. A config can contain one gambit or a `gambits` array; gambits run in
+order and share one sandbox lifecycle.
+
+```bash
+dn hc validate .github/dn/gambit.json
+dn hc run .github/dn/gambit.json
+dn hc run .github/dn/gambit.json --once
+```
+
+Each action has exactly one of `script` or `prompt`. A generator failure stops
+the run. A script verifier is done when it exits with code `0`; a prompt
+verifier must print JSON in the form `{"done": true}`. Set `max_iterations` and
+`timeout_ms` to keep runs bounded. `--once` runs one generator/verifier tick.
+
+Use `secrets` only for environment variable names. Do not put secret values in
+the JSON file. Set a top-level `sandbox` block to use the same sandbox settings
+for every gambit.
+
+```json
+{
+  "gambits": [{
+    "name": "feature",
+    "generator": { "script": "deno task fmt" },
+    "verifier": { "script": "deno test --allow-all" },
+    "max_iterations": 3,
+    "timeout_ms": 1800000,
+    "secrets": ["OPENAI_API_KEY"]
+  }]
+}
+```
 
 ## Common argument formats
 

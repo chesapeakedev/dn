@@ -86,6 +86,7 @@ import { handleTidy } from "./tidy.ts";
 import { handleRelease } from "./release.ts";
 import { handleSync } from "./sync.ts";
 import { handleTestPlan } from "./testplan.ts";
+import { handleHc } from "./hc.ts";
 
 /**
  * Parses global flags from args and returns bootstrap options plus remaining args.
@@ -265,6 +266,7 @@ function showUsage(): void {
   console.error(
     "  loop         Run loop phase only (requires plan file from prep)",
   );
+  console.error("  hc           Run bounded generator/verifier gambits");
   console.error(
     "  fixup        Address PR feedback locally (fetch comments, plan, implement)",
   );
@@ -369,6 +371,9 @@ async function main(): Promise<void> {
       break;
     case "loop":
       await handleLoop(subcommandArgs, globalAgent, globalSandbox);
+      break;
+    case "hc":
+      await handleHc(subcommandArgs, globalAgent, globalSandbox);
       break;
     case "prep":
       await handlePrep(subcommandArgs, globalAgent);
