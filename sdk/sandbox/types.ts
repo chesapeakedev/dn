@@ -27,6 +27,13 @@ export interface SandboxSyncConfig {
 export interface DockerSandboxConfig {
   /** Container image (must include dn runtime for phase 2). */
   image: string;
+  /**
+   * Optional repo-relative path to the Dockerfile that builds {@link image}.
+   *
+   * Declarative only: dn does not build from this path at provision time.
+   * Humans, agents, and CI use it to rebuild and push the golden image.
+   */
+  dockerfile?: string;
   /** Docker network mode; default `none` for isolation. */
   network: "none" | "bridge";
   /** Mount root filesystem read-only when true. */

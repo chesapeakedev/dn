@@ -1,0 +1,4 @@
+interface:
+  display_name: "Project base image"
+  short_description: "Configure dn Docker sandbox golden images and Dockerfiles"
+  default_prompt: "Use $base-image to configure or customize the project golden image for dn Docker sandbox."

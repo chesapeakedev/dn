@@ -16,7 +16,7 @@ See `templates/workflows/dn-config.sandbox.example.json` for a full example.
 | `sandbox.provider`  | `none` (default) \| `docker` \| `exe.dev`                                |
 | `sandbox.workspace` | Path inside the sandbox where the repo is mounted                        |
 | `sandbox.sync`      | How the host workspace maps (`bind` for Docker; `git_clone` for exe.dev) |
-| `sandbox.docker.*`  | Image, mounts, network mode, env pass-through                            |
+| `sandbox.docker.*`  | Image, optional Dockerfile path, mounts, network, env pass-through       |
 | `sandbox.exe_dev.*` | exe.dev VM image, naming prefix, TTL, integrations                       |
 
 Secrets never go in `config.json`. Provider credentials are environment
@@ -96,10 +96,34 @@ The image must include:
 - **Agent harness** (opencode, or another CLI like `agent` for Cursor)
 - **git** (for VCS operations)
 
-A reference Dockerfile is at `docker/Dockerfile` in the dn repository.
+A reference Dockerfile is at `docker/Dockerfile` in the dn repository. For a
+forkable default golden image (project base images), see `templates/dn-images/`
+(intended for a public `chesapeakedev/dn-images` repo).
+
+Optional `sandbox.docker.dockerfile` is a **repo-relative path** to the
+Dockerfile that builds `sandbox.docker.image`. It is declarative only — dn does
+not build at provision time. Prefer pinning CI configs to `:sha-*` tags or
+digests rather than `:latest`.
+
+| Field                       | Purpose                                             |
+| --------------------------- | --------------------------------------------------- |
+| `sandbox.docker.image`      | Runtime pull ref for the sandbox container          |
+| `sandbox.docker.dockerfile` | Optional path to the Dockerfile that builds `image` |
 
 Default `sandbox.docker.network` is `none`; set `bridge` when the agent needs
 outbound API access.
+
+### Project base image skill
+
+Install the golden-image skill into a consumer repo for hygiene guidance and
+customization suggestions (VCS/language/harness overlays, digest pinning, no
+secrets in layers):
+
+```bash
+dn init agents --skill base-image --agent opencode
+```
+
+See also `.agents/skills/base-image/` in this repository.
 
 ## exe.dev notes
 

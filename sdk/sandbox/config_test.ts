@@ -52,6 +52,30 @@ Deno.test("parseDnSandboxConfig parses issue #338 example fields", () => {
   assertEquals(config.docker.network, "bridge");
   assertEquals(config.docker.read_only_root, false);
   assertEquals(config.sync.exclude, [".git"]);
+  assertEquals(config.docker.dockerfile, undefined);
+});
+
+Deno.test("parseDnSandboxConfig accepts optional dockerfile path", () => {
+  const config = parseDnSandboxConfig({
+    provider: "docker",
+    docker: {
+      image: "ghcr.io/example/project:sha-abc123",
+      dockerfile: "docker/Dockerfile",
+    },
+  });
+  assertEquals(config.docker.image, "ghcr.io/example/project:sha-abc123");
+  assertEquals(config.docker.dockerfile, "docker/Dockerfile");
+});
+
+Deno.test("parseDnSandboxConfig rejects empty dockerfile", () => {
+  assertThrows(
+    () =>
+      parseDnSandboxConfig({
+        docker: { dockerfile: "   " },
+      }),
+    Error,
+    "sandbox.docker.dockerfile must be a non-empty string path",
+  );
 });
 
 Deno.test("parseDnWorkflowAgentConfig accepts schema 1.1 with sandbox", async () => {

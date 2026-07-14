@@ -269,35 +269,42 @@ dn init agents
 ```
 
 Pass `--skill` to install native skill files for one explicitly selected
-supported agent. `--agent` is required with `--skill`.
+supported agent. `--agent` is required with `--skill`. Optionally pass a skill
+name after `--skill` (`dn` default, or `base-image`).
 
 ```bash
 dn init agents --skill --agent codex
 dn init agents --skill --agent claude
 dn init agents --skill --agent opencode
 dn init agents --skill --agent cursor
+dn init agents --skill base-image --agent opencode
 dn init agents --skill --agent codex --scope user
 dn init agents --skill --agent claude --dry-run --json
 ```
 
 Supported skill agents: `codex`, `claude`, `opencode`, `cursor`.
 
-Repo-scope installs write:
+Supported skill names: `dn` (default), `base-image`.
 
-- `codex`, `opencode`: `.agents/skills/dn/SKILL.md` and
-  `.agents/skills/dn/agents/openai.yaml`
-- `claude`: `.claude/skills/dn/SKILL.md`
-- `cursor`: `.cursor/rules/dn.mdc`
+Repo-scope installs write (replace `dn` with the skill name when set):
+
+- `codex`, `opencode`: `.agents/skills/<name>/SKILL.md` and
+  `.agents/skills/<name>/agents/openai.yaml`
+- `claude`: `.claude/skills/<name>/SKILL.md`
+- `cursor`: `.cursor/rules/<name>.mdc`
 
 User-scope installs write:
 
-- `codex`, `opencode`: `~/.agents/skills/dn/SKILL.md` and
-  `~/.agents/skills/dn/agents/openai.yaml`
-- `claude`: `~/.claude/skills/dn/SKILL.md`
+- `codex`, `opencode`: `~/.agents/skills/<name>/SKILL.md` and
+  `~/.agents/skills/<name>/agents/openai.yaml`
+- `claude`: `~/.claude/skills/<name>/SKILL.md`
 
 Cursor skill installation is repo-scoped. Managed files are idempotent; existing
 unmanaged files are left untouched unless `--force` is passed. Use `--dry-run`
 to inspect planned writes, skips, and conflicts without changing files.
+
+The `base-image` skill documents golden-image hygiene and `sandbox.docker.image`
+/ `sandbox.docker.dockerfile` configuration. See [sandbox.md](sandbox.md).
 
 ### `dn init stack` — Initialize stack from GitHub milestone
 

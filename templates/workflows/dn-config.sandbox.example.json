@@ -10,6 +10,7 @@
     },
     "docker": {
       "image": "ghcr.io/chesapeakedev/dn-kickstart:latest",
+      "dockerfile": "docker/Dockerfile",
       "network": "none",
       "read_only_root": true,
       "mounts": [

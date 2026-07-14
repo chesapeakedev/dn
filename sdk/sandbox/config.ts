@@ -125,6 +125,17 @@ function parseDocker(value: unknown): DockerSandboxConfig {
   const image = typeof docker.image === "string"
     ? docker.image
     : DEFAULT_SANDBOX_CONFIG.docker.image;
+  let dockerfile: string | undefined;
+  if (docker.dockerfile !== undefined) {
+    if (
+      typeof docker.dockerfile !== "string" || docker.dockerfile.trim() === ""
+    ) {
+      throw new Error(
+        "sandbox.docker.dockerfile must be a non-empty string path",
+      );
+    }
+    dockerfile = docker.dockerfile;
+  }
   const readOnlyRoot = docker.read_only_root === undefined
     ? DEFAULT_SANDBOX_CONFIG.docker.read_only_root
     : Boolean(docker.read_only_root);
@@ -136,6 +147,7 @@ function parseDocker(value: unknown): DockerSandboxConfig {
     : parseStringArray(docker.env_pass_through, "docker.env_pass_through");
   return {
     image,
+    ...(dockerfile !== undefined ? { dockerfile } : {}),
     network,
     read_only_root: readOnlyRoot,
     mounts,
