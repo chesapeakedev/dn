@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { $ } from "$dax";
+import { runAgentCommand } from "./agentExecution.ts";
 import type { OpenCodeResult } from "./opencode.ts";
 import { formatElapsedTime, isTty, isUnattended, Spinner } from "./output.ts";
+import type { ProgressReporter } from "./progress.ts";
 
 const DN_PREFIX = "[dn] ";
 
@@ -72,6 +74,7 @@ export async function runClaudeAgent(
   combinedPromptPath: string,
   workspaceRoot: string,
   _useReadonlyConfig?: boolean,
+  reporter?: ProgressReporter,
 ): Promise<OpenCodeResult> {
   try {
     await $`which claude`.quiet();
@@ -152,44 +155,28 @@ export async function runClaudeAgent(
     Deno.env.get("CLAUDE_DANGEROUSLY_SKIP_PERMISSIONS") === "1";
   const useBare = Deno.env.get("CLAUDE_CODE_BARE") === "1";
 
-  const claudeCommand = useBare
-    ? (dangerouslySkipPermissions
-      ? $`claude --bare -p ${promptInstruction} --permission-mode ${permissionMode} --dangerously-skip-permissions --allowedTools ${allowedTools}`
-      : $`claude --bare -p ${promptInstruction} --permission-mode ${permissionMode} --allowedTools ${allowedTools}`)
-      .cwd(workspaceRoot)
-      .noThrow()
-      .stdout("piped")
-      .stderr("piped")
-      .stdin("null")
-    : (dangerouslySkipPermissions
-      ? $`claude -p ${promptInstruction} --permission-mode ${permissionMode} --dangerously-skip-permissions --allowedTools ${allowedTools}`
-      : $`claude -p ${promptInstruction} --permission-mode ${permissionMode} --allowedTools ${allowedTools}`)
-      .cwd(workspaceRoot)
-      .noThrow()
-      .stdout("piped")
-      .stderr("piped")
-      .stdin("null");
-
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    setTimeout(() => {
-      if (spinner) {
-        spinner.stop();
-      }
-      clearInterval(progressInterval);
-      reject(
-        new Error(
-          `Claude Code ${phase} phase timed out after ${
-            Math.round(timeoutMs / 1000)
-          }s. Increase timeout with CLAUDE_TIMEOUT_MS or OPENCODE_TIMEOUT_MS.`,
-        ),
-      );
-    }, timeoutMs);
-  });
-
-  const result = await Promise.race([
-    claudeCommand,
-    timeoutPromise,
-  ]).finally(() => {
+  const claudeArgs = [
+    ...(useBare ? ["--bare"] : []),
+    "-p",
+    promptInstruction,
+    "--permission-mode",
+    permissionMode,
+    ...(dangerouslySkipPermissions ? ["--dangerously-skip-permissions"] : []),
+    "--allowedTools",
+    allowedTools,
+  ];
+  const result = await runAgentCommand(
+    "claude",
+    claudeArgs,
+    workspaceRoot,
+    phase,
+    reporter,
+    timeoutMs,
+    `Claude Code ${phase} phase timed out after ${
+      Math.round(timeoutMs / 1000)
+    }s. ` +
+      "Increase timeout with CLAUDE_TIMEOUT_MS or OPENCODE_TIMEOUT_MS.",
+  ).finally(() => {
     if (spinner) {
       spinner.stop();
     }
@@ -212,12 +199,6 @@ export async function runClaudeAgent(
       );
     }
     console.log("");
-    if (result.stdout) {
-      console.log(result.stdout);
-    }
-    if (result.stderr) {
-      console.error(result.stderr);
-    }
   } else {
     if (exitCode === 0) {
       console.log(
@@ -229,12 +210,6 @@ export async function runClaudeAgent(
           formatElapsedTime(elapsed)
         }.`,
       );
-    }
-    if (result.stdout) {
-      console.log(result.stdout);
-    }
-    if (result.stderr) {
-      console.error(result.stderr);
     }
   }
 

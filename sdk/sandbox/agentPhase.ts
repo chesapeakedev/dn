@@ -3,9 +3,21 @@
 
 import type { AgentHarness } from "../github/agentHarness.ts";
 import { getRunAgent } from "../github/agentHarness.ts";
+import {
+  createProgressReporter,
+  type ProgressReporter,
+  streamAgentOutput,
+} from "../github/progress.ts";
 import { getCurrentSandboxContext, isSandboxActive } from "./context.ts";
 import { translateHostPathToSandbox } from "./paths.ts";
 import type { ExecResult } from "./types.ts";
+
+let defaultReporter: ProgressReporter | undefined;
+
+function getDefaultReporter(): ProgressReporter {
+  defaultReporter ??= createProgressReporter();
+  return defaultReporter;
+}
 
 function buildSandboxAgentCommand(
   harness: AgentHarness,
@@ -44,7 +56,9 @@ export async function runAgentPhaseInSandbox(
   workspaceRoot: string,
   useReadonlyConfig: boolean,
   harness: AgentHarness,
+  reporter?: ProgressReporter,
 ): Promise<ExecResult> {
+  const activeReporter = reporter ?? getDefaultReporter();
   if (!isSandboxActive()) {
     const runner = getRunAgent(harness);
     return await runner(
@@ -52,6 +66,7 @@ export async function runAgentPhaseInSandbox(
       combinedPromptPath,
       workspaceRoot,
       useReadonlyConfig,
+      activeReporter,
     );
   }
 
@@ -84,10 +99,21 @@ export async function runAgentPhaseInSandbox(
     sandboxPromptPath,
   );
 
-  return await ctx.runner.exec(ctx.handle, argv, {
+  const result = await ctx.runner.exec(ctx.handle, argv, {
     cwd: sandboxCwd,
     env: execEnv,
   });
+  await Promise.all([
+    streamAgentOutput(new Blob([result.stdout]).stream(), activeReporter, {
+      phase,
+      stream: "stdout",
+    }),
+    streamAgentOutput(new Blob([result.stderr]).stream(), activeReporter, {
+      phase,
+      stream: "stderr",
+    }),
+  ]);
+  return result;
 }
 
 /** Resolves host cwd to sandbox cwd for lint and other exec calls. */

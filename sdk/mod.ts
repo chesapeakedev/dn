@@ -361,6 +361,8 @@ export {
 
 // Kickstart progress reporting
 export type {
+  AgentOutputStream,
+  AgentStreamOptions,
   KickstartProgressEvent,
   KickstartProgressEventType,
   KickstartProgressSchemaVersion,
@@ -372,6 +374,8 @@ export {
   HttpReporter,
   NdjsonReporter,
   NullReporter,
+  redactAgentOutput,
+  streamAgentOutput,
 } from "./github/progress.ts";
 
 // OpenCode execution

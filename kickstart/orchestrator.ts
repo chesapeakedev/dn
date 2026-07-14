@@ -843,6 +843,7 @@ export async function runOrchestrator(
       WORKSPACE_ROOT,
       true, // useReadonlyConfig
       config.agentHarness,
+      reporter,
     );
 
     // Save plan output
@@ -942,6 +943,7 @@ export async function runOrchestrator(
       WORKSPACE_ROOT,
       false, // useReadonlyConfig
       config.agentHarness,
+      reporter,
     );
 
     // Save implement output

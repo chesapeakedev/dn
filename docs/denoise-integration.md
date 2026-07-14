@@ -116,13 +116,14 @@ its URL.
 before it starts `dn`. Reporting remains disabled unless `DN_PROGRESS` selects a
 delivery mode:
 
-| Variable             | Meaning                                                                |
-| -------------------- | ---------------------------------------------------------------------- |
-| `DN_DISPATCH_ID`     | Required invocation correlation id; supplied from repository dispatch. |
-| `DN_PROGRESS=ndjson` | Write one event per JSON line to stderr.                               |
-| `DN_PROGRESS=http`   | POST events to `DN_PROGRESS_URL` using `DN_PROGRESS_TOKEN`.            |
-| `DN_PROGRESS_URL`    | Denoise progress ingest URL for HTTP mode.                             |
-| `DN_PROGRESS_TOKEN`  | Bearer token for HTTP mode; never included in events or logs.          |
+| Variable                | Meaning                                                                |
+| ----------------------- | ---------------------------------------------------------------------- |
+| `DN_DISPATCH_ID`        | Required invocation correlation id; supplied from repository dispatch. |
+| `DN_PROGRESS=ndjson`    | Write one event per JSON line to stderr.                               |
+| `DN_PROGRESS=http`      | POST events to `DN_PROGRESS_URL` using `DN_PROGRESS_TOKEN`.            |
+| `DN_PROGRESS_URL`       | Denoise progress ingest URL for HTTP mode.                             |
+| `DN_PROGRESS_TOKEN`     | Bearer token for HTTP mode; never included in events or logs.          |
+| `DN_PROGRESS_VERBOSE=1` | Emit redacted `agent.line` events for live agent stdout and stderr.    |
 
 Events use schema version `"1.0"` and have `invocation_id`, monotonically
 increasing `seq`, ISO-8601 `ts`, `type`, and a human-readable `message`.
@@ -131,7 +132,11 @@ events include `step`. `publish.completed` may include `data.branch_name` and
 `data.pr_url`. The event types are `invocation.queued`, `invocation.running`,
 `step.started`, `step.completed`, `phase.started`, `phase.completed`,
 `lint.completed`, `publish.completed`, `invocation.succeeded`, and
-`invocation.failed`.
+`invocation.failed`. When `DN_PROGRESS_VERBOSE=1`, `agent.line` events add a
+redacted agent log tail with `data.stream` set to `stdout` or `stderr`.
+Recognizable API keys, bearer tokens, and common `TOKEN`/`SECRET` assignments
+are replaced before reporting. Sandbox runners currently return captured output,
+so their `agent.line` events are flushed after the sandbox command completes.
 
 HTTP delivery is best-effort: a failed request logs one safe diagnostic and does
 not fail the kickstart workflow.

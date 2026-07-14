@@ -14,6 +14,7 @@ export type KickstartProgressEventType =
   | "phase.completed"
   | "lint.completed"
   | "publish.completed"
+  | "agent.line"
   | "invocation.succeeded"
   | "invocation.failed";
 
@@ -43,6 +44,85 @@ export interface ProgressEventInput {
 export interface ProgressReporter {
   /** Emits one event. Implementations must not throw for delivery failures. */
   report(input: ProgressEventInput): Promise<void>;
+}
+
+/** Identifies the output stream that produced an agent log line. */
+export type AgentOutputStream = "stdout" | "stderr";
+
+/** Options for forwarding a child-process output stream to progress reporting. */
+export interface AgentStreamOptions {
+  /** Kickstart phase running the child process. */
+  phase: "plan" | "implement";
+  /** Child-process output stream being forwarded. */
+  stream: AgentOutputStream;
+  /** Whether to emit `agent.line` events; defaults to `DN_PROGRESS_VERBOSE=1`. */
+  verbose?: boolean;
+  /** Receives the original bytes for the human-facing console. */
+  write?: (chunk: Uint8Array) => Promise<unknown>;
+}
+
+const SECRET_PATTERNS: readonly RegExp[] = [
+  /sk-(?:proj-)?[A-Za-z0-9_-]{8,}/g,
+  /sk-ant-[A-Za-z0-9_-]{8,}/g,
+  /gh[pousr]_[A-Za-z0-9]{20,}/g,
+  /glpat-[A-Za-z0-9_-]{8,}/g,
+  /(Bearer\s+)[A-Za-z0-9._~-]{8,}/gi,
+  /(\b(?:api[_-]?key|access[_-]?token|auth(?:orization)?|password|secret|token)\b\s*[:=]\s*)[^\s'"`]+/gi,
+];
+
+/** Replaces recognizable credentials in agent output before it leaves dn. */
+export function redactAgentOutput(line: string): string {
+  return SECRET_PATTERNS.reduce(
+    (redacted, pattern) =>
+      redacted.replace(
+        pattern,
+        (_match, prefix?: unknown) =>
+          typeof prefix === "string" ? `${prefix}[REDACTED]` : "[REDACTED]",
+      ),
+    line,
+  );
+}
+
+/**
+ * Copies child-process output to the human console, captures it, and optionally
+ * reports complete redacted lines as `agent.line` progress events.
+ */
+export async function streamAgentOutput(
+  input: ReadableStream<Uint8Array>,
+  reporter: ProgressReporter,
+  options: AgentStreamOptions,
+): Promise<string> {
+  const verbose = options.verbose ??
+    Deno.env.get("DN_PROGRESS_VERBOSE") === "1";
+  const decoder = new TextDecoder();
+  let output = "";
+  let pendingLine = "";
+
+  const reportLine = async (line: string): Promise<void> => {
+    if (!verbose || line.length === 0) return;
+    await reporter.report({
+      type: "agent.line",
+      phase: options.phase,
+      message: redactAgentOutput(line),
+      data: { stream: options.stream },
+    });
+  };
+
+  for await (const chunk of input) {
+    if (options.write) await options.write(chunk);
+    const text = decoder.decode(chunk, { stream: true });
+    output += text;
+    pendingLine += text;
+    const lines = pendingLine.split(/\r?\n/);
+    pendingLine = lines.pop() ?? "";
+    for (const line of lines) await reportLine(line);
+  }
+
+  const finalText = decoder.decode();
+  output += finalText;
+  pendingLine += finalText;
+  await reportLine(pendingLine);
+  return output;
 }
 
 /** A reporter used when progress reporting is not configured. */

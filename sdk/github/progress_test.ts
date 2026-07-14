@@ -7,7 +7,19 @@ import {
   HttpReporter,
   NdjsonReporter,
   NullReporter,
+  redactAgentOutput,
+  streamAgentOutput,
 } from "./progress.ts";
+import type { ProgressEventInput, ProgressReporter } from "./progress.ts";
+
+class RecordingReporter implements ProgressReporter {
+  readonly events: ProgressEventInput[] = [];
+
+  report(input: ProgressEventInput): Promise<void> {
+    this.events.push(input);
+    return Promise.resolve();
+  }
+}
 
 Deno.test("NdjsonReporter emits versioned events with increasing sequence", async () => {
   const lines: string[] = [];
@@ -86,5 +98,69 @@ Deno.test("createProgressReporter requires dispatch id and complete HTTP configu
       DN_PROGRESS_URL: "https://denoise.example/progress",
     }),
     NullReporter,
+  );
+});
+
+Deno.test("streamAgentOutput preserves output and reports redacted complete lines", async () => {
+  const reporter = new RecordingReporter();
+  const written: string[] = [];
+  const input = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(
+        new TextEncoder().encode("first\nTOKEN=super-secret"),
+      );
+      controller.enqueue(new TextEncoder().encode("-value\nlast"));
+      controller.close();
+    },
+  });
+
+  const output = await streamAgentOutput(input, reporter, {
+    phase: "plan",
+    stream: "stderr",
+    verbose: true,
+    write: (chunk) => {
+      written.push(new TextDecoder().decode(chunk));
+      return Promise.resolve();
+    },
+  });
+
+  assertEquals(output, "first\nTOKEN=super-secret-value\nlast");
+  assertEquals(written.join(""), output);
+  assertEquals(reporter.events, [
+    {
+      type: "agent.line",
+      phase: "plan",
+      message: "first",
+      data: { stream: "stderr" },
+    },
+    {
+      type: "agent.line",
+      phase: "plan",
+      message: "TOKEN=[REDACTED]",
+      data: { stream: "stderr" },
+    },
+    {
+      type: "agent.line",
+      phase: "plan",
+      message: "last",
+      data: { stream: "stderr" },
+    },
+  ]);
+});
+
+Deno.test("streamAgentOutput suppresses lines unless verbose", async () => {
+  const reporter = new RecordingReporter();
+  await streamAgentOutput(new Blob(["quiet\n"]).stream(), reporter, {
+    phase: "implement",
+    stream: "stdout",
+    verbose: false,
+  });
+  assertEquals(reporter.events, []);
+});
+
+Deno.test("redactAgentOutput removes known API-key and bearer-token formats", () => {
+  assertEquals(
+    redactAgentOutput("key=sk-proj-abcdefghijk Bearer abcdefghijkl"),
+    "key=[REDACTED] Bearer [REDACTED]",
   );
 });

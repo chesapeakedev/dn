@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { $ } from "$dax";
+import { runAgentCommand } from "./agentExecution.ts";
 import { formatElapsedTime, isTty, isUnattended, Spinner } from "./output.ts";
+import type { ProgressReporter } from "./progress.ts";
 
 const DN_PREFIX = "[dn] ";
 
@@ -109,6 +111,7 @@ export async function runOpenCode(
   combinedPromptPath: string,
   workspaceRoot: string,
   useReadonlyConfig: boolean = false,
+  reporter?: ProgressReporter,
 ): Promise<OpenCodeResult> {
   // Check if opencode is available
   try {
@@ -316,39 +319,19 @@ export async function runOpenCode(
 
     // Run opencode with timeout and stdin disabled to prevent hanging on prompts
     // Using stdin("null") prevents opencode from waiting for user input
-    const opencodeCommand =
-      $`opencode run ${phase} -f ${combinedPromptPath} --log-level=DEBUG`
-        .cwd(workspaceRoot)
-        .noThrow()
-        .stdout("piped")
-        .stderr("piped")
-        .stdin("null"); // Prevent waiting for stdin input
-
-    // Set up timeout
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => {
-        if (spinner) {
-          spinner.stop();
-        }
-        clearInterval(progressInterval);
-        reject(
-          new Error(
-            `opencode ${phase} phase timed out after ${
-              Math.round(timeoutMs / 1000)
-            }s. ` +
-              `This may indicate it's waiting for user input. ` +
-              `Check stderr output for prompts. ` +
-              `You can increase timeout with OPENCODE_TIMEOUT_MS environment variable.`,
-          ),
-        );
-      }, timeoutMs);
-    });
-
-    // Race between execution and timeout
-    const result = await Promise.race([
-      opencodeCommand,
-      timeoutPromise,
-    ]).finally(() => {
+    const result = await runAgentCommand(
+      "opencode",
+      ["run", phase, "-f", combinedPromptPath, "--log-level=DEBUG"],
+      workspaceRoot,
+      phase,
+      reporter,
+      timeoutMs,
+      `opencode ${phase} phase timed out after ${
+        Math.round(timeoutMs / 1000)
+      }s. ` +
+        "This may indicate it's waiting for user input. Check stderr output for prompts. " +
+        "You can increase timeout with OPENCODE_TIMEOUT_MS environment variable.",
+    ).finally(() => {
       if (spinner) {
         spinner.stop();
       }
@@ -389,12 +372,6 @@ export async function runOpenCode(
         );
       }
       console.log("");
-      if (result.stdout) {
-        console.log(result.stdout);
-      }
-      if (result.stderr) {
-        console.error(result.stderr);
-      }
     } else {
       if (exitCode === 0) {
         console.log(
@@ -406,12 +383,6 @@ export async function runOpenCode(
             formatElapsedTime(elapsed)
           }.`,
         );
-      }
-      if (result.stdout) {
-        console.log(result.stdout);
-      }
-      if (result.stderr) {
-        console.error(result.stderr);
       }
     }
 

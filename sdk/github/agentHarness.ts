@@ -7,6 +7,7 @@ import { runCopilotAgent } from "./copilotAgent.ts";
 import { runCursorAgent } from "./cursorAgent.ts";
 import type { OpenCodeResult } from "./opencode.ts";
 import { runOpenCode } from "./opencode.ts";
+import type { ProgressReporter } from "./progress.ts";
 
 /**
  * Which external agent harness executes plan/implement phases.
@@ -112,6 +113,7 @@ export type RunAgentFn = (
   combinedPromptPath: string,
   workspaceRoot: string,
   useReadonlyConfig?: boolean,
+  reporter?: ProgressReporter,
 ) => Promise<OpenCodeResult>;
 
 /**
