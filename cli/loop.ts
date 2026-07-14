@@ -27,6 +27,10 @@ import {
 import { resolveSandboxConfig } from "../sdk/sandbox/resolve.ts";
 import { runWithSandboxLifecycle } from "../sdk/sandbox/lifecycle.ts";
 import { createRunTmpDir } from "../sdk/sandbox/context.ts";
+import {
+  requireCursorApiKey,
+  startCursorCloudAgent,
+} from "../sdk/github/cursorCloudAgent.ts";
 import { isAbsolute, join } from "@std/path";
 
 const ISSUE_NUMBER_PATTERN = /^#?\d+$/;
@@ -46,6 +50,8 @@ export type LoopTarget =
   | { kind: "github-issue"; input: string };
 
 interface LoopCliConfig extends KickstartConfig {
+  /** Dispatch implementation to a durable Cursor Cloud Agent. */
+  cursorCloud: boolean;
   target: LoopTarget;
   planFilePath: string | null;
 }
@@ -269,6 +275,7 @@ function parseArgs(
   let codexFlag = false;
   let copilotFlag = false;
   let opencodeFlag = false;
+  let cursorCloud = false;
   let workspaceRoot: string | undefined = undefined;
   let allowCrossRepo = false;
 
@@ -283,6 +290,8 @@ function parseArgs(
       allowCrossRepo = true;
     } else if (arg === "--cursor" || arg === "-c") {
       cursorFlag = true;
+    } else if (arg === "--cursor-cloud") {
+      cursorCloud = true;
     } else if (arg === "--claude") {
       claudeFlag = true;
     } else if (arg === "--codex") {
@@ -320,6 +329,15 @@ function parseArgs(
     copilotFlag,
     opencodeFlag,
   });
+  if (
+    cursorCloud &&
+    (globalAgent !== null || cursorFlag || claudeFlag || codexFlag ||
+      copilotFlag || opencodeFlag)
+  ) {
+    throw new Error(
+      "--cursor-cloud cannot be combined with --agent or local agent flags.",
+    );
+  }
 
   return {
     publish: "none" as const,
@@ -332,6 +350,7 @@ function parseArgs(
     planFilePath,
     target,
     sandboxFlag,
+    cursorCloud,
   };
 }
 
@@ -356,6 +375,9 @@ function showHelp(): void {
     "  --allow-cross-repo       Allow issue URLs from a different repository",
   );
   console.log("  --cursor, -c             Use Cursor headless agent");
+  console.log(
+    "  --cursor-cloud            Queue a durable Cursor Cloud Agent run (requires CURSOR_API_KEY)",
+  );
   console.log("  --claude                 Use Claude Code CLI");
   console.log("  --codex                  Use Codex CLI");
   console.log(
@@ -392,6 +414,31 @@ function showHelp(): void {
   );
   console.log(
     "that issue so the combined implement prompt carries `## Relationships` data.",
+  );
+}
+
+async function dispatchCursorCloudLoop(
+  planFilePath: string,
+  issueUrl: string | null,
+): Promise<void> {
+  requireCursorApiKey();
+  const plan = await Deno.readTextFile(planFilePath);
+  const issueMatch = issueUrl?.match(
+    /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/issues\/\d+(?:[?#].*)?$/i,
+  );
+  const repositoryUrl = issueMatch
+    ? `https://github.com/${issueMatch[1]}/${issueMatch[2]}.git`
+    : await getCurrentRepoFromRemote().then(
+      ({ owner, repo }) => `https://github.com/${owner}/${repo}.git`,
+    );
+  const result = await startCursorCloudAgent({
+    prompt:
+      `You are the implementation agent for a dn loop task. Work directly in the cloned repository. Implement this plan, update tests and documentation as needed, and run the relevant checks.\n\n${plan}`,
+    repository: { url: repositoryUrl, startingRef: "main" },
+    autoCreatePr: false,
+  });
+  console.log(
+    `Queued Cursor Cloud Agent run ${result.runId} (agent ${result.agentId}). The run continues on Cursor's cloud VM after dn exits.`,
   );
 }
 
@@ -476,6 +523,23 @@ export async function handleLoop(
     );
     console.error("\nUse 'dn loop --help' for usage information.");
     Deno.exit(1);
+  }
+
+  if (config.cursorCloud) {
+    if (!config.planFilePath) {
+      console.error("--cursor-cloud requires a plan file.");
+      Deno.exit(1);
+    }
+    try {
+      await dispatchCursorCloudLoop(
+        config.planFilePath,
+        explicitIssueUrl,
+      );
+      return;
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      Deno.exit(1);
+    }
   }
 
   try {

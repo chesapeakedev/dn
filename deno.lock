@@ -21,6 +21,9 @@
     "jsr:@std/path@^1.1.5": "1.1.5",
     "jsr:@std/streams@^1.0.10": "1.1.1",
     "jsr:@wei/pluralize@8.0.2": "8.0.2",
+    "npm:@cursor/sdk@*": "1.0.23_@bufbuild+protobuf@1.10.0_@connectrpc+connect@1.7.0__@bufbuild+protobuf@1.10.0",
+    "npm:@cursor/sdk@1.0.23": "1.0.23_@bufbuild+protobuf@1.10.0_@connectrpc+connect@1.7.0__@bufbuild+protobuf@1.10.0",
+    "npm:@cursor/sdk@^1.0.23": "1.0.23_@bufbuild+protobuf@1.10.0_@connectrpc+connect@1.7.0__@bufbuild+protobuf@1.10.0",
     "npm:@graphql-tools/schema@^10.0.31": "10.0.31_graphql@15.10.1",
     "npm:@libsql/client@0.7.0": "0.7.0",
     "npm:graphql-tag@^2.12.6": "2.12.6_graphql@15.10.1",
@@ -121,6 +124,81 @@
     }
   },
   "npm": {
+    "@bufbuild/protobuf@1.10.0": {
+      "integrity": "sha512-QDdVFLoN93Zjg36NoQPZfsVH9tZew7wKDKyV5qRdj8ntT4wQCOradQjRaTdwMhWUYsgKsvCINKKm87FdEk96Ag=="
+    },
+    "@connectrpc/connect-node@1.7.0_@bufbuild+protobuf@1.10.0_@connectrpc+connect@1.7.0__@bufbuild+protobuf@1.10.0": {
+      "integrity": "sha512-6vaPIkG/NyhxlYgytLoR9KYbPhczEboFB2OYWkA9qvUz1K7efXfeGrlRxoLtpa+r8VxyIOw73w5ktNe743nD+A==",
+      "dependencies": [
+        "@bufbuild/protobuf",
+        "@connectrpc/connect",
+        "undici"
+      ]
+    },
+    "@connectrpc/connect-web@1.7.0_@bufbuild+protobuf@1.10.0_@connectrpc+connect@1.7.0__@bufbuild+protobuf@1.10.0": {
+      "integrity": "sha512-qyP0YOnUPRWwCc/VfsoydMJvkb7EyUPr2q9sHgBuJzbADjiqck1gKH5V5ZPzPhTLBvmz5UvG+wiZ5sMRQHU1MQ==",
+      "dependencies": [
+        "@bufbuild/protobuf",
+        "@connectrpc/connect"
+      ]
+    },
+    "@connectrpc/connect@1.7.0_@bufbuild+protobuf@1.10.0": {
+      "integrity": "sha512-iNKdJRi69YP3mq6AePRT8F/HrxWCewrhxnLMNm0vpqXAR8biwzRtO6Hjx80C6UvtKJ5sFmffQT7I4Baecz389w==",
+      "dependencies": [
+        "@bufbuild/protobuf"
+      ]
+    },
+    "@cursor/sdk-darwin-arm64@1.0.23": {
+      "integrity": "sha512-HpltGkIDFG+XgsETJho0OiOvGLyMKqZKhh4uXtD3ZKZcgTtLvKgbbU8jVgEMa3qodtfwPz5lpwAjs5jM1zOt6w==",
+      "os": ["darwin"],
+      "cpu": ["arm64"],
+      "bin": true
+    },
+    "@cursor/sdk-darwin-x64@1.0.23": {
+      "integrity": "sha512-sjRQVhU7UL3kYSR9DzY+BAwa/iFdnPvTI3E62mIhj/2ey3LEnhIhotZQ9ymNJ0wA5BfhC7Be+JYcSMDyHxxr1g==",
+      "os": ["darwin"],
+      "cpu": ["x64"],
+      "bin": true
+    },
+    "@cursor/sdk-linux-arm64@1.0.23": {
+      "integrity": "sha512-RizTwZ2Hhhaq8bnF3yGUZWBUvLA+/lExlTAg/5Levc9f7hNoDZViIP3XaVWY/8yzPAxypeds8tWacVIaAA2/Ig==",
+      "os": ["linux"],
+      "cpu": ["arm64"],
+      "bin": true
+    },
+    "@cursor/sdk-linux-x64@1.0.23": {
+      "integrity": "sha512-s93WBbi4hrE/uisTrEfNNH1m18bwfO6wmmsnIYQ3W3gbGBriFM1ZeroHxj1F6paMDE7o/dfUeW22lQ72rRZrSA==",
+      "os": ["linux"],
+      "cpu": ["x64"],
+      "bin": true
+    },
+    "@cursor/sdk-win32-x64@1.0.23": {
+      "integrity": "sha512-d1p1+tRJbNZTUqw8SPEW9OYtU02ynZysASDDvhpaEFtbPwGFUrez9sVbFHpbuXeOXL//H+faiHJanVFsUNfIZw==",
+      "os": ["win32"],
+      "cpu": ["x64"],
+      "bin": true
+    },
+    "@cursor/sdk@1.0.23_@bufbuild+protobuf@1.10.0_@connectrpc+connect@1.7.0__@bufbuild+protobuf@1.10.0": {
+      "integrity": "sha512-VIh8oW89XXACUkQqB2N8TaU3A/y2jQieF++VC6QqIqKhKRKj7kd+pzeh43MXusuPpebtxtEzqvjaCLlc1xbYTQ==",
+      "dependencies": [
+        "@bufbuild/protobuf",
+        "@connectrpc/connect",
+        "@connectrpc/connect-node",
+        "@connectrpc/connect-web",
+        "@statsig/js-client",
+        "zod"
+      ],
+      "optionalDependencies": [
+        "@cursor/sdk-darwin-arm64",
+        "@cursor/sdk-darwin-x64",
+        "@cursor/sdk-linux-arm64",
+        "@cursor/sdk-linux-x64",
+        "@cursor/sdk-win32-x64"
+      ]
+    },
+    "@fastify/busboy@2.1.1": {
+      "integrity": "sha512-vBZP4NlzfOlerQTnba4aqZoMhE/a9HY7HRqoOPaETQcSQuWEIyZMHGfVu6w9wGtGK5fED5qRs2DteVCjOH60sA=="
+    },
     "@graphql-tools/merge@9.1.7_graphql@15.10.1": {
       "integrity": "sha512-Y5E1vTbTabvcXbkakdFUt4zUIzB1fyaEnVmIWN0l0GMed2gdD01TpZWLUm4RNAxpturvolrb24oGLQrBbPLSoQ==",
       "dependencies": [
@@ -227,6 +305,15 @@
     "@neon-rs/load@0.0.4": {
       "integrity": "sha512-kTPhdZyTQxB+2wpiRcFWrDcejc4JI6tkPuS7UZCG4l6Zvc5kU/gGQ/ozvHTh1XR5tS+UlfAfGuPajjzQjCiHCw=="
     },
+    "@statsig/client-core@3.31.0": {
+      "integrity": "sha512-SuxQD6TmVszPG7FoMKwTk/uyBuVFk7XnxI3T/E0uyb7PL7GNjONtfsoh+NqBBVUJVse0CUeSFfgJPoZy1ZOslQ=="
+    },
+    "@statsig/js-client@3.31.0": {
+      "integrity": "sha512-LFa5E0LjT6sTfZv3sNGoyRLSZ1078+agdgOA+Vm1ecjG+KbSOfBLTW7hMwimrJ29slRwbYDzbtKaPJo/R37N2g==",
+      "dependencies": [
+        "@statsig/client-core"
+      ]
+    },
     "@types/node@24.2.0": {
       "integrity": "sha512-3xyG3pMCq3oYCNg7/ZP+E1ooTaGB4cG8JWRsqqOYQdbWNY4zbaV0Ennrd7stjiJEFZCaybcIgpTjJWHRfBSIDw==",
       "dependencies": [
@@ -322,11 +409,20 @@
     "undici-types@7.10.0": {
       "integrity": "sha512-t5Fy/nfn+14LuOc2KNYg75vZqClpAiqscVvMygNnlsHBFpSXdJaYtXMcdNLpl/Qvc3P2cB3s6lOV51nqsFq4ag=="
     },
+    "undici@5.29.0": {
+      "integrity": "sha512-raqeBD6NQK4SkWhQzeYKd1KmIG6dllBOTt55Rmkt4HtI9mwdWtJljnrXjAFUBLTSN67HWrOIZ3EPF4kjUw80Bg==",
+      "dependencies": [
+        "@fastify/busboy"
+      ]
+    },
     "web-streams-polyfill@3.3.3": {
       "integrity": "sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw=="
     },
     "ws@8.19.0": {
       "integrity": "sha512-blAT2mjOEIi0ZzruJfIhb3nps74PRWTCz1IjglWEEpQl5XS/UNama6u2/rjFkDDouqr4L67ry+1aGIALViWjDg=="
+    },
+    "zod@3.25.76": {
+      "integrity": "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="
     }
   },
   "workspace": {
@@ -336,6 +432,7 @@
       "jsr:@std/assert@^1.0.16",
       "jsr:@std/path@^1.1.2",
       "jsr:@zaubrik/djwt@^3.0.2",
+      "npm:@cursor/sdk@^1.0.23",
       "npm:@libsql/client@0.7.0"
     ]
   }

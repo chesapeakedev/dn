@@ -165,6 +165,21 @@ It processes the first unchecked item in
 `plans/{owner}_{repo}_{milestone}.stack.md`, marks that item done after a
 successful kickstart, and exits.
 
+## Execution Runtime Matrix
+
+dn distinguishes its agent harness from its execution environment:
+
+| Mechanism                          | Execution location                    | Notes                                                                 |
+| ---------------------------------- | ------------------------------------- | --------------------------------------------------------------------- |
+| `--cursor`                         | Current host or GitHub Actions runner | Invokes Cursor's local `agent` CLI.                                   |
+| `--cursor-cloud`                   | Cursor-managed VM                     | Queues a durable SDK run using `CURSOR_API_KEY`; it is not a sandbox. |
+| `--sandbox docker\|exe.dev`        | Docker or exe.dev                     | Isolates any supported local harness.                                 |
+| Canonical GitHub Actions workflows | GitHub-hosted runner                  | Installs and runs the configured local harness.                       |
+
+Cloud runs are not dispatched through `dn.kickstart_issue` today. Invoke
+`dn kickstart --cursor-cloud --publish pr <issue>` where `CURSOR_API_KEY` is
+available; Cursor owns the clone and creates the pull request when requested.
+
 ## Permissions And Secrets
 
 Canonical templates request the minimum permissions needed for their workflow:
