@@ -11,20 +11,28 @@
 #   - dn CLI (compiled from this repository)
 #   - opencode (agent harness)
 
-FROM denoland/deno:alpine-2.6.3
+FROM denoland/deno:debian-2.6.3
+
+ARG OPENCODE_VERSION=1.17.13
 
 LABEL org.opencontainers.image.source="https://github.com/chesapeakedev/dn"
 LABEL org.opencontainers.image.description="dn kickstart sandbox runtime"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 
-RUN apk add --no-cache git bash curl
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends git bash curl ca-certificates tar \
+  && rm -rf /var/lib/apt/lists/*
 
 # Install opencode agent harness
-RUN deno install -g --allow-all --name opencode jsr:@opencode/opencode
+RUN curl -fsSL https://opencode.ai/install \
+  | bash -s -- --version "$OPENCODE_VERSION" --no-modify-path \
+  && ln -s /root/.opencode/bin/opencode /usr/local/bin/opencode \
+  && opencode --version
 
 # Build dn CLI from repository sources
 COPY deno.json deno.lock /opt/dn/
 COPY cli /opt/dn/cli
+COPY glance /opt/dn/glance
 COPY kickstart /opt/dn/kickstart
 COPY sdk /opt/dn/sdk
 WORKDIR /opt/dn

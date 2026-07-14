@@ -32,6 +32,8 @@ include deslop.mk
 	kickstart \
 	glance \
 	publish \
+	docker_image \
+	docker_push \
 	test_subcommands \
 	exe_dev_token \
 	bump_patch bump_minor bump_major release
@@ -48,6 +50,17 @@ precommit: ; deno task precommit
 tests: ; NODE_ENV=dev deno test --allow-run --allow-env
 configure: install
 publish: ; deno task publish
+
+DOCKER_IMAGE ?= ghcr.io/chesapeakedev/dn-kickstart
+DOCKER_TAG ?= latest
+DOCKER_BUILD_ARGS ?=
+
+docker_image:
+	docker build $(DOCKER_BUILD_ARGS) -t $(DOCKER_IMAGE):$(DOCKER_TAG) -f docker/Dockerfile .
+
+docker_push: docker_image
+	docker push $(DOCKER_IMAGE):$(DOCKER_TAG)
+
 # sync your local changes with trunk, rebasing trunk under your work
 # leaves branches alone
 sync: lint
