@@ -399,7 +399,14 @@ async function runRepositoryDispatch(
   }
 
   if (options.wait) {
-    const run = await waitForRepositoryDispatchRun(owner, repo, notBefore);
+    if (!dispatchId) {
+      throw new Error(
+        "--wait requires client_payload.dispatch_id for exact run correlation",
+      );
+    }
+    const run = await waitForRepositoryDispatchRun(owner, repo, notBefore, {
+      displayTitle: `${eventType} · ${dispatchId}`,
+    });
     if (!run) {
       throw new Error(
         "timed out waiting for a repository_dispatch workflow run",

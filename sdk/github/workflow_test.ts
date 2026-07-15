@@ -8,6 +8,7 @@ import {
   parseWorkflowFields,
   parseWorkflowTriggers,
   resolveWorkflow,
+  waitForRepositoryDispatchRun,
   workflowBase,
 } from "./workflow.ts";
 import type { WorkflowSummary } from "./workflow.ts";
@@ -263,6 +264,48 @@ Deno.test("dispatchRepositoryEvent posts event_type and client_payload", async (
     );
     assertEquals(result.eventType, "dn.init_stack");
     assertEquals(result.dispatchId, "run-1");
+  });
+});
+
+Deno.test("repository dispatch waiter matches the exact run display title", async () => {
+  await withStubFetch(() =>
+    Promise.resolve(
+      new Response(
+        JSON.stringify({
+          total_count: 2,
+          workflow_runs: [
+            {
+              id: 10,
+              html_url: "https://github.com/acme/platform/actions/runs/10",
+              created_at: "2026-07-14T12:00:02Z",
+              name: "dn kickstart issue",
+              display_title: "dn.kickstart_issue · other-dispatch",
+              event: "repository_dispatch",
+            },
+            {
+              id: 11,
+              html_url: "https://github.com/acme/platform/actions/runs/11",
+              created_at: "2026-07-14T12:00:01Z",
+              name: "dn kickstart issue",
+              display_title: "dn.kickstart_issue · wanted-dispatch",
+              event: "repository_dispatch",
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    ), async () => {
+    const run = await waitForRepositoryDispatchRun(
+      OWNER,
+      REPO,
+      new Date("2026-07-14T12:00:00Z"),
+      {
+        timeoutMs: 100,
+        intervalMs: 1,
+        displayTitle: "dn.kickstart_issue · wanted-dispatch",
+      },
+    );
+    assertEquals(run?.id, 11);
   });
 });
 

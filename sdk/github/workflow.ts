@@ -64,6 +64,8 @@ export interface WorkflowRunSummary {
   createdAt: string;
   /** Workflow display name. */
   name: string;
+  /** Per-run display title, including the dispatch correlation id for dn templates. */
+  displayTitle: string;
   /** Event that triggered the run. */
   event: string;
 }
@@ -118,6 +120,7 @@ interface WorkflowRunsPayload {
     html_url: string;
     created_at: string;
     name: string;
+    display_title: string;
     event: string;
   }>;
 }
@@ -408,6 +411,7 @@ export async function listWorkflowRuns(
     htmlUrl: run.html_url,
     createdAt: run.created_at,
     name: run.name,
+    displayTitle: run.display_title,
     event: run.event,
   }));
 }
@@ -421,11 +425,18 @@ export async function waitForRepositoryDispatchRun(
   owner: string,
   repo: string,
   notBefore: Date,
-  options: { timeoutMs?: number; intervalMs?: number } = {},
+  options: {
+    timeoutMs?: number;
+    intervalMs?: number;
+    displayTitle?: string;
+  } = {},
 ): Promise<WorkflowRunSummary | undefined> {
   const timeoutMs = options.timeoutMs ?? 120_000;
   const intervalMs = options.intervalMs ?? 3_000;
   const deadline = Date.now() + timeoutMs;
+  // GitHub timestamps are second-granular while dispatch starts may include
+  // milliseconds. Exact display-title matching remains the identity check.
+  const notBeforeWithClockTolerance = notBefore.getTime() - 5_000;
 
   while (Date.now() < deadline) {
     const runs = await listWorkflowRuns(owner, repo, {
@@ -433,7 +444,9 @@ export async function waitForRepositoryDispatchRun(
       perPage: 5,
     });
     const match = runs.find((run) =>
-      new Date(run.createdAt).getTime() >= notBefore.getTime()
+      new Date(run.createdAt).getTime() >= notBeforeWithClockTolerance &&
+      (options.displayTitle === undefined ||
+        run.displayTitle === options.displayTitle)
     );
     if (match) {
       return match;

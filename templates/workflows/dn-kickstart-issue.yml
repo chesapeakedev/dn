@@ -1,4 +1,5 @@
 name: dn kickstart issue
+run-name: "dn.kickstart_issue · ${{ github.event.client_payload.dispatch_id }}"
 
 on:
   repository_dispatch:

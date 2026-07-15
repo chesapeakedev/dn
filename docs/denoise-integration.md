@@ -100,15 +100,17 @@ echo '{"schema_version":"1.0","dispatch_id":"'"$(uuidgen)"'","milestone":"1"}' \
   | dn workflows dispatch dn.init_stack --repo owner/repo --json
 ```
 
-`repository_dispatch` returns HTTP 204 with no run id. After dispatch, poll for
-runs:
+`repository_dispatch` returns HTTP 204 with no run id. Canonical dn templates
+copy `client_payload.dispatch_id` into the workflow `run-name` as
+`<event_type> · <dispatch_id>`. Pollers must match that exact display title;
+creation time alone is not safe when dispatches overlap. To inspect runs:
 
 ```bash
 gh run list --repo owner/repo --event repository_dispatch
 ```
 
-Use `dn workflows dispatch --wait` to block until a new run appears, then print
-its URL.
+Use `dn workflows dispatch --wait` to block until the exactly correlated run
+appears, then print its URL. `--wait` requires `client_payload.dispatch_id`.
 
 ## Kickstart Progress Events
 
