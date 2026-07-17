@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/img/dn-logo.png" alt="dn logo showing noisy pixels resolving into a clean signal" width="420">
+</p>
+
 # dn
 
 `dn` is a CLI for developers who use coding agents. It turns issues and local
