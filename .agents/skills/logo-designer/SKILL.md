@@ -27,10 +27,59 @@ Separate the input into:
   compatibility requirements.
 - **Competitive field:** adjacent marks and overused category symbols.
 
-Ask no more than three high-leverage questions when missing information would
-materially change the direction. Otherwise, state narrow assumptions and
-continue. Prefer concrete tradeoffs such as `quiet rather than energetic` over
-adjective piles such as `modern, clean, bold, timeless`.
+Prefer concrete tradeoffs such as `quiet rather than energetic` over adjective
+piles such as `modern, clean, bold, timeless`.
+
+## Push back on an insufficient brief
+
+Do not begin concept generation when the request provides too little basis for
+making brand-specific choices. A name, category, and broad adjective such as
+`modern` will usually force generic assumptions rather than produce a good logo.
+
+Treat the brief as insufficient when it does not provide enough information to
+choose among meaningfully different concepts. Look especially for:
+
+- what the product or organization changes for its audience;
+- the audience and primary context in which the logo must work;
+- prioritized perceptions expressed as tradeoffs;
+- a distinctive fact, behavior, origin, story, or point of view;
+- critical exclusions, category clichés, or existing visual equity;
+- the smallest or most demanding required application.
+
+Missing any single item does not automatically block progress. Push back when
+the known information would make several unrelated, generic directions equally
+plausible.
+
+When pushing back:
+
+1. Say plainly that proceeding now would require generic assumptions.
+2. Identify the two or three missing inputs that would most improve this
+   specific brief and explain their impact in one sentence.
+3. Suggest plausible examples, contrasts, or concept territories grounded in
+   what is already known so the user has something concrete to react to.
+4. Ask no more than three targeted questions, then wait for the answer.
+
+Do not hand the user a generic brand questionnaire. Do not ask them to choose
+colors, fonts, or visual techniques when the underlying meaning is still
+unclear. Offer prompts such as:
+
+- `reassuring rather than watchful`;
+- `the moment the product removes work from the user's day`;
+- `a company-specific origin that competitors cannot claim`.
+
+For example, respond to `Make a modern logo for a security app` along these
+lines:
+
+> I can design it, but the name, category, and "modern" alone will likely lead
+> to another generic shield or lock. The most useful missing inputs are what the
+> app protects, who needs to trust it, and whether the brand should feel
+> reassuring or vigilant. A distinctive product behavior or company origin would
+> also give us a concept competitors cannot claim. What does it protect, and
+> which perception matters most?
+
+If the user explicitly delegates the missing decisions after this pushback,
+state the assumptions, choose a coherent direction, and proceed. Do not block
+repeatedly or pretend subjective assumptions are facts.
 
 ## Explore concepts before rendering
 
