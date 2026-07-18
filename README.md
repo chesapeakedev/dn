@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/img/logo-concepts/mythic-misfits/sphinx-product-designer-transparent.png" alt="Sphinx product designer wearing noise-blocking headphones" width="420">
+</p>
+
 # dn
 
 `dn` is a CLI for developers who use coding agents. It turns issues and local
@@ -11,10 +15,6 @@ across sessions without depending on a conversational interface.
 
 For in-depth documentation, check out
 [the docs site](https://docs.denoise.cloud/introduction/)
-
-<p align="center">
-  <img src="docs/img/logo-concepts/mythic-misfits/sphinx-product-designer.png" alt="Sphinx product designer wearing noise-blocking headphones" width="420">
-</p>
 
 ## Features
 
