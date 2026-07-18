@@ -4,22 +4,27 @@
 
 # dn
 
-`dn` is a CLI for developers who use coding agents. It turns issues and local
-specifications into durable plans, routes those plans to your preferred agent,
-and helps carry work from implementation through review. We built Denoise
+`dn` is a CLI for working systematically alongside agents. It turns issues and
+local specifications into durable plans, routes those plans to your preferred
+agent, and helps carry work from implementation through review. We built Denoise
 because coding got faster, but building software did not.
 
 Use `dn` with OpenCode, Cursor, Claude Code, or Codex CLI. Plans live as
 markdown files in your workspace, so work can move between agents and resume
-across sessions without depending on a conversational interface.
+across sessions without depending on a conversational interface. Use the CLI to
+add github actions workflows to start transitioning your repo into a software
+factory.
 
 For in-depth documentation, check out
 [the docs site](https://docs.denoise.cloud/introduction/)
 
 ## Features
 
-- **From issue to implementation** — Turn a GitHub issue or local specification
-  into a plan and working code with `dn kickstart`
+- **Agent Assisted SDLC** — Turn a GitHub issue into working code with
+  `dn kickstart`. Generate well-written commits with `dn land` and automate
+  lint, rebase, and publish workflows with `dn sync`
+- **GitHub integration** — Manage issues and run agentic GitHub Actions without
+  leaving the CLI
 - **Durable, agent-agnostic plans** — Separate planning from implementation with
   `dn prep` and `dn loop`, resume incomplete work, and switch between supported
   coding agents
@@ -29,13 +34,6 @@ For in-depth documentation, check out
   with milestone stacks, `dn peek`, `dn todo`, and `dn tidy`
 - **Context synthesis for agents** — Merge issues and local documents into
   focused plans, README content, or agent instructions with `dn meld`
-- **Agent context auditing** — Identify oversized inherited `AGENTS.md` context
-  with `dn context`
-- **Repository workflow automation** — Generate plan-derived commits with
-  `dn land` and automate Git or Sapling lint, rebase, and publish workflows with
-  `dn sync`
-- **GitHub integration** — Manage issues and run agentic GitHub Actions without
-  leaving the CLI
 
 ## Kickstart a task
 
