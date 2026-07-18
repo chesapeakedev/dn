@@ -1,0 +1,26 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 306 96"
+  role="img"
+  aria-labelledby="title desc"
+>
+  <title id="title">dn signal lock logo</title>
+  <desc id="desc"
+  >Three irregular signals converge into one clear line beside the letters dn.</desc>
+  <g
+    fill="none"
+    stroke="#0D2B45"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="10"
+  >
+    <path d="M12 27C23 7 33 44 44 29C54 16 62 49 78 48" />
+    <path d="M12 49C23 26 32 69 44 49C54 32 66 53 78 48" />
+    <path d="M12 69C24 87 36 55 47 67C58 78 66 47 78 48" />
+    <path d="M78 48H148" />
+    <path
+      d="M226 18V52C226 67 218 76 204 76C190 76 181 67 181 52C181 39 189 28 204 28C217 28 226 37 226 52"
+    />
+    <path d="M250 76V52C250 37 259 28 272 28C286 28 294 38 294 52V76" />
+  </g>
+</svg>

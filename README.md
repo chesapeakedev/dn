@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/img/dn-logo.png" alt="dn logo showing noisy pixels resolving into a clean signal" width="420">
+  <img src="docs/img/logo-concepts/signal-lock/dn-signal-lockup-color.svg" alt="dn logo showing irregular signals converging into one clear line" width="420">
 </p>
 
 # dn
