@@ -15,8 +15,8 @@ across sessions without depending on a conversational interface. Use the CLI to
 add github actions workflows to start transitioning your repo into a software
 factory.
 
-For in-depth documentation, check out
-[the docs site](https://docs.denoise.cloud/introduction/)
+`dn` is one half of [Denoise](https://denoise.cloud). For in-depth documentation
+on each, check out [our docs site](https://docs.denoise.cloud/introduction/)
 
 ## Features
 
