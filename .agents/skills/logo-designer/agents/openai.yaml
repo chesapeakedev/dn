@@ -1,0 +1,4 @@
+interface:
+  display_name: "Logo Designer"
+  short_description: "Design distinctive, production-ready logo systems"
+  default_prompt: "Use $logo-designer to develop and validate a distinctive logo system for this project."
