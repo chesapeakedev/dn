@@ -3,6 +3,8 @@
 Reference documentation for `dn`. For installation and quickstart, see the
 [project README](../README.md).
 
+To print the installed version without additional output, run `dn --version`.
+
 Kickstart and the issue CLI surface GitHub formal relationships (parent
 sub-issue, blocking, duplicate-of summaries) inside generated issue markdown;
 see [`docs/subcommands.md`](docs/subcommands.md) for `dn issue show` and

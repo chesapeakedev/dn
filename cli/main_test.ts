@@ -1,5 +1,29 @@
-import { assert } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
+import denoConfig from "../deno.json" with { type: "json" };
 import { cleanupTestRepo, createTestRepo, runDnCommand } from "./test_utils.ts";
+
+for (const versionFlag of ["--version", "-V"]) {
+  Deno.test(`dn ${versionFlag} prints only the version`, async () => {
+    const command = new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        "--allow-env",
+        "--allow-read",
+        "--quiet",
+        "cli/main.ts",
+        versionFlag,
+      ],
+      stdout: "piped",
+      stderr: "piped",
+    });
+
+    const { code, stderr, stdout } = await command.output();
+
+    assertEquals(code, 0);
+    assertEquals(new TextDecoder().decode(stdout), `${denoConfig.version}\n`);
+    assertEquals(new TextDecoder().decode(stderr), "");
+  });
+}
 
 Deno.test("dn sync --help exits zero", async () => {
   const command = new Deno.Command(Deno.execPath(), {

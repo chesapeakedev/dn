@@ -27,6 +27,7 @@ import {
 } from "../sdk/github/agentHarness.ts";
 import type { SandboxFlagValue } from "../sdk/sandbox/resolve.ts";
 import { parseSandboxProvider } from "../sdk/sandbox/config.ts";
+import denoConfig from "../deno.json" with { type: "json" };
 
 async function handleInit(
   args: string[],
@@ -90,7 +91,7 @@ import { handleHc } from "./hc.ts";
 
 /**
  * Parses global flags from args and returns bootstrap options plus remaining args.
- * Global flags: --unattended, --ci (alias), --no-color, --color.
+ * Global flags: --unattended, --ci (alias), --no-color, --color, --version, -V.
  */
 function parseGlobalFlags(
   args: string[],
@@ -98,6 +99,7 @@ function parseGlobalFlags(
   unattended: boolean;
   noColor: boolean;
   forceColor: boolean;
+  showVersion: boolean;
   agent: AgentHarness | null;
   sandbox: SandboxFlagValue | null;
   rest: string[];
@@ -105,6 +107,7 @@ function parseGlobalFlags(
   let unattended = false;
   let noColor = false;
   let forceColor = false;
+  let showVersion = false;
   let agent: AgentHarness | null = null;
   let sandbox: SandboxFlagValue | null = null;
   const rest: string[] = [];
@@ -116,6 +119,8 @@ function parseGlobalFlags(
       noColor = true;
     } else if (a === "--color") {
       forceColor = true;
+    } else if (a === "--version" || a === "-V") {
+      showVersion = true;
     } else if (a === "--sandbox") {
       const value = args[i + 1];
       if (!value || value.startsWith("-")) {
@@ -181,7 +186,15 @@ function parseGlobalFlags(
       break;
     }
   }
-  return { unattended, noColor, forceColor, agent, sandbox, rest };
+  return {
+    unattended,
+    noColor,
+    forceColor,
+    showVersion,
+    agent,
+    sandbox,
+    rest,
+  };
 }
 
 function parseBootstrapFlags(
@@ -231,7 +244,8 @@ function showUsage(): void {
   );
   console.error("  --unattended      Disable interactive output affordances");
   console.error("  --no-color        Disable color output");
-  console.error("  --color           Force color output\n");
+  console.error("  --color           Force color output");
+  console.error("  --version, -V     Print the version and exit\n");
 
   console.error("Subcommands:");
   console.error(
@@ -313,11 +327,13 @@ async function main(): Promise<void> {
   let unattended: boolean;
   let noColor: boolean;
   let forceColor: boolean;
+  let showVersion: boolean;
   try {
     ({
       unattended,
       noColor,
       forceColor,
+      showVersion,
       agent: globalAgent,
       sandbox: globalSandbox,
       rest: args,
@@ -325,6 +341,11 @@ async function main(): Promise<void> {
   } catch (e) {
     console.error(e instanceof Error ? e.message : String(e));
     Deno.exit(1);
+  }
+
+  if (showVersion) {
+    console.log(denoConfig.version);
+    return;
   }
 
   if (args.length === 0) {

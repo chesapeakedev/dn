@@ -5,20 +5,27 @@ authentication, see the project README.
 
 ## Global flags and output
 
-You can pass **global flags** after any subcommand to control output style:
+You can pass **output flags** after any subcommand to control output style:
 
 - **`--unattended`** or **`--ci`** – Force unattended mode (no spinner, minimal
   decoration, ASCII-friendly status).
 - **`--no-color`** – Disable colors.
 - **`--color`** – Enable colors even when stdout is not a TTY.
-- **`--sandbox <none|docker|exe.dev>`** – Select sandbox provider for agent
-  workflows (`kickstart`, `loop`, `meld`, `hc`). Omit the value to read
-  `sandbox.provider` from `.github/dn/config.json`. See
-  [Sandbox providers](sandbox.md).
+
+Use **`--sandbox <none|docker|exe.dev>`** to select a sandbox provider for agent
+workflows (`kickstart`, `loop`, `meld`, `hc`). Omit the value to read
+`sandbox.provider` from `.github/dn/config.json`. See
+[Sandbox providers](sandbox.md).
 
 In CI, `dn` automatically sets `NO_COLOR` and runs in unattended mode. See
 [Output and environment](output-and-environment.md) for NO_COLOR, FORCE_COLOR,
 and how unattended mode is detected.
+
+Use the top-level `--version` or `-V` flag to print only the current version:
+
+```bash
+dn --version
+```
 
 ## `dn hc` — Generator/verifier gambits
 
