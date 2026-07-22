@@ -49,8 +49,12 @@ import {
 import { resolveSandboxConfig } from "../sdk/sandbox/resolve.ts";
 import { runWithSandboxLifecycle } from "../sdk/sandbox/lifecycle.ts";
 import {
+  buildCursorCloudKickstartPrompt,
+  cursorCloudRepositoryUrlFromIssue,
+  DEFAULT_CURSOR_CLOUD_REF,
+  parseCursorCloudRef,
   requireCursorApiKey,
-  startCursorCloudAgent,
+  runCursorCloudAgentTracked,
 } from "../sdk/github/cursorCloudAgent.ts";
 
 const ISSUE_NUMBER_PATTERN = /^#?\d+$/;
@@ -59,6 +63,8 @@ const ISSUE_NUMBER_PATTERN = /^#?\d+$/;
 type KickstartCliConfig = KickstartConfig & {
   /** Dispatch the work to a durable Cursor Cloud Agent instead of a local harness. */
   cursorCloud: boolean;
+  /** Remote Git ref cloned into the Cursor Cloud Agent workspace. */
+  cursorCloudRef: string;
   milestoneStackMarkdownPath?: string;
   /** When true with `--complete` and `--milestone`, skip milestone queue y/n prompts in this module. */
   milestoneAutoAdvance?: boolean;
@@ -80,7 +86,7 @@ function classifyInput(input: string): {
 /**
  * Parses kickstart-specific arguments
  */
-function parseArgs(
+export function parseKickstartArgs(
   args: string[],
   globalAgent: AgentHarness | null = null,
   globalSandbox: SandboxFlagValue | null = null,
@@ -93,6 +99,8 @@ function parseArgs(
   let copilotFlag = false;
   let opencodeFlag = false;
   let cursorCloud = false;
+  let cursorCloudRef = DEFAULT_CURSOR_CLOUD_REF;
+  let cursorCloudRefSpecified = false;
   let allowCrossRepo = false;
   let savedPlanName: string | null = null;
   let workspaceRoot: string | undefined = undefined;
@@ -113,6 +121,9 @@ function parseArgs(
       cursorFlag = true;
     } else if (arg === "--cursor-cloud") {
       cursorCloud = true;
+    } else if (arg === "--ref") {
+      cursorCloudRef = parseCursorCloudRef(flagArgs[++i]);
+      cursorCloudRefSpecified = true;
     } else if (arg === "--claude") {
       claudeFlag = true;
     } else if (arg === "--codex") {
@@ -167,6 +178,9 @@ function parseArgs(
       "--cursor-cloud cannot be combined with --agent or local agent flags.",
     );
   }
+  if (cursorCloudRefSpecified && !cursorCloud) {
+    throw new Error("--ref requires --cursor-cloud.");
+  }
 
   const saveCtx = Deno.env.get("SAVE_CTX") === "1";
 
@@ -184,6 +198,7 @@ function parseArgs(
     ...(milestoneRunOnce ? { milestoneRunOnce: true } : {}),
     sandboxFlag,
     cursorCloud,
+    cursorCloudRef,
   };
 }
 
@@ -215,6 +230,9 @@ function showHelp(): void {
   console.log("  --cursor, -c              Use Cursor headless agent");
   console.log(
     "  --cursor-cloud            Queue a durable Cursor Cloud Agent run (requires CURSOR_API_KEY)",
+  );
+  console.log(
+    "  --ref <git-ref>           Cloud repository starting ref (default: main; requires --cursor-cloud)",
   );
   console.log("  --claude                  Use Claude Code CLI (`claude -p`)");
   console.log("  --codex                   Use Codex CLI (`codex exec`)");
@@ -277,12 +295,12 @@ async function dispatchCursorCloudKickstart(
   config: KickstartCliConfig,
 ): Promise<void> {
   requireCursorApiKey();
-  let repositoryUrl: string;
-  const issueMatch = config.issueUrl?.match(
-    /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/issues\/\d+(?:[?#].*)?$/i,
+  const issueRepositoryUrl = cursorCloudRepositoryUrlFromIssue(
+    config.issueUrl,
   );
-  if (issueMatch) {
-    repositoryUrl = `https://github.com/${issueMatch[1]}/${issueMatch[2]}.git`;
+  let repositoryUrl: string;
+  if (issueRepositoryUrl) {
+    repositoryUrl = issueRepositoryUrl;
   } else {
     const repo = await getCurrentRepoFromRemote();
     repositoryUrl = `https://github.com/${repo.owner}/${repo.repo}.git`;
@@ -298,15 +316,19 @@ async function dispatchCursorCloudKickstart(
     );
   }
 
-  const prInstruction = config.publish === "pr"
-    ? "Create a pull request with the completed work."
-    : "Do not create a pull request automatically; leave the completed work in the cloud agent workspace.";
-  const result = await startCursorCloudAgent({
-    prompt:
-      `You are the implementation agent for a dn kickstart task. Work directly in the cloned repository. Review the following context, make the requested changes, add or update tests, and run the relevant checks. ${prInstruction}\n\n${context}`,
-    repository: { url: repositoryUrl, startingRef: "main" },
-    autoCreatePr: config.publish === "pr",
+  const autoCreatePr = config.publish === "pr";
+  const result = await runCursorCloudAgentTracked({
+    prompt: buildCursorCloudKickstartPrompt(context, autoCreatePr),
+    repository: { url: repositoryUrl, startingRef: config.cursorCloudRef },
+    autoCreatePr,
   });
+  if (result.waited) {
+    const prSuffix = result.prUrl ? ` PR: ${result.prUrl}` : "";
+    console.log(
+      `Cursor Cloud Agent run ${result.runId} (agent ${result.agentId}) ${result.status}.${prSuffix}`,
+    );
+    return;
+  }
   console.log(
     `Queued Cursor Cloud Agent run ${result.runId} (agent ${result.agentId}). The run continues on Cursor's cloud VM after dn exits.`,
   );
@@ -491,7 +513,7 @@ export async function handleKickstart(
 ): Promise<void> {
   let config: KickstartCliConfig;
   try {
-    config = parseArgs(args, globalAgent, globalSandbox);
+    config = parseKickstartArgs(args, globalAgent, globalSandbox);
   } catch (e) {
     console.error(e instanceof Error ? e.message : String(e));
     Deno.exit(1);

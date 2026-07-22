@@ -174,13 +174,36 @@ dn distinguishes its agent harness from its execution environment:
 | Mechanism                          | Execution location                    | Notes                                                                 |
 | ---------------------------------- | ------------------------------------- | --------------------------------------------------------------------- |
 | `--cursor`                         | Current host or GitHub Actions runner | Invokes Cursor's local `agent` CLI.                                   |
-| `--cursor-cloud`                   | Cursor-managed VM                     | Queues a durable SDK run using `CURSOR_API_KEY`; it is not a sandbox. |
+| `--cursor-cloud`                   | Cursor-managed VM                     | Durable SDK run using `CURSOR_API_KEY`; it is not a sandbox.          |
 | `--sandbox docker\|exe.dev`        | Docker or exe.dev                     | Isolates any supported local harness.                                 |
 | Canonical GitHub Actions workflows | GitHub-hosted runner                  | Installs and runs the configured local harness.                       |
 
-Cloud runs are not dispatched through `dn.kickstart_issue` today. Invoke
-`dn kickstart --cursor-cloud --publish pr <issue>` where `CURSOR_API_KEY` is
-available; Cursor owns the clone and creates the pull request when requested.
+### Denoise kickstart runtimes
+
+Denoise's task kickstart confirm dialog can select where a run executes. The
+client posts `source` on `POST /api/github/dispatch`:
+
+| `source`          | Behavior                                                                 |
+| ----------------- | ------------------------------------------------------------------------ |
+| `github_actions`  | Default. Existing `repository_dispatch` → `dn.kickstart_issue`.          |
+| `cursor_cloud`    | Managed runner runs `dn kickstart --cursor-cloud` with HTTP progress.    |
+| `cloud_vm`        | Managed runner runs `dn kickstart --sandbox exe.dev` with HTTP progress. |
+| `local`           | Managed runner runs host `dn kickstart` with NDJSON progress.            |
+
+Preflight availability is exposed at `GET /api/kickstart/runtimes?owner=&repo=`.
+Hosted denoise keeps Docker unavailable (use `dn kickstart --sandbox docker`
+locally). Secrets for managed runners stay on the denoise server
+(`CURSOR_API_KEY`, `EXE_TOKEN`, `KICKSTART_PROGRESS_BASE_URL`,
+`KICKSTART_RUNNER_WORKSPACE_ROOT`).
+
+CLI operators can still invoke Cursor Cloud directly:
+
+```bash
+dn kickstart --cursor-cloud --publish pr <issue>
+```
+
+With progress env set, that command waits and reports through the same event
+contract described in [Kickstart Progress Events](#kickstart-progress-events).
 
 ## Permissions And Secrets
 

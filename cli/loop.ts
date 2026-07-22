@@ -28,8 +28,12 @@ import { resolveSandboxConfig } from "../sdk/sandbox/resolve.ts";
 import { runWithSandboxLifecycle } from "../sdk/sandbox/lifecycle.ts";
 import { createRunTmpDir } from "../sdk/sandbox/context.ts";
 import {
+  buildCursorCloudLoopPrompt,
+  cursorCloudRepositoryUrlFromIssue,
+  DEFAULT_CURSOR_CLOUD_REF,
+  parseCursorCloudRef,
   requireCursorApiKey,
-  startCursorCloudAgent,
+  runCursorCloudAgentTracked,
 } from "../sdk/github/cursorCloudAgent.ts";
 import { isAbsolute, join } from "@std/path";
 
@@ -52,6 +56,8 @@ export type LoopTarget =
 interface LoopCliConfig extends KickstartConfig {
   /** Dispatch implementation to a durable Cursor Cloud Agent. */
   cursorCloud: boolean;
+  /** Remote Git ref cloned into the Cursor Cloud Agent workspace. */
+  cursorCloudRef: string;
   target: LoopTarget;
   planFilePath: string | null;
 }
@@ -263,7 +269,7 @@ export async function resolveLoopTarget(
 /**
  * Parses loop-specific arguments
  */
-function parseArgs(
+export function parseLoopArgs(
   args: string[],
   globalAgent: AgentHarness | null = null,
   globalSandbox: SandboxFlagValue | null = null,
@@ -276,6 +282,8 @@ function parseArgs(
   let copilotFlag = false;
   let opencodeFlag = false;
   let cursorCloud = false;
+  let cursorCloudRef = DEFAULT_CURSOR_CLOUD_REF;
+  let cursorCloudRefSpecified = false;
   let workspaceRoot: string | undefined = undefined;
   let allowCrossRepo = false;
 
@@ -292,6 +300,9 @@ function parseArgs(
       cursorFlag = true;
     } else if (arg === "--cursor-cloud") {
       cursorCloud = true;
+    } else if (arg === "--ref") {
+      cursorCloudRef = parseCursorCloudRef(flagArgs[++i]);
+      cursorCloudRefSpecified = true;
     } else if (arg === "--claude") {
       claudeFlag = true;
     } else if (arg === "--codex") {
@@ -338,6 +349,9 @@ function parseArgs(
       "--cursor-cloud cannot be combined with --agent or local agent flags.",
     );
   }
+  if (cursorCloudRefSpecified && !cursorCloud) {
+    throw new Error("--ref requires --cursor-cloud.");
+  }
 
   return {
     publish: "none" as const,
@@ -351,6 +365,7 @@ function parseArgs(
     target,
     sandboxFlag,
     cursorCloud,
+    cursorCloudRef,
   };
 }
 
@@ -377,6 +392,9 @@ function showHelp(): void {
   console.log("  --cursor, -c             Use Cursor headless agent");
   console.log(
     "  --cursor-cloud            Queue a durable Cursor Cloud Agent run (requires CURSOR_API_KEY)",
+  );
+  console.log(
+    "  --ref <git-ref>           Cloud repository starting ref (default: main; requires --cursor-cloud)",
   );
   console.log("  --claude                 Use Claude Code CLI");
   console.log("  --codex                  Use Codex CLI");
@@ -420,23 +438,30 @@ function showHelp(): void {
 async function dispatchCursorCloudLoop(
   planFilePath: string,
   issueUrl: string | null,
+  startingRef: string,
 ): Promise<void> {
   requireCursorApiKey();
   const plan = await Deno.readTextFile(planFilePath);
-  const issueMatch = issueUrl?.match(
-    /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/issues\/\d+(?:[?#].*)?$/i,
-  );
-  const repositoryUrl = issueMatch
-    ? `https://github.com/${issueMatch[1]}/${issueMatch[2]}.git`
-    : await getCurrentRepoFromRemote().then(
-      ({ owner, repo }) => `https://github.com/${owner}/${repo}.git`,
-    );
-  const result = await startCursorCloudAgent({
-    prompt:
-      `You are the implementation agent for a dn loop task. Work directly in the cloned repository. Implement this plan, update tests and documentation as needed, and run the relevant checks.\n\n${plan}`,
-    repository: { url: repositoryUrl, startingRef: "main" },
+  const issueRepositoryUrl = cursorCloudRepositoryUrlFromIssue(issueUrl);
+  let repositoryUrl: string;
+  if (issueRepositoryUrl) {
+    repositoryUrl = issueRepositoryUrl;
+  } else {
+    const { owner, repo } = await getCurrentRepoFromRemote();
+    repositoryUrl = `https://github.com/${owner}/${repo}.git`;
+  }
+  const result = await runCursorCloudAgentTracked({
+    prompt: buildCursorCloudLoopPrompt(plan),
+    repository: { url: repositoryUrl, startingRef },
     autoCreatePr: false,
   });
+  if (result.waited) {
+    const prSuffix = result.prUrl ? ` PR: ${result.prUrl}` : "";
+    console.log(
+      `Cursor Cloud Agent run ${result.runId} (agent ${result.agentId}) ${result.status}.${prSuffix}`,
+    );
+    return;
+  }
   console.log(
     `Queued Cursor Cloud Agent run ${result.runId} (agent ${result.agentId}). The run continues on Cursor's cloud VM after dn exits.`,
   );
@@ -502,7 +527,7 @@ export async function handleLoop(
 ): Promise<void> {
   let config: LoopCliConfig;
   try {
-    config = parseArgs(args, globalAgent, globalSandbox);
+    config = parseLoopArgs(args, globalAgent, globalSandbox);
   } catch (e) {
     console.error(e instanceof Error ? e.message : String(e));
     Deno.exit(1);
@@ -534,6 +559,7 @@ export async function handleLoop(
       await dispatchCursorCloudLoop(
         config.planFilePath,
         explicitIssueUrl,
+        config.cursorCloudRef,
       );
       return;
     } catch (error) {

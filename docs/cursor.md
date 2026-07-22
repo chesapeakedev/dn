@@ -13,15 +13,27 @@ CLI and durable Cursor Cloud Agents.
 | GitHub Actions     | `dn.kickstart_issue` workflow                      | GitHub-hosted runner                     | Runs the configured local harness in CI                    |
 
 `--cursor-cloud` requires `CURSOR_API_KEY` and is intentionally separate from
-`--cursor` and `--sandbox`. It queues the run and exits after Cursor returns its
-durable run and agent IDs; the cloud VM owns its repository clone, so it does
-not update local plan files or the current workspace. Use `--publish pr` when
-the completed remote work should open a pull request.
+`--cursor` and `--sandbox`. By default it queues the run and exits after Cursor
+returns its durable run and agent IDs; the cloud VM owns its repository clone,
+so it does not update local plan files or the current workspace. Use
+`--publish pr` when the completed remote work should open a pull request.
+
+When denoise (or another orchestrator) sets `DN_DISPATCH_ID` plus
+`DN_PROGRESS=ndjson|http`, `dn` **waits** for the Cursor cloud run to finish and
+emits kickstart progress events (including `data.pr_url` when Cursor returns a
+pull request). Without those variables, CLI behavior stays fire-and-forget.
 
 For loop-only work, pass a plan file:
 
 ```bash
 dn loop --cursor-cloud plans/my-feature.plan.md
+```
+
+Optional `--ref <git-ref>` sets the cloud repository starting ref (default:
+`main`):
+
+```bash
+dn kickstart --cursor-cloud --ref develop --publish pr <issue>
 ```
 
 ## Cursor CLI in GitHub Actions
