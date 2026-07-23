@@ -13,7 +13,7 @@ You can pass **output flags** after any subcommand to control output style:
 - **`--color`** – Enable colors even when stdout is not a TTY.
 
 Use **`--sandbox <none|docker|exe.dev>`** to select a sandbox provider for agent
-workflows (`kickstart`, `loop`, `meld`, `hc`). Omit the value to read
+workflows (`kickstart`, `loop`, `meld`, `until`). Omit the value to read
 `sandbox.provider` from `.github/dn/config.json`. See
 [Sandbox providers](sandbox.md).
 
@@ -27,36 +27,53 @@ Use the top-level `--version` or `-V` flag to print only the current version:
 dn --version
 ```
 
-## `dn hc` — Generator/verifier gambits
+## `dn until` — Generator/verifier gambits
 
 Runs a bounded generator/verifier loop from a JSON config file. Use it for a
-goal that needs repeated implementation attempts and a deterministic completion
-check. A config can contain one gambit or a `gambits` array; gambits run in
-order and share one sandbox lifecycle.
+goal that needs repeated implementation attempts and an independent completion
+check — not for issue→plan→implement work (`dn loop` / `kickstart`). A config
+can contain one gambit or a `gambits` array; gambits run in order and share one
+sandbox lifecycle.
 
 ```bash
-dn hc validate .github/dn/gambit.json
-dn hc run .github/dn/gambit.json
-dn hc run .github/dn/gambit.json --once
+dn until validate .github/dn/gambit.json
+dn until run .github/dn/gambit.json
+dn until run .github/dn/gambit.json --once
+dn until run .github/dn/gambit.json --strict-verdict
 ```
 
 Each action has exactly one of `script` or `prompt`. A generator failure stops
-the run. A script verifier is done when it exits with code `0`; a prompt
-verifier must print JSON in the form `{"done": true}`. Set `max_iterations` and
-`timeout_ms` to keep runs bounded. `--once` runs one generator/verifier tick.
+the run. A script verifier is done when it exits with code `0`. A prompt
+verifier is done when, in order:
+
+1. A verdict file exists (default `.dn/until-verdict.json`, or
+   `verifier.verdict_path`) with `{"done": true}`, or
+2. stdout contains extractable JSON with `"done": true`, or
+3. `verifier.done_when.stdout_contains` matches stdout (weaker escape hatch).
+
+Missing or unparseable prompt verdicts continue the loop unless
+`--strict-verdict` is set. Prefer script verifiers when a shell gate exists. Set
+`max_iterations` (minimum 1) and `timeout_ms` to keep runs bounded. `--once`
+runs one generator/verifier tick.
 
 Use `secrets` only for environment variable names. Do not put secret values in
-the JSON file. Set a top-level `sandbox` block to use the same sandbox settings
-for every gambit.
+the JSON file. `metadata` string values are substituted into prompts as
+`{{key}}` and prepended as a Context block. Set a top-level `sandbox` block to
+use the same sandbox settings for every gambit.
 
 ```json
 {
   "gambits": [{
-    "name": "feature",
-    "generator": { "script": "deno task fmt" },
-    "verifier": { "script": "deno test --allow-all" },
-    "max_iterations": 3,
-    "timeout_ms": 1800000,
+    "name": "precommit-green",
+    "metadata": {
+      "goal": "Add dn until docs and keep make precommit green"
+    },
+    "generator": {
+      "prompt": "Implement {{goal}}. Prefer small commits of working changes."
+    },
+    "verifier": { "script": "make precommit" },
+    "max_iterations": 5,
+    "timeout_ms": 3600000,
     "secrets": ["OPENAI_API_KEY"]
   }]
 }
