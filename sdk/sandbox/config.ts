@@ -20,7 +20,7 @@ export const DEFAULT_SANDBOX_CONFIG: DnSandboxConfig = {
     exclude: [".git", "node_modules", ".sl"],
   },
   docker: {
-    image: "ghcr.io/chesapeakedev/dn-kickstart:latest",
+    image: "ghcr.io/chesapeakedev/dn:opencode",
     network: "none",
     read_only_root: true,
     mounts: [{ source: ".", target: "/workspace" }],
@@ -28,6 +28,7 @@ export const DEFAULT_SANDBOX_CONFIG: DnSandboxConfig = {
       "OPENAI_API_KEY",
       "ANTHROPIC_API_KEY",
       "CURSOR_API_KEY",
+      "COPILOT_GITHUB_TOKEN",
     ],
   },
   exe_dev: {

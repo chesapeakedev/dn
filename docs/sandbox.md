@@ -82,22 +82,33 @@ are missing:
 
 ## Docker image contract
 
-The default image is `ghcr.io/chesapeakedev/dn-kickstart:latest`. Build it with:
+The canonical images are published from
+[`chesapeakedev/dn-images`](https://github.com/chesapeakedev/dn-images) under
+the `ghcr.io/chesapeakedev/dn` package. Select the tag matching the configured
+agent:
 
-```bash
-docker build -t ghcr.io/chesapeakedev/dn-kickstart:latest -f docker/Dockerfile .
-```
+| Agent       | Moving image                        |
+| ----------- | ----------------------------------- |
+| OpenCode    | `ghcr.io/chesapeakedev/dn:opencode` |
+| Cursor      | `ghcr.io/chesapeakedev/dn:cursor`   |
+| Claude Code | `ghcr.io/chesapeakedev/dn:claude`   |
+| Codex       | `ghcr.io/chesapeakedev/dn:codex`    |
+| Copilot     | `ghcr.io/chesapeakedev/dn:copilot`  |
 
-The image must include:
+Release and source-SHA tags add the harness suffix, for example `:0.1.0-codex`
+and `:sha-abc123def456-codex`. OpenCode is the default harness, so it also
+receives the unqualified `:latest`, release, and source-SHA tags. Production
+configs should pin a source-SHA tag or digest.
+
+Each image includes:
 
 - **Deno runtime** (for dn and opencode)
 - **dn CLI** (from workspace or pre-installed)
-- **Agent harness** (opencode, or another CLI like `agent` for Cursor)
+- **Exactly one agent harness** matching its tag
 - **git** (for VCS operations)
 
-A reference Dockerfile is at `docker/Dockerfile` in the dn repository. For a
-forkable default golden image (project base images), see `templates/dn-images/`
-(intended for a public `chesapeakedev/dn-images` repo).
+The Dockerfile and release workflow live only in `chesapeakedev/dn-images`. Fork
+that repository when a project needs additional toolchains.
 
 Optional `sandbox.docker.dockerfile` is a **repo-relative path** to the
 Dockerfile that builds `sandbox.docker.image`. It is declarative only — dn does

@@ -430,8 +430,14 @@ async function installAgent(agent: AgentHarness): Promise<void> {
       "PATH",
       `${join(home, ".cursor/bin")}:${Deno.env.get("PATH") ?? ""}`,
     );
-  } else {
+  } else if (agent === "codex") {
     await installScript("https://chatgpt.com/codex/install.sh");
+    Deno.env.set(
+      "PATH",
+      `${join(home, ".local/bin")}:${Deno.env.get("PATH") ?? ""}`,
+    );
+  } else {
+    await installScript("https://gh.io/copilot-install");
     Deno.env.set(
       "PATH",
       `${join(home, ".local/bin")}:${Deno.env.get("PATH") ?? ""}`,

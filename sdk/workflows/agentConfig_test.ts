@@ -61,6 +61,7 @@ Deno.test("requiredSecretForAgent maps harness to secret name", () => {
   assertEquals(requiredSecretForAgent("cursor"), "CURSOR_API_KEY");
   assertEquals(requiredSecretForAgent("opencode"), "OPENAI_API_KEY");
   assertEquals(requiredSecretForAgent("codex"), "OPENAI_API_KEY");
+  assertEquals(requiredSecretForAgent("copilot"), "COPILOT_GITHUB_TOKEN");
 });
 
 Deno.test("installWorkflowSupport writes config when agent is provided", async () => {

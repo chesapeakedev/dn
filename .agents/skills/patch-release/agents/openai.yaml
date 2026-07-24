@@ -1,0 +1,4 @@
+interface:
+  display_name: "Patch Release"
+  short_description: "Repair an existing dn GitHub release safely"
+  default_prompt: "Use $patch-release to repair an existing dn release, rebuild its binaries, and verify the result without changing its version."

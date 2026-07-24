@@ -56,13 +56,20 @@ export interface WorkflowSupportWriteResult {
  */
 export function requiredSecretForAgent(
   agent: AgentHarness,
-): "OPENAI_API_KEY" | "ANTHROPIC_API_KEY" | "CURSOR_API_KEY" {
+):
+  | "OPENAI_API_KEY"
+  | "ANTHROPIC_API_KEY"
+  | "CURSOR_API_KEY"
+  | "COPILOT_GITHUB_TOKEN" {
   if (agent === "opencode") return "OPENAI_API_KEY";
   if (agent === "claude") {
     return "ANTHROPIC_API_KEY";
   }
   if (agent === "cursor") {
     return "CURSOR_API_KEY";
+  }
+  if (agent === "copilot") {
+    return "COPILOT_GITHUB_TOKEN";
   }
   return "OPENAI_API_KEY";
 }
@@ -330,7 +337,7 @@ export async function validateWorkflowAgentSetup(
     warnings.push({
       code: "dn_config_missing",
       message:
-        `${DN_CONFIG_REL_PATH} is not installed. Run: dn init workflows --agent <opencode|cursor|claude|codex>`,
+        `${DN_CONFIG_REL_PATH} is not installed. Run: dn init workflows --agent <opencode|cursor|claude|codex|copilot>`,
     });
     return warnings;
   }

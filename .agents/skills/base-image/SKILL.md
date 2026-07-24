@@ -57,15 +57,13 @@ The image must include:
 
 - **Deno** runtime (≥ 2.6.3)
 - **dn** CLI (precompiled or from the workspace)
-- **Agent harness** (opencode by default; cursor/claude/codex as needed)
+- **Agent harness** (opencode, cursor, claude, codex, or copilot)
 - **git**, plus a shell (`bash`) for agent commands
 
-Default published image: `ghcr.io/chesapeakedev/dn-kickstart:latest` (also
-`:sha-*` tags). Reference Dockerfile in the dn repo: `docker/Dockerfile`.
-
-Default forkable template:
-[chesapeakedev/dn-images](https://github.com/chesapeakedev/dn-images) (also
-vendored in dn as `templates/dn-images/` until published).
+Canonical images are published from
+[chesapeakedev/dn-images](https://github.com/chesapeakedev/dn-images) as
+`ghcr.io/chesapeakedev/dn:<harness>`. Version and source tags include the
+harness suffix, such as `:0.1.0-codex` and `:sha-abc123def456-codex`.
 
 dn Docker runner expects a long-lived container (`ENTRYPOINT` can be
 `sleep infinity`); the workspace is bind-mounted (default `/workspace`).
@@ -91,14 +89,13 @@ dn Docker runner expects a long-lived container (`ENTRYPOINT` can be
 
 ## Useful base-image suggestions
 
-1. **dn-kickstart (default)** — Deno, compiled `dn`, opencode, git, bash/curl.
-   Use `ghcr.io/chesapeakedev/dn-kickstart` or a fork of `dn-images`.
+1. **dn (default)** — use the canonical tag matching the selected harness.
 2. **VCS overlay** — add Sapling (`sl`) when the repo uses Sapling; keep `git`
    for remotes/GitHub.
 3. **Language overlays** — fork the Dockerfile for Node/npm or bun, Python
    (uv/pip), or Rust/`cargo`. Do not bloat the shared default.
-4. **Harness overlays** — one primary harness per image (opencode, Cursor
-   `agent`, Claude Code, or Codex). Avoid shipping every CLI by default.
+4. **Harness variants** — one primary harness per image. Avoid shipping every
+   CLI in one image.
 5. **Pinned prod config** — `image` → `:sha-<commit>` or digest + `dockerfile`
    path for rebuilds.
 6. **When not to customize** — if `sandbox.provider` is `none`, skip a project
@@ -110,12 +107,10 @@ dn Docker runner expects a long-lived container (`ENTRYPOINT` can be
 - Do not bake API keys, tokens, or SSH private keys into the image
 - Do not recommend distroless/static images as the agent sandbox base
 - Do not mount the host Docker socket into the sandbox
-- Creating the remote `chesapeakedev/dn-images` repo may require org
-  permissions; if unavailable, keep using `templates/dn-images/` in the dn tree
-  and publish manually later
+- Publishing `ghcr.io/chesapeakedev/dn` requires package permissions for the
+  Chesapeake organization
 
 ## Related docs
 
 - Sandbox providers and Docker contract: `docs/sandbox.md` in the dn repository
-- Default kickstart Dockerfile: `docker/Dockerfile`
-- Extractable default golden image: `templates/dn-images/`
+- Canonical image source: `chesapeakedev/dn-images`

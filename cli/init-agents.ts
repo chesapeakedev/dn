@@ -210,13 +210,13 @@ The image must include:
 
 - **Deno** runtime (≥ 2.6.3)
 - **dn** CLI (precompiled or from the workspace)
-- **Agent harness** (opencode by default; cursor/claude/codex as needed)
+- **Agent harness** (opencode, cursor, claude, codex, or copilot)
 - **git**, plus a shell (\`bash\`) for agent commands
 
-Default published image: \`ghcr.io/chesapeakedev/dn-kickstart:latest\` (also
-\`:sha-*\` tags). Forkable template:
-[chesapeakedev/dn-images](https://github.com/chesapeakedev/dn-images) (also
-vendored in dn as \`templates/dn-images/\`).
+Canonical images are published from
+[chesapeakedev/dn-images](https://github.com/chesapeakedev/dn-images) as
+\`ghcr.io/chesapeakedev/dn:<harness>\`. Version and source tags include the
+harness suffix, such as \`:0.1.0-codex\` and \`:sha-abc123def456-codex\`.
 
 ## Hygiene (do this)
 
@@ -233,10 +233,10 @@ vendored in dn as \`templates/dn-images/\`).
 
 ## Useful base-image suggestions
 
-1. **dn-kickstart (default)** — Deno, \`dn\`, opencode, git, bash/curl
+1. **dn (default)** — use the canonical tag matching the selected harness
 2. **VCS overlay** — add Sapling (\`sl\`) when the repo uses Sapling
 3. **Language overlays** — Node/npm, Python (uv/pip), or Rust/\`cargo\` in a fork
-4. **Harness overlays** — one primary harness (opencode, Cursor, Claude, Codex)
+4. **Harness variants** — one primary harness per image
 5. **Pinned prod config** — \`:sha-<commit>\` or digest + \`dockerfile\` path
 6. **When not to customize** — skip if provider is \`none\`
 

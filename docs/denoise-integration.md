@@ -283,14 +283,15 @@ when checking the repo’s configured secrets (for example via the GitHub API).
 Set the API key for the agent in `.github/dn/config.json` (only one is
 required):
 
-| Agent      | Repository secret   | CI notes                          |
-| ---------- | ------------------- | --------------------------------- |
-| `opencode` | `OPENAI_API_KEY`    | OpenCode install script           |
-| `codex`    | `OPENAI_API_KEY`    | Official Codex CLI install script |
-| `claude`   | `ANTHROPIC_API_KEY` | `CLAUDE_CODE_BARE=1` in workflow  |
-| `cursor`   | `CURSOR_API_KEY`    | Cursor CLI install script         |
+| Agent      | Repository secret      | CI notes                          |
+| ---------- | ---------------------- | --------------------------------- |
+| `opencode` | `OPENAI_API_KEY`       | OpenCode install script           |
+| `codex`    | `OPENAI_API_KEY`       | Official Codex CLI install script |
+| `claude`   | `ANTHROPIC_API_KEY`    | `CLAUDE_CODE_BARE=1` in workflow  |
+| `cursor`   | `CURSOR_API_KEY`       | Cursor CLI install script         |
+| `copilot`  | `COPILOT_GITHUB_TOKEN` | Copilot CLI install script        |
 
-Workflows pass all three secrets to `dn`; unset secrets are ignored. Run
+Workflows pass all four secrets to `dn`; unset secrets are ignored. Run
 `dn workflows validate` to check for a missing config file, outdated install
 script, absent agent secret when GitHub auth is available, or missing sandbox
 prerequisites when `sandbox.provider` is set in config (see
