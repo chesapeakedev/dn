@@ -86,7 +86,7 @@ function showHelp(): void {
     "    | dn workflows dispatch dn.init_stack --repo owner/repo --json",
   );
   console.log(
-    "  dn workflows dispatch dn-prep-issue-plan.yml --repo owner/repo --json '<payload>'",
+    "  dn workflows dispatch dn.meld_issue_plan --repo owner/repo --json '<payload>'",
   );
   console.log("\nNot yet implemented:");
   console.log(

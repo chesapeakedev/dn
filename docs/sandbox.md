@@ -66,12 +66,11 @@ commands run inside the container or VM.
 
 ## Supported subcommands
 
-| Subcommand  | Sandbox support                        |
-| ----------- | -------------------------------------- |
-| `kickstart` | Full plan + implement inside sandbox   |
-| `loop`      | Implement phase inside sandbox         |
-| `meld`      | Plan phase inside sandbox              |
-| `prep`      | Host only in v1 (no lifecycle wrapper) |
+| Subcommand  | Sandbox support                      |
+| ----------- | ------------------------------------ |
+| `kickstart` | Full plan + implement inside sandbox |
+| `loop`      | Implement phase inside sandbox       |
+| `meld`      | Plan phase inside sandbox            |
 
 ## Validation
 

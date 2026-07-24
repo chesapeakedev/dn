@@ -8,7 +8,7 @@
  *
  * Usage:
  *   dn kickstart <issue_url_or_number>    # Full kickstart workflow
- *   dn prep <issue_url_or_number>          # Plan phase only
+ *   dn meld <source> [source ...]          # Plan phase
  *   dn loop <plan-file-or-issue>  # Loop phase only
  */
 
@@ -79,7 +79,6 @@ async function handleInit(
 import { handleKickstart } from "./kickstart.ts";
 import { handleLoop } from "./loop.ts";
 import { handleMeld } from "./meld.ts";
-import { handlePrep } from "./prep.ts";
 import { handleGlance } from "./glance.ts";
 import { handlePeek } from "./peek.ts";
 import { handleTodo } from "./todo.ts";
@@ -275,9 +274,8 @@ function showUsage(): void {
   console.error(
     "  kickstart    Run full kickstart workflow (plan + implement)",
   );
-  console.error("  prep         Run plan phase only (creates plan file)");
   console.error(
-    "  loop         Run loop phase only (requires plan file from prep)",
+    "  loop         Run loop phase only (requires plan file from meld)",
   );
   console.error(
     "  until        Run bounded generator/verifier gambits until done",
@@ -292,7 +290,7 @@ function showUsage(): void {
     "  peek         Suggest next open issues to prioritize (heuristic)",
   );
   console.error(
-    "  meld         Merge markdown sources and route planner output (--target README/AGENTS/...)",
+    "  meld         Plan from one or more sources and route the output",
   );
   console.error(
     "  land         Close out work into VCS commits; --issue-testplan updates GH issue",
@@ -393,9 +391,6 @@ async function main(): Promise<void> {
       break;
     case "until":
       await handleUntil(subcommandArgs, globalAgent, globalSandbox);
-      break;
-    case "prep":
-      await handlePrep(subcommandArgs, globalAgent);
       break;
     case "fixup":
       await handleFixup(subcommandArgs, globalAgent);

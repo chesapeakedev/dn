@@ -120,10 +120,10 @@ Avoid one-letter variable names outside of very small scopes.
 
 _maintain parity with README.md_
 
-- **`cli/`** - CLI entry point, subcommand implementations (kickstart, prep,
-  loop, meld, land)
+- **`cli/`** - CLI entry point, subcommand implementations (kickstart, meld,
+  loop, land)
   - `kickstart.ts` - Entry point for kickstart CLI workflows
-  - `prep.ts` - Workspace and repository preparation logic
+  - `meld.ts` - Single-source and multi-source planning workflows
   - `loop.ts` - Iterative execution and refinement workflows
 - **`docs/`** - Supplemental documentation for `dn` users & contributors & LLM's
   - `README.md` - User-facing overview and CLI usage
@@ -194,14 +194,12 @@ using the CLI. They are not exhaustive.
 # Discover workflows
 $ dn
 
-# Prepare a repository or workspace before making changes
-$ dn prep
+# Create a plan from one issue or combine several sources
+$ dn meld 123
+$ dn meld product.md architecture.md
 
-# Iterate on an existing plan or task until convergence
-$ dn loop
-
-# Combine or reconcile outputs from multiple iterations
-$ dn meld
+# Implement or refine an existing plan
+$ dn loop plans/issue-123.plan.md
 
 # Close out completed work into VCS commits
 $ dn land

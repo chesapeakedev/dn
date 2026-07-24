@@ -81,8 +81,8 @@ use the same sandbox settings for every gambit.
 
 ## Common argument formats
 
-Several subcommands (`kickstart`, `prep`, `meld`) accept a flexible issue or
-source argument. The following formats are recognized:
+Several subcommands (`kickstart`, `meld`) accept a flexible issue or source
+argument. The following formats are recognized:
 
 - **Full GitHub issue URL**: `https://github.com/owner/repo/issues/123`
 - **Issue number** (current repo): `123`
@@ -459,7 +459,7 @@ canonical workflows inside Actions, and manages installed templates.
 
 ### Running workflows
 
-Canonical dispatch templates (`dn.init_stack`, `dn.prep_issue_plan`,
+Canonical dispatch templates (`dn.init_stack`, `dn.meld_issue_plan`,
 `dn.kickstart_issue`) use `repository_dispatch` and are auto-detected from the
 shipped manifest. `dn.daily_kickstart` uses schedule and `workflow_dispatch`.
 Other workflows with `on.workflow_dispatch` use the same path as
@@ -475,7 +475,7 @@ dn workflows dispatch smoke.yml --repo owner/repo
 # repository_dispatch (canonical dn templates)
 echo '{"schema_version":"1.0","dispatch_id":"'"$(uuidgen)"'","milestone":"1"}' \
   | dn workflows dispatch dn.init_stack --repo owner/repo --json
-dn workflows dispatch dn-prep-issue-plan.yml --repo owner/repo --json '<payload>'
+dn workflows dispatch dn.meld_issue_plan --repo owner/repo --json '<payload>'
 ```
 
 Options for `dispatch`:
@@ -625,49 +625,81 @@ Troubleshooting:
 
 See also [`AGENTS.md`](../AGENTS.md) (Workflow: `make sync`) and `cli/sync.ts`.
 
-## `dn prep` — Plan phase only
+## `dn meld` — Plan from one or more sources
 
-Runs only the plan phase (steps 1–3: resolve issue, VCS prep, plan phase):
+`dn meld` is the plan phase of the `meld → loop → land` lifecycle. Give it one
+GitHub issue, issue number, or local Markdown file for the common case. Add
+sources when a useful plan needs product notes, research, or several issues.
 
 ```bash
-# Create a plan file from a GitHub issue
-dn prep https://github.com/owner/repo/issues/123
-dn prep 123
+# Create a plan from one issue or local specification
+dn meld 123
+dn meld https://github.com/owner/repo/issues/123
+dn meld docs/spec.md
 
-# Create a plan file from a local markdown file (no GitHub fetch)
-dn prep docs/spec.md
+# Combine several sources into one plan
+dn meld product-notes.md architecture.md
+dn meld issue-a.md https://github.com/owner/repo/issues/123
+dn meld --list sources.txt
 
-# Cross-repository plan (issue from different repo)
-dn prep --allow-cross-repo https://github.com/private-org/backend-api/issues/123
+# Name the plan or preserve the merged input
+dn meld 123 --plan-name my-feature
+dn meld product.md architecture.md --output plans/merged-context.md
 
-# With a specific plan name
-dn prep --plan-name my-feature https://github.com/owner/repo/issues/123
-
-# With Claude Code
-dn --agent claude prep https://github.com/owner/repo/issues/123
-
-# With Codex CLI
-dn --agent codex prep https://github.com/owner/repo/issues/123
+# Select an agent or plan across repositories
+dn --agent claude meld 123
+dn --agent codex meld 123
+dn meld --allow-cross-repo https://github.com/private-org/backend-api/issues/123
 ```
+
+For multiple sources, `meld` normalizes and deduplicates the context before the
+agent runs. `--output`, `-o` keeps that intermediate Markdown; it is separate
+from the planner output.
+
+Use `--target` to route the result somewhere other than the default
+`plans/*.plan.md` file:
+
+```bash
+dn meld research.md ops-notes.md --target AGENTS.md
+dn meld release-notes.md --target README.md
+dn meld handoff.md --target github:comment:123 --yes
+```
+
+Targets include `README.md`, `AGENTS.md`, `CONTRIBUTING.md`, arbitrary Markdown
+paths, `github:issue:<ref>`, and `github:comment:<ref>`. Existing document
+targets use merge-style edits unless `--overwrite` is set. Use `--dry-run` to
+resolve context and output paths without invoking an agent or changing GitHub.
 
 ### Milestone descriptions
 
-When preparing release notes or milestone copy, generate a user-value-focused
-description from all open issues in a GitHub milestone:
+Generate a user-value-focused description from all open issues in a GitHub
+milestone:
 
 ```bash
-dn prep --milestone 42
-dn prep -m "Q2 Features"
-dn prep --milestone https://github.com/owner/repo/milestone/3
+dn meld --milestone 42
+dn meld -m "Q2 Features"
+dn meld --milestone https://github.com/owner/repo/milestone/3
 ```
 
-The command fetches milestone issues, runs an alternative system prompt that
-synthesizes cross-cutting value themes, and writes
-`plans/{owner}_{repo}_{milestone}.description.md` in the workspace.
+The command writes `plans/{owner}_{repo}_{milestone}.description.md` in the
+workspace.
 
-Cross-repository operations follow the same rules as `dn kickstart` — use
-`--allow-cross-repo` to plan issues from a different repository. The plan file
-path is printed for use with `dn loop`.
+### Fill an issue template
+
+Fill empty sections in one GitHub issue while preserving completed sections:
+
+```bash
+dn meld --update-issue 123
+dn meld --update-issue --dry-run 123
+```
+
+`--fill-template` remains an alias for `--update-issue`.
+
+### Migrating from `prep`
+
+`prep` has been removed. Replace `dn prep` with `dn meld`; issue numbers, issue
+URLs, local Markdown files, `--milestone`, `--update-issue`, agent selection,
+and plan naming are available on `meld`.
 
 ## `dn loop` — Loop phase only
 
@@ -692,57 +724,9 @@ dn --agent claude loop plans/issue-123.plan.md
 dn --agent codex loop plans/issue-123.plan.md
 ```
 
-`dn loop` requires an existing plan created by `dn prep`. When you pass an issue
+`dn loop` requires an existing plan created by `dn meld`. When you pass an issue
 URL or issue number, `dn` searches `plans/` for a matching plan instead of
 falling back to an unrelated local plan.
-
-## `dn meld` — Merge sources and run contextual planning
-
-Merges one or more markdown sources (local files and/or GitHub issue URLs) into
-a single DRY document with an Acceptance Criteria section, then runs the shared
-prep/plan-phase agent harness on that markdown.
-
-- **Merged input (`--output`, `-o`)** — Intermediate markdown persisted for
-  reuse. Omitting `-o` still keeps a temp snapshot used only as planner context.
-- **`--target`** — Planner output (`README.md`, `AGENTS.md`, `CONTRIBUTING.md`,
-  arbitrary `.md`, `plans/*.plan.md`, `github:issue:<ref>`,
-  `github:comment:<ref>`). Omit for the historical default (`plans/*.plan.md`).
-- **`--overwrite` / confirmations** — Overwriting or creating files prompts on a
-  TTY; unattended merges need `--yes` or `DN_YES=1`; GitHub mutations also
-  require `--yes` when non-interactive.
-- **`--list`, `-l`** — Expects newline-separated paths (POSIX style). Paths may
-  contain commas safely.
-- **`prep` vs `meld`** — `prep` stays the single-issue shortcut while `meld`
-  excels at merging many sources before planning; internals now share the same
-  orchestrator.
-
-```bash
-# Single source: local file or issue URL (default plan naming)
-dn meld plan.md
-dn meld https://github.com/owner/repo/issues/123
-
-# Multiple sources; planner runs afterward
-dn meld a.md b.md
-dn meld -l sources.txt
-
-# Write merged markdown to disk (still distinct from planner output targets)
-dn meld a.md b.md -o plans/merged.md --plan-name merged
-
-# Update AGENTS.md with summarized guidance (merge mode by default)
-dn meld research.md ops-notes.md --target AGENTS.md
-
-# Append a synthesized GitHub comment (requires GitHub credentials)
-dn meld handoff.md --target github:comment:123 --dry-run
-
-# Cursor / Claude / Codex harness parity with prep
-dn meld a.md https://github.com/owner/repo/issues/123 --cursor
-dn meld a.md https://github.com/owner/repo/issues/123 --claude
-dn --agent codex meld a.md https://github.com/owner/repo/issues/123
-```
-
-Flags mirror `dn prep`'s unattended behavior for agent harness selection; see
-`dn meld --help` for `--target`, `--overwrite`, `--dry-run`, `--yes`,
-`--workspace-root`, and planner selection options.
 
 ## `dn land` — Close out completed work into VCS commits
 

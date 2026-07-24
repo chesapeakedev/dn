@@ -14,7 +14,6 @@ commands, and validates results in a controlled environment.
 ```
 cli/
 ├── test_utils.ts          # Core testing utilities and helper functions
-├── test_prep.ts           # Tests for the prep subcommand
 ├── test_loop.ts           # Tests for the loop subcommand
 ├── test_kickstart.ts      # Tests for the kickstart subcommand
 ├── test_meld.ts           # Tests for the meld subcommand
@@ -53,7 +52,7 @@ Deno.test("my test", async () => {
   const testRepo = await createTestRepo();
 
   try {
-    const result = await runDnCommand(["prep", "--help"], {
+    const result = await runDnCommand(["meld", "--help"], {
       cwd: testRepo.path,
     });
     // Add assertions here
@@ -93,7 +92,7 @@ Deno.test("validate git state", async () => {
 
   try {
     // Run command that creates files
-    await runDnCommand(["prep", "issue.md"], {
+    await runDnCommand(["meld", "issue.md", "--dry-run"], {
       cwd: testRepo.path,
     });
 
@@ -122,19 +121,19 @@ deno test cli/test_*.ts
 ### Run Specific Test File
 
 ```bash
-deno test cli/test_prep.ts
+deno test cli/test_meld.ts
 ```
 
 ### Run with Verbose Output
 
 ```bash
-DN_TEST_VERBOSE=1 deno test cli/test_prep.ts
+DN_TEST_VERBOSE=1 deno test cli/test_meld.ts
 ```
 
 ### Keep Temporary Directories for Inspection
 
 ```bash
-DN_TEST_KEEP_TEMP=1 deno test cli/test_prep.ts
+DN_TEST_KEEP_TEMP=1 deno test cli/test_meld.ts
 ```
 
 ## Test Patterns
@@ -144,23 +143,23 @@ DN_TEST_KEEP_TEMP=1 deno test cli/test_prep.ts
 Test normal operation scenarios:
 
 ```typescript
-Deno.test("prep command creates plan file", async () => {
+Deno.test("meld resolves a plan output path", async () => {
   const testRepo = await createProjectTestRepo();
 
   try {
     await Deno.writeTextFile(`${testRepo.path}/issue.md`, issueContent);
 
     const result = await runDnCommand([
-      "prep",
+      "meld",
       "issue.md",
       "--plan-name",
       "test",
+      "--dry-run",
     ], { cwd: testRepo.path });
 
     assert(result.success);
 
-    // Verify plan file exists
-    await Deno.stat(`${testRepo.path}/test.plan.md`);
+    assert(result.stdout.includes("test.plan.md"));
   } finally {
     await cleanupTestRepo(testRepo);
   }
@@ -172,11 +171,11 @@ Deno.test("prep command creates plan file", async () => {
 Test invalid inputs and error conditions:
 
 ```typescript
-Deno.test("prep command fails without arguments", async () => {
+Deno.test("meld command fails without arguments", async () => {
   const testRepo = await createTestRepo();
 
   try {
-    await runDnCommand(["prep"], {
+    await runDnCommand(["meld"], {
       cwd: testRepo.path,
       expectFailure: true,
     });
@@ -249,13 +248,13 @@ Ensure commands handle both valid and invalid inputs correctly:
 
 ```typescript
 // Test success case
-const successResult = await runDnCommand(["prep", "valid.md"], {
+const successResult = await runDnCommand(["meld", "valid.md", "--dry-run"], {
   cwd: testRepo.path,
 });
 assert(successResult.success);
 
 // Test failure case
-await runDnCommand(["prep"], {
+await runDnCommand(["meld"], {
   cwd: testRepo.path,
   expectFailure: true,
 });
@@ -288,7 +287,7 @@ await Deno.stat(`${testRepo.path}/output.md`); // Should succeed
 Make test names clear and specific:
 
 ```typescript
-Deno.test("prep command creates plan file", async () => {
+Deno.test("meld command resolves a plan file", async () => {
   // Test implementation
 });
 ```

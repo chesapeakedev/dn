@@ -12,7 +12,7 @@ import {
 Deno.test("parseAgentHarnessFlagsFromArgs detects subcommand agent flags", () => {
   assertEquals(
     parseAgentHarnessFlagsFromArgs([
-      "prep",
+      "meld",
       "--update-issue",
       "--copilot",
       "123",

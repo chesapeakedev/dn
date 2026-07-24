@@ -12,7 +12,7 @@ under `.github/workflows/`.
 | ID                   | Triggers                        | Install path                               |
 | -------------------- | ------------------------------- | ------------------------------------------ |
 | `dn.init_stack`      | `repository_dispatch`           | `.github/workflows/dn-init-stack.yml`      |
-| `dn.prep_issue_plan` | `repository_dispatch`           | `.github/workflows/dn-prep-issue-plan.yml` |
+| `dn.meld_issue_plan` | `repository_dispatch`           | `.github/workflows/dn-prep-issue-plan.yml` |
 | `dn.kickstart_issue` | `repository_dispatch`           | `.github/workflows/dn-kickstart-issue.yml` |
 | `dn.daily_kickstart` | `schedule`, `workflow_dispatch` | `.github/workflows/dn-daily-kickstart.yml` |
 | `dn.todo_loop`       | `schedule`, `workflow_dispatch` | `.github/workflows/dn-todo-loop.yml`       |
@@ -55,7 +55,7 @@ Optional fields:
 - `refresh` defaults to `true`
 - `validate_only` validates configuration without running the mapped command
 
-### `dn.prep_issue_plan`
+### `dn.meld_issue_plan`
 
 Required fields:
 
@@ -67,6 +67,12 @@ Optional fields:
 
 - `plan_name`
 - `validate_only` validates configuration without running the mapped command
+
+The installed workflow also accepts the legacy `dn.prep_issue_plan` event and
+routes it through `dn meld`. New integrations should dispatch
+`dn.meld_issue_plan`. The installed filename remains `dn-prep-issue-plan.yml`
+until the Denoise UI migration tracked in
+[chesapeake#399](https://github.com/chesapeakedev/chesapeake/issues/399).
 
 ### `dn.kickstart_issue`
 
@@ -171,24 +177,24 @@ successful kickstart, and exits.
 
 dn distinguishes its agent harness from its execution environment:
 
-| Mechanism                          | Execution location                    | Notes                                                                 |
-| ---------------------------------- | ------------------------------------- | --------------------------------------------------------------------- |
-| `--cursor`                         | Current host or GitHub Actions runner | Invokes Cursor's local `agent` CLI.                                   |
-| `--cursor-cloud`                   | Cursor-managed VM                     | Durable SDK run using `CURSOR_API_KEY`; it is not a sandbox.          |
-| `--sandbox docker\|exe.dev`        | Docker or exe.dev                     | Isolates any supported local harness.                                 |
-| Canonical GitHub Actions workflows | GitHub-hosted runner                  | Installs and runs the configured local harness.                       |
+| Mechanism                          | Execution location                    | Notes                                                        |
+| ---------------------------------- | ------------------------------------- | ------------------------------------------------------------ |
+| `--cursor`                         | Current host or GitHub Actions runner | Invokes Cursor's local `agent` CLI.                          |
+| `--cursor-cloud`                   | Cursor-managed VM                     | Durable SDK run using `CURSOR_API_KEY`; it is not a sandbox. |
+| `--sandbox docker\|exe.dev`        | Docker or exe.dev                     | Isolates any supported local harness.                        |
+| Canonical GitHub Actions workflows | GitHub-hosted runner                  | Installs and runs the configured local harness.              |
 
 ### Denoise kickstart runtimes
 
 Denoise's task kickstart confirm dialog can select where a run executes. The
 client posts `source` on `POST /api/github/dispatch`:
 
-| `source`          | Behavior                                                                 |
-| ----------------- | ------------------------------------------------------------------------ |
-| `github_actions`  | Default. Existing `repository_dispatch` → `dn.kickstart_issue`.          |
-| `cursor_cloud`    | Managed runner runs `dn kickstart --cursor-cloud` with HTTP progress.    |
-| `cloud_vm`        | Managed runner runs `dn kickstart --sandbox exe.dev` with HTTP progress. |
-| `local`           | Managed runner runs host `dn kickstart` with NDJSON progress.            |
+| `source`         | Behavior                                                                 |
+| ---------------- | ------------------------------------------------------------------------ |
+| `github_actions` | Default. Existing `repository_dispatch` → `dn.kickstart_issue`.          |
+| `cursor_cloud`   | Managed runner runs `dn kickstart --cursor-cloud` with HTTP progress.    |
+| `cloud_vm`       | Managed runner runs `dn kickstart --sandbox exe.dev` with HTTP progress. |
+| `local`          | Managed runner runs host `dn kickstart` with NDJSON progress.            |
 
 Preflight availability is exposed at `GET /api/kickstart/runtimes?owner=&repo=`.
 Hosted denoise keeps Docker unavailable (use `dn kickstart --sandbox docker`
@@ -210,7 +216,7 @@ contract described in [Kickstart Progress Events](#kickstart-progress-events).
 Canonical templates request the minimum permissions needed for their workflow:
 
 - `dn.init_stack`: `contents: write`, `issues: write`
-- `dn.prep_issue_plan`: `contents: write`, `issues: write`
+- `dn.meld_issue_plan`: `contents: write`, `issues: write`
 - `dn.kickstart_issue`: `contents: write`, `pull-requests: write`,
   `issues: write`
 - `dn.daily_kickstart`: `contents: write`, `pull-requests: write`,

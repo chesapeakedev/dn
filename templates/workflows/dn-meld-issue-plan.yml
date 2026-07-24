@@ -1,22 +1,22 @@
-name: dn prep issue plan
-run-name: "dn.prep_issue_plan · ${{ github.event.client_payload.dispatch_id }}"
+name: dn meld issue plan
+run-name: "${{ github.event.action }} · ${{ github.event.client_payload.dispatch_id }}"
 
 on:
   repository_dispatch:
-    types: [dn.prep_issue_plan]
+    types: [dn.meld_issue_plan, dn.prep_issue_plan]
 
 permissions:
   contents: write
   issues: write
 
 jobs:
-  prep-issue-plan:
+  meld-issue-plan:
     runs-on: ubuntu-latest
     steps:
-      - name: Run dn prep
+      - name: Run dn meld
         uses: chesapeakedev/dn-action@v1
         with:
-          workflow: dn.prep_issue_plan
+          workflow: ${{ github.event.action }}
           validate-only: ${{ github.event.client_payload.validate_only == true }}
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

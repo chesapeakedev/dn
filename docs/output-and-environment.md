@@ -70,9 +70,9 @@ Agent-backed phase lines name the selected harness directly, e.g.
 
 ## Agent harness selection
 
-Subcommands that run an LLM agent (`kickstart`, `prep`, `loop`, `fixup`, `meld`,
-`land` (default and `--issue-testplan`), `init stack`, and scoring inside `tidy`
-/ no-ticket `kickstart`) pick a **harness**:
+Subcommands that run an LLM agent (`kickstart`, `meld`, `loop`, `fixup`, `land`
+(default and `--issue-testplan`), `init stack`, and scoring inside `tidy` /
+no-ticket `kickstart`) pick a **harness**:
 
 | Mechanism           | Effect                       |
 | ------------------- | ---------------------------- |
@@ -92,7 +92,7 @@ Subcommands that run an LLM agent (`kickstart`, `prep`, `loop`, `fixup`, `meld`,
 | `COPILOT_ENABLED=1` | Same as `--agent copilot`    |
 
 Top-level agent options apply to each supported subcommand, for example
-`dn --agent codex prep <issue-url>`. Explicit command-level aliases cannot be
+`dn --agent codex meld <issue-url>`. Explicit command-level aliases cannot be
 combined with a conflicting top-level `--agent`; environment toggles are used
 only when no explicit CLI selection was provided.
 

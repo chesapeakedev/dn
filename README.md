@@ -25,14 +25,13 @@ on each, check out [our docs site](https://docs.denoise.cloud/introduction/)
   lint, rebase, and publish workflows with `dn sync`
 - **GitHub integration** — Manage issues and run agentic GitHub Actions without
   leaving the CLI
-- **Durable, agent-agnostic plans** — Separate planning from implementation with
-  `dn prep` and `dn loop`, resume incomplete work, and switch between supported
-  coding agents
+- **Durable, agent-agnostic plans** — Turn one issue or several context sources
+  into a durable plan with `dn meld`, then implement it with `dn loop`
 - **Automated PR feedback fixes** — Fetch review comments, build a focused fix
   plan, and implement the changes with `dn fixup`
 - **Prioritized development queues** — Find and organize the next valuable work
   with milestone stacks, `dn peek`, `dn todo`, and `dn tidy`
-- **Context synthesis for agents** — Merge issues and local documents into
+- **Context synthesis for agents** — Route issues and local documents into
   focused plans, README content, or agent instructions with `dn meld`
 
 ## Kickstart a task
@@ -113,7 +112,7 @@ Run `dn --help` to explore the available workflows.
 OpenCode is the default. Select another supported agent globally with `--agent`:
 
 ```bash
-dn --agent claude prep <issue_url>
+dn --agent claude meld <issue_url>
 dn --agent cursor loop --plan-file plans/issue-123.plan.md
 dn --agent codex kickstart --awp <issue_url>
 ```

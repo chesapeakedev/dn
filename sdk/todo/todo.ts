@@ -260,7 +260,7 @@ export function formatTodoQueuePrompt(
 
 /**
  * Prompts to queue items in ~/.dn/todo.md and, on confirmation, appends via addToTodoList.
- * Use after prep or loop to optionally add a plan or issue for a later kickstart run.
+ * Use after meld or loop to optionally add a plan or issue for a later kickstart run.
  *
  * @returns true if the user confirmed and items were added, false otherwise.
  */

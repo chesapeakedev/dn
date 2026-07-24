@@ -74,6 +74,46 @@ Deno.test("resolveWorkflowArguments preserves issue URL as one argument", () => 
   );
 });
 
+Deno.test("resolveWorkflowArguments maps meld planning payload", () => {
+  const issue = "https://github.com/acme/widgets/issues/42";
+  assertEquals(
+    resolveWorkflowArguments(
+      "dn.meld_issue_plan",
+      "repository_dispatch",
+      {
+        action: "dn.meld_issue_plan",
+        client_payload: {
+          schema_version: "1.0",
+          dispatch_id: "dispatch-meld",
+          issue_url: issue,
+          plan_name: "widgets",
+        },
+      },
+      "codex",
+    ),
+    ["--agent", "codex", "meld", "--plan-name", "widgets", issue],
+  );
+});
+
+Deno.test("resolveWorkflowArguments keeps legacy prep dispatch compatible", () => {
+  assertEquals(
+    resolveWorkflowArguments(
+      "dn.prep_issue_plan",
+      "repository_dispatch",
+      {
+        action: "dn.prep_issue_plan",
+        client_payload: {
+          schema_version: "1.0",
+          dispatch_id: "dispatch-prep",
+          issue_number: 42,
+        },
+      },
+      "opencode",
+    ),
+    ["--agent", "opencode", "meld", "42"],
+  );
+});
+
 Deno.test("resolveWorkflowArguments maps kickstart publish direct", () => {
   assertEquals(
     resolveWorkflowArguments(

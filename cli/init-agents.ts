@@ -97,7 +97,7 @@ dn <subcommand> -h    # help for a specific subcommand
 
 ## Common environment variables
 
-- \`ISSUE\` - fallback issue URL or number for \`kickstart\` and \`prep\`
+- \`ISSUE\` - fallback issue URL or number for \`kickstart\` and \`meld\`
 - \`WORKSPACE_ROOT\` - project root directory
 - \`GITHUB_TOKEN\` - GitHub personal access token
 - \`PR_URL\` - PR URL for \`fixup\`
@@ -107,10 +107,10 @@ dn <subcommand> -h    # help for a specific subcommand
 
 \`\`\`bash
 dn kickstart <issue-url-or-number>         # Full plan + implement workflow
-dn prep <issue-url-or-number>              # Plan phase only
+dn meld <issue-url-or-number>              # Plan phase
 dn loop plans/task.plan.md                 # Implement from an existing plan
 dn fixup <pull-request-url>                # Address PR review feedback
-dn meld a.md b.md --plan-name merged       # Merge sources, then run prep
+dn meld a.md b.md --plan-name merged       # Plan from combined sources
 dn init stack 42                           # Create a milestone task stack
 dn sync                                    # Git/Sapling lint, rebase, publish
 \`\`\`
@@ -144,7 +144,7 @@ Prefer these commands over ad-hoc GitHub scripts:
 \`\`\`bash
 dn issue show <ref>
 dn issue comment <ref> --body-file update.md
-dn prep <issue-url-or-number>
+dn meld <issue-url-or-number>
 dn loop plans/task.plan.md
 dn kickstart <issue-url-or-number>
 dn fixup <pull-request-url>
@@ -488,14 +488,14 @@ Use the command that matches the stage of work:
 
 \`\`\`bash
 dn kickstart <issue-url-or-number>         # Full plan + implement workflow
-dn prep <issue-url-or-number>              # Plan phase only
+dn meld <issue-url-or-number>              # Plan phase
 dn loop plans/task.plan.md                 # Implement from an existing plan
 dn fixup <pull-request-url>                # Address PR review feedback
-dn meld a.md b.md --plan-name merged       # Merge sources, then run prep
+dn meld a.md b.md --plan-name merged       # Plan from combined sources
 \`\`\`
 
 Use \`dn kickstart\` when the user wants the whole issue implemented. Use
-\`dn prep\` and \`dn loop\` separately when planning and implementation need to be
+\`dn meld\` and \`dn loop\` separately when planning and implementation need to be
 split across steps or reviewed between phases. Use \`dn fixup\` when the task is
 to address existing PR comments rather than re-implement from scratch.
 

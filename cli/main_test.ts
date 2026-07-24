@@ -85,12 +85,12 @@ Deno.test("CLI rejects unknown subcommand", async () => {
 Deno.test("CLI accepts top-level --agent before subcommand", async () => {
   const testRepo = await createTestRepo();
   try {
-    const result = await runDnCommand(["--agent", "codex", "prep", "--help"], {
+    const result = await runDnCommand(["--agent", "codex", "meld", "--help"], {
       cwd: testRepo.path,
     });
 
     assert(result.success);
-    assert(result.stdout.includes("dn prep"));
+    assert(result.stdout.includes("dn meld"));
   } finally {
     await cleanupTestRepo(testRepo);
   }

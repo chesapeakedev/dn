@@ -14,17 +14,30 @@ Documentation to add to denoise-docs from the `dn` repository.
   - [ ] Link to `chesapeakedev/dn-images` after the public repository is created
         and populated; use `templates/dn-images/` as the source until then.
 
-- [ ] Document the dn command lifecycle for issues
+- [ ] Create a dedicated dn/denoise plan lifecycle page
       ([chesapeake#396](https://github.com/chesapeakedev/chesapeake/issues/396)).
-  - [ ] Plan: `prep` _or_ `meld` (meld is many-to-one and can replace prep);
-        `kickstart` includes plan + implement.
-  - [ ] Implement: `loop` / remaining kickstart / `fixup` (PR feedback path).
-  - [ ] Close out: `land` (optional `--issue-testplan` upserts `## Test Plan` on
-        the linked GitHub issue). Distinguish `--issue-testplan` from
-        `--test-plan <path>` (local commit-agent context).
-  - [ ] Optional trunk publish: `sync` (not the same as `dn land`).
-  - [ ] Explicitly note that meld is **not** a post-loop step (correct the old
-        `prep → loop → meld → land` skill sequence).
+  - [ ] Start with the shared model: Denoise helps people choose and shape the
+        work; `dn` turns that intent into a durable plan, implementation, and
+        close-out workflow.
+  - [ ] Compare the three useful levels of control:
+    - `dn kickstart` for the shortest end-to-end path, including publishing when
+      configured.
+    - `dn kickstart` → `dn land` when the agent should plan and implement in one
+      run but the user wants a separate local review and commit boundary.
+    - `dn meld` → `dn loop` → `dn land` when planning, implementation, and
+      close-out each need an explicit review or automation boundary.
+  - [ ] Explain that `meld` accepts one issue, many issues, or local Markdown
+        sources and is the only plan-phase command; do not teach `prep`.
+  - [ ] Show how durable `plans/*.plan.md` files make work resumable across
+        sessions and portable across OpenCode, Claude Code, Cursor, and Codex.
+  - [ ] Include batch examples for processing a prioritized set of issues in a
+        shell script and examples of asking an existing agent harness to invoke
+        the same commands through the installed `dn` skill.
+  - [ ] Explain `land --issue-testplan`, `fixup` as the pull-request feedback
+        path, and optional `sync` as trunk publication without making them look
+        like mandatory stages.
+  - [ ] Show expected artifacts and safe restart points after each command so
+        users can recover from an interrupted agent run.
 
 - [x] Document Cursor Cloud Agent execution for `dn` kickstart and loop
       ([chesapeake#344](https://github.com/chesapeakedev/chesapeake/issues/344)).

@@ -262,8 +262,11 @@ export function resolveWorkflowArguments(
     return args;
   }
 
-  if (workflowId === "dn.prep_issue_plan") {
-    const args = [...prefix, "prep"];
+  if (
+    workflowId === "dn.meld_issue_plan" ||
+    workflowId === "dn.prep_issue_plan"
+  ) {
+    const args = [...prefix, "meld"];
     if (payload.plan_name !== undefined && payload.plan_name !== "") {
       args.push(
         "--plan-name",

@@ -28,6 +28,14 @@ export function resolveManifestTemplate(
   }
 
   const normalized = selector.toLowerCase();
+  if (
+    normalized === "dn.prep_issue_plan" ||
+    normalized === "dn-prep-issue-plan.yml"
+  ) {
+    return manifest.templates.find((template) =>
+      template.id === "dn.meld_issue_plan"
+    );
+  }
   for (const template of manifest.templates) {
     if (template.id === selector) {
       return template;
@@ -108,7 +116,8 @@ export function extractDispatchPayloadError(
     payload.issue_number !== "";
 
   if (
-    template.id === "dn.prep_issue_plan" || template.id === "dn.kickstart_issue"
+    template.id === "dn.meld_issue_plan" ||
+    template.id === "dn.kickstart_issue"
   ) {
     if (hasIssueUrl === hasIssueNumber) {
       return "Provide exactly one of client_payload.issue_url or client_payload.issue_number";

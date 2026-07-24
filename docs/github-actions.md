@@ -34,7 +34,7 @@ dn workflows validate --json
 ```
 
 The templates define stable `repository_dispatch` event contracts for
-`dn.init_stack`, `dn.prep_issue_plan`, and `dn.kickstart_issue`, plus the
+`dn.init_stack`, `dn.meld_issue_plan`, and `dn.kickstart_issue`, plus the
 scheduled/manual `dn.daily_kickstart` workflow. Each job uses one action step
 that reads `.github/dn/config.json`, validates the event, installs the
 configured agent harness, runs `dn --agent <configured>`, and writes a workflow

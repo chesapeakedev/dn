@@ -18,10 +18,10 @@ in print mode (`claude -p`), including GitHub Actions patterns.
 
 ```bash
 dn --agent claude kickstart https://github.com/owner/repo/issues/123
-dn --agent claude prep https://github.com/owner/repo/issues/123
+dn --agent claude meld https://github.com/owner/repo/issues/123
 dn --agent claude loop plans/issue-123.plan.md
 dn --agent claude fixup https://github.com/owner/repo/pull/123
-dn meld a.md b.md --claude
+dn --agent claude meld a.md b.md
 ```
 
 Legacy command-level `--claude` flags still work. Or set `CLAUDE_ENABLED=1`

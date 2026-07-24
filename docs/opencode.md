@@ -214,7 +214,7 @@ For batch processing, use the CLI outside OpenCode:
 
 ```bash
 for issue in 101 102 103; do
-  dn prep $issue
+  dn meld $issue
   dn loop plans/issue-$issue.plan.md
   dn land --single plans/issue-$issue.plan.md
 done

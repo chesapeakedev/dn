@@ -38,12 +38,12 @@ const manifest: WorkflowManifest = {
       compatibility_notes: "",
     },
     {
-      id: "dn.prep_issue_plan",
-      version: "1.0.0",
-      source_path: "templates/workflows/dn-prep-issue-plan.yml",
+      id: "dn.meld_issue_plan",
+      version: "3.0.0",
+      source_path: "templates/workflows/dn-meld-issue-plan.yml",
       install_path: ".github/workflows/dn-prep-issue-plan.yml",
       checksum: "sha256:def",
-      latest_version: "1.0.0",
+      latest_version: "3.0.0",
       deprecated: false,
       deprecation_message: null,
       minimum_dn_version: "0.0.21",
@@ -51,7 +51,7 @@ const manifest: WorkflowManifest = {
       required_secrets: [],
       optional_secrets: [],
       triggers: {
-        repository_dispatch: ["dn.prep_issue_plan"],
+        repository_dispatch: ["dn.meld_issue_plan", "dn.prep_issue_plan"],
         labels: [],
         comments: [],
       },
@@ -75,8 +75,16 @@ Deno.test("resolveManifestTemplate matches id and filenames", () => {
     "dn.init_stack",
   );
   assertEquals(
+    resolveManifestTemplate("dn-meld-issue-plan.yml", manifest)?.id,
+    "dn.meld_issue_plan",
+  );
+  assertEquals(
     resolveManifestTemplate("dn-prep-issue-plan.yml", manifest)?.id,
-    "dn.prep_issue_plan",
+    "dn.meld_issue_plan",
+  );
+  assertEquals(
+    resolveManifestTemplate("dn.prep_issue_plan", manifest)?.id,
+    "dn.meld_issue_plan",
   );
   assertEquals(resolveManifestTemplate("release.yml", manifest), undefined);
 });

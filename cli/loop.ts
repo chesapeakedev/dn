@@ -235,7 +235,7 @@ export async function resolveLoopTarget(
     const discovered = await discoverLatestPlanFile(workspaceRoot);
     if (!discovered) {
       throw new Error(
-        "No plan files found in plans/. Run 'dn prep <issue>' first or pass a plan file, issue URL, or issue number.",
+        "No plan files found in plans/. Run 'dn meld <issue>' first or pass a plan file, issue URL, or issue number.",
       );
     }
     return { planFilePath: discovered, issueUrl: null, planSource: "file" };

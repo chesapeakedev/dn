@@ -6,7 +6,7 @@
       "version": "3.0.0",
       "source_path": "templates/workflows/dn-init-stack.yml",
       "install_path": ".github/workflows/dn-init-stack.yml",
-      "checksum": "sha256:be7612cabaead1aa9d978b40a51b6c937484c577e4f9025b2c5792c2cf629875",
+      "checksum": "sha256:53ff3fcf3a8902b412c31535ed36dec43c96af0c34f16f8238f81f30312380ee",
       "latest_version": "3.0.0",
       "deprecated": false,
       "deprecation_message": null,
@@ -39,12 +39,12 @@
       "compatibility_notes": "Requires .github/dn/config.json and chesapeakedev/dn-action. Writes and commits plans/{owner}_{repo}_{milestone}.stack.{md,json} when publish defaults to direct in CI. stack_mode refresh preserves completed checklist items; refresh=true maps to refresh, refresh=false maps to create."
     },
     {
-      "id": "dn.prep_issue_plan",
-      "version": "2.0.0",
-      "source_path": "templates/workflows/dn-prep-issue-plan.yml",
+      "id": "dn.meld_issue_plan",
+      "version": "3.0.0",
+      "source_path": "templates/workflows/dn-meld-issue-plan.yml",
       "install_path": ".github/workflows/dn-prep-issue-plan.yml",
-      "checksum": "sha256:e84d16c3b13a0e6b7548764d02711fb9ecc836b63c9c0d3b9450047af7f8d676",
-      "latest_version": "2.0.0",
+      "checksum": "sha256:80314743dcdce8d95136d61a756d53c96c53dc9104e9afb99fa83da9e9a765b0",
+      "latest_version": "3.0.0",
       "deprecated": false,
       "deprecation_message": null,
       "minimum_dn_version": "0.0.30",
@@ -59,7 +59,7 @@
         "CURSOR_API_KEY"
       ],
       "triggers": {
-        "repository_dispatch": ["dn.prep_issue_plan"],
+        "repository_dispatch": ["dn.meld_issue_plan", "dn.prep_issue_plan"],
         "labels": [],
         "comments": []
       },
@@ -68,14 +68,14 @@
         "required": ["schema_version", "dispatch_id"],
         "optional": ["issue_url", "issue_number", "plan_name", "validate_only"]
       },
-      "compatibility_notes": "Requires .github/dn/config.json. Provide exactly one of issue_url or issue_number."
+      "compatibility_notes": "Requires .github/dn/config.json. Provide exactly one of issue_url or issue_number. The installed workflow also accepts the legacy dn.prep_issue_plan event and temporarily retains the legacy install filename for Denoise compatibility."
     },
     {
       "id": "dn.kickstart_issue",
       "version": "3.0.0",
       "source_path": "templates/workflows/dn-kickstart-issue.yml",
       "install_path": ".github/workflows/dn-kickstart-issue.yml",
-      "checksum": "sha256:4adaddebb9292948c085ae4d04ad8df2d54226e7dcb17582a260622d56bcc022",
+      "checksum": "sha256:f64856c9ea6b88e3175af8df57cdadd645d20301cd8637dc4226d5bc79d8352a",
       "latest_version": "3.0.0",
       "deprecated": false,
       "deprecation_message": null,
