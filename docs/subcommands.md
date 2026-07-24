@@ -27,13 +27,14 @@ Use the top-level `--version` or `-V` flag to print only the current version:
 dn --version
 ```
 
-## `dn until` — Generator/verifier gambits
+## `dn until` — Iteration-bounded generator/verifier gambits
 
-Runs a bounded generator/verifier loop from a JSON config file. Use it for a
-goal that needs repeated implementation attempts and an independent completion
-check — not for issue→plan→implement work (`dn loop` / `kickstart`). A config
-can contain one gambit or a `gambits` array; gambits run in order and share one
-sandbox lifecycle.
+Runs a bounded multi-tick generator/verifier workflow from a JSON config file.
+One primary tick is loop-like (`dn loop` is a single implement pass on a plan);
+`dn until` repeats that tick up to a shared iteration bound until a verifier
+gate passes, and can schedule optional interval gambits as a fraction of that
+bound. Prefer `dn until` for goal-shaped work with a shell or prompt gate — not
+for issue→plan→implement (`dn meld` / `dn loop` / `kickstart`).
 
 ```bash
 dn until validate .github/dn/gambit.json
@@ -41,6 +42,16 @@ dn until run .github/dn/gambit.json
 dn until run .github/dn/gambit.json --once
 dn until run .github/dn/gambit.json --strict-verdict
 ```
+
+A config has top-level `iterations` (default `10`) and optional `timeout_ms`
+(hard wall-clock abort only; default one hour). Gambit `0` is the **primary**
+goal loop (every iteration). Later gambits are either:
+
+- **Interval** — `interval` in `(0, 1]` fires `floor(iterations * interval)`
+  times (capped at `iterations`). Placement: `align` (`start` | `end` |
+  `spread`, default `spread`) or explicit 1-based `at` indices. Optional `phase`
+  (`before` | `after`, default `before`) relative to the primary tick.
+- **Tail** — `one_shot: true` runs once after the primary verifier succeeds.
 
 Each action has exactly one of `script` or `prompt`. A generator failure stops
 the run. A script verifier is done when it exits with code `0`. A prompt
@@ -52,9 +63,9 @@ verifier is done when, in order:
 3. `verifier.done_when.stdout_contains` matches stdout (weaker escape hatch).
 
 Missing or unparseable prompt verdicts continue the loop unless
-`--strict-verdict` is set. Prefer script verifiers when a shell gate exists. Set
-`max_iterations` (minimum 1) and `timeout_ms` to keep runs bounded. `--once`
-runs one generator/verifier tick.
+`--strict-verdict` is set. Prefer script verifiers when a shell gate exists.
+Primary and one-shot tail verifier failures are hard; interval gambit verifier
+failures are soft (log and continue). `--once` forces a single primary tick.
 
 Use `secrets` only for environment variable names. Do not put secret values in
 the JSON file. `metadata` string values are substituted into prompts as
@@ -63,21 +74,35 @@ use the same sandbox settings for every gambit.
 
 ```json
 {
-  "gambits": [{
-    "name": "precommit-green",
-    "metadata": {
-      "goal": "Add dn until docs and keep make precommit green"
+  "iterations": 4,
+  "timeout_ms": 3600000,
+  "gambits": [
+    {
+      "name": "raise-coverage",
+      "metadata": { "goal": "Raise line coverage above 25%" },
+      "generator": {
+        "prompt": "Generate or extend tests for {{goal}}. Prefer small, focused tests."
+      },
+      "verifier": {
+        "script": "deno test --coverage=cov_profile && deno coverage cov_profile --threshold=25"
+      },
+      "secrets": ["OPENAI_API_KEY"]
     },
-    "generator": {
-      "prompt": "Implement {{goal}}. Prefer small commits of working changes."
-    },
-    "verifier": { "script": "make precommit" },
-    "max_iterations": 5,
-    "timeout_ms": 3600000,
-    "secrets": ["OPENAI_API_KEY"]
-  }]
+    {
+      "name": "review-tests",
+      "interval": 0.25,
+      "align": "spread",
+      "generator": {
+        "prompt": "Review recently added tests for gaps, flakiness, and weak assertions. Fix only clear problems."
+      },
+      "verifier": { "script": "make precommit" }
+    }
+  ]
 }
 ```
+
+With `iterations: 4` and `interval: 0.25`, the review gambit fires once;
+`align: "spread"` places that fire on iteration `2`.
 
 ## Common argument formats
 
@@ -763,6 +788,11 @@ dn --agent codex loop plans/issue-123.plan.md
 `dn loop` requires an existing plan created by `dn meld`. When you pass an issue
 URL or issue number, `dn` searches `plans/` for a matching plan instead of
 falling back to an unrelated local plan.
+
+To repeat work until a shell or prompt gate passes (with an iteration bound and
+optional interval constraints), use
+[`dn until`](#dn-until--iteration-bounded-generatorverifier-gambits) instead of
+re-running `dn loop` by hand.
 
 ## `dn land` — Close out completed work into VCS commits
 

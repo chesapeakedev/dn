@@ -76,3 +76,15 @@ Documentation to add to denoise-docs from the `dn` repository.
         `--sandbox docker|exe.dev`.
   - [x] Explain that cloud agents use a remote clone and do not modify the local
         workspace.
+
+- [ ] Cookbook: raise test coverage with `dn until` and an interval review
+      gambit.
+  - [ ] Frame `dn until` vs `dn loop`: one loop tick vs iteration-bounded
+        primary + interval satellites.
+  - [ ] Show the coverage recipe (`iterations`, primary generator/verifier with
+        a coverage threshold script, review gambit with `interval: 0.25`).
+  - [ ] Explain how fire count is `floor(iterations * interval)` and how `align`
+        (`start` | `end` | `spread`) vs `at` chooses which iterations run the
+        review.
+  - [ ] Note soft interval verifier failures vs hard primary/tail gates, and
+        optional `one_shot` tails after primary success.

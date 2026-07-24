@@ -30,6 +30,12 @@ import type { DnSandboxConfig, ExecResult } from "../sdk/sandbox/types.ts";
 /** Default workspace-relative path for prompt-verifier verdict files. */
 export const DEFAULT_VERDICT_PATH = ".dn/until-verdict.json";
 
+/** How interval gambit fires are placed across the iteration bound. */
+export type IntervalAlign = "start" | "end" | "spread";
+
+/** When an interval gambit runs relative to the primary tick. */
+export type IntervalPhase = "before" | "after";
+
 /** A generator action. Exactly one of prompt and script is required. */
 export interface UntilAction {
   prompt?: string;
@@ -49,15 +55,25 @@ export interface VerifierConfig extends UntilAction {
   done_when?: DoneWhen;
 }
 
-/** A bounded generator/verifier workflow. */
+/**
+ * A generator/verifier gambit.
+ *
+ * Index 0 is the primary goal loop. Later gambits are either interval
+ * satellites (`interval`) or post-success tails (`one_shot`).
+ */
 export interface GambitConfig {
   name?: string;
   generator: UntilAction;
   verifier: VerifierConfig;
-  generator_interval_ms: number;
-  verifier_interval_ms: number;
-  max_iterations: number;
-  timeout_ms: number;
+  /** Fraction of the top-level iteration bound; required for non-primary non-tail gambits. */
+  interval?: number;
+  /** Placement of interval fires; default `spread`. */
+  align: IntervalAlign;
+  /** Explicit 1-based iteration indices; when set, replaces `align`. */
+  at?: number[];
+  /** Run before or after the primary tick; default `before`. */
+  phase: IntervalPhase;
+  /** When true on a non-primary gambit, run once after the primary verifier succeeds. */
   one_shot: boolean;
   metadata: Record<string, string>;
   secrets: string[];
@@ -66,16 +82,20 @@ export interface GambitConfig {
 /** Parsed contents of a gambit JSON file. */
 export interface UntilConfig {
   sandbox?: DnSandboxConfig;
+  /** Shared iteration bound for the primary gambit (and interval scheduling). */
+  iterations: number;
+  /** Hard wall-clock abort for the whole run. */
+  timeout_ms: number;
   gambits: GambitConfig[];
 }
 
-/** Options that affect prompt-verifier done resolution. */
-export interface RunGambitOptions {
+/** Options that affect until run behavior. */
+export interface RunUntilOptions {
   once: boolean;
   strictVerdict?: boolean;
 }
 
-const DEFAULT_MAX_ITERATIONS = 10;
+const DEFAULT_ITERATIONS = 10;
 const DEFAULT_TIMEOUT_MS = 60 * 60 * 1000;
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const TEMPLATE_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -85,18 +105,6 @@ function record(value: unknown, field: string): Record<string, unknown> {
     throw new Error(`${field} must be an object`);
   }
   return value as Record<string, unknown>;
-}
-
-function nonNegativeInteger(
-  value: unknown,
-  field: string,
-  fallback: number,
-): number {
-  if (value === undefined) return fallback;
-  if (!Number.isSafeInteger(value) || (value as number) < 0) {
-    throw new Error(`${field} must be a non-negative integer`);
-  }
-  return value as number;
 }
 
 function positiveInteger(
@@ -195,39 +203,122 @@ function parseSecrets(value: unknown): string[] {
   return [...new Set(value)];
 }
 
+function parseAlign(value: unknown, field: string): IntervalAlign {
+  if (value === undefined) return "spread";
+  if (value !== "start" && value !== "end" && value !== "spread") {
+    throw new Error(`${field} must be "start", "end", or "spread"`);
+  }
+  return value;
+}
+
+function parsePhase(value: unknown, field: string): IntervalPhase {
+  if (value === undefined) return "before";
+  if (value !== "before" && value !== "after") {
+    throw new Error(`${field} must be "before" or "after"`);
+  }
+  return value;
+}
+
+function parseInterval(value: unknown, field: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`${field} must be a number in (0, 1]`);
+  }
+  if (value <= 0 || value > 1) {
+    throw new Error(`${field} must be a number in (0, 1]`);
+  }
+  return value;
+}
+
+function parseAt(value: unknown, field: string): number[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error(`${field} must be a non-empty array of positive integers`);
+  }
+  const indices: number[] = [];
+  for (const item of value) {
+    if (!Number.isSafeInteger(item) || (item as number) < 1) {
+      throw new Error(
+        `${field} must be a non-empty array of positive integers`,
+      );
+    }
+    indices.push(item as number);
+  }
+  return indices;
+}
+
+function rejectLegacyCadenceFields(
+  gambit: Record<string, unknown>,
+  index: number,
+): void {
+  const prefix = `gambits[${index}]`;
+  if (gambit.generator_interval_ms !== undefined) {
+    throw new Error(
+      `${prefix}.generator_interval_ms is removed; use top-level iterations and gambit interval/align`,
+    );
+  }
+  if (gambit.verifier_interval_ms !== undefined) {
+    throw new Error(
+      `${prefix}.verifier_interval_ms is removed; use top-level iterations and gambit interval/align`,
+    );
+  }
+  if (gambit.max_iterations !== undefined) {
+    throw new Error(
+      `${prefix}.max_iterations is removed; set top-level iterations instead`,
+    );
+  }
+}
+
 function parseGambit(value: unknown, index: number): GambitConfig {
   const gambit = record(value, `gambits[${index}]`);
+  rejectLegacyCadenceFields(gambit, index);
   if (gambit.name !== undefined && typeof gambit.name !== "string") {
     throw new Error(`gambits[${index}].name must be a string`);
   }
   if (gambit.one_shot !== undefined && typeof gambit.one_shot !== "boolean") {
     throw new Error(`gambits[${index}].one_shot must be a boolean`);
   }
+  const oneShot = gambit.one_shot === true;
+  const isPrimary = index === 0;
+
+  if (isPrimary) {
+    if (oneShot) {
+      throw new Error(
+        "gambits[0].one_shot is not supported; use --once or iterations: 1",
+      );
+    }
+    if (gambit.interval !== undefined) {
+      throw new Error(
+        "gambits[0].interval is not allowed on the primary gambit",
+      );
+    }
+    if (gambit.at !== undefined) {
+      throw new Error("gambits[0].at is not allowed on the primary gambit");
+    }
+  } else if (!oneShot && gambit.interval === undefined) {
+    throw new Error(
+      `gambits[${index}] requires interval (fraction of iterations) or one_shot: true`,
+    );
+  } else if (oneShot && gambit.interval !== undefined) {
+    throw new Error(
+      `gambits[${index}]: one_shot tails must not set interval`,
+    );
+  }
+
   return {
     ...(typeof gambit.name === "string" ? { name: gambit.name } : {}),
     generator: parseAction(gambit.generator, `gambits[${index}].generator`),
     verifier: parseVerifier(gambit.verifier, `gambits[${index}].verifier`),
-    generator_interval_ms: nonNegativeInteger(
-      gambit.generator_interval_ms,
-      `gambits[${index}].generator_interval_ms`,
-      0,
-    ),
-    verifier_interval_ms: nonNegativeInteger(
-      gambit.verifier_interval_ms,
-      `gambits[${index}].verifier_interval_ms`,
-      0,
-    ),
-    max_iterations: positiveInteger(
-      gambit.max_iterations,
-      `gambits[${index}].max_iterations`,
-      DEFAULT_MAX_ITERATIONS,
-    ),
-    timeout_ms: positiveInteger(
-      gambit.timeout_ms,
-      `gambits[${index}].timeout_ms`,
-      DEFAULT_TIMEOUT_MS,
-    ),
-    one_shot: gambit.one_shot === true,
+    ...(gambit.interval !== undefined
+      ? {
+        interval: parseInterval(gambit.interval, `gambits[${index}].interval`),
+      }
+      : {}),
+    align: parseAlign(gambit.align, `gambits[${index}].align`),
+    ...(gambit.at !== undefined
+      ? { at: parseAt(gambit.at, `gambits[${index}].at`) }
+      : {}),
+    phase: parsePhase(gambit.phase, `gambits[${index}].phase`),
+    one_shot: oneShot,
     metadata: parseStringRecord(gambit.metadata, `gambits[${index}].metadata`),
     secrets: parseSecrets(gambit.secrets),
   };
@@ -236,6 +327,22 @@ function parseGambit(value: unknown, index: number): GambitConfig {
 /** Parses a single gambit or a { gambits: [] } configuration document. */
 export function parseUntilConfig(value: unknown): UntilConfig {
   const root = record(value, "gambit config");
+  if (root.generator_interval_ms !== undefined) {
+    throw new Error(
+      "generator_interval_ms is removed; use top-level iterations and gambit interval/align",
+    );
+  }
+  if (root.verifier_interval_ms !== undefined) {
+    throw new Error(
+      "verifier_interval_ms is removed; use top-level iterations and gambit interval/align",
+    );
+  }
+  if (root.max_iterations !== undefined) {
+    throw new Error(
+      "max_iterations is removed; set top-level iterations instead",
+    );
+  }
+
   const gambitsRaw = root.gambits === undefined ? [root] : root.gambits;
   if (!Array.isArray(gambitsRaw) || gambitsRaw.length === 0) {
     throw new Error("gambits must be a non-empty array");
@@ -244,8 +351,77 @@ export function parseUntilConfig(value: unknown): UntilConfig {
     ...(root.sandbox === undefined
       ? {}
       : { sandbox: parseDnSandboxConfig(root.sandbox) }),
+    iterations: positiveInteger(
+      root.iterations,
+      "iterations",
+      DEFAULT_ITERATIONS,
+    ),
+    timeout_ms: positiveInteger(
+      root.timeout_ms,
+      "timeout_ms",
+      DEFAULT_TIMEOUT_MS,
+    ),
     gambits: gambitsRaw.map(parseGambit),
   };
+}
+
+/**
+ * Computes 1-based iteration indices where an interval gambit should fire.
+ *
+ * Fire count is `min(n, floor(n * interval))`. With `at`, those indices replace
+ * `align` (length must be ≤ fire count and each index in `1..n`).
+ */
+export function scheduleIntervalIterations(
+  n: number,
+  interval: number,
+  align: IntervalAlign = "spread",
+  at?: number[],
+): number[] {
+  if (!Number.isSafeInteger(n) || n < 1) {
+    throw new Error("n must be a positive integer");
+  }
+  if (!(interval > 0 && interval <= 1)) {
+    throw new Error("interval must be a number in (0, 1]");
+  }
+  const fireCount = Math.min(n, Math.floor(n * interval));
+  if (at !== undefined) {
+    if (at.length === 0) {
+      throw new Error("at must be a non-empty array of positive integers");
+    }
+    if (at.length > fireCount) {
+      throw new Error(
+        `at length ${at.length} exceeds floor(iterations * interval) = ${fireCount}`,
+      );
+    }
+    const unique = new Set<number>();
+    for (const index of at) {
+      if (!Number.isSafeInteger(index) || index < 1 || index > n) {
+        throw new Error(`at indices must be integers in 1..${n}`);
+      }
+      unique.add(index);
+    }
+    return [...unique].sort((a, b) => a - b);
+  }
+  if (fireCount <= 0) return [];
+  let slots: number[];
+  if (align === "start") {
+    slots = Array.from({ length: fireCount }, (_, i) => i + 1);
+  } else if (align === "end") {
+    slots = Array.from(
+      { length: fireCount },
+      (_, i) => n - fireCount + 1 + i,
+    );
+  } else {
+    slots = Array.from({ length: fireCount }, (_, i) => {
+      const raw = Math.round((i + 1) * n / (fireCount + 1));
+      return Math.max(1, Math.min(n, raw));
+    });
+  }
+  const unique: number[] = [];
+  for (const slot of slots) {
+    if (!unique.includes(slot)) unique.push(slot);
+  }
+  return unique;
 }
 
 /**
@@ -386,12 +562,6 @@ function withGambitSecrets(
   };
 }
 
-async function sleep(milliseconds: number): Promise<void> {
-  if (milliseconds > 0) {
-    await new Promise((done) => setTimeout(done, milliseconds));
-  }
-}
-
 async function runScript(
   script: string,
   workspaceRoot: string,
@@ -471,83 +641,185 @@ async function verifierSucceeded(
   );
 }
 
-/** Runs one gambit. Script verifiers succeed on exit code 0; prompt verifiers use layered done-checks. */
-export async function runGambit(
+async function runGambitTick(
   gambit: GambitConfig,
+  label: string,
   workspaceRoot: string,
   agent: AgentHarness,
-  options: RunGambitOptions,
-): Promise<void> {
-  const startedAt = Date.now();
-  const limit = options.once || gambit.one_shot ? 1 : gambit.max_iterations;
-  const strictVerdict = options.strictVerdict === true;
-  const label = gambit.name ?? "gambit";
-  for (let iteration = 1; iteration <= limit; iteration++) {
-    if (Date.now() - startedAt > gambit.timeout_ms) {
-      throw new Error(`Gambit ${label} timed out`);
-    }
+  strictVerdict: boolean,
+  options: { softVerifier: boolean },
+): Promise<boolean> {
+  console.log(`until ${label}: generator`);
+  const generator = await runAction(
+    gambit.generator,
+    workspaceRoot,
+    agent,
+    gambit.metadata,
+  );
+  if (generator.code !== 0) {
+    throw new Error(
+      `Generator ${label} failed with exit code ${generator.code}: ${
+        generator.stderr || generator.stdout
+      }`,
+    );
+  }
+  const verifier = await runAction(
+    gambit.verifier,
+    workspaceRoot,
+    agent,
+    gambit.metadata,
+    gambit.verifier.prompt
+      ? { verdict_path: gambit.verifier.verdict_path }
+      : undefined,
+  );
+  const done = await verifierSucceeded(
+    workspaceRoot,
+    gambit.verifier,
+    verifier,
+    strictVerdict,
+  );
+  if (done) {
+    console.log(`until ${label}: verifier reported done`);
+    return true;
+  }
+  if (options.softVerifier) {
     console.log(
-      `until ${label}: generator iteration ${iteration}/${limit}`,
+      `until ${label}: verifier not done (continuing)` +
+        (verifier.stderr ? `; stderr: ${verifier.stderr.slice(0, 500)}` : ""),
     );
-    const generator = await runAction(
-      gambit.generator,
-      workspaceRoot,
-      agent,
-      gambit.metadata,
+    return false;
+  }
+  if (!gambit.verifier.script) {
+    console.log(
+      `until ${label}: verifier not done yet` +
+        (verifier.stderr ? `; stderr: ${verifier.stderr.slice(0, 500)}` : ""),
     );
-    if (generator.code !== 0) {
-      throw new Error(
-        `Generator failed with exit code ${generator.code}: ${
-          generator.stderr || generator.stdout
-        }`,
+  }
+  return false;
+}
+
+/**
+ * Runs an until config: primary gambit each iteration, interval satellites on
+ * schedule, then optional one_shot tails after primary success.
+ */
+export async function runUntil(
+  config: UntilConfig,
+  workspaceRoot: string,
+  agent: AgentHarness,
+  options: RunUntilOptions,
+): Promise<void> {
+  const [primary, ...rest] = config.gambits;
+  if (!primary) {
+    throw new Error("gambits must be a non-empty array");
+  }
+  const intervalGambits = rest.filter((gambit) => !gambit.one_shot);
+  const tailGambits = rest.filter((gambit) => gambit.one_shot);
+  const limit = options.once ? 1 : config.iterations;
+  const strictVerdict = options.strictVerdict === true;
+  const startedAt = Date.now();
+  const primaryLabel = primary.name ?? "primary";
+
+  const schedules = intervalGambits.map((gambit) => {
+    const interval = gambit.interval!;
+    const slots = scheduleIntervalIterations(
+      limit,
+      interval,
+      gambit.align,
+      gambit.at,
+    );
+    return { gambit, slots: new Set(slots) };
+  });
+
+  for (let iteration = 1; iteration <= limit; iteration++) {
+    if (Date.now() - startedAt > config.timeout_ms) {
+      throw new Error(`until timed out after ${config.timeout_ms}ms`);
+    }
+    console.log(`until: iteration ${iteration}/${limit}`);
+
+    for (const { gambit, slots } of schedules) {
+      if (!slots.has(iteration) || gambit.phase !== "before") continue;
+      const label = gambit.name ?? "interval";
+      console.log(
+        `until ${label}: interval tick at iteration ${iteration}`,
+      );
+      await runGambitTick(
+        gambit,
+        label,
+        workspaceRoot,
+        agent,
+        strictVerdict,
+        { softVerifier: true },
       );
     }
-    await sleep(gambit.verifier_interval_ms);
-    const verifier = await runAction(
-      gambit.verifier,
+
+    const primaryDone = await runGambitTick(
+      primary,
+      primaryLabel,
       workspaceRoot,
       agent,
-      gambit.metadata,
-      gambit.verifier.prompt
-        ? { verdict_path: gambit.verifier.verdict_path }
-        : undefined,
+      strictVerdict,
+      { softVerifier: false },
     );
-    if (
-      await verifierSucceeded(
+
+    for (const { gambit, slots } of schedules) {
+      if (!slots.has(iteration) || gambit.phase !== "after") continue;
+      const label = gambit.name ?? "interval";
+      console.log(
+        `until ${label}: interval tick at iteration ${iteration}`,
+      );
+      await runGambitTick(
+        gambit,
+        label,
         workspaceRoot,
-        gambit.verifier,
-        verifier,
+        agent,
         strictVerdict,
-      )
-    ) {
-      console.log(`until ${label}: verifier reported done`);
+        { softVerifier: true },
+      );
+    }
+
+    if (primaryDone) {
+      for (const gambit of tailGambits) {
+        const label = gambit.name ?? "tail";
+        console.log(`until ${label}: one_shot tail`);
+        const ok = await runGambitTick(
+          gambit,
+          label,
+          workspaceRoot,
+          agent,
+          strictVerdict,
+          { softVerifier: false },
+        );
+        if (!ok) {
+          throw new Error(
+            `Tail gambit ${label} verifier did not report done`,
+          );
+        }
+      }
       return;
     }
-    if (!gambit.verifier.script) {
-      console.log(
-        `until ${label}: verifier not done yet` +
-          (verifier.stderr ? `; stderr: ${verifier.stderr.slice(0, 500)}` : ""),
-      );
-    }
-    if (iteration < limit) await sleep(gambit.generator_interval_ms);
   }
   throw new Error(
-    `Gambit ${label} did not complete within ${limit} iteration(s)`,
+    `Primary gambit ${primaryLabel} did not complete within ${limit} iteration(s)`,
   );
 }
 
 function showHelp(): void {
   console.log(
-    `dn until - Run bounded generator/verifier gambits
+    `dn until - Bounded multi-tick generator/verifier gambits
 
 Usage:
   dn until validate <gambit.json>
   dn until run <gambit.json> [--once] [--strict-verdict] [--workspace-root <path>]
 
-A gambit has generator and verifier actions. Each action has exactly one of
-prompt or script. Script verifiers report done with exit code 0. Prompt
-verifiers write JSON to ${DEFAULT_VERDICT_PATH} (or verifier.verdict_path), or
-emit JSON in stdout, or match verifier.done_when.stdout_contains.
+One primary tick is loop-like (see dn loop). dn until repeats that tick up to
+top-level iterations until the primary verifier reports done, and schedules
+optional interval gambits as a fraction of that bound (interval + align/at).
+
+Each action has exactly one of prompt or script. Script verifiers report done
+with exit code 0. Prompt verifiers write JSON to ${DEFAULT_VERDICT_PATH}
+(or verifier.verdict_path), emit JSON in stdout, or match
+verifier.done_when.stdout_contains. Interval gambit verifier failures are soft
+(log and continue); primary and one_shot tail verifier failures are hard.
 `,
   );
 }
@@ -616,9 +888,7 @@ export async function handleUntil(
   await runWithSandboxLifecycle(
     { repoRoot: workspaceRoot, ...resolvedSandbox },
     async () => {
-      for (const gambit of parsed.gambits) {
-        await runGambit(gambit, workspaceRoot, agent, { once, strictVerdict });
-      }
+      await runUntil(parsed, workspaceRoot, agent, { once, strictVerdict });
     },
   );
 }
