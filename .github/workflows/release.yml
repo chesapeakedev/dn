@@ -14,7 +14,22 @@ permissions:
   contents: write
 
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2
+
+      - name: Run lint and type checks
+        run: make lint
+
   build:
+    needs: validate
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:

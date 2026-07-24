@@ -38,7 +38,7 @@ export async function runAgentCommand(
     }),
   ]);
 
-  let timeoutId: number | undefined;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeout = timeoutMs === undefined
     ? undefined
     : new Promise<never>((_, reject) => {
