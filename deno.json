@@ -3,7 +3,9 @@
   "version": "0.0.34",
   "description": "dn cli",
   "exports": {
-    ".": "./sdk/mod.ts"
+    ".": "./sdk/mod.ts",
+    "./runner": "./sdk/runner/mod.ts",
+    "./runner/types": "./sdk/runner/types.ts"
   },
   "exclude": [".opencode/"],
   "publish": {
@@ -14,6 +16,7 @@
       "docs/**/*.md",
       "docs/img/**",
       "templates/**/*.json",
+      "templates/**/*.sh",
       "templates/**/*.yml"
     ],
     "exclude": [

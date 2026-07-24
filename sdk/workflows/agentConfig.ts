@@ -1,7 +1,7 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
-import { dirname, fromFileUrl, join } from "@std/path";
+import { dirname, join } from "@std/path";
 import {
   type AgentHarness,
   parseAgentHarness,
@@ -12,19 +12,15 @@ import { validateSandboxPrerequisites } from "../sandbox/validate.ts";
 import { $ } from "$dax";
 import { computeSha256 } from "./mod.ts";
 
-const WORKFLOW_ROOT = dirname(dirname(dirname(fromFileUrl(import.meta.url))));
-
 /** Relative path to the repo agent config consumed by workflows. */
 export const DN_CONFIG_REL_PATH = ".github/dn/config.json";
 
 /** Relative path to the retired generated agent install script. */
 export const DN_INSTALL_SCRIPT_REL_PATH = ".github/dn/install-agent.sh";
 
-const INSTALL_SCRIPT_TEMPLATE_PATH = join(
-  WORKFLOW_ROOT,
-  "templates",
-  "workflows",
-  "install-agent.sh",
+const INSTALL_SCRIPT_TEMPLATE_URL = new URL(
+  "../../templates/workflows/install-agent.sh",
+  import.meta.url,
 );
 
 /**
@@ -145,8 +141,17 @@ export function formatDnWorkflowAgentConfig(
   return JSON.stringify(config, null, 2) + "\n";
 }
 
-async function readSupportTemplate(path: string): Promise<string> {
-  return await Deno.readTextFile(path);
+async function readSupportTemplate(url: URL): Promise<string> {
+  if (url.protocol === "file:") {
+    return await Deno.readTextFile(url);
+  }
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(
+      `Failed to load dn support template: HTTP ${response.status}`,
+    );
+  }
+  return await response.text();
 }
 
 /**
@@ -207,7 +212,7 @@ export async function removeLegacyInstallScript(
   const scriptPath = join(repoRoot, DN_INSTALL_SCRIPT_REL_PATH);
   try {
     const installed = await Deno.readTextFile(scriptPath);
-    const canonical = await readSupportTemplate(INSTALL_SCRIPT_TEMPLATE_PATH);
+    const canonical = await readSupportTemplate(INSTALL_SCRIPT_TEMPLATE_URL);
     if (installed !== canonical) return "modified";
     if (options.dryRun !== true) await Deno.remove(scriptPath);
     return "removed";
@@ -221,7 +226,7 @@ export async function removeLegacyInstallScript(
  * Expected sha256 checksum for the shipped install-agent.sh template.
  */
 export async function expectedInstallScriptChecksum(): Promise<string> {
-  const script = await readSupportTemplate(INSTALL_SCRIPT_TEMPLATE_PATH);
+  const script = await readSupportTemplate(INSTALL_SCRIPT_TEMPLATE_URL);
   return await computeSha256(script);
 }
 
