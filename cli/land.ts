@@ -4,8 +4,8 @@
 /**
  * dn land subcommand handler
  *
- * Default: agent-driven logical commits from plan context.
- * --single: deterministic single commit (former dn archive behavior).
+ * Close out local agentic work into durable VCS state: optional GitHub issue
+ * test-plan upsert, then logical commits from plan context (or --single).
  */
 
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
@@ -18,10 +18,12 @@ import {
 } from "../sdk/land/discover.ts";
 import { runLandPhase } from "../sdk/land/run.ts";
 import { runLandSingle } from "../sdk/land/single.ts";
+import { runIssueTestPlanFromPlan } from "../sdk/testplan/run.ts";
 
 interface LandArgs {
   planFilePath?: string;
   testPlanPath?: string;
+  issueTestPlan: boolean;
   single: boolean;
   dryRun: boolean;
   workspaceRoot?: string;
@@ -34,6 +36,7 @@ function parseArgs(
 ): LandArgs {
   let planFilePath: string | undefined;
   let testPlanPath: string | undefined;
+  let issueTestPlan = false;
   let single = false;
   let dryRun = false;
   let workspaceRoot: string | undefined;
@@ -49,6 +52,8 @@ function parseArgs(
       single = true;
     } else if (arg === "--dry-run") {
       dryRun = true;
+    } else if (arg === "--issue-testplan") {
+      issueTestPlan = true;
     } else if (arg === "--test-plan") {
       testPlanPath = args[++i];
     } else if (arg === "--workspace-root") {
@@ -85,6 +90,7 @@ function parseArgs(
   return {
     planFilePath,
     testPlanPath,
+    issueTestPlan,
     single,
     dryRun,
     workspaceRoot,
@@ -94,7 +100,7 @@ function parseArgs(
 
 function showHelp(): void {
   console.log(
-    "dn land - Commit completed implementation work using plan context\n",
+    "dn land - Close out completed work into durable VCS commits\n",
   );
   console.log("Usage:");
   console.log("  dn land [options] [plan_file.plan.md]\n");
@@ -103,9 +109,14 @@ function showHelp(): void {
     "  --single     One deterministic commit (no agent); requires plan path",
   );
   console.log(
-    "  --dry-run    Preview commit messages without committing or deleting plans",
+    "  --dry-run    Preview without committing, deleting plans, or updating issues",
   );
-  console.log("  --test-plan <path>  Optional test plan file");
+  console.log(
+    "  --issue-testplan  Upsert ## Test Plan onto the linked GitHub issue before commit",
+  );
+  console.log(
+    "  --test-plan <path>  Optional local test plan file for commit-agent context",
+  );
   console.log(
     "  --workspace-root <path>  Run land from an explicit workspace root",
   );
@@ -113,6 +124,7 @@ function showHelp(): void {
   console.log("Examples:");
   console.log("  dn land");
   console.log("  dn land plans/my-feature.plan.md");
+  console.log("  dn land --issue-testplan");
   console.log("  dn land --single plans/my-feature.plan.md");
   console.log("  dn land plans/my-feature.plan.md --dry-run");
 }
@@ -126,6 +138,30 @@ function applyWorkspaceRoot(workspaceRoot?: string): void {
     console.error(e instanceof Error ? e.message : String(e));
     Deno.exit(1);
   }
+}
+
+async function maybeRunIssueTestPlan(
+  planFilePath: string,
+  workspaceRoot: string,
+  agentHarness: AgentHarness,
+  dryRun: boolean,
+): Promise<void> {
+  const planContent = await Deno.readTextFile(planFilePath);
+  const result = await runIssueTestPlanFromPlan({
+    planContent,
+    planFilePath,
+    workspaceRoot,
+    agentHarness,
+    dryRun,
+  });
+
+  if (dryRun) {
+    console.log(result.section.trimEnd());
+    console.log(`(dry-run) Would update GitHub issue: ${result.issueUrl}`);
+    return;
+  }
+
+  console.log(`Updated GitHub issue: ${result.issueUrl}`);
 }
 
 export async function handleLand(
@@ -150,11 +186,28 @@ export async function handleLand(
         console.error("\nUse 'dn land --help' for usage information.");
         Deno.exit(1);
       }
+      if (config.issueTestPlan) {
+        await maybeRunIssueTestPlan(
+          config.planFilePath,
+          workspaceRoot,
+          config.agentHarness,
+          config.dryRun,
+        );
+      }
       await runLandSingle(config.planFilePath, config.dryRun);
       Deno.exit(0);
     }
 
     const planFilePath = await discoverPlanFile(config.planFilePath);
+    if (config.issueTestPlan) {
+      await maybeRunIssueTestPlan(
+        planFilePath,
+        workspaceRoot,
+        config.agentHarness,
+        config.dryRun,
+      );
+    }
+
     const testPlanPath = await discoverTestPlanFile(
       planFilePath,
       config.testPlanPath,

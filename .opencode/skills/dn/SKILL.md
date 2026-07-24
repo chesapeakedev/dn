@@ -57,7 +57,17 @@ dn <subcommand> -h    # help for a specific subcommand
 
 ### Workflow lifecycle
 
-Use these in sequence: `prep` → `loop` → `meld` → `land`.
+Issue-driven work uses these phases (not a rigid single pipeline):
+
+| Phase | Commands |
+| --- | --- |
+| Plan | `prep` *or* `meld` (meld is many-to-one and can replace prep); `kickstart` includes plan |
+| Implement | `loop` / `kickstart` / `fixup` |
+| Close out | `land` (optional `--issue-testplan` upserts `## Test Plan` on the linked GitHub issue) |
+| Publish trunk | `sync` (optional; distinct from `dn land`) |
+
+`meld` is **not** a post-loop step. After `fixup`, run `dn land` separately to
+commit.
 
 | Subcommand     | Description                                                                                                                                                       |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -65,8 +75,8 @@ Use these in sequence: `prep` → `loop` → `meld` → `land`.
 | `dn prep`      | Plan phase only (steps 1-3). Resolves issue, VCS prep, creates a `.plan.md`. `--update-issue` fills empty template sections.                                      |
 | `dn loop`      | Loop phase (steps 4-7). Implement, completion, lint, artifacts, validate. Requires a plan file.                                                                   |
 | `dn fixup`     | Address PR feedback. Fetches PR description + review comments, creates plan, implements fixes locally.                                                            |
-| `dn meld`      | Merge markdown sources + plan into DRY input. Supports `--target` (README.md, AGENTS.md, plans/, github:).                                                        |
-| `dn land`      | Commit completed work from plan context. `--single` for one deterministic commit.                                                                                 |
+| `dn meld`      | Merge markdown sources + plan into DRY input (many-to-one plan phase). Supports `--target` (README.md, AGENTS.md, plans/, github:).                               |
+| `dn land`      | Close out completed work into VCS commits. `--issue-testplan` updates the linked GitHub issue; `--single` for one deterministic commit.                            |
 
 ### GitHub issue management
 

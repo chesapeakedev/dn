@@ -669,29 +669,6 @@ Cross-repository operations follow the same rules as `dn kickstart` — use
 `--allow-cross-repo` to plan issues from a different repository. The plan file
 path is printed for use with `dn loop`.
 
-## `dn testplan` — Add a concise test checklist
-
-Generates a short `## Test Plan` section after reading a plan file or GitHub
-issue and investigating the codebase. The section is amended into the input
-artifact: local plan files are edited in place, and GitHub issue URLs update the
-issue body.
-
-```bash
-dn testplan plans/issue-123.plan.md
-dn testplan https://github.com/owner/repo/issues/123
-
-# Preview the generated section without writing it
-dn testplan plans/issue-123.plan.md --dry-run
-
-# With Codex CLI
-dn --agent codex testplan plans/issue-123.plan.md
-```
-
-`dn testplan` intentionally produces a compact checklist, not a second
-implementation plan. The generated section targets 5-10 bullets and is capped at
-12 bullets. If the work needs a longer test plan, the command should add a short
-split recommendation instead of expanding the checklist.
-
 ## `dn loop` — Loop phase only
 
 Runs only the loop phase (steps 4–7: implement, completion, lint, artifacts,
@@ -767,17 +744,34 @@ Flags mirror `dn prep`'s unattended behavior for agent harness selection; see
 `dn meld --help` for `--target`, `--overwrite`, `--dry-run`, `--yes`,
 `--workspace-root`, and planner selection options.
 
-## `dn land` — Commit completed work from plan context
+## `dn land` — Close out completed work into VCS commits
 
 Use `dn land` after a plan-backed task is complete and the workspace contains
-the changes you want to commit. Default mode discovers the plan file, uses an
-agent to group changes into logical commits with conventional-commit messages,
-and deletes the plan file on success.
+the changes you want to commit. **`dn land` closes out local agentic work into
+durable VCS state** — it is not trunk publish (`dn sync`) and not PR creation.
+
+Default mode discovers the plan file, uses an agent to group changes into
+logical commits with conventional-commit messages, and deletes the plan file on
+success.
 
 ```bash
 dn land
 dn land plans/issue-123.plan.md
 ```
+
+Use `--issue-testplan` to generate a compact `## Test Plan` checklist and upsert
+it onto the **linked GitHub issue** before committing. The issue is resolved
+from the plan body (full issue URL), filename (`issue-123.plan.md`), or a `#N`
+citation. This is distinct from `--test-plan <path>`, which feeds an optional
+local `*.test.plan.md` file into the commit agent as context only.
+
+```bash
+dn land --issue-testplan
+dn land --issue-testplan plans/issue-123.plan.md
+```
+
+The generated checklist targets 5–10 bullets (capped at 12). It is not a second
+implementation plan.
 
 Use `--single` for one deterministic commit (no agent): derives a message from
 the plan title and overview, adds/removes workspace files, and commits.
@@ -790,11 +784,12 @@ dn land --single plans/issue-123.plan.md
 not require a staging step: in Sapling repositories it runs `sl addremove`; in
 Git repositories it runs `git add -A`.
 
-Use `--dry-run` to preview commit messages without committing or deleting plan
-files:
+Use `--dry-run` to preview without committing, deleting plan files, or updating
+the GitHub issue:
 
 ```bash
 dn land plans/issue-123.plan.md --dry-run
+dn land --issue-testplan --dry-run
 dn land --single plans/issue-123.plan.md --dry-run
 ```
 

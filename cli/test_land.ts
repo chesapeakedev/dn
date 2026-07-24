@@ -25,6 +25,8 @@ Deno.test("land command shows help", async () => {
     assert(result.stdout.includes("dn land"));
     assert(result.stdout.includes("--single"));
     assert(result.stdout.includes("--dry-run"));
+    assert(result.stdout.includes("--issue-testplan"));
+    assert(result.stdout.includes("--test-plan"));
     assert(result.success);
   } finally {
     await cleanupTestRepo(testRepo);
@@ -403,6 +405,42 @@ Deno.test("land default dry-run preserves workspace", async () => {
         "plans/dry-run.plan.md",
       ],
     });
+  } finally {
+    await cleanupTestRepo(testRepo);
+  }
+});
+
+Deno.test("land --issue-testplan fails when plan has no issue reference", async () => {
+  const testRepo = await createProjectTestRepo();
+
+  try {
+    await Deno.mkdir(`${testRepo.path}/plans`, { recursive: true });
+    await Deno.writeTextFile(
+      `${testRepo.path}/plans/orphan.plan.md`,
+      "# Plan: Orphan\n\n## Summary\nNo issue link.\n",
+    );
+    await Deno.writeTextFile(
+      `${testRepo.path}/changed.ts`,
+      "export const x = 1;\n",
+    );
+
+    const result = await runDnCommand([
+      "land",
+      "--issue-testplan",
+      "--dry-run",
+      "plans/orphan.plan.md",
+    ], {
+      cwd: testRepo.path,
+      expectFailure: true,
+      env: {
+        DN_TESTPLAN_FAKE_OUTPUT: `## Test Plan\n\n- [ ] Check one.\n`,
+        DN_LAND_FAKE_OUTPUT: JSON.stringify([
+          { files: ["changed.ts"], summary: "feat: add changed" },
+        ]),
+      },
+    });
+
+    assert(result.stderr.includes("Could not resolve a GitHub issue"));
   } finally {
     await cleanupTestRepo(testRepo);
   }

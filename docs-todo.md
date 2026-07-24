@@ -14,6 +14,18 @@ Documentation to add to denoise-docs from the `dn` repository.
   - [ ] Link to `chesapeakedev/dn-images` after the public repository is created
         and populated; use `templates/dn-images/` as the source until then.
 
+- [ ] Document the dn command lifecycle for issues
+      ([chesapeake#396](https://github.com/chesapeakedev/chesapeake/issues/396)).
+  - [ ] Plan: `prep` _or_ `meld` (meld is many-to-one and can replace prep);
+        `kickstart` includes plan + implement.
+  - [ ] Implement: `loop` / remaining kickstart / `fixup` (PR feedback path).
+  - [ ] Close out: `land` (optional `--issue-testplan` upserts `## Test Plan` on
+        the linked GitHub issue). Distinguish `--issue-testplan` from
+        `--test-plan <path>` (local commit-agent context).
+  - [ ] Optional trunk publish: `sync` (not the same as `dn land`).
+  - [ ] Explicitly note that meld is **not** a post-loop step (correct the old
+        `prep → loop → meld → land` skill sequence).
+
 - [x] Document Cursor Cloud Agent execution for `dn` kickstart and loop
       ([chesapeake#344](https://github.com/chesapeakedev/chesapeake/issues/344)).
   - [x] Explain `--cursor-cloud`, `CURSOR_API_KEY`, and the durable

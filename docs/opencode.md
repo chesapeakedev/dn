@@ -108,18 +108,21 @@ Combines multiple markdown sources into a single plan-ready document.
 
 ### dn_land
 
-Commits completed implementation work using plan context. Default mode creates
-logical commits with conventional-commit messages. Use `single=true` for one
-deterministic commit (former archive behavior). Use `dryRun=true` to preview
-without committing.
+Closes out completed implementation work into durable VCS commits. Default mode
+creates logical commits with conventional-commit messages. Use `single=true` for
+one deterministic commit. Use `dryRun=true` to preview without committing. Use
+`issueTestplan=true` to upsert a `## Test Plan` onto the linked GitHub issue
+before committing.
 
-**Arguments:** `planFile` (optional), `single` (optional), `dryRun` (optional)
+**Arguments:** `planFile` (optional), `single` (optional), `dryRun` (optional),
+`issueTestplan` (optional)
 
 ```bash
 /dn_land
 /dn_land planFile="plans/feature-xyz.plan.md"
 /dn_land planFile="plans/feature-xyz.plan.md" single=true
 /dn_land planFile="plans/feature-xyz.plan.md" dryRun=true
+/dn_land planFile="plans/feature-xyz.plan.md" issueTestplan=true
 ```
 
 ## Best Practices

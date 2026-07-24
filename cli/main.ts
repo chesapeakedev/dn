@@ -86,7 +86,6 @@ import { handleTodo } from "./todo.ts";
 import { handleTidy } from "./tidy.ts";
 import { handleRelease } from "./release.ts";
 import { handleSync } from "./sync.ts";
-import { handleTestPlan } from "./testplan.ts";
 import { handleUntil } from "./until.ts";
 
 /**
@@ -287,9 +286,6 @@ function showUsage(): void {
     "  fixup        Address PR feedback locally (fetch comments, plan, implement)",
   );
   console.error(
-    "  testplan     Add a concise test checklist to a plan file or GitHub issue",
-  );
-  console.error(
     "  glance       Project velocity overview",
   );
   console.error(
@@ -299,7 +295,7 @@ function showUsage(): void {
     "  meld         Merge markdown sources and route planner output (--target README/AGENTS/...)",
   );
   console.error(
-    "  land         Commit completed work from plan context; --single for one commit",
+    "  land         Close out work into VCS commits; --issue-testplan updates GH issue",
   );
   console.error(
     "  todo         Manage prioritized task list (~/.dn/todo.md); 'done' marks item and closes issue",
@@ -403,9 +399,6 @@ async function main(): Promise<void> {
       break;
     case "fixup":
       await handleFixup(subcommandArgs, globalAgent);
-      break;
-    case "testplan":
-      await handleTestPlan(subcommandArgs, globalAgent);
       break;
     case "meld":
       await handleMeld(subcommandArgs, globalAgent, globalSandbox);

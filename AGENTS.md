@@ -203,8 +203,9 @@ $ dn loop
 # Combine or reconcile outputs from multiple iterations
 $ dn meld
 
-# Archive completed artifacts or reports
+# Close out completed work into VCS commits
 $ dn land
+$ dn land --issue-testplan
 
 # Create a new GitHub issue from a conversation
 $ dn issue create --title "Brief title" --body-file description.md

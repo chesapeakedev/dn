@@ -71,8 +71,8 @@ Agent-backed phase lines name the selected harness directly, e.g.
 ## Agent harness selection
 
 Subcommands that run an LLM agent (`kickstart`, `prep`, `loop`, `fixup`, `meld`,
-`testplan`, `init stack`, and scoring inside `tidy` / no-ticket `kickstart`)
-pick a **harness**:
+`land` (default and `--issue-testplan`), `init stack`, and scoring inside `tidy`
+/ no-ticket `kickstart`) pick a **harness**:
 
 | Mechanism           | Effect                       |
 | ------------------- | ---------------------------- |

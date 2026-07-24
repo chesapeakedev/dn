@@ -411,6 +411,22 @@ export { runLandSingle } from "./land/single.ts";
 export type { LandCommitGroup, LandCommitPlan } from "./land/types.ts";
 
 // ============================================================================
+// Test plan - Compact ## Test Plan generation for GitHub issues (used by land)
+// ============================================================================
+
+export {
+  normalizeTestPlanSection,
+  upsertTestPlanSection,
+} from "./testplan/section.ts";
+export { resolveIssueRefFromPlan } from "./testplan/resolveIssue.ts";
+export { runIssueTestPlan, runIssueTestPlanFromPlan } from "./testplan/run.ts";
+export type {
+  RunIssueTestPlanFromPlanOptions,
+  RunIssueTestPlanOptions,
+  RunIssueTestPlanResult,
+} from "./testplan/run.ts";
+
+// ============================================================================
 // Meld - Meld utilities
 // ============================================================================
 
