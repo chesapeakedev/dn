@@ -86,6 +86,7 @@ import { handleTidy } from "./tidy.ts";
 import { handleRelease } from "./release.ts";
 import { handleSync } from "./sync.ts";
 import { handleUntil } from "./until.ts";
+import { handleRunner } from "./runner.ts";
 
 /**
  * Parses global flags from args and returns bootstrap options plus remaining args.
@@ -305,6 +306,9 @@ function showUsage(): void {
     "  sync         Git/Sapling: lint, rebase onto main, publish local commits",
   );
   console.error(
+    "  runner       Pair and operate this machine as Denoise infrastructure",
+  );
+  console.error(
     "  release      Manage GitHub releases (create, list, view, delete)\n",
   );
   console.error(
@@ -415,6 +419,9 @@ async function main(): Promise<void> {
       break;
     case "sync":
       await handleSync(subcommandArgs);
+      break;
+    case "runner":
+      await handleRunner(subcommandArgs);
       break;
     case "release":
     case "releases":

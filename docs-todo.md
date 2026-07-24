@@ -2,6 +2,33 @@
 
 Documentation to add to denoise-docs from the `dn` repository.
 
+- [ ] Explain how denoise connects to and uses a developer device runner
+      ([chesapeake#213](https://github.com/chesapeakedev/chesapeake/issues/213)).
+  - [ ] Walk through **Settings > Runners** pairing with
+        `dn runner connect <code> --install`, browser approval, device naming,
+        and the paired/online/repository-ready states.
+  - [ ] Show explicit checkout trust with `dn runner register`, readiness checks
+        with `dn runner doctor`, and the local files and user-service locations
+        on macOS and Linux.
+  - [ ] Explain how to select a named device for kickstart, what happens when it
+        is busy or offline, the 24-hour queue, and the guarantee that denoise
+        does not silently fall back to hosted compute.
+  - [ ] Document `dn runner status`, `jobs`, `kickstart --wait`, `pause`,
+        `resume`, `rotate`, `unregister`, and `disconnect`, including stable
+        `--json` examples for agent use.
+  - [ ] Describe the security boundary: outbound HTTPS only, owner-only
+        dispatch, repository allowlisting, typed kickstart jobs, local
+        GitHub/agent credentials, progress redaction, cancellation, and explicit
+        retry after lease interruption.
+  - [ ] Show the completion receipt fields—device, agent, duration, PR link,
+        local compute minutes, and hosted run avoided—without claiming dollar
+        savings.
+  - [ ] Add troubleshooting for expired credentials, unsupported protocol
+        versions, missing agent harnesses, repository remote mismatches, and
+        launchd/systemd logs.
+  - [ ] Link to the self-hosted GitHub Actions runner guide only as the advanced
+        alternative for arbitrary Actions workflows.
+
 - [ ] Document project base images and the `base-image` skill
       ([chesapeake#351](https://github.com/chesapeakedev/chesapeake/issues/351)).
   - [ ] Explain the golden-image use case and the Docker image contract.

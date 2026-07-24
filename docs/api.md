@@ -17,6 +17,39 @@
 Consumers should rely only on documented, exported symbols and avoid deep or
 internal imports, which are not supported as part of the public contract.
 
+## Device runner protocol
+
+The top-level SDK exports the versioned device-runner contracts used by `dn` and
+denoise. Integrations should construct typed jobs and runtime choices rather
+than passing commands:
+
+```ts
+import type {
+  KickstartRuntimeChoice,
+  RunnerJob,
+  RunnerRegistration,
+} from "@chesapeake/dn";
+import { RUNNER_PROTOCOL_VERSION, validateRunnerJob } from "@chesapeake/dn";
+
+const runtime: KickstartRuntimeChoice = {
+  source: "device_runner",
+  runner_id: "runner_opaque_id",
+};
+
+function acceptClaim(job: RunnerJob, registration: RunnerRegistration) {
+  if (registration.protocol_version !== RUNNER_PROTOCOL_VERSION) {
+    throw new Error("Unsupported runner protocol");
+  }
+  return validateRunnerJob(job, registration.id);
+}
+```
+
+`RunnerRegistration` contains repository slugs but cannot contain local paths.
+`RunnerJob` protocol v1 contains a `kickstart` operation and rejects generic
+argv, shell, environment, and workflow fields. See the
+[device runner API contract](denoise-integration.md#device-runner-api-contract)
+for routes and lifecycle requirements.
+
 ## Minimal SDK Usage
 
 ```ts

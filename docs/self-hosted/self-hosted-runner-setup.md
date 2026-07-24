@@ -1,8 +1,10 @@
-# Making Kickstart Faster by Self-Hosting
+# Self-hosted GitHub Actions runners
 
-This document describes how to set up a self-hosted GitHub Actions runner on
-Debian-based Linux distributions (Ubuntu, Pop!\_OS) to run Kickstart workflows
-on your own hardware.
+This advanced setup runs kickstart through GitHub's generic self-hosted Actions
+runner on Debian-based Linux distributions. For the recommended denoise path on
+macOS and Linux, use a [developer device runner](../device-runners.md). Device
+runners pair with denoise directly, reuse existing checkouts and agent logins,
+and accept only typed kickstart jobs.
 
 ## Overview
 

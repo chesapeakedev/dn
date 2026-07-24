@@ -91,6 +91,42 @@ argument. The following formats are recognized:
 When a markdown file path is given, no GitHub fetch occurs and AWP mode is not
 used.
 
+## `dn runner` — Use a developer device for denoise jobs
+
+Pairs a macOS or Linux machine with denoise and runs typed kickstart jobs
+against explicitly registered checkouts.
+
+```bash
+dn runner connect <code> --install --name "Alex's MacBook Pro"
+dn runner register
+dn runner doctor
+dn runner status --json
+dn runner jobs --json
+dn runner kickstart 213 --wait --json
+dn runner pause
+dn runner resume
+dn runner rotate
+dn runner disconnect
+```
+
+`connect` opens a browser for signed-in approval and stores an expiring,
+runner-scoped credential under `~/.dn/runner/` with user-only permissions.
+`--install` adds a launchd or systemd user service. Use `dn runner serve` for a
+foreground diagnostic loop.
+
+`register [path]` detects the GitHub remote and asks for an explicit trust
+confirmation. Pass `--yes` only after reviewing the checkout. Repository paths
+remain in the local configuration and never enter runner API payloads.
+
+`kickstart` accepts a full GitHub issue URL or a number resolved from the
+current checkout. It defaults to `--publish pr`; `none` and `direct` are also
+supported. `--wait` polls until the job reaches a terminal state.
+
+`status`, `jobs`, `doctor`, `pause`, `resume`, `rotate`, `unregister`, and
+`disconnect` support stable JSON output. See
+[Developer device runners](device-runners.md) for setup, service paths, security
+behavior, and troubleshooting.
+
 ## `dn kickstart` — Full workflow
 
 Runs complete kickstart workflow (plan + implement phases):

@@ -195,12 +195,64 @@ client posts `source` on `POST /api/github/dispatch`:
 | `cursor_cloud`   | Managed runner runs `dn kickstart --cursor-cloud` with HTTP progress.    |
 | `cloud_vm`       | Managed runner runs `dn kickstart --sandbox exe.dev` with HTTP progress. |
 | `local`          | Managed runner runs host `dn kickstart` with NDJSON progress.            |
+| `device_runner`  | Named developer device claims a typed kickstart job over outbound HTTPS. |
 
 Preflight availability is exposed at `GET /api/kickstart/runtimes?owner=&repo=`.
 Hosted denoise keeps Docker unavailable (use `dn kickstart --sandbox docker`
 locally). Secrets for managed runners stay on the denoise server
 (`CURSOR_API_KEY`, `EXE_TOKEN`, `KICKSTART_PROGRESS_BASE_URL`,
 `KICKSTART_RUNNER_WORKSPACE_ROOT`).
+
+`device_runner` is an instance runtime. Dispatch requests include `runner_id`
+alongside `source`; the server must verify that the signed-in owner owns the
+runner and has registered the target repository. Preserve `local` for the
+existing server-managed host runtime.
+
+### Device runner API contract
+
+Protocol version `1.0` uses the following authenticated routes under
+`/api/runners`. Pairing creation, polling, and exchange are unauthenticated but
+require the short-lived pairing secrets returned by the preceding step.
+
+| Method | Route                              | Purpose                                       |
+| ------ | ---------------------------------- | --------------------------------------------- |
+| POST   | `/pairings`                        | Create browser-approved pairing request       |
+| POST   | `/pairings/:id/status`             | Poll with the short-lived pairing token       |
+| POST   | `/pairings/:id/exchange`           | Return the runner credential exactly once     |
+| POST   | `/heartbeat`                       | Report protocol, capabilities, and readiness  |
+| POST   | `/jobs/claim`                      | Atomically long-poll and claim one job        |
+| POST   | `/jobs/:id/lease`                  | Renew a lease and receive cancellation state  |
+| POST   | `/jobs/:id/progress`               | Ingest one existing progress event            |
+| POST   | `/jobs/:id/complete`               | Record the completion receipt                 |
+| POST   | `/jobs/:id/fail`                   | Record failure, cancellation, or interruption |
+| GET    | `/status`                          | Return owner-visible device state             |
+| GET    | `/jobs`                            | Return owner-visible recent jobs              |
+| POST   | `/kickstart`                       | Queue one typed kickstart job                 |
+| POST   | `/pause`, `/resume`, `/disconnect` | Owner controls                                |
+| POST   | `/credential/rotate`               | Replace and invalidate a runner credential    |
+
+Runner credentials are scoped, expiring bearer values stored with mode `0600` on
+the device. Store only their hashes server-side. Revocation and rotation
+invalidate the previous value immediately.
+
+Heartbeat repository entries contain `owner/repo`, readiness, and an optional
+reason. They never contain local paths. Jobs contain opaque IDs, invocation and
+runner IDs, repository slug, issue URL, publish mode, agent harness, timestamps,
+and lease state. Protocol v1 rejects any operation other than `kickstart`.
+
+Queue offline jobs for at most 24 hours and do not fall back to a hosted
+runtime. Claim one job per runner atomically. A reconnect after lease loss marks
+the old job interrupted; retry requires a new explicit dispatch.
+
+Gate these routes and runtime choices behind the device-runner feature flag and
+reject clients below the configured minimum protocol version with HTTP 426.
+Derive privacy-safe funnel metrics from pairing, readiness, claim, and terminal
+events. Metrics may include time to first job, completion reason, local compute
+minutes, and hosted runs avoided; they must not include machine serials, local
+paths, source, credentials, or unredacted logs.
+
+See [Developer device runners](device-runners.md) for CLI onboarding and the
+local security boundary.
 
 CLI operators can still invoke Cursor Cloud directly:
 

@@ -14,14 +14,15 @@ include “more not shown” lines when totals exceed what was loaded.
 
 ## Guides
 
-| Document                                            | Description                                        |
-| --------------------------------------------------- | -------------------------------------------------- |
-| [Subcommands](subcommands.md)                       | Detailed reference for every CLI subcommand        |
-| [Authentication](authentication.md)                 | GitHub token setup (CLI, browser, CI)              |
-| [Output and environment](output-and-environment.md) | Colors, unattended mode, exit codes, env vars      |
-| [API](api.md)                                       | Programmatic SDK usage and GitHub Actions examples |
-| [GitHub Actions](github-actions.md)                 | Running `dn` in GitHub Actions CI                  |
-| [Denoise integration](denoise-integration.md)       | Workflow templates and dispatch contracts          |
+| Document                                            | Description                                                |
+| --------------------------------------------------- | ---------------------------------------------------------- |
+| [Subcommands](subcommands.md)                       | Detailed reference for every CLI subcommand                |
+| [Authentication](authentication.md)                 | GitHub token setup (CLI, browser, CI)                      |
+| [Output and environment](output-and-environment.md) | Colors, unattended mode, exit codes, env vars              |
+| [API](api.md)                                       | Programmatic SDK usage and GitHub Actions examples         |
+| [GitHub Actions](github-actions.md)                 | Running `dn` in GitHub Actions CI                          |
+| [Denoise integration](denoise-integration.md)       | Workflow templates and dispatch contracts                  |
+| [Developer device runners](device-runners.md)       | Run denoise kickstart jobs on a paired Mac or Linux device |
 
 ## Agent integration
 
@@ -33,9 +34,10 @@ include “more not shown” lines when totals exceed what was loaded.
 
 ## Infrastructure
 
-| Document                                                       | Description                                    |
-| -------------------------------------------------------------- | ---------------------------------------------- |
-| [Self-hosted runners](self-hosted/self-hosted-runner-setup.md) | Setting up a self-hosted GitHub Actions runner |
+| Document                                                       | Description                                      |
+| -------------------------------------------------------------- | ------------------------------------------------ |
+| [Developer device runners](device-runners.md)                  | Recommended paired-device setup for denoise      |
+| [Self-hosted runners](self-hosted/self-hosted-runner-setup.md) | Advanced self-hosted GitHub Actions runner setup |
 
 ## Integrations
 

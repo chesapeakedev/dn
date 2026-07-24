@@ -238,6 +238,7 @@ export function createAuthHandler(
 
 // Shared types
 export type { Commit, Issue } from "./github/types.ts";
+export type { AgentHarness } from "./github/agentHarness.ts";
 
 // Issue CRUD types
 export type {
@@ -469,3 +470,83 @@ export type {
   WorkflowValidationWarning,
   WorkflowWriteResult,
 } from "./workflows/mod.ts";
+
+// ============================================================================
+// Device runner - Denoise-native developer machine protocol and worker
+// ============================================================================
+
+export {
+  buildRunnerKickstartCommand,
+  checkRunnerRepositories,
+  DEFAULT_DENOISE_API_URL,
+  deleteRunnerCredential,
+  detectRunnerCapabilities,
+  doctorRunner,
+  generateLaunchdService,
+  generateRunnerService,
+  generateSystemdService,
+  getRunnerConfigPaths,
+  inspectRunnerRepository,
+  installRunnerService,
+  isSupportedRunnerProtocol,
+  loadRunnerConfig,
+  loadRunnerCredential,
+  MINIMUM_RUNNER_PROTOCOL_VERSION,
+  parseRepositorySlug,
+  parseRunnerProgressLine,
+  registerRunnerRepository,
+  repositoryFromIssueUrl,
+  repositorySlugFromRemote,
+  RUNNER_CONFIG_SCHEMA_VERSION,
+  RUNNER_PROTOCOL_VERSION,
+  RunnerApiClient,
+  saveRunnerConfig,
+  saveRunnerCredential,
+  serveRunner,
+  setRunnerPaused,
+  uninstallRunnerService,
+  unregisterRunnerRepository,
+  validateRunnerJob,
+} from "./runner/mod.ts";
+export type {
+  KickstartInvocationSource,
+  KickstartRuntimeChoice,
+  LocalRunnerConfig,
+  LocalRunnerRepository,
+  RunnerApiClientOptions,
+  RunnerCapabilities,
+  RunnerCommandProbe,
+  RunnerConfigPaths,
+  RunnerCredentialRotation,
+  RunnerDoctorCheck,
+  RunnerDoctorCredential,
+  RunnerDoctorResult,
+  RunnerHeartbeat,
+  RunnerJob,
+  RunnerJobCompletion,
+  RunnerJobFailure,
+  RunnerJobLease,
+  RunnerJobsResponse,
+  RunnerJobSummary,
+  RunnerKickstartOperation,
+  RunnerKickstartRequest,
+  RunnerKickstartResponse,
+  RunnerLeaseResponse,
+  RunnerOperation,
+  RunnerPairingDevice,
+  RunnerPairingExchange,
+  RunnerPairingRequest,
+  RunnerPairingStatus,
+  RunnerProgressEvent,
+  RunnerProtocolVersion,
+  RunnerRegistration,
+  RunnerRepositoryReadiness,
+  RunnerServiceDefinition,
+  RunnerServicePlatform,
+  RunnerState,
+  RunnerStatusResponse,
+  RunnerWorkerClient,
+  RunRunnerJobOptions,
+  ServeRunnerOptions,
+  StoredRunnerCredential,
+} from "./runner/mod.ts";

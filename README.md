@@ -33,6 +33,8 @@ on each, check out [our docs site](https://docs.denoise.cloud/introduction/)
   with milestone stacks, `dn peek`, `dn todo`, and `dn tidy`
 - **Context synthesis for agents** — Route issues and local documents into
   focused plans, README content, or agent instructions with `dn meld`
+- **Developer device runners** — Pair a Mac or Linux machine with denoise and
+  run kickstart against its warm checkouts and existing agent logins
 
 ## Kickstart a task
 
@@ -107,6 +109,24 @@ make install
 
 Run `dn --help` to explore the available workflows.
 
+## Use this machine as a denoise runner
+
+Pair an existing macOS or Linux development machine from **Settings > Runners**
+in denoise:
+
+```bash
+dn runner connect <code> --install
+cd ~/src/project
+dn runner register
+dn runner doctor
+```
+
+The runner accepts typed kickstart jobs over outbound HTTPS. It uses local
+GitHub and agent authentication; source code, credentials, and checkout paths
+stay on the machine. See the
+[developer device runner guide](docs/device-runners.md) for service management,
+security boundaries, and JSON commands.
+
 ## Choose an agent
 
 OpenCode is the default. Select another supported agent globally with `--agent`:
@@ -156,4 +176,5 @@ permissions, and troubleshooting.
 - [Authentication](docs/authentication.md)
 - [Output, environment variables, and exit codes](docs/output-and-environment.md)
 - [GitHub Actions](docs/github-actions.md)
+- [Developer device runners](docs/device-runners.md)
 - [Contributor guide](CONTRIBUTING.md)
