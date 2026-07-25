@@ -23,22 +23,42 @@ Use this workflow only for an existing release. For a new version, use the
 4. Read `.github/workflows/release.yml`. Confirm that `workflow_dispatch`
    accepts `tag`, builds the expected platform matrix, and replaces assets with
    stable names.
-5. Preserve unrelated working-copy changes. Do not delete or recreate the
+5. Run `deno task workflows:checksums --check`. Treat workflow manifest
+   checksums as source integrity metadata, distinct from the release asset
+   `checksums.txt`. This command also requires every manifest workflow to be
+   embedded by `compile_dn.sh`. Resolve stale checksums, incomplete manifests,
+   and missing binary includes before changing remote state.
+6. Preserve unrelated working-copy changes. Do not delete or recreate the
    release.
 
 ## 2. Land the corrected source
 
 1. Make the requested source and release-note corrections.
-2. Run `make precommit`.
-3. Commit all in-scope files with `sl commit`.
-4. Run `make sync` to rebase and publish the commit to `main`.
-5. Record the full landed commit:
+2. If any `templates/workflows/*.yml` file changed, run:
+
+   ```bash
+   deno task workflows:checksums --write
+   deno task workflows:checksums --check
+   ```
+
+   Inspect the manifest diff and include only checksum changes corresponding to
+   intentional template edits. Never hand-edit or guess checksum values.
+3. Run `make precommit`. It must independently repeat the checksum check.
+4. Build a temporary binary with `compile_dn.sh`, run
+   `dn init workflows --agent opencode` from an empty temporary repository, and
+   confirm every manifest workflow installs. Treat a missing embedded template
+   or partial installation as blocking.
+5. Commit all in-scope files with `sl commit`.
+6. Run `make sync` to rebase and publish the commit to `main`.
+7. Rerun `make precommit` after the rebase. If it changes files or fails, do not
+   move the release tag.
+8. Record the full landed commit:
 
    ```bash
    sl log -r . -T '{node}\n'
    ```
 
-6. Verify GitHub's `main` ref resolves to that exact commit before moving the
+9. Verify GitHub's `main` ref resolves to that exact commit before moving the
    release tag.
 
 ## 3. Retarget and rebuild
@@ -84,6 +104,8 @@ Confirm all of the following:
 - `checksums.txt` and every expected platform binary exist;
 - asset upload times are from the repair run;
 - checksum entries exactly cover the binary matrix;
+- a downloaded repaired binary passes `dn init workflows --agent opencode` in an
+  empty temporary repository;
 - the release remains published under the same version and URL;
 - the release notes no longer claim superseded behavior.
 

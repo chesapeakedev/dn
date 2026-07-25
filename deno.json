@@ -28,7 +28,8 @@
     "lint": "deno lint --ignore=.opencode/ **/*.ts",
     "typecheck": "deno check **/*.ts",
     "fmt": "deno fmt **/*.ts",
-    "precommit": "deno fmt && deno lint && deno check **/*.ts",
+    "precommit": "deno fmt && deno lint && deno check **/*.ts && deno task workflows:checksums --check",
+    "workflows:checksums": "deno run --allow-read=templates/workflows,compile_dn.sh --allow-write=templates/workflows/manifest.json scripts/workflowChecksums.ts",
     "publish": "deno publish"
   },
   "imports": {
