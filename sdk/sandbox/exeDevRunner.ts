@@ -13,14 +13,29 @@ import type {
   SandboxRunner,
 } from "./types.ts";
 
-const EXE_DEV_API_URL = "https://exe.dev/exec";
+const DEFAULT_EXE_DEV_API_URL = "https://exe.dev/exec";
 const EXE_DEV_API_TIMEOUT_MS = 30_000;
+
+/** Resolve the exe.dev endpoint, allowing an isolated contract twin. */
+export function exeDevApiUrl(): string {
+  const value = Deno.env.get("EXE_DEV_API_URL") ?? DEFAULT_EXE_DEV_API_URL;
+  const url = new URL(value);
+  if (
+    url.protocol !== "https:" &&
+    Deno.env.get("EXE_DEV_ALLOW_INSECURE_HTTP") !== "1"
+  ) {
+    throw new Error(
+      "EXE_DEV_API_URL must use HTTPS unless EXE_DEV_ALLOW_INSECURE_HTTP=1",
+    );
+  }
+  return url.toString();
+}
 
 /** Default HTTPS client for exe.dev control-plane commands. */
 export function createDefaultExeDevHttpClient(): ExeDevHttpClient {
   return {
     async exec(token, command, options = {}) {
-      const response = await fetch(EXE_DEV_API_URL, {
+      const response = await fetch(exeDevApiUrl(), {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -111,7 +126,7 @@ export class ExeDevRunner implements SandboxRunner {
 
     if (ctx.dryRun) {
       console.log(
-        `[sandbox dry-run] Would POST ${EXE_DEV_API_URL}: ${newCommand}`,
+        `[sandbox dry-run] Would POST ${exeDevApiUrl()}: ${newCommand}`,
       );
       return {
         provider: "exe.dev",
@@ -150,7 +165,7 @@ export class ExeDevRunner implements SandboxRunner {
 
     if (handle.dryRun) {
       console.log(
-        `[sandbox dry-run] Would POST ${EXE_DEV_API_URL}: ${command}`,
+        `[sandbox dry-run] Would POST ${exeDevApiUrl()}: ${command}`,
       );
       return { code: 0, stdout: "", stderr: "" };
     }
@@ -300,7 +315,7 @@ export class ExeDevRunner implements SandboxRunner {
     const destroyCommand = `rm ${handle.id} --json`;
     if (handle.dryRun) {
       console.log(
-        `[sandbox dry-run] Would POST ${EXE_DEV_API_URL}: ${destroyCommand}`,
+        `[sandbox dry-run] Would POST ${exeDevApiUrl()}: ${destroyCommand}`,
       );
       return;
     }

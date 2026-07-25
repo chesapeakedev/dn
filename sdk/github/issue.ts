@@ -5,9 +5,8 @@ import {
   fetchIssueFromUrl as fetchIssueFromUrlGql,
   getCurrentRepoFromRemote,
 } from "./github-gql.ts";
+import { githubServerUrl, parseConfiguredIssueUrl } from "./endpoints.ts";
 
-const GITHUB_ISSUE_URL_PATTERN =
-  /^https?:\/\/github\.com\/[^/]+\/[^/]+\/issues\/\d+(?:\?.*)?$/i;
 const ISSUE_NUMBER_PATTERN = /^#?(\d+)$/;
 
 /**
@@ -148,13 +147,13 @@ export function summarizeIssueForDisplay(
  */
 export async function resolveIssueUrlInput(input: string): Promise<string> {
   const trimmed = input.trim();
-  if (GITHUB_ISSUE_URL_PATTERN.test(trimmed)) {
+  if (parseConfiguredIssueUrl(trimmed)) {
     return trimmed;
   }
   const numMatch = trimmed.match(ISSUE_NUMBER_PATTERN);
   if (numMatch) {
     const { owner, repo } = await getCurrentRepoFromRemote();
-    return `https://github.com/${owner}/${repo}/issues/${numMatch[1]}`;
+    return githubServerUrl(`/${owner}/${repo}/issues/${numMatch[1]}`);
   }
   throw new Error(
     `Invalid issue URL or number: ${input}. Provide a full URL (e.g. https://github.com/owner/repo/issues/123) or an issue number for the current repository.`,

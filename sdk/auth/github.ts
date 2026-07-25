@@ -11,10 +11,7 @@ import type {
 } from "./types.ts";
 import { createSessionCookie, generateState, storeSession } from "./session.ts";
 import { createOrGetUser } from "./user.ts";
-
-// GitHub OAuth URLs
-const GITHUB_AUTH_URL = "https://github.com/login/oauth/authorize";
-const GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token";
+import { githubGraphqlUrl, githubServerUrl } from "../github/endpoints.ts";
 
 const GET_VIEWER_QUERY = `
   query GetViewer {
@@ -35,7 +32,7 @@ export async function exchangeCodeForGitHubToken(
   code: string,
   config: GitHubOAuthConfig,
 ): Promise<string> {
-  const response = await fetch(GITHUB_TOKEN_URL, {
+  const response = await fetch(githubServerUrl("/login/oauth/access_token"), {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -75,7 +72,7 @@ export async function getGitHubUser(accessToken: string): Promise<{
   email?: string;
 }> {
   const client = new ObsidianClient({
-    endpoint: "https://api.github.com/graphql",
+    endpoint: githubGraphqlUrl(),
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "User-Agent": "dn-github-graphql",
@@ -417,7 +414,7 @@ function buildOAuthAuthorizeUrl(
   config: GitHubOAuthConfig,
   state: string,
 ): string {
-  const authUrl = new URL(GITHUB_AUTH_URL);
+  const authUrl = new URL(githubServerUrl("/login/oauth/authorize"));
   authUrl.searchParams.set("client_id", config.clientId);
   authUrl.searchParams.set("redirect_uri", config.redirectUri);
   authUrl.searchParams.set("scope", "user:email");

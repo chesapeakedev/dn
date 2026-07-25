@@ -5,6 +5,7 @@ import { ObsidianClient } from "@chesapeake/obsidian-gql";
 import { getCurrentRepoFromRemote, getDefaultBranch } from "./github-gql.ts";
 import type { IssueData } from "./issue.ts";
 import { resolveGitHubToken } from "./token.ts";
+import { githubGraphqlUrl } from "./endpoints.ts";
 
 const GET_REPOSITORY_ID_QUERY = `
   query GetRepositoryId($owner: String!, $name: String!) {
@@ -92,7 +93,7 @@ export async function createPR(
   }
 
   const client = new ObsidianClient({
-    endpoint: "https://api.github.com/graphql",
+    endpoint: githubGraphqlUrl(),
     headers: {
       Authorization: `Bearer ${token}`,
       "User-Agent": "dn-github-graphql",

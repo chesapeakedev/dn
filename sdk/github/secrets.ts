@@ -1,9 +1,8 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
+import { githubApiUrl } from "./endpoints.ts";
 import { resolveGitHubToken } from "./token.ts";
-
-const GITHUB_API_BASE = "https://api.github.com";
 
 interface SecretsListResponse {
   secrets: Array<{ name: string }>;
@@ -27,7 +26,9 @@ export async function listRepositoryActionSecrets(
 
   while (true) {
     const response = await fetch(
-      `${GITHUB_API_BASE}/repos/${owner}/${repo}/actions/secrets?per_page=100&page=${page}`,
+      githubApiUrl(
+        `/repos/${owner}/${repo}/actions/secrets?per_page=100&page=${page}`,
+      ),
       {
         headers: {
           Authorization: `Bearer ${token}`,

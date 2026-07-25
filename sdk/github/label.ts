@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { $ } from "$dax";
+import { githubGraphqlUrl } from "./endpoints.ts";
 import { resolveGitHubToken } from "./token.ts";
 
 const CREATE_LABEL_MUTATION = `
@@ -79,7 +80,7 @@ async function graphqlRequest<T>(
   variables: Record<string, unknown>,
 ): Promise<T> {
   const token = await resolveGitHubToken();
-  const response = await fetch("https://api.github.com/graphql", {
+  const response = await fetch(githubGraphqlUrl(), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,

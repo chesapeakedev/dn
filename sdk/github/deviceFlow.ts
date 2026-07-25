@@ -7,9 +7,8 @@
  */
 
 import { getCachedTokenPath, getDnConfigDir } from "./token.ts";
+import { githubServerUrl } from "./endpoints.ts";
 
-const DEVICE_CODE_URL = "https://github.com/login/device/code";
-const ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token";
 const GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code";
 const DEFAULT_SCOPE = "repo read:org";
 
@@ -75,7 +74,7 @@ async function requestDeviceCode(
     client_id: config.clientId,
     scope,
   });
-  const res = await fetch(DEVICE_CODE_URL, {
+  const res = await fetch(githubServerUrl("/login/device/code"), {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -114,7 +113,7 @@ async function pollForToken(
   while (Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, interval));
 
-    const res = await fetch(ACCESS_TOKEN_URL, {
+    const res = await fetch(githubServerUrl("/login/oauth/access_token"), {
       method: "POST",
       headers: {
         Accept: "application/json",

@@ -6,6 +6,7 @@ import {
   getCurrentRepoFromRemote,
   handleGraphQLErrors,
 } from "./github-gql.ts";
+import { parseConfiguredMilestoneUrl } from "./endpoints.ts";
 
 const MILESTONE_QUERY = `
   query GetMilestone($owner: String!, $name: String!, $number: Int!) {
@@ -126,21 +127,12 @@ interface MilestonesResponse {
   };
 }
 
-const MILESTONE_URL_RE =
-  /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/milestone\/(\d+)(?:\?.*)?$/i;
-
 export function parseMilestoneUrl(url: string): {
   owner: string;
   repo: string;
   number: number;
 } | null {
-  const match = url.match(MILESTONE_URL_RE);
-  if (!match) return null;
-  return {
-    owner: match[1],
-    repo: match[2],
-    number: parseInt(match[3], 10),
-  };
+  return parseConfiguredMilestoneUrl(url);
 }
 
 export async function getMilestone(

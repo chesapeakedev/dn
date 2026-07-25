@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { createProgressReporter, type ProgressReporter } from "./progress.ts";
+import { githubServerUrl, parseConfiguredIssueUrl } from "./endpoints.ts";
 
 /** A repository cloned into a Cursor Cloud Agent VM. */
 export interface CursorCloudRepository {
@@ -96,12 +97,9 @@ export const DEFAULT_CURSOR_CLOUD_REF = "main";
 export function cursorCloudRepositoryUrlFromIssue(
   issueUrl: string | null,
 ): string | null {
-  const issueMatch = issueUrl?.match(
-    /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/issues\/\d+(?:[?#].*)?$/i,
-  );
-  return issueMatch
-    ? `https://github.com/${issueMatch[1]}/${issueMatch[2]}.git`
-    : null;
+  if (!issueUrl) return null;
+  const issue = parseConfiguredIssueUrl(issueUrl);
+  return issue ? githubServerUrl(`/${issue.owner}/${issue.repo}.git`) : null;
 }
 
 /** Validates and returns an explicitly selected Cursor cloud starting ref. */

@@ -15,13 +15,14 @@ import type {
   IssueRelationshipSummary,
 } from "./issue.ts";
 import { resolveGitHubToken } from "./token.ts";
+import { githubGraphqlUrl } from "./endpoints.ts";
 
 /**
  * Create a GitHub GraphQL client with authentication headers.
  */
 function createGithubClient(token: string): ObsidianClient {
   return new ObsidianClient({
-    endpoint: "https://api.github.com/graphql",
+    endpoint: githubGraphqlUrl(),
     headers: {
       Authorization: `Bearer ${token}`,
       "User-Agent": "dn-github-graphql",

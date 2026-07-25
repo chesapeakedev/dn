@@ -9,11 +9,10 @@
  */
 
 import { resolveGitHubToken } from "./token.ts";
+import { githubApiUrl } from "./endpoints.ts";
 import type { RepositoryDispatchClientPayload } from "../workflows/dispatch.ts";
 
 export type { RepositoryDispatchClientPayload };
-
-const GITHUB_API_BASE = "https://api.github.com";
 
 /** Workflow state returned by the GitHub Actions API. */
 export type WorkflowState =
@@ -147,7 +146,7 @@ async function request<T>(
   } = {},
 ): Promise<{ data: T; status: number }> {
   const token = await resolveGitHubToken();
-  const response = await fetch(`${GITHUB_API_BASE}${path}`, {
+  const response = await fetch(githubApiUrl(path), {
     method: options.method ?? "GET",
     headers: buildHeaders(token),
     body: options.body === undefined ? undefined : JSON.stringify(options.body),

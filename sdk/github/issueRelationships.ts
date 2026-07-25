@@ -10,9 +10,8 @@
  */
 
 import { getIssueIdentifiers } from "./github-gql.ts";
+import { githubApiUrl } from "./endpoints.ts";
 import { resolveGitHubToken } from "./token.ts";
-
-const GITHUB_API_BASE = "https://api.github.com";
 
 /**
  * Options for replacing a sub-issue's current parent during attach.
@@ -47,7 +46,7 @@ async function request<T>(
   } = {},
 ): Promise<T> {
   const token = await resolveGitHubToken();
-  const response = await fetch(`${GITHUB_API_BASE}${path}`, {
+  const response = await fetch(githubApiUrl(path), {
     method: options.method ?? "GET",
     headers: buildHeaders(token),
     body: options.body === undefined ? undefined : JSON.stringify(options.body),

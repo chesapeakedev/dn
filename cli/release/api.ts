@@ -10,6 +10,7 @@
 
 import { resolveGitHubToken } from "../../sdk/github/token.ts";
 import { getCurrentRepoFromRemote } from "../../sdk/github/github-gql.ts";
+import { githubApiUrl } from "../../sdk/github/endpoints.ts";
 import type {
   CreateReleaseParams,
   CreateTagObjectParams,
@@ -23,8 +24,6 @@ import type {
   RepoIdentifier,
   UpdateReleaseParams,
 } from "./types.ts";
-
-const GITHUB_API_BASE = "https://api.github.com";
 
 /**
  * Build standard headers for GitHub REST API requests.
@@ -107,7 +106,7 @@ export async function createTagObject(
   params: CreateTagObjectParams,
 ): Promise<GitTagObject> {
   const token = await resolveGitHubToken();
-  const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/git/tags`;
+  const url = githubApiUrl(`/repos/${owner}/${repo}/git/tags`);
 
   return request<GitTagObject>(url, {
     method: "POST",
@@ -128,7 +127,7 @@ export async function createTagRef(
   params: CreateTagRefParams,
 ): Promise<GitRef> {
   const token = await resolveGitHubToken();
-  const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/git/refs`;
+  const url = githubApiUrl(`/repos/${owner}/${repo}/git/refs`);
 
   return request<GitRef>(url, {
     method: "POST",
@@ -149,8 +148,9 @@ export async function tagExists(
   tagName: string,
 ): Promise<boolean> {
   const token = await resolveGitHubToken();
-  const url =
-    `${GITHUB_API_BASE}/repos/${owner}/${repo}/git/ref/tags/${tagName}`;
+  const url = githubApiUrl(
+    `/repos/${owner}/${repo}/git/ref/tags/${tagName}`,
+  );
 
   try {
     await request(url, {
@@ -172,8 +172,9 @@ export async function generateReleaseNotes(
   params: GenerateNotesParams,
 ): Promise<GeneratedReleaseNotes> {
   const token = await resolveGitHubToken();
-  const url =
-    `${GITHUB_API_BASE}/repos/${owner}/${repo}/releases/generate-notes`;
+  const url = githubApiUrl(
+    `/repos/${owner}/${repo}/releases/generate-notes`,
+  );
 
   return request<GeneratedReleaseNotes>(url, {
     method: "POST",
@@ -199,7 +200,7 @@ export async function createRelease(
   params: CreateReleaseParams,
 ): Promise<GitHubRelease> {
   const token = await resolveGitHubToken();
-  const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/releases`;
+  const url = githubApiUrl(`/repos/${owner}/${repo}/releases`);
 
   return request<GitHubRelease>(url, {
     method: "POST",
@@ -231,7 +232,9 @@ export async function updateRelease(
   params: UpdateReleaseParams,
 ): Promise<GitHubRelease> {
   const token = await resolveGitHubToken();
-  const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/releases/${releaseId}`;
+  const url = githubApiUrl(
+    `/repos/${owner}/${repo}/releases/${releaseId}`,
+  );
 
   return request<GitHubRelease>(url, {
     method: "PATCH",
@@ -249,7 +252,9 @@ export async function deleteRelease(
   releaseId: number,
 ): Promise<void> {
   const token = await resolveGitHubToken();
-  const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/releases/${releaseId}`;
+  const url = githubApiUrl(
+    `/repos/${owner}/${repo}/releases/${releaseId}`,
+  );
 
   await request<void>(url, {
     method: "DELETE",
@@ -266,7 +271,9 @@ export async function getRelease(
   releaseId: number,
 ): Promise<GitHubRelease> {
   const token = await resolveGitHubToken();
-  const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/releases/${releaseId}`;
+  const url = githubApiUrl(
+    `/repos/${owner}/${repo}/releases/${releaseId}`,
+  );
 
   return request<GitHubRelease>(url, {
     method: "GET",
@@ -283,8 +290,9 @@ export async function getReleaseByTag(
   tagName: string,
 ): Promise<GitHubRelease> {
   const token = await resolveGitHubToken();
-  const url =
-    `${GITHUB_API_BASE}/repos/${owner}/${repo}/releases/tags/${tagName}`;
+  const url = githubApiUrl(
+    `/repos/${owner}/${repo}/releases/tags/${tagName}`,
+  );
 
   return request<GitHubRelease>(url, {
     method: "GET",
@@ -302,8 +310,9 @@ export async function listReleases(
 ): Promise<GitHubRelease[]> {
   const token = await resolveGitHubToken();
   const limit = options.limit ?? 30;
-  const url =
-    `${GITHUB_API_BASE}/repos/${owner}/${repo}/releases?per_page=${limit}`;
+  const url = githubApiUrl(
+    `/repos/${owner}/${repo}/releases?per_page=${limit}`,
+  );
 
   return request<GitHubRelease[]>(url, {
     method: "GET",
