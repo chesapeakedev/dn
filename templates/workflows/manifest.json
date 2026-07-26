@@ -41,11 +41,11 @@
     },
     {
       "id": "dn.meld_issue_plan",
-      "version": "4.0.0",
+      "version": "4.1.0",
       "source_path": "templates/workflows/dn-meld-issue-plan.yml",
       "install_path": ".github/workflows/dn-prep-issue-plan.yml",
       "checksum": "sha256:5aed68c49d6ef09cbf148c981ccdc1343628b6d35c9d2a4f3e5fef59369d1537",
-      "latest_version": "4.0.0",
+      "latest_version": "4.1.0",
       "deprecated": false,
       "deprecation_message": null,
       "minimum_dn_version": "0.0.30",
@@ -67,17 +67,23 @@
       "payload_schema_version": "1.0",
       "payload": {
         "required": ["schema_version", "dispatch_id"],
-        "optional": ["issue_url", "issue_number", "plan_name", "validate_only"]
+        "optional": [
+          "issue_url",
+          "issue_number",
+          "plan_name",
+          "validate_only",
+          "progress"
+        ]
       },
-      "compatibility_notes": "Requires .github/dn/config.json. Provide exactly one of issue_url or issue_number. Updates the source issue body through the GitHub API and does not push repository content. The installed workflow also accepts the legacy dn.prep_issue_plan event and temporarily retains the legacy install filename for Denoise compatibility."
+      "compatibility_notes": "Requires .github/dn/config.json. Provide exactly one of issue_url or issue_number. Optional nested progress {mode,url,token} enables live denoise phase/step ingest when KICKSTART_PROGRESS_BASE_URL is configured. Updates the source issue body through the GitHub API and does not push repository content. The installed workflow also accepts the legacy dn.prep_issue_plan event and temporarily retains the legacy install filename for Denoise compatibility."
     },
     {
       "id": "dn.kickstart_issue",
-      "version": "4.0.0",
+      "version": "4.1.0",
       "source_path": "templates/workflows/dn-kickstart-issue.yml",
       "install_path": ".github/workflows/dn-kickstart-issue.yml",
       "checksum": "sha256:9261107ce037487e35295014d3f0f846bff6550a999180b7f838e7f10881ce61",
-      "latest_version": "4.0.0",
+      "latest_version": "4.1.0",
       "deprecated": false,
       "deprecation_message": null,
       "minimum_dn_version": "0.0.30",
@@ -105,10 +111,11 @@
           "issue_number",
           "publish",
           "awp",
-          "validate_only"
+          "validate_only",
+          "progress"
         ]
       },
-      "compatibility_notes": "Requires .github/dn/config.json. Provide exactly one of issue_url or issue_number. Canonical Actions dispatches always publish a pull request: publish may be omitted or set to pr, and awp may be omitted or true. Local CLI invocations continue to support none and direct."
+      "compatibility_notes": "Requires .github/dn/config.json. Provide exactly one of issue_url or issue_number. Optional nested progress {mode,url,token} enables live denoise phase/step ingest (same contract as exe.dev and Cursor Cloud). Canonical Actions dispatches always publish a pull request: publish may be omitted or set to pr, and awp may be omitted or true. Local CLI invocations continue to support none and direct."
     },
     {
       "id": "dn.daily_kickstart",
@@ -147,11 +154,11 @@
     },
     {
       "id": "dn.todo_loop",
-      "version": "2.0.0",
+      "version": "3.0.0",
       "source_path": "templates/workflows/dn-todo-loop.yml",
       "install_path": ".github/workflows/dn-todo-loop.yml",
-      "checksum": "sha256:2339dbc08a33f1fc9e401fd50eac9fcba18bd4c0264a9f4dc2bc3f387482a863",
-      "latest_version": "2.0.0",
+      "checksum": "sha256:db4e71eecb43237eddc0f6bf25cf32793df2b3ee31e00142c0ecfee6890c4a04",
+      "latest_version": "3.0.0",
       "deprecated": false,
       "deprecation_message": null,
       "minimum_dn_version": "0.0.31",
@@ -167,7 +174,7 @@
         "CURSOR_API_KEY"
       ],
       "triggers": {
-        "repository_dispatch": [],
+        "repository_dispatch": ["dn.todo_loop"],
         "workflow_dispatch": true,
         "schedule": ["0 9 * * *"],
         "labels": [],
@@ -175,10 +182,10 @@
       },
       "payload_schema_version": "1.0",
       "payload": {
-        "required": [],
-        "optional": ["plan_file", "validate_only"]
+        "required": ["schema_version", "dispatch_id"],
+        "optional": ["plan_file", "validate_only", "progress"]
       },
-      "compatibility_notes": "Requires .github/dn/config.json and a plans/todo.plan.md file. Runs dn loop <path> on a stable automation branch and opens or advances one recurring pull request for that plan. Schedule defaults to daily at 09:00 UTC."
+      "compatibility_notes": "Requires .github/dn/config.json and a plans/todo.plan.md file. Supports schedule, workflow_dispatch, and repository_dispatch (dn.todo_loop) for denoise web starts. Optional nested progress enables live phase/step ingest. Runs dn loop <path> on a stable automation branch and opens or advances one recurring pull request for that plan. Schedule defaults to daily at 09:00 UTC."
     }
   ]
 }

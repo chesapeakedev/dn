@@ -29,6 +29,10 @@ import {
 } from "../sdk/github/vcs.ts";
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
 import { formatAgentHarnessName } from "../sdk/github/agentHarness.ts";
+import {
+  createProgressReporter,
+  type ProgressReporter,
+} from "../sdk/github/progress.ts";
 import type { PublishMode } from "../sdk/github/publish.ts";
 import { isUnattended } from "../sdk/github/output.ts";
 import { augmentOpenCodePlanEditPermission } from "../sdk/github/opencode.ts";
@@ -812,8 +816,18 @@ export async function runMeldPhase(
   let issueContextPathFinal: string | undefined;
   let gitContext: GitContext | null = null;
   let publishedUrl: string | undefined;
+  const reporter: ProgressReporter = createProgressReporter();
 
   try {
+    await reporter.report({
+      type: "invocation.running",
+      message: "Meld invocation running",
+    });
+    await reporter.report({
+      type: "step.started",
+      message: "Resolving issue context",
+      step: 1,
+    });
     console.log(formatStep(1, "Resolving issue context..."));
     if (config.contextMarkdownPath) {
       issueContextPathFinal = config.contextMarkdownPath;
@@ -849,6 +863,11 @@ export async function runMeldPhase(
         "No issue URL or context path provided. Set issueUrl or contextMarkdownPath.",
       );
     }
+    await reporter.report({
+      type: "step.completed",
+      message: "Resolved issue context",
+      step: 1,
+    });
 
     if (config.publish !== "none" && issueData !== null) {
       console.log(formatStep(2, "Preparing VCS state..."));
@@ -1015,6 +1034,12 @@ export async function runMeldPhase(
         } for plan phase (read-only)...`,
       ),
     );
+    await reporter.report({
+      type: "phase.started",
+      message: "Plan phase started",
+      phase: "plan",
+      step: 3,
+    });
 
     const promptFilename = meldTargetSystemPromptFile(parsedTarget.kind);
 
@@ -1161,6 +1186,16 @@ export async function runMeldPhase(
     }
 
     console.log(formatSuccess("Plan phase completed successfully"));
+    await reporter.report({
+      type: "phase.completed",
+      message: "Plan phase completed",
+      phase: "plan",
+      step: 3,
+    });
+    await reporter.report({
+      type: "invocation.succeeded",
+      message: "Meld completed successfully",
+    });
 
     return {
       success: true,
@@ -1173,6 +1208,10 @@ export async function runMeldPhase(
       combinedPromptPlanPath,
     };
   } catch (error) {
+    await reporter.report({
+      type: "invocation.failed",
+      message: error instanceof Error ? error.message : String(error),
+    });
     console.error(
       `\n${
         formatError(error instanceof Error ? error.message : String(error))
@@ -1199,10 +1238,21 @@ export async function runLoopPhase(
   tmpDir: string,
 ): Promise<LoopPhaseResult> {
   const workspaceRoot = getWorkspaceRoot(config);
+  const reporter: ProgressReporter = createProgressReporter();
 
   const combinedPromptImplementPath = `${tmpDir}/combined_prompt_implement.txt`;
 
   try {
+    await reporter.report({
+      type: "invocation.running",
+      message: "Loop invocation running",
+    });
+    await reporter.report({
+      type: "phase.started",
+      message: "Implement phase started",
+      phase: "implement",
+      step: 4,
+    });
     // Step 4: Implement Phase
     console.log(
       `\n${
@@ -1303,6 +1353,13 @@ export async function runLoopPhase(
         "Implementation blocked: Agent reported a blocking error. See output above for details.",
       );
     }
+
+    await reporter.report({
+      type: "phase.completed",
+      message: "Implement phase completed",
+      phase: "implement",
+      step: 4,
+    });
 
     // Step 4.5: Check completion status
     console.log(`\n${formatStep(4.5, "Checking completion status...")}`);
@@ -1469,6 +1526,12 @@ export async function runLoopPhase(
       );
       console.warn(error instanceof Error ? error.message : String(error));
     }
+    await reporter.report({
+      type: "lint.completed",
+      message: "Lint step finished",
+      phase: "lint",
+      step: 5,
+    });
 
     // Step 6: Generate artifacts
     console.log(`\n${formatStep(6, "Generating workspace artifacts...")}`);
@@ -1500,6 +1563,10 @@ export async function runLoopPhase(
           "No VCS detected. Changes have been applied to the workspace.",
         ),
       );
+      await reporter.report({
+        type: "invocation.succeeded",
+        message: "Loop completed successfully",
+      });
       return {
         success: true,
         completionStatus,
@@ -1512,6 +1579,10 @@ export async function runLoopPhase(
     const hasChanges = await checkForChanges(vcsType);
     if (!hasChanges) {
       console.log(formatInfo("No changes were made by the agent."));
+      await reporter.report({
+        type: "invocation.succeeded",
+        message: "Loop completed successfully",
+      });
       return {
         success: true,
         completionStatus,
@@ -1521,6 +1592,10 @@ export async function runLoopPhase(
       };
     }
 
+    await reporter.report({
+      type: "invocation.succeeded",
+      message: "Loop completed successfully",
+    });
     return {
       success: true,
       completionStatus,
@@ -1529,6 +1604,10 @@ export async function runLoopPhase(
       combinedPromptImplementPath,
     };
   } catch (error) {
+    await reporter.report({
+      type: "invocation.failed",
+      message: error instanceof Error ? error.message : String(error),
+    });
     console.error(
       `\n${
         formatError(error instanceof Error ? error.message : String(error))

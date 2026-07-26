@@ -300,6 +300,28 @@ function requireMilestone(value: unknown, field: string): string {
   return String(value).trim();
 }
 
+/**
+ * Exports denoise HTTP progress env from nested `client_payload.progress`.
+ * Missing or incomplete progress leaves existing env unchanged (NullReporter).
+ */
+export function applyProgressEnvFromClientPayload(
+  payload: Record<string, unknown>,
+  setEnv: (key: string, value: string) => void = (key, value) =>
+    Deno.env.set(key, value),
+): boolean {
+  const progress = payload.progress;
+  if (typeof progress !== "object" || progress == null) return false;
+  const record = progress as Record<string, unknown>;
+  const mode = typeof record.mode === "string" ? record.mode.trim() : "";
+  const url = typeof record.url === "string" ? record.url.trim() : "";
+  const token = typeof record.token === "string" ? record.token.trim() : "";
+  if (mode !== "http" || !url || !token) return false;
+  setEnv("DN_PROGRESS", "http");
+  setEnv("DN_PROGRESS_URL", url);
+  setEnv("DN_PROGRESS_TOKEN", token);
+  return true;
+}
+
 function resolveIssue(payload: Record<string, unknown>): string {
   const hasUrl = payload.issue_url !== undefined &&
     payload.issue_url !== null &&
@@ -402,11 +424,22 @@ export function resolveWorkflowArguments(
   }
 
   if (workflowId === "dn.todo_loop") {
-    if (eventName !== "schedule" && eventName !== "workflow_dispatch") {
+    if (
+      eventName !== "schedule" && eventName !== "workflow_dispatch" &&
+      eventName !== "repository_dispatch"
+    ) {
       throw new WorkflowExecError(
         "event_mismatch",
         `dn.todo_loop does not support event ${eventName}`,
       );
+    }
+    if (eventName === "repository_dispatch") {
+      const payload = validateDispatchEnvelope(event, "dn.todo_loop");
+      const planFile = requireNonEmptyString(
+        payload.plan_file || env.DN_TODO_PLAN_PATH || "plans/todo.plan.md",
+        "plan_file",
+      );
+      return [...prefix, "loop", planFile];
     }
     const inputs = event.inputs === undefined
       ? {}
@@ -752,6 +785,7 @@ export async function handleWorkflowExec(args: string[]): Promise<void> {
         "client_payload.dispatch_id",
       );
       Deno.env.set("DN_DISPATCH_ID", dispatchId);
+      applyProgressEnvFromClientPayload(payload);
     }
 
     const workspace = Deno.env.get("GITHUB_WORKSPACE") ?? Deno.cwd();

@@ -3,12 +3,52 @@
 
 import { assertEquals, assertThrows } from "@std/assert";
 import {
+  applyProgressEnvFromClientPayload,
   openAutomationPullRequestUrl,
   openKickstartPullRequestUrl,
   renderWorkflowSummary,
   resolveWorkflowArguments,
   todoLoopBranchName,
 } from "./exec.ts";
+
+Deno.test("applyProgressEnvFromClientPayload sets HTTP progress env", () => {
+  const env: Record<string, string> = {};
+  assertEquals(
+    applyProgressEnvFromClientPayload(
+      {
+        progress: {
+          mode: "http",
+          url: "https://denoise.example/api/kickstart/invocations/id/events",
+          token: "secret-token",
+        },
+      },
+      (key, value) => {
+        env[key] = value;
+      },
+    ),
+    true,
+  );
+  assertEquals(env.DN_PROGRESS, "http");
+  assertEquals(
+    env.DN_PROGRESS_URL,
+    "https://denoise.example/api/kickstart/invocations/id/events",
+  );
+  assertEquals(env.DN_PROGRESS_TOKEN, "secret-token");
+});
+
+Deno.test("applyProgressEnvFromClientPayload ignores incomplete progress", () => {
+  const env: Record<string, string> = {};
+  assertEquals(
+    applyProgressEnvFromClientPayload(
+      { progress: { mode: "http", url: "https://example.com" } },
+      (key, value) => {
+        env[key] = value;
+      },
+    ),
+    false,
+  );
+  assertEquals(Object.keys(env).length, 0);
+});
 
 Deno.test("resolveWorkflowArguments maps init stack payload", () => {
   assertEquals(
@@ -249,6 +289,25 @@ Deno.test("resolveWorkflowArguments uses default todo loop plan path", () => {
       "codex",
     ),
     ["--agent", "codex", "loop", "plans/todo.plan.md"],
+  );
+});
+
+Deno.test("resolveWorkflowArguments maps todo loop repository dispatch", () => {
+  assertEquals(
+    resolveWorkflowArguments(
+      "dn.todo_loop",
+      "repository_dispatch",
+      {
+        action: "dn.todo_loop",
+        client_payload: {
+          schema_version: "1.0",
+          dispatch_id: "loop-1",
+          plan_file: "plans/custom.plan.md",
+        },
+      },
+      "opencode",
+    ),
+    ["--agent", "opencode", "loop", "plans/custom.plan.md"],
   );
 });
 

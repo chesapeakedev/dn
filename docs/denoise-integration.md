@@ -123,14 +123,31 @@ appears, then print its URL. `--wait` requires `client_payload.dispatch_id`.
 
 ## Kickstart Progress Events
 
-`dn workflows exec` copies `client_payload.dispatch_id` to `DN_DISPATCH_ID`
-before it starts `dn`. Reporting remains disabled unless `DN_PROGRESS` selects a
+Denoise’s primary web runners — **GitHub Actions**, **exe.dev (`cloud_vm`)**,
+and **Cursor Cloud** — share one HTTP progress bootstrap:
+
+- `DN_DISPATCH_ID` — invocation / `dispatch_id` correlation
+- `DN_PROGRESS=http`
+- `DN_PROGRESS_URL` —
+  `{KICKSTART_PROGRESS_BASE_URL}/api/kickstart/invocations/{id}/events`
+- `DN_PROGRESS_TOKEN` — per-invocation bearer issued by denoise (not a shared
+  repo secret)
+
+Managed runners receive these as child-process env. For GitHub Actions, denoise
+nests `client_payload.progress: { mode, url, token }` when
+`KICKSTART_PROGRESS_BASE_URL` is an HTTPS URL the runner can reach.
+`dn workflows exec` exports that object to the same `DN_PROGRESS*` env vars.
+Without the public base URL, Actions stays available but the web panel uses
+**coarse** status (queued / running / terminal) instead of the phase timeline.
+
+`dn workflows exec` always copies `client_payload.dispatch_id` to
+`DN_DISPATCH_ID`. Reporting remains disabled unless `DN_PROGRESS` selects a
 delivery mode:
 
 | Variable                | Meaning                                                                |
 | ----------------------- | ---------------------------------------------------------------------- |
 | `DN_DISPATCH_ID`        | Required invocation correlation id; supplied from repository dispatch. |
-| `DN_PROGRESS=ndjson`    | Write one event per JSON line to stderr.                               |
+| `DN_PROGRESS=ndjson`    | Write one event per JSON line to stderr (local / device runners).      |
 | `DN_PROGRESS=http`      | POST events to `DN_PROGRESS_URL` using `DN_PROGRESS_TOKEN`.            |
 | `DN_PROGRESS_URL`       | Denoise progress ingest URL for HTTP mode.                             |
 | `DN_PROGRESS_TOKEN`     | Bearer token for HTTP mode; never included in events or logs.          |
@@ -151,6 +168,10 @@ so their `agent.line` events are flushed after the sandbox command completes.
 
 HTTP delivery is best-effort: a failed request logs one safe diagnostic and does
 not fail the kickstart workflow.
+
+Do **not** mint a shared `DN_PROGRESS_TOKEN` repository secret for every target
+repo. Per-invocation tokens are issued by denoise and delivered through the
+runner bootstrap (managed env or Actions `client_payload.progress`).
 
 ## Daily Kickstart
 
