@@ -24,3 +24,13 @@ jobs:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           NO_COLOR: "1"
+
+      - name: Commit plan to repository
+        if: ${{ ! github.event.client_payload.validate_only }}
+        shell: bash
+        run: |
+          if [ -n "$(git status --porcelain plans/)" ]; then
+            git add plans/
+            git commit -m "meld: plan from ${{ github.event.action }} (${{ github.event.client_payload.dispatch_id }})"
+            git push
+          fi
