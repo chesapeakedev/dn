@@ -227,10 +227,9 @@ client posts `source` on `POST /api/github/dispatch`:
 
 Preflight availability is exposed at `GET /api/kickstart/runtimes?owner=&repo=`.
 Hosted denoise keeps Docker unavailable (use `dn kickstart --sandbox docker`
-locally). Denoise does **not** run kickstart on the application host.
-Secrets for managed runners stay on the denoise server
-(`CURSOR_API_KEY`, `EXE_TOKEN`, `KICKSTART_PROGRESS_BASE_URL`,
-`KICKSTART_RUNNER_WORKSPACE_ROOT`).
+locally). Denoise does **not** run kickstart on the application host. Secrets
+for managed runners stay on the denoise server (`CURSOR_API_KEY`, `EXE_TOKEN`,
+`KICKSTART_PROGRESS_BASE_URL`, `KICKSTART_RUNNER_WORKSPACE_ROOT`).
 
 `device_runner` is an instance runtime. Dispatch requests include `runner_id`
 alongside `source`; the server must verify that the signed-in owner owns the
