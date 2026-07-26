@@ -33,6 +33,8 @@ Deno.test("canonical workflows delegate runtime setup to one action step", async
     );
     if (template.id === "dn.meld_issue_plan") {
       assertStringIncludes(content, "workflow: ${{ github.event.action }}");
+      // Bridge for older dn binaries that require DN_YES for GitHub issue targets.
+      assertStringIncludes(content, 'DN_YES: "1"');
     } else {
       assertStringIncludes(content, `workflow: ${template.id}`);
     }

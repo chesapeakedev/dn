@@ -44,7 +44,7 @@
       "version": "4.1.0",
       "source_path": "templates/workflows/dn-meld-issue-plan.yml",
       "install_path": ".github/workflows/dn-prep-issue-plan.yml",
-      "checksum": "sha256:5aed68c49d6ef09cbf148c981ccdc1343628b6d35c9d2a4f3e5fef59369d1537",
+      "checksum": "sha256:a83193195a2bdb06fdc64309d6ccaaf100ea5aa48c257ea35d359437b78d59c2",
       "latest_version": "4.1.0",
       "deprecated": false,
       "deprecation_message": null,

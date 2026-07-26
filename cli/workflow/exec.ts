@@ -498,7 +498,8 @@ export function resolveWorkflowArguments(
     workflowId === "dn.meld_issue_plan" ||
     workflowId === "dn.prep_issue_plan"
   ) {
-    const args = [...prefix, "meld"];
+    // Actions is always unattended; GitHub issue targets require --yes / DN_YES.
+    const args = [...prefix, "meld", "--yes"];
     if (payload.plan_name !== undefined && payload.plan_name !== "") {
       args.push(
         "--plan-name",

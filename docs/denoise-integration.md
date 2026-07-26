@@ -74,6 +74,11 @@ routes it through `dn meld`. New integrations should dispatch
 until the Denoise UI migration tracked in
 [chesapeake#399](https://github.com/chesapeakedev/chesapeake/issues/399).
 
+Actions runs are unattended, so GitHub issue targets need approval. Canonical
+`workflows exec` maps this dispatch to `dn meld --yes …`. The installed workflow
+also sets `DN_YES: "1"` so older dn binaries still approve the write before that
+mapping ships via dn-action.
+
 ### `dn.kickstart_issue`
 
 Required fields:

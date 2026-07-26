@@ -141,6 +141,7 @@ Deno.test("resolveWorkflowArguments maps meld planning payload", () => {
       "--agent",
       "codex",
       "meld",
+      "--yes",
       "--plan-name",
       "widgets",
       "--target",
@@ -169,6 +170,7 @@ Deno.test("resolveWorkflowArguments keeps legacy prep dispatch compatible", () =
       "--agent",
       "opencode",
       "meld",
+      "--yes",
       "--target",
       "github:issue:42",
       "42",
@@ -195,12 +197,35 @@ Deno.test("canonical meld mapping accepts the legacy prep event action", () => {
       "--agent",
       "opencode",
       "meld",
+      "--yes",
       "--target",
       "github:issue:42",
       "42",
     ],
   );
 });
+
+Deno.test(
+  "resolveWorkflowArguments auto-approves unattended GitHub meld targets",
+  () => {
+    const args = resolveWorkflowArguments(
+      "dn.meld_issue_plan",
+      "repository_dispatch",
+      {
+        action: "dn.meld_issue_plan",
+        client_payload: {
+          schema_version: "1.0",
+          dispatch_id: "dispatch-unattended-yes",
+          issue_number: 7,
+        },
+      },
+      "cursor",
+    );
+    assertEquals(args.includes("--yes"), true);
+    assertEquals(args.includes("--target"), true);
+    assertEquals(args[args.indexOf("--target") + 1], "github:issue:7");
+  },
+);
 
 Deno.test("resolveWorkflowArguments rejects canonical direct publishing", () => {
   assertThrows(
