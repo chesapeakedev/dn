@@ -1,6 +1,7 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
+import { dirname } from "@std/path";
 import type { AgentHarness } from "../github/agentHarness.ts";
 import { getRunAgent } from "../github/agentHarness.ts";
 import {
@@ -13,6 +14,10 @@ import { translateHostPathToSandbox } from "./paths.ts";
 import type { ExecResult } from "./types.ts";
 
 let defaultReporter: ProgressReporter | undefined;
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", `'\"'\"'`)}'`;
+}
 
 function getDefaultReporter(): ProgressReporter {
   defaultReporter ??= createProgressReporter();
@@ -99,10 +104,42 @@ export async function runAgentPhaseInSandbox(
     sandboxPromptPath,
   );
 
-  const result = await ctx.runner.exec(ctx.handle, argv, {
-    cwd: sandboxCwd,
-    env: execEnv,
-  });
+  if (ctx.provider === "exe.dev") {
+    await ctx.runner.syncIn(ctx.handle);
+    const prompt = await Deno.readFile(combinedPromptPath);
+    const encodedPrompt = prompt.toBase64();
+    const uploadResult = await ctx.runner.exec(
+      ctx.handle,
+      [
+        "sh",
+        "-c",
+        `mkdir -p ${shellQuote(dirname(sandboxPromptPath))} && ` +
+        `printf %s ${shellQuote(encodedPrompt)} | base64 -d > ${
+          shellQuote(sandboxPromptPath)
+        }`,
+      ],
+      { cwd: sandboxWorkspace },
+    );
+    if (uploadResult.code !== 0) {
+      throw new Error(
+        `Failed to upload the agent prompt to exe.dev: ${
+          uploadResult.stderr.trim() || uploadResult.stdout.trim()
+        }`,
+      );
+    }
+  }
+
+  let result: ExecResult;
+  try {
+    result = await ctx.runner.exec(ctx.handle, argv, {
+      cwd: sandboxCwd,
+      env: execEnv,
+    });
+  } finally {
+    if (ctx.provider === "exe.dev") {
+      await ctx.runner.syncOut(ctx.handle);
+    }
+  }
   await Promise.all([
     streamAgentOutput(new Blob([result.stdout]).stream(), activeReporter, {
       phase,

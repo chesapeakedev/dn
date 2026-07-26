@@ -458,7 +458,7 @@ export async function handleMeld(
         } else {
           console.log(`\n${result.planFilePath}`);
         }
-        Deno.exit(0);
+        return;
       },
     );
   } catch (error) {

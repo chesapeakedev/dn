@@ -49,10 +49,11 @@ The host `dn` process:
 1. Parses the sandbox config from `.github/dn/config.json`
 2. Provisions infrastructure (Docker container or exe.dev VM)
 3. Syncs the workspace into the sandbox (`syncIn` — no-op for Docker bind
-   mounts; git-push-temp-branch for exe.dev)
+   mounts; topic-branch checkpoints for exe.dev)
 4. Routes agent harness execution (plan, implement, merge) through
    `SandboxRunner.exec` so the agent runs **inside** the sandbox
-5. Syncs changes back (`syncOut`)
+5. Syncs exe.dev changes back after each agent phase, before host validation and
+   PR publishing
 6. Tears down infrastructure (container / VM)
 
 The inner agent run receives `DN_SANDBOX_PROVIDER=none` and `DN_IN_SANDBOX=1`
@@ -176,10 +177,13 @@ Host-side git push/pull uses your local credentials, not `EXE_TOKEN`.
 - Control plane: `POST https://exe.dev/exec` with
   `Authorization: Bearer $EXE_TOKEN`
 - HTTPS API timeout is 30s; long-running commands use SSH exec via the API
-- Workspace sync uses git: the host pushes the current branch to a temp branch
-  on `origin`, the VM clones/pulls that branch, and after agent phases the VM
-  pushes back. Requires the repo to have a remote configured and the VM to have
-  GitHub SSH access (via the `github` integration).
+- Workspace sync uses git and requires `--publish pr`: the host checkpoints the
+  issue topic branch on `origin`, the VM clones or refreshes that branch, and
+  the VM pushes each agent phase before its diff is applied to the host.
+  Host-side validation then runs against those changes and creates or updates
+  the PR through the normal kickstart publisher. Failed runs retain the remote
+  topic branch for recovery. This requires a configured remote and GitHub SSH
+  access in the VM (via the `github` integration).
 - `sandbox.sync.exclude` patterns are applied during git sync (pathspec excludes
   for `node_modules`, `.git`, etc.)
 - Optional LLM gateway inside VMs: `http://169.254.169.254/gateway/`

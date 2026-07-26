@@ -93,6 +93,7 @@ export function parseKickstartArgs(
 ): KickstartCliConfig {
   let input: string | null = null;
   let publish: PublishMode = "none";
+  let publishSpecified = false;
   let cursorFlag = false;
   let claudeFlag = false;
   let codexFlag = false;
@@ -115,8 +116,10 @@ export function parseKickstartArgs(
     const arg = flagArgs[i];
     if (arg === "--awp") {
       publish = "pr";
+      publishSpecified = true;
     } else if (arg === "--publish" && i + 1 < args.length) {
       publish = parsePublishMode(args[++i]);
+      publishSpecified = true;
     } else if (arg === "--cursor" || arg === "-c") {
       cursorFlag = true;
     } else if (arg === "--cursor-cloud") {
@@ -180,6 +183,14 @@ export function parseKickstartArgs(
   }
   if (cursorCloudRefSpecified && !cursorCloud) {
     throw new Error("--ref requires --cursor-cloud.");
+  }
+  if (cursorCloud) {
+    if (publishSpecified && publish !== "pr") {
+      throw new Error(
+        "--cursor-cloud requires --publish pr; none and direct are available only for local CLI execution.",
+      );
+    }
+    publish = "pr";
   }
 
   const saveCtx = Deno.env.get("SAVE_CTX") === "1";
@@ -294,6 +305,11 @@ function showHelp(): void {
 async function dispatchCursorCloudKickstart(
   config: KickstartCliConfig,
 ): Promise<void> {
+  if (config.publish !== "pr") {
+    throw new Error(
+      "--cursor-cloud requires --publish pr; none and direct are available only for local CLI execution.",
+    );
+  }
   requireCursorApiKey();
   const issueRepositoryUrl = cursorCloudRepositoryUrlFromIssue(
     config.issueUrl,
@@ -595,6 +611,14 @@ export async function handleKickstart(
       repoRoot,
       config.sandboxFlag,
     );
+    if (
+      provider === "exe.dev" &&
+      (config.publish !== "pr" || config.issueUrl === null)
+    ) {
+      throw new Error(
+        "exe.dev sandbox kickstart runs require a GitHub issue and --publish pr so remote work is persisted on a topic branch.",
+      );
+    }
     const currentRef = config.issueUrl ?? config.contextMarkdownPath;
     const stackPathForRun = config.milestoneStackMarkdownPath;
     let originalStackContent: string | undefined;

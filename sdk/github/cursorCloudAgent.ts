@@ -139,7 +139,7 @@ ${context}`;
 
 /** Builds the durable implementation prompt for an existing dn plan. */
 export function buildCursorCloudLoopPrompt(plan: string): string {
-  return `You are running the implementation phase of a dn loop task in a durable Cursor Cloud Agent. Work directly in the cloned repository. Review the plan, implement it completely, update tests and documentation as needed, run the repository's required checks, and review the final diff against the plan.
+  return `You are running the implementation phase of a dn loop task in a durable Cursor Cloud Agent. Work directly in the cloned repository. Review the plan, implement it completely, update tests and documentation as needed, run the repository's required checks, review the final diff against the plan, and create a pull request with the completed work.
 
 Plan:
 
@@ -201,6 +201,11 @@ async function createCursorCloudRun(
   sdk?: CursorCloudSdk,
 ): Promise<{ agent: CursorCloudAgent; run: CursorCloudRun }> {
   const apiKey = requireCursorApiKey(options.apiKey);
+  if (!options.autoCreatePr) {
+    throw new Error(
+      "Cursor Cloud runs require PR publishing; non-PR cloud work is not durable in GitHub.",
+    );
+  }
   const resolvedSdk = sdk ?? await loadCursorCloudSdk();
   const agent = await resolvedSdk.create({
     apiKey,
@@ -306,28 +311,31 @@ export async function runCursorCloudAgentTracked(
     });
 
     if (result.status === "finished") {
-      if (prUrl) {
-        await reporter.report({
-          type: "publish.completed",
-          phase: "publish",
-          message: "Cursor Cloud Agent published a pull request",
-          data: { pr_url: prUrl },
-        });
+      if (!prUrl) {
+        throw new Error(
+          "Cursor Cloud Agent finished without a pull request URL; verify automatic PR creation and repository permissions.",
+        );
       }
+      await reporter.report({
+        type: "publish.completed",
+        phase: "publish",
+        message: "Cursor Cloud Agent published a pull request",
+        data: { pr_url: prUrl },
+      });
       await reporter.report({
         type: "invocation.succeeded",
         message: "Cursor Cloud Agent kickstart succeeded",
         data: {
           agent_id: run.agentId,
           run_id: run.id,
-          ...(prUrl === undefined ? {} : { pr_url: prUrl }),
+          pr_url: prUrl,
         },
       });
       return {
         ...dispatch,
         waited: true,
         status: result.status,
-        ...(prUrl === undefined ? {} : { prUrl }),
+        prUrl,
       };
     }
 

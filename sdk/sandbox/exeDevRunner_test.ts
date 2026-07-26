@@ -101,7 +101,7 @@ Deno.test({
 
 Deno.test({
   name: "ExeDevRunner.syncIn honors sync.exclude and repo root",
-  permissions: { env: true },
+  permissions: { env: true, read: true, write: true },
 }, async () => {
   const commands: Array<{ argv: string[]; cwd?: string }> = [];
   const commandRunner: CommandRunner = {
@@ -116,6 +116,9 @@ Deno.test({
           stdout: "git@github.com:owner/repo.git\n",
           stderr: "",
         });
+      }
+      if (argv.join(" ") === "git rev-parse HEAD") {
+        return Promise.resolve({ code: 0, stdout: "base-sha\n", stderr: "" });
       }
       return Promise.resolve({ code: 0, stdout: "", stderr: "" });
     },
@@ -158,8 +161,16 @@ Deno.test({
       ],
       cwd: "/repo",
     });
+    assertEquals(commands[3].argv, [
+      "git",
+      "push",
+      "--force-with-lease",
+      "-u",
+      "origin",
+      "HEAD:feature",
+    ]);
     assertStringIncludes(httpCalls.at(-1) ?? "", "git clone");
-    assertStringIncludes(httpCalls.at(-1) ?? "", "--branch sandbox-sync-");
+    assertStringIncludes(httpCalls.at(-1) ?? "", "--branch 'feature'");
   } finally {
     Deno.env.delete("EXE_TOKEN");
   }
@@ -167,7 +178,7 @@ Deno.test({
 
 Deno.test({
   name: "ExeDevRunner.syncOut honors sync.exclude in remote git add",
-  permissions: { env: true },
+  permissions: { env: true, read: true, write: true },
 }, async () => {
   const commandRunner: CommandRunner = {
     run(argv) {
@@ -180,6 +191,9 @@ Deno.test({
           stdout: "git@github.com:owner/repo.git\n",
           stderr: "",
         });
+      }
+      if (argv.join(" ") === "git rev-parse HEAD") {
+        return Promise.resolve({ code: 0, stdout: "base-sha\n", stderr: "" });
       }
       return Promise.resolve({ code: 0, stdout: "", stderr: "" });
     },
@@ -206,11 +220,12 @@ Deno.test({
     await runner.syncOut(handle);
 
     const syncOutCommand = httpCalls.find((command) =>
-      command.includes("sandbox sync out")
+      command.includes("synchronize sandbox output")
     ) ?? "";
     assertStringIncludes(syncOutCommand, "git add -A -- .");
     assertStringIncludes(syncOutCommand, "':(exclude)node_modules'");
     assertStringIncludes(syncOutCommand, `':(exclude)it'"'"'s-temp'`);
+    assertStringIncludes(syncOutCommand, "git push origin HEAD:'feature'");
   } finally {
     Deno.env.delete("EXE_TOKEN");
   }

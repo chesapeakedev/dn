@@ -88,9 +88,31 @@ function buildRemoteShellCommand(
 }
 
 interface SyncState {
-  tempBranch: string;
-  originalBranch: string;
+  branch: string;
+  baseCommit: string;
   exclude: string[];
+}
+
+function assertCommandSucceeded(
+  result: ExecResult,
+  description: string,
+): void {
+  if (result.code !== 0) {
+    throw new Error(
+      `${description} failed: ${result.stderr.trim() || result.stdout.trim()}`,
+    );
+  }
+}
+
+function assertExeRequestSucceeded(
+  response: { status: number; body: string },
+  description: string,
+): void {
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(
+      `${description} failed (${response.status}): ${response.body}`,
+    );
+  }
 }
 
 /** Provisions ephemeral VMs on exe.dev. */
@@ -199,7 +221,6 @@ export class ExeDevRunner implements SandboxRunner {
     }
 
     const exclude = this.syncExclude.get(handle.id) ?? [];
-    const tempBranch = `sandbox-sync-${crypto.randomUUID().slice(0, 12)}`;
     const gitDir = this.repoRoots.get(handle.id) ?? Deno.cwd();
     const currentBranchResult = await this.commandRunner.run([
       "git",
@@ -207,54 +228,88 @@ export class ExeDevRunner implements SandboxRunner {
       "--abbrev-ref",
       "HEAD",
     ], { cwd: gitDir });
-    const originalBranch = currentBranchResult.stdout.trim() || "main";
-    this.syncState.set(handle.id, { tempBranch, originalBranch, exclude });
+    assertCommandSucceeded(
+      currentBranchResult,
+      "Resolving the sandbox topic branch",
+    );
+    const branch = currentBranchResult.stdout.trim();
+    if (!branch || branch === "HEAD") {
+      throw new Error(
+        "exe.dev sandbox publishing requires a checked-out topic branch",
+      );
+    }
 
-    await this.commandRunner.run(buildGitAddArgv(exclude), { cwd: gitDir });
-    await this.commandRunner.run(
+    const addResult = await this.commandRunner.run(buildGitAddArgv(exclude), {
+      cwd: gitDir,
+    });
+    assertCommandSucceeded(addResult, "Staging the sandbox input");
+    const commitResult = await this.commandRunner.run(
       [
         "git",
         "commit",
         "--allow-empty",
         "-m",
-        `sandbox sync ${tempBranch}`,
+        "dn: synchronize sandbox input",
       ],
       { cwd: gitDir },
     );
-    await this.commandRunner.run(
-      ["git", "branch", "-D", tempBranch],
+    assertCommandSucceeded(commitResult, "Committing the sandbox input");
+    const pushResult = await this.commandRunner.run(
+      [
+        "git",
+        "push",
+        "--force-with-lease",
+        "-u",
+        "origin",
+        `HEAD:${branch}`,
+      ],
       { cwd: gitDir },
     );
-    await this.commandRunner.run(
-      ["git", "checkout", "-b", tempBranch],
+    assertCommandSucceeded(pushResult, `Pushing sandbox branch ${branch}`);
+    const baseCommitResult = await this.commandRunner.run(
+      ["git", "rev-parse", "HEAD"],
       { cwd: gitDir },
     );
-    await this.commandRunner.run(
-      ["git", "push", "--force", "origin", tempBranch],
-      { cwd: gitDir },
+    assertCommandSucceeded(
+      baseCommitResult,
+      "Resolving the sandbox input commit",
     );
-    await this.commandRunner.run(
-      ["git", "checkout", originalBranch],
-      { cwd: gitDir },
-    );
+    const baseCommit = baseCommitResult.stdout.trim();
+    this.syncState.set(handle.id, { branch, baseCommit, exclude });
 
     const remoteResult = await this.commandRunner.run(
       ["git", "remote", "get-url", "origin"],
       { cwd: gitDir },
     );
+    assertCommandSucceeded(remoteResult, "Resolving the GitHub remote");
     const remoteUrl = remoteResult.stdout.trim();
 
     const token = requireExeToken();
-    const vmCloneCmd = [
-      "ssh",
-      handle.id,
-      "--",
-      `git clone ${remoteUrl} ${handle.workspace} --branch ${tempBranch}`,
-    ].join(" ");
-    await this.http.exec(token, vmCloneCmd);
+    const refreshWorkspace =
+      `if [ -d ${shellQuote(`${handle.workspace}/.git`)} ]; then ` +
+      `git -C ${shellQuote(handle.workspace)} fetch origin ${
+        shellQuote(branch)
+      } && ` +
+      `git -C ${shellQuote(handle.workspace)} checkout -B ${
+        shellQuote(branch)
+      } ${shellQuote(`origin/${branch}`)} && ` +
+      `git -C ${shellQuote(handle.workspace)} clean -fdx; else ` +
+      `git clone ${shellQuote(remoteUrl)} ${
+        shellQuote(handle.workspace)
+      } --branch ${shellQuote(branch)}; fi`;
+    const response = await this.http.exec(
+      token,
+      [
+        "ssh",
+        handle.id,
+        "--",
+        refreshWorkspace,
+      ].join(" "),
+    );
+    assertExeRequestSucceeded(response, "Refreshing the exe.dev workspace");
 
     console.log(
-      `Synced workspace into exe.dev VM ${handle.id} via branch ${tempBranch}`,
+      `Synced branch ${branch} into exe.dev VM ${handle.id}`,
     );
   }
 
@@ -268,7 +323,7 @@ export class ExeDevRunner implements SandboxRunner {
       return;
     }
 
-    const { tempBranch, originalBranch, exclude } = state;
+    const { branch, baseCommit, exclude } = state;
     const token = requireExeToken();
     const vmPushCmd = [
       "ssh",
@@ -281,33 +336,52 @@ export class ExeDevRunner implements SandboxRunner {
             exclude.map((p) => shellQuote(`:(exclude)${p}`)).join(" ")
           }`
           : "git add -A",
-        `git commit --allow-empty -m "sandbox sync out"`,
-        `git push origin ${tempBranch}`,
+        `git commit --allow-empty -m "dn: synchronize sandbox output"`,
+        `git push origin HEAD:${shellQuote(branch)}`,
       ].join(" && "),
     ].join(" ");
-    await this.http.exec(token, vmPushCmd);
+    const response = await this.http.exec(token, vmPushCmd);
+    assertExeRequestSucceeded(response, "Publishing the exe.dev workspace");
 
     const gitDir = this.repoRoots.get(handle.id) ?? Deno.cwd();
-    await this.commandRunner.run(
-      ["git", "fetch", "origin", tempBranch],
+    const fetchResult = await this.commandRunner.run(
+      ["git", "fetch", "origin", branch],
       { cwd: gitDir },
     );
-    await this.commandRunner.run(
-      ["git", "checkout", originalBranch],
-      { cwd: gitDir },
-    );
-    await this.commandRunner.run(
-      ["git", "merge", `origin/${tempBranch}`],
-      { cwd: gitDir },
-    );
-    await this.commandRunner.run(
-      ["git", "push", "origin", "--delete", tempBranch],
-      { cwd: gitDir },
-    );
+    assertCommandSucceeded(fetchResult, `Fetching sandbox branch ${branch}`);
 
-    this.syncState.delete(handle.id);
+    const patchPath = await Deno.makeTempFile({
+      prefix: "dn-sandbox-",
+      suffix: ".patch",
+    });
+    try {
+      const diffResult = await this.commandRunner.run(
+        [
+          "git",
+          "diff",
+          "--binary",
+          baseCommit,
+          `origin/${branch}`,
+          "--output",
+          patchPath,
+        ],
+        { cwd: gitDir },
+      );
+      assertCommandSucceeded(diffResult, "Preparing the sandbox output patch");
+      const patch = await Deno.readTextFile(patchPath);
+      if (patch.trim()) {
+        const applyResult = await this.commandRunner.run(
+          ["git", "apply", patchPath],
+          { cwd: gitDir },
+        );
+        assertCommandSucceeded(applyResult, "Applying the sandbox output");
+      }
+    } finally {
+      await Deno.remove(patchPath);
+    }
+
     console.log(
-      `Synced workspace from exe.dev VM ${handle.id}; temp branch ${tempBranch} deleted`,
+      `Synced exe.dev VM ${handle.id} changes from branch ${branch}`,
     );
   }
 

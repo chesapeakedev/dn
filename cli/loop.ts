@@ -453,7 +453,7 @@ async function dispatchCursorCloudLoop(
   const result = await runCursorCloudAgentTracked({
     prompt: buildCursorCloudLoopPrompt(plan),
     repository: { url: repositoryUrl, startingRef },
-    autoCreatePr: false,
+    autoCreatePr: true,
   });
   if (result.waited) {
     const prSuffix = result.prUrl ? ` PR: ${result.prUrl}` : "";
@@ -588,7 +588,7 @@ export async function handleLoop(
             await Deno.stat(config.planFilePath);
           } catch {
             console.error(`Error: Plan file not found: ${config.planFilePath}`);
-            Deno.exit(1);
+            throw new Error(`Plan file not found: ${config.planFilePath}`);
           }
           effectivePlanFilePath = config.planFilePath;
           ({ issueData } = await extractIssueContextFromPlan(
@@ -651,7 +651,7 @@ export async function handleLoop(
           );
         }
 
-        Deno.exit(0);
+        return;
       },
     );
   } catch (error) {

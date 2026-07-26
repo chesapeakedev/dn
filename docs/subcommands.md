@@ -144,8 +144,9 @@ confirmation. Pass `--yes` only after reviewing the checkout. Repository paths
 remain in the local configuration and never enter runner API payloads.
 
 `kickstart` accepts a full GitHub issue URL or a number resolved from the
-current checkout. It defaults to `--publish pr`; `none` and `direct` are also
-supported. `--wait` polls until the job reaches a terminal state.
+current checkout. Device jobs always use `--publish pr`; `none` and `direct`
+remain available only through the local `dn kickstart` command. `--wait` polls
+until the job reaches a terminal state.
 
 `status`, `jobs`, `doctor`, `pause`, `resume`, `rotate`, `unregister`, and
 `disconnect` support stable JSON output. See

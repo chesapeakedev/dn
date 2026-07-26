@@ -41,15 +41,30 @@ Deno.test("loop parses an explicit Cursor cloud starting ref", () => {
 });
 
 Deno.test("Cursor cloud CLI defaults the starting ref to main", () => {
-  assertEquals(
-    parseKickstartArgs(["--cursor-cloud", "task.md"]).cursorCloudRef,
-    "main",
-  );
+  const kickstart = parseKickstartArgs(["--cursor-cloud", "task.md"]);
+  assertEquals(kickstart.cursorCloudRef, "main");
+  assertEquals(kickstart.publish, "pr");
   assertEquals(
     parseLoopArgs(["--cursor-cloud", "plan.md"]).cursorCloudRef,
     "main",
   );
 });
+
+for (const publish of ["none", "direct"]) {
+  Deno.test(`Cursor cloud rejects explicit ${publish} publishing`, () => {
+    assertThrows(
+      () =>
+        parseKickstartArgs([
+          "--cursor-cloud",
+          "--publish",
+          publish,
+          "task.md",
+        ]),
+      Error,
+      "requires --publish pr",
+    );
+  });
+}
 
 Deno.test("Cursor cloud mode rejects a simultaneous local Cursor agent", () => {
   assertThrows(

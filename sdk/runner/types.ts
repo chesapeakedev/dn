@@ -385,8 +385,8 @@ export function validateRunnerJob(
   if (job.operation.type !== "kickstart") {
     throw new Error("Runner protocol v1 only permits kickstart jobs.");
   }
-  if (!["none", "pr", "direct"].includes(job.operation.publish)) {
-    throw new Error("Runner job has an unsupported publish mode.");
+  if (job.operation.publish !== "pr") {
+    throw new Error("Runner jobs require PR publishing.");
   }
   if (
     !["opencode", "cursor", "claude", "codex", "copilot"].includes(

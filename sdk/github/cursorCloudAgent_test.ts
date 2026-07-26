@@ -72,7 +72,27 @@ Deno.test("Cursor cloud prompts preserve kickstart phases and loop plans", () =>
 
   const loopPrompt = buildCursorCloudLoopPrompt("# Existing plan");
   assertStringIncludes(loopPrompt, "implementation phase of a dn loop task");
+  assertStringIncludes(loopPrompt, "create a pull request");
   assertStringIncludes(loopPrompt, "# Existing plan");
+});
+
+Deno.test("startCursorCloudAgent rejects non-PR publishing", async () => {
+  await assertRejects(
+    () =>
+      startCursorCloudAgent({
+        apiKey: "test-key",
+        prompt: "Implement issue #12",
+        repository: {
+          url: "https://github.com/example/widgets.git",
+          startingRef: "main",
+        },
+        autoCreatePr: false,
+      }, {
+        create: () => Promise.reject(new Error("SDK must not be called")),
+      }),
+    Error,
+    "require PR publishing",
+  );
 });
 
 Deno.test("startCursorCloudAgent configures the SDK cloud repository", async () => {
@@ -336,7 +356,7 @@ Deno.test("runCursorCloudAgentTracked reports failure for errored cloud runs", a
             url: "https://github.com/example/widgets.git",
             startingRef: "main",
           },
-          autoCreatePr: false,
+          autoCreatePr: true,
         },
         sdk,
         {
@@ -353,4 +373,46 @@ Deno.test("runCursorCloudAgentTracked reports failure for errored cloud runs", a
     events.filter((event) => event.type === "invocation.failed").length,
     1,
   );
+});
+
+Deno.test("runCursorCloudAgentTracked rejects finished runs without a PR", async () => {
+  const sdk: CursorCloudSdk = {
+    create: () =>
+      Promise.resolve({
+        send: () =>
+          Promise.resolve({
+            id: "run-no-pr",
+            agentId: "bc-no-pr",
+            wait: () =>
+              Promise.resolve({
+                id: "run-no-pr",
+                status: "finished" as const,
+              }),
+          }),
+      }),
+  };
+  const { events, reporter } = recordingReporter();
+  await assertRejects(
+    () =>
+      runCursorCloudAgentTracked(
+        {
+          apiKey: "test-key",
+          prompt: "do the work",
+          repository: {
+            url: "https://github.com/example/widgets.git",
+            startingRef: "main",
+          },
+          autoCreatePr: true,
+        },
+        sdk,
+        {
+          DN_DISPATCH_ID: "inv-no-pr",
+          DN_PROGRESS: "ndjson",
+        },
+        reporter,
+      ),
+    Error,
+    "finished without a pull request URL",
+  );
+  assertEquals(events.at(-1)?.type, "invocation.failed");
 });

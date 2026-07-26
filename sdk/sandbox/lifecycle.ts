@@ -12,7 +12,11 @@ import type {
 } from "./types.ts";
 
 /**
- * Provisions a sandbox, syncs workspace in, runs `fn`, syncs out, then tears down.
+ * Provisions a sandbox, runs `fn`, then tears down.
+ *
+ * Bind-mounted providers synchronize at lifecycle boundaries. Git-clone
+ * providers synchronize around each agent phase so host orchestration can
+ * validate and publish remote edits before the lifecycle ends.
  *
  * Agent phase routing reads the sandbox context set here to decide whether to
  * delegate execution to `SandboxRunner.exec` or run on the host.
@@ -50,7 +54,9 @@ export async function runWithSandboxLifecycle<T>(
   );
 
   try {
-    await runner.syncIn(handle);
+    if (options.provider !== "exe.dev") {
+      await runner.syncIn(handle);
+    }
     setCurrentSandboxContext({
       runner,
       handle,
@@ -61,7 +67,9 @@ export async function runWithSandboxLifecycle<T>(
   } finally {
     setCurrentSandboxContext(null);
     try {
-      await runner.syncOut(handle);
+      if (options.provider !== "exe.dev") {
+        await runner.syncOut(handle);
+      }
     } finally {
       await runner.teardown(handle);
     }

@@ -67,8 +67,8 @@ dn runner kickstart 213 --publish pr --json
 ```
 
 Numeric issue references use the current checkout. A full issue URL must match
-an explicitly registered repository. Protocol v1 permits `none`, `pr`, and
-`direct` publish modes and defaults to `pr`.
+an explicitly registered repository. Protocol v1 requires `pr` publishing so a
+successful remote job has a durable GitHub result.
 
 An offline runner can retain a job in the denoise queue for up to 24 hours.
 Denoise does not move that job to paid hosted infrastructure. The outbound

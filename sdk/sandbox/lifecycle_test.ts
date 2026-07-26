@@ -50,6 +50,43 @@ class RecordingRunner implements SandboxRunner {
   }
 }
 
+class ExeDevLifecycleRunner implements SandboxRunner {
+  readonly provider = "exe.dev" as const;
+  readonly calls: string[] = [];
+
+  provision(_ctx: SandboxContext): Promise<SandboxHandle> {
+    this.calls.push("provision");
+    return Promise.resolve({
+      provider: "exe.dev",
+      id: "vm",
+      workspace: "/workspace",
+    });
+  }
+
+  syncIn(_handle: SandboxHandle): Promise<void> {
+    this.calls.push("syncIn");
+    return Promise.resolve();
+  }
+
+  exec(
+    _handle: SandboxHandle,
+    _cmd: string[],
+    _opts?: ExecOptions,
+  ): Promise<ExecResult> {
+    return Promise.resolve({ code: 0, stdout: "", stderr: "" });
+  }
+
+  syncOut(_handle: SandboxHandle): Promise<void> {
+    this.calls.push("syncOut");
+    return Promise.resolve();
+  }
+
+  teardown(_handle: SandboxHandle): Promise<void> {
+    this.calls.push("teardown");
+    return Promise.resolve();
+  }
+}
+
 Deno.test({
   name: "runWithSandboxLifecycle tears down when syncOut fails",
   permissions: { run: true, env: true },
@@ -72,4 +109,18 @@ Deno.test({
   );
 
   assertEquals(runner.calls, ["provision", "syncIn", "syncOut", "teardown"]);
+});
+
+Deno.test("exe.dev lifecycle leaves synchronization to agent phases", async () => {
+  const runner = new ExeDevLifecycleRunner();
+  await runWithSandboxLifecycle(
+    {
+      repoRoot: "/repo",
+      config: { ...DEFAULT_SANDBOX_CONFIG, provider: "exe.dev" },
+      provider: "exe.dev",
+      runner,
+    },
+    () => Promise.resolve("done"),
+  );
+  assertEquals(runner.calls, ["provision", "teardown"]);
 });

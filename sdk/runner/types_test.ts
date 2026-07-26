@@ -82,6 +82,18 @@ Deno.test("validateRunnerJob rejects generic remote execution fields", () => {
   );
 });
 
+for (const publish of ["none", "direct"] as const) {
+  Deno.test(`validateRunnerJob rejects ${publish} publishing`, () => {
+    const job = validJob();
+    job.operation.publish = publish;
+    assertThrows(
+      () => validateRunnerJob(job),
+      Error,
+      "require PR publishing",
+    );
+  });
+}
+
 Deno.test("validateRunnerJob rejects an unsupported protocol version", () => {
   const job = {
     ...validJob(),

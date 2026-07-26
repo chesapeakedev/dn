@@ -425,6 +425,11 @@ async function handleKickstart(args: string[]): Promise<void> {
     else throw new Error(`Unexpected argument: ${argument}`);
   }
   if (!issue) throw new Error("Usage: dn runner kickstart <issue>");
+  if (publish !== "pr") {
+    throw new Error(
+      "Device runner jobs require --publish pr; none and direct are available only for local CLI execution.",
+    );
+  }
   const [{ client, runnerId }, resolved, config] = await Promise.all([
     authenticatedClient(),
     resolveKickstartIssue(issue),
