@@ -45,10 +45,7 @@ Deno.test("parseStackMode accepts supported values", () => {
   assertEquals(parseStackMode("refresh"), "refresh");
 });
 
-Deno.test("resolveInitStackPublishMode rejects pr", () => {
-  assertThrows(
-    () => resolveInitStackPublishMode({ publish: "pr" }),
-    Error,
-    "init stack publish mode must be direct or none",
-  );
+Deno.test("resolveInitStackPublishMode preserves explicit modes", () => {
+  assertEquals(resolveInitStackPublishMode({ publish: "pr" }), "pr");
+  assertEquals(resolveInitStackPublishMode({ publish: "direct" }), "direct");
 });

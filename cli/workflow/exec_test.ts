@@ -2,7 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { assertEquals, assertThrows } from "@std/assert";
-import { renderWorkflowSummary, resolveWorkflowArguments } from "./exec.ts";
+import {
+  openAutomationPullRequestUrl,
+  openKickstartPullRequestUrl,
+  renderWorkflowSummary,
+  resolveWorkflowArguments,
+  todoLoopBranchName,
+} from "./exec.ts";
 
 Deno.test("resolveWorkflowArguments maps init stack payload", () => {
   assertEquals(
@@ -20,7 +26,7 @@ Deno.test("resolveWorkflowArguments maps init stack payload", () => {
       },
       "claude",
     ),
-    ["--agent", "claude", "init", "stack", "42", "--publish", "direct"],
+    ["--agent", "claude", "init", "stack", "42", "--publish", "pr"],
   );
 });
 
@@ -48,7 +54,7 @@ Deno.test("resolveWorkflowArguments maps init stack refresh payload", () => {
       "42",
       "--refresh",
       "--publish",
-      "direct",
+      "pr",
     ],
   );
 });
@@ -91,7 +97,16 @@ Deno.test("resolveWorkflowArguments maps meld planning payload", () => {
       },
       "codex",
     ),
-    ["--agent", "codex", "meld", "--plan-name", "widgets", issue],
+    [
+      "--agent",
+      "codex",
+      "meld",
+      "--plan-name",
+      "widgets",
+      "--target",
+      `github:issue:${issue}`,
+      issue,
+    ],
   );
 });
 
@@ -110,31 +125,66 @@ Deno.test("resolveWorkflowArguments keeps legacy prep dispatch compatible", () =
       },
       "opencode",
     ),
-    ["--agent", "opencode", "meld", "42"],
+    [
+      "--agent",
+      "opencode",
+      "meld",
+      "--target",
+      "github:issue:42",
+      "42",
+    ],
   );
 });
 
-Deno.test("resolveWorkflowArguments maps kickstart publish direct", () => {
+Deno.test("canonical meld mapping accepts the legacy prep event action", () => {
   assertEquals(
     resolveWorkflowArguments(
-      "dn.kickstart_issue",
+      "dn.meld_issue_plan",
       "repository_dispatch",
       {
-        action: "dn.kickstart_issue",
+        action: "dn.prep_issue_plan",
         client_payload: {
           schema_version: "1.0",
-          dispatch_id: "dispatch-2b",
+          dispatch_id: "dispatch-prep-canonical",
           issue_number: 42,
-          publish: "direct",
         },
       },
-      "cursor",
+      "opencode",
     ),
-    ["--agent", "cursor", "kickstart", "--publish", "direct", "42"],
+    [
+      "--agent",
+      "opencode",
+      "meld",
+      "--target",
+      "github:issue:42",
+      "42",
+    ],
   );
 });
 
-Deno.test("resolveWorkflowArguments rejects invalid publish mode", () => {
+Deno.test("resolveWorkflowArguments rejects canonical direct publishing", () => {
+  assertThrows(
+    () =>
+      resolveWorkflowArguments(
+        "dn.kickstart_issue",
+        "repository_dispatch",
+        {
+          action: "dn.kickstart_issue",
+          client_payload: {
+            schema_version: "1.0",
+            dispatch_id: "dispatch-2b",
+            issue_number: 42,
+            publish: "direct",
+          },
+        },
+        "cursor",
+      ),
+    Error,
+    "client_payload.publish must be pr",
+  );
+});
+
+Deno.test("resolveWorkflowArguments rejects canonical none publishing", () => {
   assertThrows(
     () =>
       resolveWorkflowArguments(
@@ -146,13 +196,13 @@ Deno.test("resolveWorkflowArguments rejects invalid publish mode", () => {
             schema_version: "1.0",
             dispatch_id: "dispatch-3",
             issue_number: 42,
-            publish: "invalid",
+            publish: "none",
           },
         },
         "opencode",
       ),
     Error,
-    'Invalid publish mode "invalid"',
+    "client_payload.publish must be pr",
   );
 });
 
@@ -199,6 +249,38 @@ Deno.test("resolveWorkflowArguments uses default todo loop plan path", () => {
       "codex",
     ),
     ["--agent", "codex", "loop", "plans/todo.plan.md"],
+  );
+});
+
+Deno.test("todo loop uses a stable plan-specific automation branch", () => {
+  assertEquals(
+    todoLoopBranchName("plans/Team Queue.plan.md"),
+    "dn/todo-loop-plans-team-queue-plan-md",
+  );
+});
+
+Deno.test("workflow PR matching distinguishes kickstart and recurring branches", () => {
+  const pulls = [
+    {
+      html_url: "https://github.com/acme/widgets/pull/10",
+      head: { ref: "kickstart/issue_42_fix-widget" },
+    },
+    {
+      html_url: "https://github.com/acme/widgets/pull/11",
+      head: { ref: "dn/todo-loop-plans-team-plan-md" },
+    },
+  ];
+  assertEquals(
+    openKickstartPullRequestUrl(pulls, "42"),
+    "https://github.com/acme/widgets/pull/10",
+  );
+  assertEquals(openKickstartPullRequestUrl(pulls, "4"), undefined);
+  assertEquals(
+    openAutomationPullRequestUrl(
+      pulls,
+      "dn/todo-loop-plans-team-plan-md",
+    ),
+    "https://github.com/acme/widgets/pull/11",
   );
 });
 

@@ -40,14 +40,14 @@ that reads `.github/dn/config.json`, validates the event, installs the
 configured agent harness, runs `dn --agent <configured>`, and writes a workflow
 summary. You do not pass `agent` on each dispatch.
 
-For daily kickstart automation, initialize and commit a milestone stack, then
+For daily kickstart automation, initialize a milestone stack PR, merge it, then
 set the repository variable used by scheduled runs:
 
 ```bash
 dn init build --agent claude
-dn init stack 42
+dn init stack 42 --publish pr
 gh variable set DN_DAILY_KICKSTART_MILESTONE --body 42
-# Commit .github/dn/, .github/workflows/, and plans/owner_repo_42.stack.md
+# Commit .github/dn/ and .github/workflows/, then merge the stack PR
 ```
 
 `.github/workflows/dn-daily-kickstart.yml` runs once per day and also supports
@@ -59,8 +59,9 @@ dn --agent <configured> kickstart --awp --milestone <milestone> --once
 ```
 
 `dn init workflows` also installs `.github/workflows/dn-todo-loop.yml`, a daily
-workflow that runs `dn loop plans/todo.plan.md`. The workflow has a manual
-`workflow_dispatch` input for overriding the plan file path.
+workflow that runs `dn loop plans/todo.plan.md`. It uses a stable automation
+branch and opens or advances one recurring PR for that plan. The workflow has a
+manual `workflow_dispatch` input for overriding the plan file path.
 
 See [Denoise integration](denoise-integration.md) for payload schemas,
 permissions, secrets, and versioning details.

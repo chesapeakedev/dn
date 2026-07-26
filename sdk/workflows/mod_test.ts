@@ -27,6 +27,10 @@ Deno.test("canonical workflows delegate runtime setup to one action step", async
   for (const template of manifest.templates) {
     const content = await readWorkflowTemplate(template);
     assertStringIncludes(content, "uses: chesapeakedev/dn-action@v1");
+    assertStringIncludes(
+      content,
+      "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}",
+    );
     if (template.id === "dn.meld_issue_plan") {
       assertStringIncludes(content, "workflow: ${{ github.event.action }}");
     } else {
@@ -34,6 +38,8 @@ Deno.test("canonical workflows delegate runtime setup to one action step", async
     }
     assertFalse(content.includes("actions/checkout"));
     assertFalse(content.includes("install-agent.sh"));
+    assertFalse(content.includes("git push"));
+    assertFalse(content.includes("git commit"));
   }
 });
 

@@ -26,7 +26,10 @@ import {
 } from "../sdk/github/publish.ts";
 import { isCI, isUnattended } from "../sdk/github/output.ts";
 import { confirmDestructiveOverwrite } from "../sdk/github/filePrompt.ts";
-import { commitStackArtifacts } from "../sdk/github/vcs.ts";
+import {
+  commitStackArtifacts,
+  publishStackArtifactsPullRequest,
+} from "../sdk/github/vcs.ts";
 
 /**
  * Parsed CLI flags for `dn init stack`.
@@ -67,7 +70,7 @@ function showHelp(): void {
     "  --overwrite                   Replace the entire stack file (destructive)",
   );
   console.log(
-    "  --publish <direct|none>       Commit and push stack files (default: none locally, direct in CI)",
+    "  --publish <none|pr|direct>    Publish stack files (default: none locally, pr in CI)",
   );
   console.log(
     "  --yes                         Approve destructive overwrite without prompting",
@@ -607,23 +610,33 @@ export async function handleInitStack(
 
   const publishMode = resolveInitStackPublishMode({
     publish: config.publish,
-    defaultMode: isCI() ? "direct" : "none",
+    defaultMode: isCI() ? "pr" : "none",
   });
 
-  if (publishMode === "direct") {
-    const publishResult = await commitStackArtifacts(
-      repoRoot,
-      [markdownPath, jsonPath],
-      `${actionLabel.toLowerCase()} ${owner}/${repo} milestone ${milestone.number} stack`,
-    );
+  if (publishMode !== "none") {
+    const message =
+      `${actionLabel.toLowerCase()} ${owner}/${repo} milestone ${milestone.number} stack`;
+    const publishResult = publishMode === "pr"
+      ? await publishStackArtifactsPullRequest(
+        repoRoot,
+        [markdownPath, jsonPath],
+        message,
+        milestone.number,
+        milestone.title,
+      )
+      : await commitStackArtifacts(
+        repoRoot,
+        [markdownPath, jsonPath],
+        message,
+      );
     await writeGithubActionVcsOutputs({
       ...publishResult,
-      publishMode: "direct",
+      publishMode,
     });
     console.log(
-      `Published stack artifacts to ${publishResult.branchName} (${
-        publishResult.commitSha.slice(0, 7)
-      }).`,
+      `Published stack artifacts to ${
+        publishResult.prUrl ?? publishResult.branchName
+      } (${publishResult.commitSha.slice(0, 7)}).`,
     );
   } else {
     console.log("");

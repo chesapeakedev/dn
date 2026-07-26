@@ -399,8 +399,8 @@ Creates a prioritized task list from a GitHub milestone. The command:
 2. Scores each issue for kickstart readiness (Fibonacci: 1, 2, 3, 5, 8)
 3. Creates `plans/{owner}_{repo}_{milestone-number}.stack.md` with sorted tasks
    (easiest first)
-4. Commits stack artifacts in CI (`--publish direct`) or prints manual commit
-   steps
+4. Opens or advances a stack artifact PR in CI (`--publish pr`) or prints manual
+   commit steps
 
 ```bash
 # Using milestone number
@@ -417,6 +417,9 @@ dn init stack 42 --overwrite --yes
 
 # Commit stack files to the default branch explicitly
 dn init stack 42 --refresh --publish direct
+
+# Open or advance the stable stack artifact PR
+dn init stack 42 --refresh --publish pr
 ```
 
 #### Stack File Format
@@ -525,6 +528,13 @@ Canonical dispatch templates (`dn.init_stack`, `dn.meld_issue_plan`,
 shipped manifest. `dn.daily_kickstart` uses schedule and `workflow_dispatch`.
 Other workflows with `on.workflow_dispatch` use the same path as
 `gh workflow run`.
+
+Canonical Actions dispatches are PR-only. `dn.init_stack` opens or advances a
+stack artifact PR, `dn.meld_issue_plan` updates the source issue body through
+the GitHub API, and `dn.kickstart_issue` rejects `publish: none`,
+`publish: direct`, and `awp: false`. The local `dn init stack` and
+`dn kickstart` commands still accept explicit `none`, `pr`, and `direct`
+publishing modes.
 
 ```bash
 dn workflows dispatch release.yml

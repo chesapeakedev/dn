@@ -90,22 +90,16 @@ export function resolveStackMode(options: {
   return options.defaultMode ?? "create";
 }
 
-/**
- * Resolves init stack publish mode (direct commit to default branch or none).
- */
+/** Resolves init stack publish mode. */
 export function resolveInitStackPublishMode(options: {
   publish?: unknown;
   defaultMode?: PublishMode;
 }): PublishMode {
   if (options.publish !== undefined && options.publish !== null) {
     if (typeof options.publish !== "string") {
-      throw new Error("publish must be a string (direct or none)");
+      throw new Error("publish must be a string (none, pr, or direct)");
     }
-    const mode = parsePublishMode(options.publish);
-    if (mode === "pr") {
-      throw new Error("init stack publish mode must be direct or none, not pr");
-    }
-    return mode;
+    return parsePublishMode(options.publish);
   }
   return options.defaultMode ?? "none";
 }

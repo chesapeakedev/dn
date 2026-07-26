@@ -146,6 +146,39 @@ Deno.test("extractDispatchPayloadError validates issue selector exclusivity", ()
   );
 });
 
+Deno.test("canonical kickstart dispatch accepts only pull request publishing", () => {
+  const template = {
+    ...manifest.templates[1],
+    id: "dn.kickstart_issue",
+    payload: {
+      required: ["schema_version", "dispatch_id"],
+      optional: ["issue_number", "publish", "awp"],
+    },
+  };
+  const base = {
+    schema_version: "1.0",
+    dispatch_id: "abc",
+    issue_number: 1,
+  };
+  assertEquals(extractDispatchPayloadError(template, base), undefined);
+  assertEquals(
+    extractDispatchPayloadError(template, { ...base, publish: "pr" }),
+    undefined,
+  );
+  assertEquals(
+    extractDispatchPayloadError(template, { ...base, publish: "none" }),
+    "client_payload.publish must be pr for canonical Actions dispatches",
+  );
+  assertEquals(
+    extractDispatchPayloadError(template, { ...base, publish: "direct" }),
+    "client_payload.publish must be pr for canonical Actions dispatches",
+  );
+  assertEquals(
+    extractDispatchPayloadError(template, { ...base, awp: false }),
+    "client_payload.awp must be true for canonical Actions dispatches",
+  );
+});
+
 Deno.test("validateDispatchPayload throws on invalid payload", () => {
   let threw = false;
   try {

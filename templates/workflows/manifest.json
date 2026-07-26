@@ -3,16 +3,17 @@
   "templates": [
     {
       "id": "dn.init_stack",
-      "version": "3.0.0",
+      "version": "4.0.0",
       "source_path": "templates/workflows/dn-init-stack.yml",
       "install_path": ".github/workflows/dn-init-stack.yml",
-      "checksum": "sha256:766148f5919399f058644e79eeedf44c20c53f35803dfd87002472a37c0adad9",
-      "latest_version": "3.0.0",
+      "checksum": "sha256:b92ceb35cff5dfc6ec6f99fb1eb163cad154ba09308e6c914524d42a7d6d1fce",
+      "latest_version": "4.0.0",
       "deprecated": false,
       "deprecation_message": null,
       "minimum_dn_version": "0.0.30",
       "permissions": {
         "contents": "write",
+        "pull-requests": "write",
         "issues": "write"
       },
       "required_secrets": [],
@@ -36,20 +37,20 @@
           "validate_only"
         ]
       },
-      "compatibility_notes": "Requires .github/dn/config.json and chesapeakedev/dn-action. Writes and commits plans/{owner}_{repo}_{milestone}.stack.{md,json} when publish defaults to direct in CI. stack_mode refresh preserves completed checklist items; refresh=true maps to refresh, refresh=false maps to create."
+      "compatibility_notes": "Requires .github/dn/config.json and chesapeakedev/dn-action. Opens or advances a stable pull request containing plans/{owner}_{repo}_{milestone}.stack.{md,json}. Canonical Actions dispatches accept only publish=pr. stack_mode refresh preserves completed checklist items; refresh=true maps to refresh, refresh=false maps to create."
     },
     {
       "id": "dn.meld_issue_plan",
-      "version": "3.0.0",
+      "version": "4.0.0",
       "source_path": "templates/workflows/dn-meld-issue-plan.yml",
       "install_path": ".github/workflows/dn-prep-issue-plan.yml",
-      "checksum": "sha256:f92a77cabd58f8b49e0996f775ac0d18898eb5272c09d405096110babdab1a3f",
-      "latest_version": "3.0.0",
+      "checksum": "sha256:5aed68c49d6ef09cbf148c981ccdc1343628b6d35c9d2a4f3e5fef59369d1537",
+      "latest_version": "4.0.0",
       "deprecated": false,
       "deprecation_message": null,
       "minimum_dn_version": "0.0.30",
       "permissions": {
-        "contents": "write",
+        "contents": "read",
         "issues": "write"
       },
       "required_secrets": [],
@@ -68,15 +69,15 @@
         "required": ["schema_version", "dispatch_id"],
         "optional": ["issue_url", "issue_number", "plan_name", "validate_only"]
       },
-      "compatibility_notes": "Requires .github/dn/config.json. Provide exactly one of issue_url or issue_number. The installed workflow also accepts the legacy dn.prep_issue_plan event and temporarily retains the legacy install filename for Denoise compatibility."
+      "compatibility_notes": "Requires .github/dn/config.json. Provide exactly one of issue_url or issue_number. Updates the source issue body through the GitHub API and does not push repository content. The installed workflow also accepts the legacy dn.prep_issue_plan event and temporarily retains the legacy install filename for Denoise compatibility."
     },
     {
       "id": "dn.kickstart_issue",
-      "version": "3.0.0",
+      "version": "4.0.0",
       "source_path": "templates/workflows/dn-kickstart-issue.yml",
       "install_path": ".github/workflows/dn-kickstart-issue.yml",
-      "checksum": "sha256:38853276df492a138f70c34fb7ca25ff415ce530a46ceab9acf9e870cdf44bb0",
-      "latest_version": "3.0.0",
+      "checksum": "sha256:9261107ce037487e35295014d3f0f846bff6550a999180b7f838e7f10881ce61",
+      "latest_version": "4.0.0",
       "deprecated": false,
       "deprecation_message": null,
       "minimum_dn_version": "0.0.30",
@@ -107,15 +108,15 @@
           "validate_only"
         ]
       },
-      "compatibility_notes": "Requires .github/dn/config.json. Provide exactly one of issue_url or issue_number. publish defaults to pr; awp=true|false maps to pr|none for compatibility. publish=direct commits to the default branch without opening a PR."
+      "compatibility_notes": "Requires .github/dn/config.json. Provide exactly one of issue_url or issue_number. Canonical Actions dispatches always publish a pull request: publish may be omitted or set to pr, and awp may be omitted or true. Local CLI invocations continue to support none and direct."
     },
     {
       "id": "dn.daily_kickstart",
-      "version": "3.0.0",
+      "version": "4.0.0",
       "source_path": "templates/workflows/dn-daily-kickstart.yml",
       "install_path": ".github/workflows/dn-daily-kickstart.yml",
-      "checksum": "sha256:eca401d0cea3af30b401f34faf4d5b079b6183d45a0ee1769d13e4b49ca95109",
-      "latest_version": "3.0.0",
+      "checksum": "sha256:87e7eb442d939c4d2ed44e889633079f286306798564fffba6260caffa000c2e",
+      "latest_version": "4.0.0",
       "deprecated": false,
       "deprecation_message": null,
       "minimum_dn_version": "0.0.30",
@@ -142,20 +143,21 @@
         "required": [],
         "optional": ["milestone", "validate_only"]
       },
-      "compatibility_notes": "Requires .github/dn/config.json and a committed plans/{owner}_{repo}_{milestone}.stack.md from dn init stack. Runs dn kickstart --publish pr --milestone <milestone> --once and commits stack progress to the default branch."
+      "compatibility_notes": "Requires .github/dn/config.json and a committed plans/{owner}_{repo}_{milestone}.stack.md from dn init stack. Runs dn kickstart --publish pr --milestone <milestone> --once. The implementation and stack progress are committed to one pull request; a later run skips while that issue's pull request remains open."
     },
     {
       "id": "dn.todo_loop",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "source_path": "templates/workflows/dn-todo-loop.yml",
       "install_path": ".github/workflows/dn-todo-loop.yml",
-      "checksum": "sha256:6c6549a6bbc38b9ebfc8a77b12f892bd5f0fe37815f1c82aec6783822c119634",
-      "latest_version": "1.0.0",
+      "checksum": "sha256:2339dbc08a33f1fc9e401fd50eac9fcba18bd4c0264a9f4dc2bc3f387482a863",
+      "latest_version": "2.0.0",
       "deprecated": false,
       "deprecation_message": null,
       "minimum_dn_version": "0.0.31",
       "permissions": {
         "contents": "write",
+        "pull-requests": "write",
         "issues": "write"
       },
       "required_secrets": [],
@@ -176,7 +178,7 @@
         "required": [],
         "optional": ["plan_file", "validate_only"]
       },
-      "compatibility_notes": "Requires .github/dn/config.json and a plans/todo.plan.md file. Runs dn loop <path> to iterate on the todo list. Schedule defaults to daily at 09:00 UTC."
+      "compatibility_notes": "Requires .github/dn/config.json and a plans/todo.plan.md file. Runs dn loop <path> on a stable automation branch and opens or advances one recurring pull request for that plan. Schedule defaults to daily at 09:00 UTC."
     }
   ]
 }

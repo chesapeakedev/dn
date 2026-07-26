@@ -3,9 +3,12 @@
 
 import { $ } from "$dax";
 import { formatSummary } from "../archive/format.ts";
+import { githubApiUrl } from "./endpoints.ts";
+import { getCurrentRepoFromRemote, getDefaultBranch } from "./github-gql.ts";
 import type { IssueData } from "./issue.ts";
 import { isUnattended } from "./output.ts";
 import type { PublishMode, PublishResult } from "./publish.ts";
+import { resolveGitHubToken } from "./token.ts";
 
 /**
  * Represents the Git/Sapling version control context for branch operations.
@@ -619,7 +622,7 @@ export async function publishChanges(
     if (mode === "direct") {
       await $`git push origin HEAD`;
     } else {
-      await $`git push -u --force-with-lease origin ${gitContext.branchName}`;
+      await $`git push -u --force-with-lease origin HEAD:${gitContext.branchName}`;
     }
   }
 
@@ -672,6 +675,141 @@ export async function commitStackArtifacts(
     paths: relativePaths,
     mode: "direct",
   });
+}
+
+interface GitHubPullRequestSummary {
+  html_url: string;
+}
+
+async function githubPullRequestRequest(
+  path: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  const token = await resolveGitHubToken();
+  return await fetch(githubApiUrl(path), {
+    ...init,
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+      "X-GitHub-Api-Version": "2022-11-28",
+      ...init.headers,
+    },
+  });
+}
+
+async function findOpenPullRequest(
+  owner: string,
+  repo: string,
+  branchName: string,
+): Promise<string | undefined> {
+  const query = new URLSearchParams({
+    state: "open",
+    head: `${owner}:${branchName}`,
+    per_page: "1",
+  });
+  const response = await githubPullRequestRequest(
+    `/repos/${owner}/${repo}/pulls?${query}`,
+  );
+  if (!response.ok) {
+    throw new Error(
+      `Failed to find pull request for ${branchName}: HTTP ${response.status}`,
+    );
+  }
+  const pulls = await response.json() as GitHubPullRequestSummary[];
+  return pulls[0]?.html_url;
+}
+
+async function createAutomationPullRequest(options: {
+  owner: string;
+  repo: string;
+  branchName: string;
+  defaultBranch: string;
+  title: string;
+  body: string;
+}): Promise<string> {
+  const response = await githubPullRequestRequest(
+    `/repos/${options.owner}/${options.repo}/pulls`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        title: options.title,
+        body: options.body,
+        head: options.branchName,
+        base: options.defaultBranch,
+      }),
+    },
+  );
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(
+      `Failed to create pull request for ${options.branchName}: HTTP ${response.status}: ${detail}`,
+    );
+  }
+  const pull = await response.json() as GitHubPullRequestSummary;
+  return pull.html_url;
+}
+
+/**
+ * Publishes milestone stack artifacts to a stable topic branch and opens or
+ * advances the branch's pull request.
+ */
+export async function publishStackArtifactsPullRequest(
+  repoRoot: string,
+  paths: string[],
+  message: string,
+  milestoneNumber: number,
+  milestoneTitle: string,
+): Promise<PublishResult> {
+  const vcsContext = await detectVcs();
+  if (!vcsContext) {
+    throw new Error("Neither sapling (sl) nor git found in PATH");
+  }
+
+  await ensureGitIdentity();
+  const repo = await getCurrentRepoFromRemote();
+  const defaultBranch = await getDefaultBranch(repo.owner, repo.repo);
+  const branchName = `dn/stack-milestone-${milestoneNumber}`;
+  const previousBranch = await getCurrentBranch(vcsContext.vcs);
+
+  if (vcsContext.vcs === "sapling") {
+    await $`sl bookmark -f ${branchName}`;
+  } else {
+    // Establish a force-with-lease expectation when this stable automation
+    // branch already exists, then move the generated changes onto the stable
+    // local topic branch without changing their base commit.
+    const remoteRef =
+      `refs/heads/${branchName}:refs/remotes/origin/${branchName}`;
+    await $`git fetch origin ${remoteRef}`.quiet().noThrow();
+    await $`git checkout -B ${branchName}`;
+  }
+
+  const relativePaths = paths.map((path) =>
+    path.startsWith(repoRoot) ? path.slice(repoRoot.length + 1) : path
+  );
+  const result = await publishChanges(
+    {
+      vcs: vcsContext.vcs,
+      branchName,
+      previousBranch,
+    },
+    { message, paths: relativePaths, mode: "pr" },
+  );
+
+  const existingPr = await findOpenPullRequest(
+    repo.owner,
+    repo.repo,
+    branchName,
+  );
+  const prUrl = existingPr ?? await createAutomationPullRequest({
+    owner: repo.owner,
+    repo: repo.repo,
+    branchName,
+    defaultBranch,
+    title: `Update milestone ${milestoneNumber} stack`,
+    body:
+      `Updates the generated stack artifacts for **${milestoneTitle}** (milestone ${milestoneNumber}).`,
+  });
+  return { ...result, prUrl };
 }
 
 /**

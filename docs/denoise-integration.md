@@ -84,9 +84,12 @@ Required fields:
 
 Optional fields:
 
-- `publish` defaults to `pr` in workflow dispatch (`none`, `pr`, or `direct`)
-- `awp` legacy boolean still maps to `pr`/`none`
+- `publish` may be omitted or set to `pr`
+- `awp` may be omitted or set to `true`
 - `validate_only` validates configuration without running the mapped command
+
+Canonical Actions dispatches reject `none`, `direct`, and `awp: false`. Those
+publish modes remain available for explicit local CLI invocations.
 
 ### `dn.init_stack`
 
@@ -96,7 +99,7 @@ Optional fields:
   or `overwrite`)
 - `refresh` legacy boolean maps to `stack_mode` (`true` → refresh, `false` →
   create)
-- `publish` defaults to `direct` in CI workflow dispatch
+- `publish` may be omitted or set to `pr`
 
 Missing required fields fail the action before running the mapped dn command.
 The CLI validates the same rules before dispatch:
@@ -170,8 +173,13 @@ dn --agent <configured> kickstart --publish pr --milestone <milestone> --once
 ```
 
 It processes the first unchecked item in
-`plans/{owner}_{repo}_{milestone}.stack.md`, marks that item done after a
-successful kickstart, and exits.
+`plans/{owner}_{repo}_{milestone}.stack.md`. The implementation and completed
+stack checkbox are committed to the same PR, so merging the PR advances code and
+queue atomically. If that issue already has an open kickstart PR, later runs
+report its URL and skip duplicate work.
+
+`dn.todo_loop` checks out a stable branch derived from its plan path. Each run
+commits its progress to that branch and opens or advances one recurring PR.
 
 ## Execution Runtime Matrix
 
@@ -267,12 +275,17 @@ contract described in [Kickstart Progress Events](#kickstart-progress-events).
 
 Canonical templates request the minimum permissions needed for their workflow:
 
-- `dn.init_stack`: `contents: write`, `issues: write`
-- `dn.meld_issue_plan`: `contents: write`, `issues: write`
+- `dn.init_stack`: `contents: write`, `pull-requests: write`, `issues: write`
+- `dn.meld_issue_plan`: `contents: read`, `issues: write`
 - `dn.kickstart_issue`: `contents: write`, `pull-requests: write`,
   `issues: write`
 - `dn.daily_kickstart`: `contents: write`, `pull-requests: write`,
   `issues: write`
+- `dn.todo_loop`: `contents: write`, `pull-requests: write`, `issues: write`
+
+`contents: write` permits a workflow to push a topic branch. Opening the
+corresponding PR also requires `pull-requests: write`. Canonical workflows never
+push automation changes directly to the default branch.
 
 Templates pass `GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}` into `dn`. That value
 is **not** a repository secret the user creates: GitHub Actions provides it

@@ -595,6 +595,15 @@ export async function handleKickstart(
       repoRoot,
       config.sandboxFlag,
     );
+    const currentRef = config.issueUrl ?? config.contextMarkdownPath;
+    const stackPathForRun = config.milestoneStackMarkdownPath;
+    let originalStackContent: string | undefined;
+    let stackProgressIncludedInPr = false;
+    if (config.publish === "pr" && stackPathForRun && currentRef) {
+      originalStackContent = await Deno.readTextFile(stackPathForRun);
+      await markMilestoneStackItemDone(stackPathForRun, currentRef);
+      stackProgressIncludedInPr = true;
+    }
     try {
       await runWithSandboxLifecycle(
         { repoRoot, config: sandboxConfig, provider },
@@ -603,6 +612,9 @@ export async function handleKickstart(
         },
       );
     } catch (error) {
+      if (originalStackContent !== undefined && stackPathForRun) {
+        await Deno.writeTextFile(stackPathForRun, originalStackContent);
+      }
       console.error(error instanceof Error ? error.message : String(error));
       Deno.exit(1);
     }
@@ -627,7 +639,11 @@ export async function handleKickstart(
     try {
       if (stackPath) {
         const shouldPublishStack = config.publish !== "none" || isCI();
-        if (shouldPublishStack) {
+        if (stackProgressIncludedInPr) {
+          console.log(
+            "Milestone stack progress is included in the implementation PR.",
+          );
+        } else if (shouldPublishStack) {
           const repoRoot = config.workspaceRoot ?? Deno.cwd();
           const stackResult = await publishStackProgressUpdate(
             repoRoot,

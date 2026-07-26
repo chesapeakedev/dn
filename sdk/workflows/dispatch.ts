@@ -124,6 +124,27 @@ export function extractDispatchPayloadError(
     }
   }
 
+  if (template.id === "dn.kickstart_issue") {
+    if (
+      payload.publish !== undefined &&
+      (typeof payload.publish !== "string" ||
+        payload.publish.trim().toLowerCase() !== "pr")
+    ) {
+      return "client_payload.publish must be pr for canonical Actions dispatches";
+    }
+    if (payload.awp !== undefined && payload.awp !== true) {
+      return "client_payload.awp must be true for canonical Actions dispatches";
+    }
+  }
+
+  if (
+    template.id === "dn.init_stack" && payload.publish !== undefined &&
+    (typeof payload.publish !== "string" ||
+      payload.publish.trim().toLowerCase() !== "pr")
+  ) {
+    return "client_payload.publish must be pr for canonical Actions dispatches";
+  }
+
   return undefined;
 }
 

@@ -18,6 +18,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
   issues: write
 
 jobs:
@@ -30,6 +31,7 @@ jobs:
           workflow: dn.todo_loop
           validate-only: ${{ inputs.validate_only }}
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DN_TODO_PLAN_PATH: ${{ inputs.plan_file || 'plans/todo.plan.md' }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

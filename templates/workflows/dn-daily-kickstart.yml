@@ -30,6 +30,7 @@ jobs:
           workflow: dn.daily_kickstart
           validate-only: ${{ inputs.validate_only }}
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DN_DAILY_KICKSTART_MILESTONE: ${{ vars.DN_DAILY_KICKSTART_MILESTONE }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

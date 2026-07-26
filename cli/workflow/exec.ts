@@ -3,10 +3,16 @@
 
 import { join } from "@std/path";
 import type { AgentHarness } from "../../sdk/github/agentHarness.ts";
+import { githubApiUrl } from "../../sdk/github/endpoints.ts";
+import { getDefaultBranch } from "../../sdk/github/github-gql.ts";
+import { resolveStackMode } from "../../sdk/github/publish.ts";
 import {
-  resolveKickstartPublishMode,
-  resolveStackMode,
-} from "../../sdk/github/publish.ts";
+  getStackArtifactPaths,
+  parseStackTodoItems,
+} from "../../sdk/github/stack.ts";
+import { resolveGitHubToken } from "../../sdk/github/token.ts";
+import { parseFrontmatter } from "../../sdk/todo/frontmatter.ts";
+import { firstUnchecked } from "../../sdk/todo/todo.ts";
 import {
   loadWorkflowManifest,
   readDnWorkflowAgentConfig,
@@ -43,6 +49,185 @@ class WorkflowExecError extends Error implements WorkflowFailure {
   ) {
     super(message);
   }
+}
+
+interface PullRequestRef {
+  html_url: string;
+  head: { ref: string };
+}
+
+/** Returns the open kickstart PR for an issue, when one is already in flight. */
+export function openKickstartPullRequestUrl(
+  pulls: PullRequestRef[],
+  issueNumber: string,
+): string | undefined {
+  const prefix = `kickstart/issue_${issueNumber}_`;
+  return pulls.find((pull) => pull.head.ref.startsWith(prefix))?.html_url;
+}
+
+/** Returns the open PR backed by an exact stable automation branch. */
+export function openAutomationPullRequestUrl(
+  pulls: PullRequestRef[],
+  branchName: string,
+): string | undefined {
+  return pulls.find((pull) => pull.head.ref === branchName)?.html_url;
+}
+
+function sanitizeBranchPart(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(
+    /^-|-$/g,
+    "",
+  ).slice(0, 60) || "plan";
+}
+
+/** Stable topic branch used by the recurring todo workflow. */
+export function todoLoopBranchName(planFile: string): string {
+  return `dn/todo-loop-${sanitizeBranchPart(planFile)}`;
+}
+
+async function runGit(
+  args: string[],
+  options: { allowFailure?: boolean } = {},
+): Promise<Deno.CommandOutput> {
+  const output = await new Deno.Command("git", {
+    args,
+    stdout: "piped",
+    stderr: "piped",
+  }).output();
+  if (!output.success && !options.allowFailure) {
+    const detail = new TextDecoder().decode(output.stderr).trim();
+    throw new WorkflowExecError(
+      "git_failed",
+      `git ${args.join(" ")} failed${detail ? `: ${detail}` : ""}`,
+    );
+  }
+  return output;
+}
+
+async function githubRequest(
+  path: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  const token = await resolveGitHubToken();
+  return await fetch(githubApiUrl(path), {
+    ...init,
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+      "X-GitHub-Api-Version": "2022-11-28",
+      ...init.headers,
+    },
+  });
+}
+
+function githubRepository(): { owner: string; repo: string } {
+  const repository = Deno.env.get("GITHUB_REPOSITORY") ?? "";
+  const [owner, repo, extra] = repository.split("/");
+  if (!owner || !repo || extra) {
+    throw new WorkflowExecError(
+      "repository_missing",
+      "GITHUB_REPOSITORY must contain owner/repo",
+    );
+  }
+  return { owner, repo };
+}
+
+async function listOpenPullRequests(): Promise<PullRequestRef[]> {
+  const { owner, repo } = githubRepository();
+  const response = await githubRequest(
+    `/repos/${owner}/${repo}/pulls?state=open&per_page=100`,
+  );
+  if (!response.ok) {
+    throw new WorkflowExecError(
+      "pull_request_lookup_failed",
+      `Could not list open pull requests: HTTP ${response.status}`,
+    );
+  }
+  return await response.json() as PullRequestRef[];
+}
+
+async function findDailyKickstartPullRequest(
+  workspace: string,
+  milestone: string,
+): Promise<string | undefined> {
+  const { owner, repo } = githubRepository();
+  const milestoneNumber = milestone.match(/(\d+)$/)?.[1];
+  if (!milestoneNumber) return undefined;
+  const stackPath = getStackArtifactPaths(
+    workspace,
+    owner,
+    repo,
+    Number(milestoneNumber),
+  ).markdownPath;
+  let content: string;
+  try {
+    content = await Deno.readTextFile(stackPath);
+  } catch (error) {
+    if (error instanceof Deno.errors.NotFound) return undefined;
+    throw error;
+  }
+  const { body } = parseFrontmatter(content);
+  const next = firstUnchecked({ meta: {}, items: parseStackTodoItems(body) });
+  const issueNumber = next?.ref.match(/(\d+)$/)?.[1];
+  if (!issueNumber) return undefined;
+  return openKickstartPullRequestUrl(
+    await listOpenPullRequests(),
+    issueNumber,
+  );
+}
+
+async function prepareTodoLoopBranch(
+  branchName: string,
+  hasOpenPullRequest: boolean,
+): Promise<void> {
+  if (hasOpenPullRequest) {
+    await runGit(["fetch", "origin", branchName]);
+    await runGit(["checkout", "-B", branchName, `origin/${branchName}`]);
+  } else {
+    await runGit(["checkout", "-B", branchName]);
+  }
+}
+
+async function publishTodoLoopPullRequest(
+  branchName: string,
+  planFile: string,
+  existingPrUrl: string | undefined,
+): Promise<string | undefined> {
+  await runGit(["add", "-A"]);
+  const diff = await runGit(["diff", "--cached", "--quiet"], {
+    allowFailure: true,
+  });
+  if (diff.success) return existingPrUrl;
+  await runGit(["commit", "-m", `dn: advance ${planFile}`]);
+  await runGit([
+    "push",
+    "-u",
+    "--force-with-lease",
+    "origin",
+    `HEAD:${branchName}`,
+  ]);
+  if (existingPrUrl) return existingPrUrl;
+
+  const { owner, repo } = githubRepository();
+  const defaultBranch = await getDefaultBranch(owner, repo);
+  const response = await githubRequest(`/repos/${owner}/${repo}/pulls`, {
+    method: "POST",
+    body: JSON.stringify({
+      title: `Advance ${planFile}`,
+      body:
+        `Recurring dn automation updates for \`${planFile}\`. Later runs advance this pull request until the plan is complete.`,
+      head: branchName,
+      base: defaultBranch,
+    }),
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new WorkflowExecError(
+      "pull_request_create_failed",
+      `Could not create pull request: HTTP ${response.status}: ${detail}`,
+    );
+  }
+  return (await response.json() as PullRequestRef).html_url;
 }
 
 function recordCheck<Result>(
@@ -239,7 +424,11 @@ export function resolveWorkflowArguments(
       `${workflowId} requires repository_dispatch, received ${eventName}`,
     );
   }
-  const payload = validateDispatchEnvelope(event, workflowId);
+  const dispatchType = workflowId === "dn.meld_issue_plan" &&
+      event.action === "dn.prep_issue_plan"
+    ? "dn.prep_issue_plan"
+    : workflowId;
+  const payload = validateDispatchEnvelope(event, dispatchType);
   requireBoolean(payload.validate_only, "client_payload.validate_only", false);
 
   if (workflowId === "dn.init_stack") {
@@ -258,7 +447,17 @@ export function resolveWorkflowArguments(
     } else if (stackMode === "overwrite") {
       args.push("--overwrite", "--yes");
     }
-    args.push("--publish", "direct");
+    if (
+      payload.publish !== undefined &&
+      (typeof payload.publish !== "string" ||
+        payload.publish.trim().toLowerCase() !== "pr")
+    ) {
+      throw new WorkflowExecError(
+        "invalid_payload",
+        "client_payload.publish must be pr for canonical Actions dispatches",
+      );
+    }
+    args.push("--publish", "pr");
     return args;
   }
 
@@ -273,17 +472,29 @@ export function resolveWorkflowArguments(
         requireNonEmptyString(payload.plan_name, "client_payload.plan_name"),
       );
     }
-    args.push(resolveIssue(payload));
+    const issue = resolveIssue(payload);
+    args.push("--target", `github:issue:${issue}`, issue);
     return args;
   }
 
   if (workflowId === "dn.kickstart_issue") {
-    const publish = resolveKickstartPublishMode({
-      publish: payload.publish,
-      awp: payload.awp,
-      defaultMode: "pr",
-    });
-    const args = [...prefix, "kickstart", "--publish", publish];
+    if (
+      payload.publish !== undefined &&
+      (typeof payload.publish !== "string" ||
+        payload.publish.trim().toLowerCase() !== "pr")
+    ) {
+      throw new WorkflowExecError(
+        "invalid_payload",
+        "client_payload.publish must be pr for canonical Actions dispatches",
+      );
+    }
+    if (payload.awp !== undefined && payload.awp !== true) {
+      throw new WorkflowExecError(
+        "invalid_payload",
+        "client_payload.awp must be true for canonical Actions dispatches",
+      );
+    }
+    const args = [...prefix, "kickstart", "--publish", "pr"];
     args.push(resolveIssue(payload));
     return args;
   }
@@ -373,12 +584,15 @@ async function writeActionOutputs(
   status: "passed" | "failed" | "validated",
   phase: string,
   workflowId: string,
+  prUrl?: string,
 ): Promise<void> {
   const path = Deno.env.get("GITHUB_OUTPUT");
   if (!path) return;
   await Deno.writeTextFile(
     path,
-    `status=${status}\nphase=${phase}\nworkflow=${workflowId}\n`,
+    `status=${status}\nphase=${phase}\nworkflow=${workflowId}\n${
+      prUrl ? `pr_url=${prUrl}\n` : ""
+    }`,
     { append: true },
   );
 }
@@ -607,10 +821,76 @@ export async function handleWorkflowExec(args: string[]): Promise<void> {
       return;
     }
 
+    if (template.id === "dn.daily_kickstart") {
+      const milestoneIndex = executionArgs.indexOf("--milestone");
+      const milestone = executionArgs[milestoneIndex + 1] ?? "";
+      const openPrUrl = await findDailyKickstartPullRequest(
+        workspace,
+        milestone,
+      );
+      if (openPrUrl) {
+        checks.push({
+          name: "Open pull request",
+          status: "passed",
+          message:
+            `Skipped duplicate work while the implementation pull request remains open: ${openPrUrl}`,
+        });
+        await writeSummary(renderWorkflowSummary({
+          workflowId,
+          eventName,
+          agent,
+          status: "passed",
+          checks,
+          args: executionArgs,
+        }));
+        await writeActionOutputs(
+          "passed",
+          "awaiting-pull-request",
+          workflowId,
+          openPrUrl,
+        );
+        return;
+      }
+    }
+
+    let todoBranch: string | undefined;
+    let todoPlanFile: string | undefined;
+    let todoPrUrl: string | undefined;
+    if (template.id === "dn.todo_loop") {
+      todoPlanFile = executionArgs.at(-1);
+      if (!todoPlanFile) {
+        throw new WorkflowExecError(
+          "invalid_payload",
+          "dn.todo_loop requires a plan file",
+        );
+      }
+      todoBranch = todoLoopBranchName(todoPlanFile);
+      todoPrUrl = openAutomationPullRequestUrl(
+        await listOpenPullRequests(),
+        todoBranch,
+      );
+      await prepareTodoLoopBranch(todoBranch, todoPrUrl !== undefined);
+    }
+
     phase = "agent-install";
     await installAgent(agent);
     phase = "execution";
     await executeDn(executionArgs);
+    if (todoBranch && todoPlanFile) {
+      phase = "publish";
+      todoPrUrl = await publishTodoLoopPullRequest(
+        todoBranch,
+        todoPlanFile,
+        todoPrUrl,
+      );
+      checks.push({
+        name: "Pull request",
+        status: "passed",
+        message: todoPrUrl
+          ? `Advanced recurring pull request: ${todoPrUrl}`
+          : "No repository changes to publish",
+      });
+    }
     await writeSummary(renderWorkflowSummary({
       workflowId,
       eventName,
@@ -619,7 +899,7 @@ export async function handleWorkflowExec(args: string[]): Promise<void> {
       checks,
       args: executionArgs,
     }));
-    await writeActionOutputs("passed", phase, workflowId);
+    await writeActionOutputs("passed", phase, workflowId, todoPrUrl);
   } catch (error) {
     failure = error instanceof WorkflowExecError
       ? error
