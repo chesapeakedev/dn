@@ -147,7 +147,7 @@ delivery mode:
 | Variable                | Meaning                                                                |
 | ----------------------- | ---------------------------------------------------------------------- |
 | `DN_DISPATCH_ID`        | Required invocation correlation id; supplied from repository dispatch. |
-| `DN_PROGRESS=ndjson`    | Write one event per JSON line to stderr (local / device runners).      |
+| `DN_PROGRESS=ndjson`    | Write one event per JSON line to stderr (device runners).              |
 | `DN_PROGRESS=http`      | POST events to `DN_PROGRESS_URL` using `DN_PROGRESS_TOKEN`.            |
 | `DN_PROGRESS_URL`       | Denoise progress ingest URL for HTTP mode.                             |
 | `DN_PROGRESS_TOKEN`     | Bearer token for HTTP mode; never included in events or logs.          |
@@ -223,19 +223,19 @@ client posts `source` on `POST /api/github/dispatch`:
 | `github_actions` | Default. Existing `repository_dispatch` → `dn.kickstart_issue`.          |
 | `cursor_cloud`   | Managed runner runs `dn kickstart --cursor-cloud` with HTTP progress.    |
 | `cloud_vm`       | Managed runner runs `dn kickstart --sandbox exe.dev` with HTTP progress. |
-| `local`          | Managed runner runs host `dn kickstart` with NDJSON progress.            |
 | `device_runner`  | Named developer device claims a typed kickstart job over outbound HTTPS. |
 
 Preflight availability is exposed at `GET /api/kickstart/runtimes?owner=&repo=`.
 Hosted denoise keeps Docker unavailable (use `dn kickstart --sandbox docker`
-locally). Secrets for managed runners stay on the denoise server
+locally). Denoise does **not** run kickstart on the application host.
+Secrets for managed runners stay on the denoise server
 (`CURSOR_API_KEY`, `EXE_TOKEN`, `KICKSTART_PROGRESS_BASE_URL`,
 `KICKSTART_RUNNER_WORKSPACE_ROOT`).
 
 `device_runner` is an instance runtime. Dispatch requests include `runner_id`
 alongside `source`; the server must verify that the signed-in owner owns the
-runner and has registered the target repository. Preserve `local` for the
-existing server-managed host runtime.
+runner and has registered the target repository. Historical invocations may
+still show `source: "local"` in progress history; new dispatches reject it.
 
 ### Device runner API contract
 
