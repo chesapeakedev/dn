@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/img/logo-concepts/mythic-misfits/sphinx-product-designer-transparent.png" alt="Sphinx product designer wearing noise-blocking headphones" width="420">
+  <img src="docs/img/denoise-logo.png" alt="Denoise logo" width="280">
 </p>
 
 # dn
