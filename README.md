@@ -5,70 +5,22 @@
 # dn
 
 `dn` is a CLI for working systematically alongside agents. It turns issues and
-local specifications into durable plans, routes those plans to your preferred
-agent, and helps carry work from implementation through review. We built Denoise
-because coding got faster, but building software did not.
+local specifications into durable Markdown plans, routes those plans to your
+preferred agent, and carries work from implementation through review. We built
+Denoise because coding got faster, but building software did not.
 
-Use `dn` with OpenCode, Cursor, Claude Code, or Codex CLI. Plans live as
-markdown files in your workspace, so work can move between agents and resume
-across sessions without depending on a conversational interface. Use the CLI to
-add github actions workflows to start transitioning your repo into a software
-factory.
+Use `dn` with OpenCode, Cursor, Claude Code, or Codex CLI. Plans live in your
+repository, so work can move between agents and resume across sessions without
+depending on a chat window.
 
-`dn` is one half of [Denoise](https://denoise.cloud). For in-depth documentation
-on each, check out [our docs site](https://docs.denoise.cloud/introduction/)
+`dn` is one half of [Denoise](https://denoise.cloud). For in-depth
+documentation, see [our docs site](https://docs.denoise.cloud/introduction/).
 
 <p align="center">
   <a href="https://asciinema.org/a/p8XBVFYPl7SQ7TJ0">
     <img src="https://asciinema.org/a/p8XBVFYPl7SQ7TJ0.svg" alt="dn kickstart demo" width="670">
   </a>
 </p>
-
-## Features
-
-- **Agent Assisted SDLC** — Turn a GitHub issue into working code with
-  `dn kickstart`. Generate well-written commits with `dn land` and automate
-  lint, rebase, and publish workflows with `dn sync`
-- **GitHub integration** — Manage issues and run agentic GitHub Actions without
-  leaving the CLI
-- **Durable, agent-agnostic plans** — Turn one issue or several context sources
-  into a durable plan with `dn meld`, then implement it with `dn loop`
-- **Automated PR feedback fixes** — Fetch review comments, build a focused fix
-  plan, and implement the changes with `dn fixup`
-- **Prioritized development queues** — Find and organize the next valuable work
-  with milestone stacks, `dn peek`, `dn todo`, and `dn tidy`
-- **Context synthesis for agents** — Route issues and local documents into
-  focused plans, README content, or agent instructions with `dn meld`
-- **Developer device runners** — Pair a Mac or Linux machine with denoise and
-  run kickstart against its warm checkouts and existing agent logins
-
-## Kickstart a task
-
-`dn kickstart` is the shortest path from a task to an implementation. It asks an
-agent to analyze the repository, writes a named plan under `plans/`, applies the
-changes, and tracks completion in the plan's acceptance criteria.
-
-```bash
-# Implement a GitHub issue in the current workspace
-dn kickstart 123
-
-# Implement a local specification without fetching GitHub context
-dn kickstart docs/spec.md
-
-# Create a branch or bookmark, commit, push, and open a pull request
-dn kickstart --awp https://github.com/owner/repo/issues/123
-```
-
-Plans remain useful after the first run. Resume incomplete work with:
-
-```bash
-dn loop --plan-file plans/feature-name.plan.md
-```
-
-See the
-[`dn kickstart` command reference](docs/subcommands.md#dn-kickstart--full-workflow)
-for publishing modes, cross-repository work, milestone queues, and agent
-selection.
 
 ## Install
 
@@ -115,10 +67,112 @@ make install
 
 Run `dn --help` to explore the available workflows.
 
+## Features
+
+- **Issue to implementation** — Turn a GitHub issue or local spec into working
+  code with `dn kickstart`, optionally opening a pull request
+- **Durable, reviewable plans** — Create plans with `dn meld`, implement with
+  `dn loop`, and close out commits with `dn land`
+- **Goal loops until the gate passes** — Repeat generator/verifier ticks with
+  `dn until` until tests, lint, or another shell gate succeeds
+- **Developer device runners** — Pair a Mac or Linux machine with denoise and
+  run kickstart against warm checkouts and existing agent logins
+- **PR feedback to fixes** — Fetch review comments and implement a focused fix
+  plan with `dn fixup`
+- **Software factory automation** — Install canonical GitHub Actions and run
+  overnight kickstart queues with `dn init workflows` and `dn workflows`
+
+## Choose a path
+
+| Need                             | Workflow                              |
+| -------------------------------- | ------------------------------------- |
+| Issue → plan → PR in one shot    | `dn kickstart --publish pr` / `--awp` |
+| Review the plan before coding    | `dn meld` → `dn loop` → `dn land`     |
+| Keep going until a gate passes   | `dn until`                            |
+| Run Denoise jobs on this machine | `dn runner`                           |
+| Address pull request feedback    | `dn fixup`                            |
+| Overnight / CI agent runs        | `dn init workflows` + `dn workflows`  |
+
+## Kickstart a task
+
+`dn kickstart` is the shortest path from a task to an implementation. It asks an
+agent to analyze the repository, writes a named plan under `plans/`, applies the
+changes, and tracks completion in the plan's acceptance criteria.
+
+```bash
+# Implement a GitHub issue in the current workspace
+dn kickstart 123
+
+# Implement a local specification without fetching GitHub context
+dn kickstart docs/spec.md
+
+# Create a branch or bookmark, commit, push, and open a pull request
+dn kickstart --awp https://github.com/owner/repo/issues/123
+```
+
+See the
+[`dn kickstart` command reference](docs/subcommands.md#dn-kickstart--full-workflow)
+for publishing modes, cross-repository work, milestone queues, and agent
+selection.
+
+## Plan with human checkpoints
+
+When the work is ambiguous or needs consensus on approach, split planning and
+implementation. `dn meld` writes a durable Markdown plan from an issue or local
+sources; `dn loop` implements an existing plan; `dn land` closes completed work
+into VCS commits.
+
+```bash
+dn meld 123
+dn loop --plan-file plans/issue-123.plan.md
+dn land plans/issue-123.plan.md
+```
+
+Plans remain useful after the first run. Resume incomplete work by re-running
+`dn loop` on the same plan file. See
+[`dn meld`](docs/subcommands.md#dn-meld--plan-from-one-or-more-sources),
+[`dn loop`](docs/subcommands.md#dn-loop--loop-phase-only), and
+[`dn land`](docs/subcommands.md#dn-land--close-out-completed-work-into-vcs-commits).
+
+## Loop until the gate passes
+
+`dn loop` is a single implement pass on a plan. Prefer `dn until` for
+goal-shaped work: it repeats a generator/verifier tick until a shell or prompt
+gate passes, within an iteration bound.
+
+```bash
+dn until validate .github/dn/gambit.json
+dn until run .github/dn/gambit.json
+```
+
+A minimal gambit with a script verifier:
+
+```json
+{
+  "iterations": 4,
+  "gambits": [
+    {
+      "name": "raise-coverage",
+      "generator": {
+        "prompt": "Generate or extend tests. Prefer small, focused tests."
+      },
+      "verifier": {
+        "script": "make precommit"
+      }
+    }
+  ]
+}
+```
+
+See the
+[`dn until` command reference](docs/subcommands.md#dn-until--iteration-bounded-generatorverifier-gambits)
+for interval gambits, prompt verifiers, timeouts, and sandbox settings.
+
 ## Use this machine as a denoise runner
 
 Pair an existing macOS or Linux development machine from **Settings > Runners**
-in denoise:
+in denoise so kickstart jobs run against your warm checkouts, agent logins, and
+hardware—without uploading source or credentials.
 
 ```bash
 dn runner connect <code> --install
@@ -127,11 +181,41 @@ dn runner register
 dn runner doctor
 ```
 
-The runner accepts typed kickstart jobs over outbound HTTPS. It uses local
-GitHub and agent authentication; source code, credentials, and checkout paths
-stay on the machine. See the
+The runner accepts typed kickstart jobs over outbound HTTPS. GitHub and agent
+authentication stay local; repository paths never enter API payloads. See the
 [developer device runner guide](docs/device-runners.md) for service management,
 security boundaries, and JSON commands.
+
+## Fix PR feedback
+
+`dn fixup` gathers a pull request's description and review comments, builds a
+focused remediation plan, and implements the changes in your local workspace.
+Changes stay uncommitted for your review.
+
+```bash
+dn fixup https://github.com/owner/repo/pull/123
+```
+
+See the
+[`dn fixup` command reference](docs/subcommands.md#dn-fixup--address-pr-feedback).
+
+## Turn the repo into a software factory
+
+Install canonical `dn` GitHub Actions workflows so planning and kickstart can
+run in CI or on a schedule. Score a milestone into a prioritized stack, then let
+daily kickstart process one ready item at a time.
+
+```bash
+dn init workflows --agent claude
+dn init stack 42
+# Commit .github/dn/, .github/workflows/, and the stack file
+dn workflows dispatch dn.kickstart_issue --repo owner/repo --json '<payload>'
+```
+
+See
+[`dn init workflows`](docs/subcommands.md#dn-init-workflows--install-canonical-workflow-templates),
+[`dn init stack`](docs/subcommands.md#dn-init-stack--initialize-stack-from-github-milestone),
+and [GitHub Actions](docs/github-actions.md).
 
 ## Choose an agent
 
