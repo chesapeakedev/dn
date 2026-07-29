@@ -18,6 +18,12 @@ factory.
 `dn` is one half of [Denoise](https://denoise.cloud). For in-depth documentation
 on each, check out [our docs site](https://docs.denoise.cloud/introduction/)
 
+<p align="center">
+  <a href="https://asciinema.org/a/p8XBVFYPl7SQ7TJ0">
+    <img src="https://asciinema.org/a/p8XBVFYPl7SQ7TJ0.svg" alt="dn kickstart demo" width="670">
+  </a>
+</p>
+
 ## Features
 
 - **Agent Assisted SDLC** — Turn a GitHub issue into working code with
