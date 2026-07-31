@@ -92,6 +92,13 @@ jobs:
       - name: Generate checksums
         run: sha256sum dn-* > checksums.txt
 
+      - name: Upload checksums artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: checksums
+          path: checksums.txt
+          retention-days: 1
+
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2.6.0
         with:
@@ -101,3 +108,71 @@ jobs:
             checksums.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  homebrew:
+    name: Bump Homebrew tap
+    needs: release
+    runs-on: ubuntu-latest
+    if: ${{ vars.HOMEBREW_TAP_AUTOMATION != 'disabled' }}
+    steps:
+      - name: Require HOMEBREW_TAP_TOKEN
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [ -z "${HOMEBREW_TAP_TOKEN}" ]; then
+            echo "::error::Add repository secret HOMEBREW_TAP_TOKEN (fine-grained PAT with Contents: Read and write on chesapeakedev/homebrew-dn), or set repository variable HOMEBREW_TAP_AUTOMATION=disabled to skip."
+            exit 1
+          fi
+
+      - name: Resolve release version
+        id: version
+        run: |
+          TAG="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.event.release.tag_name }}"
+          VERSION="${TAG#v}"
+          if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Unexpected tag/version: ${TAG}" >&2
+            exit 1
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout dn
+        uses: actions/checkout@v6
+
+      - name: Checkout homebrew-dn
+        uses: actions/checkout@v6
+        with:
+          repository: chesapeakedev/homebrew-dn
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-dn
+
+      - name: Download checksums
+        uses: actions/download-artifact@v5
+        with:
+          name: checksums
+          path: .
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2
+
+      - name: Update Formula/dn.rb
+        run: |
+          deno run -A scripts/bump_homebrew_formula.ts \
+            --version "${{ steps.version.outputs.version }}" \
+            --checksums-file checksums.txt \
+            --tap homebrew-dn
+
+      - name: Commit and push tap bump
+        working-directory: homebrew-dn
+        run: |
+          if git diff --quiet Formula/dn.rb; then
+            echo "Formula already at dn ${{ steps.version.outputs.version }}; nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/dn.rb
+          git commit -m "dn ${{ steps.version.outputs.version }}"
+          git push

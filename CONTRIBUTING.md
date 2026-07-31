@@ -187,12 +187,35 @@ Local dry-run of the same script (after exporting the env vars):
 ./scripts/macos_sign_and_notarize.sh dn-macos-local
 ```
 
+### Homebrew tap
+
+Prebuilt binaries are packaged in
+[`chesapeakedev/homebrew-dn`](https://github.com/chesapeakedev/homebrew-dn).
+The Release Binary workflow bumps `Formula/dn.rb` automatically after assets
+upload, using secret `HOMEBREW_TAP_TOKEN`.
+
+Create a fine-grained personal access token with **Contents: Read and write** on
+`chesapeakedev/homebrew-dn`, then add it as repository secret
+`HOMEBREW_TAP_TOKEN` on `chesapeakedev/dn`. To temporarily skip the job, set
+repository variable `HOMEBREW_TAP_AUTOMATION=disabled`.
+
+Manual bump (optional / recovery):
+
+```bash
+deno run -A scripts/bump_homebrew_formula.ts --version <x.y.z>
+cd ../homebrew-dn
+git add Formula/dn.rb
+git commit -m "dn <x.y.z>"
+git push
+```
+
 ### Adding New Platforms
 
 1. Add target to `.github/workflows/release.yml` matrix
 2. Update `compile_dn.sh` if needed
 3. Update `install.sh` with detection logic
-4. Update Homebrew formula with URL and SHA256
+4. Extend `scripts/bump_homebrew_formula.ts` platform list if the Homebrew
+   formula should install the new asset
 
 ### Release Job
 
@@ -202,6 +225,7 @@ After all builds complete, the release job:
 2. Generates SHA256 checksums via `sha256sum` into `checksums.txt`
 3. Uploads all binaries and `checksums.txt` to the GitHub release using
    `softprops/action-gh-release@v2` with `generate_release_notes: true`
+4. Bumps and pushes `chesapeakedev/homebrew-dn` when `HOMEBREW_TAP_TOKEN` is set
 
 ## Debugging
 

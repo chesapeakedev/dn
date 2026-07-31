@@ -24,6 +24,14 @@ documentation, see [our docs site](https://docs.denoise.cloud/introduction/).
 
 ## Install
 
+### Homebrew (macOS / Linux)
+
+```bash
+brew install chesapeakedev/dn/dn
+```
+
+### Direct download
+
 Install the latest release on macOS, Linux, or Windows:
 
 ```bash

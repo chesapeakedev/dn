@@ -25,3 +25,9 @@ release workflow.
 If the command fails after creating the version commit, inspect `sl status` and
 the GitHub release before retrying. Do not bump the version again to recover a
 partially completed release.
+
+After the Release Binary workflow finishes (signed macOS assets uploaded), the
+same workflow bumps [`chesapeakedev/homebrew-dn`](https://github.com/chesapeakedev/homebrew-dn)
+when repository secret `HOMEBREW_TAP_TOKEN` is configured (fine-grained PAT with
+Contents write on that tap). No manual formula bump is required for a normal
+release.
