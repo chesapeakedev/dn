@@ -8,6 +8,7 @@ import {
   formatCommitMessage,
   formatReleaseNotes,
   parseSaplingLog,
+  repositoryFromRemoteUrl,
   validateReleaseVersion,
   validateSemanticVersion,
 } from "./release.ts";
@@ -119,5 +120,20 @@ Deno.test("formatCommitMessage uses new version subject and release notes body",
       "- fix idempotency for dn init agents",
       "",
     ].join("\n"),
+  );
+});
+
+Deno.test("repositoryFromRemoteUrl parses GitHub remotes", () => {
+  assertEquals(
+    repositoryFromRemoteUrl("https://github.com/chesapeakedev/dn.git"),
+    "chesapeakedev/dn",
+  );
+  assertEquals(
+    repositoryFromRemoteUrl("git@github.com:chesapeakedev/dn.git"),
+    "chesapeakedev/dn",
+  );
+  assertEquals(
+    repositoryFromRemoteUrl("https://example.com/chesapeakedev/dn.git"),
+    undefined,
   );
 });

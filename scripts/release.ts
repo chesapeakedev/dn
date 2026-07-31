@@ -265,11 +265,52 @@ async function listCommitsSince(previousNode: string): Promise<CommitEntry[]> {
   return parseSaplingLog(output);
 }
 
+export function repositoryFromRemoteUrl(remote: string): string | undefined {
+  const match = remote.trim().match(
+    /(?:github\.com[:/]|git@github\.com:)([^/]+)\/([^/.]+?)(?:\.git)?$/i,
+  );
+  if (!match) return undefined;
+  return `${match[1]}/${match[2]}`;
+}
+
+async function resolveRepositoryFromSapling(): Promise<string | undefined> {
+  const result = await runCommand(["sl", "config", "paths.default"]);
+  if (result.code !== 0) return undefined;
+  return repositoryFromRemoteUrl(result.stdout);
+}
+
 async function resolveRepository(): Promise<string> {
+  const discovered = await runCommand([
+    "gh",
+    "repo",
+    "view",
+    "--json",
+    "nameWithOwner",
+    "--jq",
+    ".nameWithOwner",
+  ]);
+  if (discovered.code === 0) {
+    return discovered.stdout.trim();
+  }
+
+  // Sapling checkouts often lack a Git working tree that `gh` can discover.
+  const fromSapling = await resolveRepositoryFromSapling();
+  if (!fromSapling) {
+    const output = [discovered.stderr.trim(), discovered.stdout.trim()].filter(
+      Boolean,
+    ).join("\n");
+    throw new Error(
+      `Command failed: gh repo view --json nameWithOwner --jq .nameWithOwner${
+        output ? `\n${output}` : ""
+      }`,
+    );
+  }
+
   return (await runChecked([
     "gh",
     "repo",
     "view",
+    fromSapling,
     "--json",
     "nameWithOwner",
     "--jq",
