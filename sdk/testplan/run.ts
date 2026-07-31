@@ -77,34 +77,29 @@ async function readIncludedTestPlanPrompt(
   workspaceRoot: string,
 ): Promise<string> {
   const filename = "system.prompt.testplan.md";
+  const candidates: string[] = [];
 
-  try {
-    if (typeof import.meta.dirname !== "undefined") {
-      try {
-        return await Deno.readTextFile(
-          import.meta.dirname + `/../../kickstart/${filename}`,
-        );
-      } catch {
-        // fall through
-      }
+  // Compiled binary: --include files sit next to the executable.
+  if (typeof import.meta.dirname !== "undefined") {
+    candidates.push(`${import.meta.dirname}/${filename}`);
+    // Development: this module lives under sdk/testplan/.
+    candidates.push(`${import.meta.dirname}/../../kickstart/${filename}`);
+  }
+  candidates.push(`${BINARY_DIR}/${filename}`);
+  candidates.push(`${BINARY_DIR}/../../kickstart/${filename}`);
+  candidates.push(`${workspaceRoot}/kickstart/${filename}`);
+
+  for (const path of candidates) {
+    try {
+      return await Deno.readTextFile(path);
+    } catch {
+      // try next
     }
-  } catch {
-    // fall through
   }
 
-  try {
-    return await Deno.readTextFile(`${BINARY_DIR}/../../kickstart/${filename}`);
-  } catch {
-    // fall through
-  }
-
-  try {
-    return await Deno.readTextFile(`${workspaceRoot}/kickstart/${filename}`);
-  } catch {
-    throw new Error(
-      `Testplan system prompt not found: ${filename}. Run from dn repo or recompile with --include.`,
-    );
-  }
+  throw new Error(
+    `Testplan system prompt not found: ${filename}. Run from dn repo or recompile with --include.`,
+  );
 }
 
 async function generateTestPlanSection(options: {

@@ -26,33 +26,29 @@ const BINARY_DIR = getBinaryDir();
 
 async function readLandSystemPrompt(workspaceRoot: string): Promise<string> {
   const filename = "system.prompt.land.md";
-  try {
-    if (typeof import.meta.dirname !== "undefined") {
-      try {
-        return await Deno.readTextFile(
-          import.meta.dirname + `/../../kickstart/${filename}`,
-        );
-      } catch {
-        // fall through
-      }
+  const candidates: string[] = [];
+
+  // Compiled binary: --include files sit next to the executable.
+  if (typeof import.meta.dirname !== "undefined") {
+    candidates.push(`${import.meta.dirname}/${filename}`);
+    // Development: this module lives under sdk/land/.
+    candidates.push(`${import.meta.dirname}/../../kickstart/${filename}`);
+  }
+  candidates.push(`${BINARY_DIR}/${filename}`);
+  candidates.push(`${BINARY_DIR}/../../kickstart/${filename}`);
+  candidates.push(`${workspaceRoot}/kickstart/${filename}`);
+
+  for (const path of candidates) {
+    try {
+      return await Deno.readTextFile(path);
+    } catch {
+      // try next
     }
-  } catch {
-    // fall through
   }
 
-  try {
-    return await Deno.readTextFile(`${BINARY_DIR}/${filename}`);
-  } catch {
-    // fall through
-  }
-
-  try {
-    return await Deno.readTextFile(`${workspaceRoot}/kickstart/${filename}`);
-  } catch {
-    throw new Error(
-      `Land system prompt not found: ${filename}. Run from dn repo or recompile with --include.`,
-    );
-  }
+  throw new Error(
+    `Land system prompt not found: ${filename}. Run from dn repo or recompile with --include.`,
+  );
 }
 
 function normalizePath(path: string): string {
