@@ -21,3 +21,8 @@ node_modules/
 /dn-macos-local
 /dn-macos-local.zip
 /dn-macos-local.*
+
+# Demo scaffolding (build/record scripts and text captures)
+docs/demo/build-cast.py
+docs/demo/record-dn-demo.sh
+docs/demo/captures/
