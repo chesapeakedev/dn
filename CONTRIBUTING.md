@@ -190,9 +190,9 @@ Local dry-run of the same script (after exporting the env vars):
 ### Homebrew tap
 
 Prebuilt binaries are packaged in
-[`chesapeakedev/homebrew-dn`](https://github.com/chesapeakedev/homebrew-dn).
-The Release Binary workflow bumps `Formula/dn.rb` automatically after assets
-upload, using secret `HOMEBREW_TAP_TOKEN`.
+[`chesapeakedev/homebrew-dn`](https://github.com/chesapeakedev/homebrew-dn). The
+Release Binary workflow bumps `Formula/dn.rb` automatically after assets upload,
+using secret `HOMEBREW_TAP_TOKEN`.
 
 Create a fine-grained personal access token with **Contents: Read and write** on
 `chesapeakedev/homebrew-dn`, then add it as repository secret
