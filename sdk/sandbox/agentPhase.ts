@@ -4,6 +4,7 @@
 import { dirname } from "@std/path";
 import type { AgentHarness } from "../github/agentHarness.ts";
 import { getRunAgent } from "../github/agentHarness.ts";
+import { logAgentPhaseIntent } from "../github/agentModel.ts";
 import {
   createProgressReporter,
   type ProgressReporter,
@@ -76,6 +77,7 @@ export async function runAgentPhaseInSandbox(
   }
 
   const ctx = getCurrentSandboxContext()!;
+  await logAgentPhaseIntent(harness, workspaceRoot, useReadonlyConfig);
   const sandboxWorkspace = ctx.handle.workspace;
   const sandboxPromptPath = translateHostPathToSandbox(
     combinedPromptPath,

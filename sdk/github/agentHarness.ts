@@ -1,6 +1,7 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
+import { logAgentPhaseIntent } from "./agentModel.ts";
 import { runClaudeAgent } from "./claudeAgent.ts";
 import { runCodexAgent } from "./codexAgent.ts";
 import { runCopilotAgent } from "./copilotAgent.ts";
@@ -119,23 +120,43 @@ export type RunAgentFn = (
 /**
  * Returns the runner for the given harness.
  *
+ * Wraps the harness runner so every host-side phase logs a harness-agnostic
+ * intent line (`agent=… model=…`) before execution.
+ *
  * @param harness - Selected agent backend
  * @returns The runner for the selected agent backend
  */
 export function getRunAgent(harness: AgentHarness): RunAgentFn {
-  if (harness === "cursor") {
-    return runCursorAgent;
-  }
-  if (harness === "claude") {
-    return runClaudeAgent;
-  }
-  if (harness === "codex") {
-    return runCodexAgent;
-  }
-  if (harness === "copilot") {
-    return runCopilotAgent;
-  }
-  return runOpenCode;
+  const run: RunAgentFn = harness === "cursor"
+    ? runCursorAgent
+    : harness === "claude"
+    ? runClaudeAgent
+    : harness === "codex"
+    ? runCodexAgent
+    : harness === "copilot"
+    ? runCopilotAgent
+    : runOpenCode;
+
+  return async (
+    phase,
+    combinedPromptPath,
+    workspaceRoot,
+    useReadonlyConfig,
+    reporter,
+  ) => {
+    await logAgentPhaseIntent(
+      harness,
+      workspaceRoot,
+      useReadonlyConfig === true,
+    );
+    return await run(
+      phase,
+      combinedPromptPath,
+      workspaceRoot,
+      useReadonlyConfig,
+      reporter,
+    );
+  };
 }
 
 /**
