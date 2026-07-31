@@ -167,7 +167,7 @@ export async function detectRunnerCapabilities(
   );
   const docker = await probe.run("docker", ["version"]);
   return {
-    operations: ["kickstart"],
+    operations: ["kickstart", "denoise-task"],
     harnesses: harnessResults.filter((result) => result.available).map(
       (result) => result.harness,
     ),

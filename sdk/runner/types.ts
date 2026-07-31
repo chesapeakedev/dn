@@ -50,7 +50,7 @@ export interface RunnerRepositoryReadiness {
 /** Capabilities detected on a developer device. */
 export interface RunnerCapabilities {
   /** Typed operations accepted by this protocol version. */
-  operations: readonly ["kickstart"];
+  operations: readonly ["kickstart", "denoise-task"];
   /** Agent harnesses found on the device. */
   harnesses: AgentHarness[];
   /** Whether the local Docker daemon is available. */
@@ -88,6 +88,26 @@ export interface RunnerRegistration {
   last_seen_at: string;
 }
 
+/** A self-contained denoise task document describing work without a GitHub issue. */
+export interface DenoiseTaskDocument {
+  /** Schema version for forward compatibility. */
+  schema_version: "1.0";
+  /** Opaque task identifier. */
+  id: string;
+  /** Task title (maps to H1 in materialized markdown). */
+  title: string;
+  /** Markdown description (maps to body content). */
+  body: string;
+  /** Optional GitHub `owner/repo` slug. */
+  repository?: string;
+  /** Optional tags. */
+  labels?: string[];
+  /** Optional explicit acceptance criteria items. */
+  acceptance_criteria?: string[];
+  /** ISO-8601 creation timestamp. */
+  created_at: string;
+}
+
 /** Kickstart is the only remotely dispatchable operation in protocol v1. */
 export interface RunnerKickstartOperation {
   /** Discriminator that prevents generic remote execution. */
@@ -100,8 +120,22 @@ export interface RunnerKickstartOperation {
   agent: AgentHarness;
 }
 
+/** A denoise-task operation dispatched to a device runner. */
+export interface RunnerDenoiseTaskOperation {
+  /** Discriminator for denoise-task operations. */
+  type: "denoise-task";
+  /** Inline task document with no GitHub issue dependency. */
+  task_document: DenoiseTaskDocument;
+  /** Local publish behavior requested. */
+  publish: PublishMode;
+  /** Installed local agent harness selected for the job. */
+  agent: AgentHarness;
+}
+
 /** Typed operation union reserved for future protocol additions. */
-export type RunnerOperation = RunnerKickstartOperation;
+export type RunnerOperation =
+  | RunnerKickstartOperation
+  | RunnerDenoiseTaskOperation;
 
 /** State of the renewable lease held by a device runner. */
 export interface RunnerJobLease {
@@ -281,6 +315,18 @@ export interface RunnerKickstartRequest {
   publish: PublishMode;
 }
 
+/** Request body used by `dn runner kickstart --denoise-task`. */
+export interface RunnerDenoiseTaskRequest {
+  /** Opaque target device identifier. */
+  runner_id: string;
+  /** Optional GitHub repository slug (derived from task document if absent). */
+  repository?: string;
+  /** Inline denoise task document. */
+  task_document: DenoiseTaskDocument;
+  /** Requested local publish behavior. */
+  publish: PublishMode;
+}
+
 /** Response returned after queueing a Kickstart job. */
 export interface RunnerKickstartResponse {
   /** Existing invocation/SSE correlation identifier. */
@@ -365,6 +411,28 @@ export function repositoryFromIssueUrl(value: string): string {
   return `${match[1]}/${match[2]}`;
 }
 
+/** Extracts a repository slug from a denoise task document, or null if absent. */
+export function repositoryFromDenoiseTask(
+  task: DenoiseTaskDocument,
+): string | null {
+  return task.repository?.trim() ?? null;
+}
+
+/** Materializes a denoise task document into plan-compatible markdown. */
+export function denoiseTaskToMarkdown(task: DenoiseTaskDocument): string {
+  const parts: string[] = [`# ${task.title}`, "", task.body];
+  if (task.acceptance_criteria && task.acceptance_criteria.length > 0) {
+    parts.push("", "## Acceptance Criteria", "");
+    for (const criterion of task.acceptance_criteria) {
+      parts.push(`- [ ] ${criterion}`);
+    }
+  }
+  if (task.labels && task.labels.length > 0) {
+    parts.push("", "## Labels", `\n${task.labels.join(", ")}`);
+  }
+  return parts.join("\n").trim();
+}
+
 /** Validates a claimed job before any local process is started. */
 export function validateRunnerJob(
   job: RunnerJob,
@@ -382,23 +450,53 @@ export function validateRunnerJob(
     throw new Error("Runner job was issued to a different device.");
   }
   const repository = parseRepositorySlug(job.repository);
-  if (job.operation.type !== "kickstart") {
-    throw new Error("Runner protocol v1 only permits kickstart jobs.");
-  }
-  if (job.operation.publish !== "pr") {
-    throw new Error("Runner jobs require PR publishing.");
-  }
-  if (
-    !["opencode", "cursor", "claude", "codex", "copilot"].includes(
-      job.operation.agent,
-    )
-  ) {
-    throw new Error("Runner job has an unsupported agent harness.");
-  }
-  const issueRepository = repositoryFromIssueUrl(job.operation.issue_url);
-  if (issueRepository.toLowerCase() !== repository.toLowerCase()) {
+  if (job.operation.type === "denoise-task") {
+    if (
+      !job.operation.task_document?.id || !job.operation.task_document?.title
+    ) {
+      throw new Error("Denoise-task job has an incomplete task document.");
+    }
+    if (job.operation.publish !== "pr") {
+      throw new Error("Runner jobs require PR publishing.");
+    }
+    if (
+      !["opencode", "cursor", "claude", "codex", "copilot"].includes(
+        job.operation.agent,
+      )
+    ) {
+      throw new Error("Runner job has an unsupported agent harness.");
+    }
+    const taskRepository = repositoryFromDenoiseTask(
+      job.operation.task_document,
+    );
+    if (
+      taskRepository &&
+      taskRepository.toLowerCase() !== repository.toLowerCase()
+    ) {
+      throw new Error(
+        `Runner job denoise-task belongs to ${taskRepository}, not ${repository}.`,
+      );
+    }
+  } else if (job.operation.type === "kickstart") {
+    if (job.operation.publish !== "pr") {
+      throw new Error("Runner jobs require PR publishing.");
+    }
+    if (
+      !["opencode", "cursor", "claude", "codex", "copilot"].includes(
+        job.operation.agent,
+      )
+    ) {
+      throw new Error("Runner job has an unsupported agent harness.");
+    }
+    const issueRepository = repositoryFromIssueUrl(job.operation.issue_url);
+    if (issueRepository.toLowerCase() !== repository.toLowerCase()) {
+      throw new Error(
+        `Runner job issue belongs to ${issueRepository}, not ${repository}.`,
+      );
+    }
+  } else {
     throw new Error(
-      `Runner job issue belongs to ${issueRepository}, not ${repository}.`,
+      "Runner protocol v1 only permits kickstart or denoise-task jobs.",
     );
   }
   if (

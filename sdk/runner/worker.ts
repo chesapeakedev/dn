@@ -12,7 +12,11 @@ import type {
   RunnerLeaseResponse,
   RunnerProgressEvent,
 } from "./types.ts";
-import { RUNNER_PROTOCOL_VERSION, validateRunnerJob } from "./types.ts";
+import {
+  denoiseTaskToMarkdown,
+  RUNNER_PROTOCOL_VERSION,
+  validateRunnerJob,
+} from "./types.ts";
 
 const DEFAULT_LEASE_RENEWAL_MS = 15_000;
 const DEFAULT_CANCELLATION_GRACE_MS = 10_000;
@@ -112,25 +116,66 @@ function defaultSpawn(
   return child;
 }
 
-/** Builds the only command shape protocol v1 permits a remote job to run. */
+/** Builds a command for a denoise-task job, materializing the task to a temp file. */
+export async function buildRunnerDenoiseTaskCommand(
+  job: RunnerJob,
+  commandPrefix: string[],
+): Promise<{ argv: string[]; cleanup: () => Promise<void> }> {
+  if (job.operation.type !== "denoise-task") {
+    throw new Error("Expected a denoise-task operation.");
+  }
+  const tmpDir = await Deno.makeTempDir({ prefix: "dn-denoise-task-" });
+  const mdPath = `${tmpDir}/task.md`;
+  const markdown = denoiseTaskToMarkdown(job.operation.task_document);
+  await Deno.writeTextFile(mdPath, markdown);
+  const cleanup = async () => {
+    try {
+      await Deno.remove(tmpDir, { recursive: true });
+    } catch {
+      // Temp directory cleanup is best-effort.
+    }
+  };
+  return {
+    argv: [
+      ...commandPrefix,
+      "--unattended",
+      "--agent",
+      job.operation.agent,
+      "kickstart",
+      "--publish",
+      job.operation.publish,
+      mdPath,
+    ],
+    cleanup,
+  };
+}
+
+/** Builds a command for a remote job, dispatching by operation type. */
 export function buildRunnerKickstartCommand(
   job: RunnerJob,
   commandPrefix: string[],
-): string[] {
+):
+  | { argv: string[]; cleanup?: () => Promise<void> }
+  | Promise<{ argv: string[]; cleanup?: () => Promise<void> }> {
   validateRunnerJob(job);
   if (commandPrefix.length === 0) {
     throw new Error("Runner command prefix is empty.");
   }
-  return [
-    ...commandPrefix,
-    "--unattended",
-    "--agent",
-    job.operation.agent,
-    "kickstart",
-    "--publish",
-    job.operation.publish,
-    job.operation.issue_url,
-  ];
+  if (job.operation.type === "denoise-task") {
+    return buildRunnerDenoiseTaskCommand(job, commandPrefix);
+  }
+  return {
+    argv: [
+      ...commandPrefix,
+      "--unattended",
+      "--agent",
+      job.operation.agent,
+      "kickstart",
+      "--publish",
+      job.operation.publish,
+      job.operation.issue_url,
+    ],
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -268,7 +313,10 @@ export async function runRunnerJob(
     });
     return;
   }
-  const command = buildRunnerKickstartCommand(job, options.commandPrefix);
+  const { argv: command, cleanup } = await buildRunnerKickstartCommand(
+    job,
+    options.commandPrefix,
+  );
   const child = (options.spawn ?? defaultSpawn)(
     command,
     registration.path,
@@ -356,33 +404,37 @@ export async function runRunnerJob(
     }
   })();
 
-  const status = await child.status;
-  stopLeaseLoop.abort();
-  await Promise.all([stdoutTask, stderrTask, leaseTask]);
+  try {
+    const status = await child.status;
+    stopLeaseLoop.abort();
+    await Promise.all([stdoutTask, stderrTask, leaseTask]);
 
-  if (cancellationRequested || interrupted || !status.success) {
-    const reason = cancellationRequested
-      ? "cancelled"
-      : interrupted
-      ? "interrupted"
-      : "failed";
-    const failure: RunnerJobFailure = {
-      failed_at: new Date().toISOString(),
-      reason,
-      message: reason === "cancelled"
-        ? "Job cancelled by its owner."
-        : reason === "interrupted"
-        ? "Runner lost its job lease; explicit retry is required."
-        : `dn kickstart exited with code ${status.code}.`,
-      ...(status.code === undefined ? {} : { exit_code: status.code }),
-    };
-    await options.client.failJob(job.id, failure);
-    return;
+    if (cancellationRequested || interrupted || !status.success) {
+      const reason = cancellationRequested
+        ? "cancelled"
+        : interrupted
+        ? "interrupted"
+        : "failed";
+      const failure: RunnerJobFailure = {
+        failed_at: new Date().toISOString(),
+        reason,
+        message: reason === "cancelled"
+          ? "Job cancelled by its owner."
+          : reason === "interrupted"
+          ? "Runner lost its job lease; explicit retry is required."
+          : `dn kickstart exited with code ${status.code}.`,
+        ...(status.code === undefined ? {} : { exit_code: status.code }),
+      };
+      await options.client.failJob(job.id, failure);
+      return;
+    }
+    await options.client.completeJob(
+      job.id,
+      completionFrom(startedAt, prUrl),
+    );
+  } finally {
+    await cleanup?.();
   }
-  await options.client.completeJob(
-    job.id,
-    completionFrom(startedAt, prUrl),
-  );
 }
 
 /** Runs the authenticated heartbeat/claim loop with one-job concurrency. */

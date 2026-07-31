@@ -35,7 +35,7 @@ Deno.test("RunnerApiClient sends runner credentials only to authenticated endpoi
     dn_version: "0.0.33",
     protocol_version: RUNNER_PROTOCOL_VERSION,
     capabilities: {
-      operations: ["kickstart"],
+      operations: ["kickstart", "denoise-task"],
       harnesses: ["codex"],
       docker: true,
     },
@@ -46,7 +46,7 @@ Deno.test("RunnerApiClient sends runner credentials only to authenticated endpoi
     protocol_version: RUNNER_PROTOCOL_VERSION,
     dn_version: "0.0.33",
     capabilities: {
-      operations: ["kickstart"],
+      operations: ["kickstart", "denoise-task"],
       harnesses: ["codex"],
       docker: true,
     },

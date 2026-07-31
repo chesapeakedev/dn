@@ -38,6 +38,8 @@ import {
 import { isCI } from "../sdk/github/output.ts";
 import type { PublishMode } from "../sdk/github/publish.ts";
 import { parsePublishMode } from "../sdk/github/publish.ts";
+import type { DenoiseTaskDocument } from "../sdk/runner/types.ts";
+import { denoiseTaskToMarkdown } from "../sdk/runner/types.ts";
 import {
   detectVcs,
   getChangedFiles,
@@ -74,6 +76,8 @@ type KickstartCliConfig = KickstartConfig & {
   milestoneAutoAdvance?: boolean;
   /** When true with `--milestone`, run the first unchecked stack item, mark it done, and exit. */
   milestoneRunOnce?: boolean;
+  /** Path to a denoise task JSON file for ticketless kickstart. */
+  denoiseTaskPath?: string;
   /** True when the issue/context was chosen from the todo list or milestone stack. */
   fromQueue?: boolean;
 };
@@ -114,6 +118,7 @@ export function parseKickstartArgs(
   let milestone: string | undefined = undefined;
   let milestoneAutoAdvance = false;
   let milestoneRunOnce = false;
+  let denoiseTaskPath: string | undefined = undefined;
 
   const { sandbox: localSandbox, rest: flagArgs } = extractSandboxFlag(args);
   const sandboxFlag = resolveSandboxFlagValue(globalSandbox, localSandbox);
@@ -153,6 +158,8 @@ export function parseKickstartArgs(
       workspaceRoot = args[++i];
     } else if (arg === "--milestone" && i + 1 < args.length) {
       milestone = args[++i];
+    } else if (arg === "--denoise-task" && i + 1 < args.length) {
+      denoiseTaskPath = args[++i];
     } else if (arg === "--help" || arg === "-h") {
       showHelp();
       Deno.exit(0);
@@ -165,7 +172,33 @@ export function parseKickstartArgs(
     input = Deno.env.get("ISSUE") || null;
   }
 
-  const { issueUrl, contextMarkdownPath } = input
+  let denoiseTaskMaterialized = false;
+  let denoiseTaskFilePath: string | undefined;
+
+  if (denoiseTaskPath) {
+    const jsonText = Deno.readTextFileSync(denoiseTaskPath);
+    const task: DenoiseTaskDocument = JSON.parse(jsonText);
+    if (!task.id || !task.title || !task.body) {
+      throw new Error(
+        "Denoise task document must include id, title, and body.",
+      );
+    }
+    const markdown = denoiseTaskToMarkdown(task);
+    const tmpFile = Deno.makeTempFileSync({
+      prefix: "dn-denoise-task-",
+      suffix: ".md",
+    });
+    Deno.writeTextFileSync(tmpFile, markdown);
+    denoiseTaskMaterialized = true;
+    denoiseTaskFilePath = tmpFile;
+  }
+
+  const { issueUrl, contextMarkdownPath } = denoiseTaskMaterialized
+    ? {
+      issueUrl: null as string | null,
+      contextMarkdownPath: denoiseTaskFilePath,
+    }
+    : input
     ? classifyInput(input)
     : { issueUrl: null as string | null, contextMarkdownPath: undefined };
 
@@ -216,6 +249,7 @@ export function parseKickstartArgs(
     sandboxFlag,
     cursorCloud,
     cursorCloudRef,
+    ...(denoiseTaskPath ? { denoiseTaskPath } : {}),
   };
 }
 
@@ -271,6 +305,9 @@ function showHelp(): void {
   );
   console.log("  --saved-plan <name>      Use a specific plan name");
   console.log("  --workspace-root <path>  Workspace root directory");
+  console.log(
+    "  --denoise-task <file>    Materialize a denoise task JSON file as context (no GitHub fetch)",
+  );
   console.log("  --help, -h               Show this help message\n");
   console.log("Environment variables:");
   console.log("  WORKSPACE_ROOT           Workspace root directory");
@@ -305,6 +342,12 @@ function showHelp(): void {
   );
   console.log("  dn kickstart --awp --claude <issue_url_or_number>");
   console.log("  dn kickstart --awp --codex <issue_url_or_number>");
+  console.log(
+    "  dn kickstart --denoise-task task.json               # ticketless from JSON",
+  );
+  console.log(
+    "  dn kickstart --awp --denoise-task task.json         # ticketless with PR",
+  );
   console.log("  ISSUE=<issue_url_or_number> dn kickstart");
 }
 

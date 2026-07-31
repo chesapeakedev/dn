@@ -28,6 +28,7 @@ import {
   uninstallRunnerService,
 } from "../sdk/runner/service.ts";
 import {
+  type DenoiseTaskDocument,
   parseRepositorySlug,
   repositoryFromIssueUrl,
   RUNNER_CONFIG_SCHEMA_VERSION,
@@ -55,6 +56,9 @@ function showRunnerHelp(): void {
   console.log("  dn runner jobs [--json]");
   console.log(
     "  dn runner kickstart <issue> [--publish <mode>] [--wait] [--json]",
+  );
+  console.log(
+    "  dn runner kickstart --denoise-task <file> [--wait] [--json]",
   );
   console.log("  dn runner pause|resume|disconnect [--json]");
   console.log("  dn runner rotate [--json]");
@@ -376,8 +380,11 @@ async function handleJobs(args: string[]): Promise<void> {
     return;
   }
   for (const job of result.jobs) {
+    const label = job.operation.type === "denoise-task"
+      ? `denoise-task ${job.operation.task_document.title}`
+      : job.operation.issue_url;
     console.log(
-      `${job.state.padEnd(11)} ${job.repository} ${job.operation.issue_url}`,
+      `${job.state.padEnd(11)} ${job.repository} ${label}`,
     );
   }
 }
@@ -408,6 +415,7 @@ async function resolveKickstartIssue(
 
 async function handleKickstart(args: string[]): Promise<void> {
   let issue: string | null = null;
+  let denoiseTaskPath: string | null = null;
   let publish: PublishMode = "pr";
   let wait = false;
   let json = false;
@@ -417,6 +425,11 @@ async function handleKickstart(args: string[]): Promise<void> {
       const value = args[++index];
       if (!value) throw new Error("--publish requires a value.");
       publish = parsePublishMode(value);
+    } else if (argument === "--denoise-task") {
+      denoiseTaskPath = args[++index];
+      if (!denoiseTaskPath) {
+        throw new Error("--denoise-task requires a file path.");
+      }
     } else if (argument === "--wait") wait = true;
     else if (argument === "--json") json = true;
     else if (argument.startsWith("-")) {
@@ -424,17 +437,74 @@ async function handleKickstart(args: string[]): Promise<void> {
     } else if (!issue) issue = argument;
     else throw new Error(`Unexpected argument: ${argument}`);
   }
-  if (!issue) throw new Error("Usage: dn runner kickstart <issue>");
+  if (!issue && !denoiseTaskPath) {
+    throw new Error(
+      "Usage: dn runner kickstart <issue> | dn runner kickstart --denoise-task <file>",
+    );
+  }
   if (publish !== "pr") {
     throw new Error(
       "Device runner jobs require --publish pr; none and direct are available only for local CLI execution.",
     );
   }
-  const [{ client, runnerId }, resolved, config] = await Promise.all([
+  const [{ client, runnerId }, config] = await Promise.all([
     authenticatedClient(),
-    resolveKickstartIssue(issue),
     loadRunnerConfig(),
   ]);
+
+  if (denoiseTaskPath) {
+    const jsonText = await Deno.readTextFile(denoiseTaskPath);
+    const taskDocument: DenoiseTaskDocument = JSON.parse(jsonText);
+    if (!taskDocument.id || !taskDocument.title || !taskDocument.body) {
+      throw new Error(
+        "Denoise task document must include id, title, and body.",
+      );
+    }
+    const repository = taskDocument.repository ?? undefined;
+    if (repository && !config.repositories[repository]) {
+      throw new Error(
+        `${repository} is not registered; run dn runner register from its checkout.`,
+      );
+    }
+    const queued = await client.denoiseTask({
+      runner_id: runnerId,
+      repository,
+      task_document: taskDocument,
+      publish,
+    });
+    if (!wait) {
+      if (json) console.log(JSON.stringify(queued));
+      else {
+        console.log(
+          `Queued denoise-task ${taskDocument.id} on this device until ${queued.expires_at}.`,
+        );
+      }
+      return;
+    }
+    let completed: RunnerJobSummary | undefined;
+    while (!completed) {
+      const jobs = await client.jobs();
+      const current = jobs.jobs.find((job) =>
+        job.invocation_id === queued.invocation_id
+      );
+      if (current && terminalJob(current)) completed = current;
+      else await delay(2_000);
+    }
+    if (json) console.log(JSON.stringify({ ...queued, job: completed }));
+    else {
+      console.log(
+        `${completed.state}: ${
+          completed.pr_url ?? `denoise-task ${taskDocument.id}`
+        }`,
+      );
+    }
+    if (completed.state !== "succeeded") {
+      throw new Error(`Runner job ${completed.state}.`);
+    }
+    return;
+  }
+
+  const resolved = await resolveKickstartIssue(issue!);
   if (!config.repositories[resolved.repository]) {
     throw new Error(
       `${resolved.repository} is not registered; run dn runner register from its checkout.`,
@@ -466,10 +536,11 @@ async function handleKickstart(args: string[]): Promise<void> {
   }
   if (json) console.log(JSON.stringify({ ...queued, job: completed }));
   else {
+    const opLabel = "issue_url" in completed.operation
+      ? completed.operation.issue_url
+      : `denoise-task ${completed.operation.task_document.title}`;
     console.log(
-      `${completed.state}: ${
-        completed.pr_url ?? completed.operation.issue_url
-      }`,
+      `${completed.state}: ${completed.pr_url ?? opLabel}`,
     );
   }
   if (completed.state !== "succeeded") {

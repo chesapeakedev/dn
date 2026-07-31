@@ -4,6 +4,7 @@
 import type {
   RunnerCapabilities,
   RunnerCredentialRotation,
+  RunnerDenoiseTaskRequest,
   RunnerHeartbeat,
   RunnerJob,
   RunnerJobCompletion,
@@ -240,6 +241,13 @@ export class RunnerApiClient {
     request: RunnerKickstartRequest,
   ): Promise<RunnerKickstartResponse> {
     return this.#request("POST", "/api/runners/kickstart", request);
+  }
+
+  /** Queues a denoise-task job for this runner. */
+  denoiseTask(
+    request: RunnerDenoiseTaskRequest,
+  ): Promise<RunnerKickstartResponse> {
+    return this.#request("POST", "/api/runners/denoise-task", request);
   }
 
   /** Pauses or resumes remote dispatch to this runner. */

@@ -270,8 +270,9 @@ invalidate the previous value immediately.
 
 Heartbeat repository entries contain `owner/repo`, readiness, and an optional
 reason. They never contain local paths. Jobs contain opaque IDs, invocation and
-runner IDs, repository slug, issue URL, publish mode, agent harness, timestamps,
-and lease state. Protocol v1 rejects any operation other than `kickstart`.
+runner IDs, repository slug, issue URL or task document, publish mode, agent
+harness, timestamps, and lease state. Protocol v1 accepts `kickstart` and
+`denoise-task` operation types.
 
 Queue offline jobs for at most 24 hours and do not fall back to a hosted
 runtime. Claim one job per runner atomically. A reconnect after lease loss marks
@@ -338,6 +339,44 @@ prerequisites when `sandbox.provider` is set in config (see
 Schema `1.1` configs may include a `sandbox` block alongside `agent`. Dispatch
 payloads still do not carry sandbox settings; repo config remains the source of
 truth for CI as well.
+
+### Denoise-task operations
+
+Protocol v1 adds a `denoise-task` operation type alongside `kickstart`. A
+denoise-task job carries an inline `DenoiseTaskDocument` instead of a GitHub
+issue URL:
+
+```typescript
+interface DenoiseTaskDocument {
+  schema_version: "1.0";
+  id: string; // Opaque task identifier
+  title: string; // Task title (maps to H1 in materialized markdown)
+  body: string; // Markdown description
+  repository?: string; // Optional owner/repo slug
+  labels?: string[]; // Optional tags
+  acceptance_criteria?: string[]; // Optional explicit criteria items
+  created_at: string; // ISO-8601 timestamp
+}
+```
+
+The device runner materializes the task document into a plan-compatible markdown
+file and runs `dn kickstart --publish <mode> <materialized_path>`. Cross-repo
+validation is relaxed for denoise-task operations — the repository is derived
+from `task_document.repository` if present.
+
+Queue a denoise-task job via the runner API:
+
+```bash
+POST /api/runners/denoise-task
+{
+  "runner_id": "<id>",
+  "task_document": { ... },
+  "publish": "pr"
+}
+```
+
+Returns the same `RunnerKickstartResponse` shape (invocation_id, job_id, state,
+expires_at).
 
 ## Stack JSON Contract
 

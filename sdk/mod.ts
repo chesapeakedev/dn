@@ -480,10 +480,12 @@ export type {
 // ============================================================================
 
 export {
+  buildRunnerDenoiseTaskCommand,
   buildRunnerKickstartCommand,
   checkRunnerRepositories,
   DEFAULT_DENOISE_API_URL,
   deleteRunnerCredential,
+  denoiseTaskToMarkdown,
   detectRunnerCapabilities,
   doctorRunner,
   generateLaunchdService,
@@ -499,6 +501,7 @@ export {
   parseRepositorySlug,
   parseRunnerProgressLine,
   registerRunnerRepository,
+  repositoryFromDenoiseTask,
   repositoryFromIssueUrl,
   repositorySlugFromRemote,
   RUNNER_CONFIG_SCHEMA_VERSION,
@@ -513,6 +516,7 @@ export {
   validateRunnerJob,
 } from "./runner/mod.ts";
 export type {
+  DenoiseTaskDocument,
   KickstartInvocationSource,
   KickstartRuntimeChoice,
   LocalRunnerConfig,
@@ -522,6 +526,8 @@ export type {
   RunnerCommandProbe,
   RunnerConfigPaths,
   RunnerCredentialRotation,
+  RunnerDenoiseTaskOperation,
+  RunnerDenoiseTaskRequest,
   RunnerDoctorCheck,
   RunnerDoctorCredential,
   RunnerDoctorResult,

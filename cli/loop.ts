@@ -19,6 +19,8 @@ import type { IssueData } from "../sdk/github/issue.ts";
 import { promptAndAddToTodoList } from "../sdk/todo/todo.ts";
 import { resolveAgentHarnessFromFlagsAndEnv } from "../sdk/github/agentHarness.ts";
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
+import type { DenoiseTaskDocument } from "../sdk/runner/types.ts";
+import { denoiseTaskToMarkdown } from "../sdk/runner/types.ts";
 import type { SandboxFlagValue } from "../sdk/sandbox/resolve.ts";
 import {
   extractSandboxFlag,
@@ -51,7 +53,8 @@ interface GitHubIssueRef {
 export type LoopTarget =
   | { kind: "auto" }
   | { kind: "plan-file"; path: string }
-  | { kind: "github-issue"; input: string };
+  | { kind: "github-issue"; input: string }
+  | { kind: "denoise-task"; path: string };
 
 interface LoopCliConfig extends KickstartConfig {
   /** Dispatch implementation to a durable Cursor Cloud Agent. */
@@ -116,6 +119,16 @@ function parseGitHubIssueUrl(url: string): GitHubIssueRef | null {
   };
 }
 
+function tryParseDenoiseTask(path: string): boolean {
+  try {
+    const text = Deno.readTextFileSync(path);
+    const parsed = JSON.parse(text);
+    return parsed?.schema_version === "1.0" && parsed?.id && parsed?.title;
+  } catch {
+    return false;
+  }
+}
+
 export function classifyLoopTarget(input: string | null): LoopTarget {
   if (!input) {
     return { kind: "auto" };
@@ -125,6 +138,12 @@ export function classifyLoopTarget(input: string | null): LoopTarget {
     GITHUB_ISSUE_URL_PATTERN.test(trimmed) || ISSUE_NUMBER_PATTERN.test(trimmed)
   ) {
     return { kind: "github-issue", input: trimmed };
+  }
+  if (
+    (trimmed.endsWith(".json") || trimmed.endsWith(".jsonc")) &&
+    tryParseDenoiseTask(trimmed)
+  ) {
+    return { kind: "denoise-task", path: trimmed };
   }
   return { kind: "plan-file", path: trimmed };
 }
@@ -229,7 +248,7 @@ export async function resolveLoopTarget(
 ): Promise<{
   planFilePath: string | null;
   issueUrl: string | null;
-  planSource: "file" | "github-issue";
+  planSource: "file" | "github-issue" | "denoise-task";
 }> {
   if (target.kind === "auto") {
     const discovered = await discoverLatestPlanFile(workspaceRoot);
@@ -247,6 +266,16 @@ export async function resolveLoopTarget(
       issueUrl: null,
       planSource: "file",
     };
+  }
+
+  if (target.kind === "denoise-task") {
+    const text = await Deno.readTextFile(target.path);
+    const task: DenoiseTaskDocument = JSON.parse(text);
+    const markdown = denoiseTaskToMarkdown(task);
+    const tmpDir = await Deno.makeTempDir({ prefix: "dn-loop-denoise-" });
+    const planFilePath = `${tmpDir}/task.md`;
+    await Deno.writeTextFile(planFilePath, markdown);
+    return { planFilePath, issueUrl: null, planSource: "denoise-task" };
   }
 
   const issueUrl = await resolveIssueUrlInput(target.input);
@@ -536,12 +565,10 @@ export async function handleLoop(
   const root = config.workspaceRoot || Deno.env.get("WORKSPACE_ROOT") ||
     Deno.cwd();
   let explicitIssueUrl: string | null = null;
-  let planSource: "file" | "github-issue" = "file";
   try {
     const resolved = await resolveLoopTarget(config.target, root);
     config.planFilePath = resolved.planFilePath;
     explicitIssueUrl = resolved.issueUrl;
-    planSource = resolved.planSource;
   } catch (error) {
     console.error(
       `Error: ${error instanceof Error ? error.message : String(error)}`,
@@ -596,7 +623,7 @@ export async function handleLoop(
             explicitIssueUrl,
           ));
         } else {
-          if (!explicitIssueUrl || planSource !== "github-issue") {
+          if (!explicitIssueUrl) {
             throw new Error("Internal error: no plan file or GitHub issue URL");
           }
           const materialized = await materializeIssuePlanFile(

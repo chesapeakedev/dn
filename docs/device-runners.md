@@ -5,8 +5,8 @@ checkout. The runner uses the machine's installed agent, existing logins, Docker
 daemon, and compute. Source code, local checkout paths, GitHub credentials, and
 agent credentials stay on the device.
 
-Device runners are owner-only in protocol v1. They accept kickstart jobs, not
-arbitrary commands or GitHub Actions workflows.
+Device runners are owner-only in protocol v1. They accept kickstart jobs and
+denoise-task jobs, not arbitrary commands or GitHub Actions workflows.
 
 ## Before you connect
 
@@ -69,6 +69,17 @@ dn runner kickstart 213 --publish pr --json
 Numeric issue references use the current checkout. A full issue URL must match
 an explicitly registered repository. Protocol v1 requires `pr` publishing so a
 successful remote job has a durable GitHub result.
+
+Queue a denoise-task job (ticketless) from a local JSON file:
+
+```bash
+dn runner kickstart --denoise-task task.json
+dn runner kickstart --denoise-task task.json --wait --json
+```
+
+The `--denoise-task` flag reads a `DenoiseTaskDocument` JSON file, sends it
+inline to the denoise API, and the paired runner materializes it into a
+plan-compatible markdown file before executing `dn kickstart`.
 
 An offline runner can retain a job in the denoise queue for up to 24 hours.
 Denoise does not move that job to paid hosted infrastructure. The outbound

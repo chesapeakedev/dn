@@ -3,6 +3,7 @@
 
 import { assert, assertEquals } from "@std/assert";
 import type {
+  DenoiseTaskDocument,
   RunnerHeartbeat,
   RunnerJob,
   RunnerJobCompletion,
@@ -11,6 +12,7 @@ import type {
   RunnerProgressEvent,
 } from "./types.ts";
 import {
+  buildRunnerDenoiseTaskCommand,
   buildRunnerKickstartCommand,
   parseRunnerProgressLine,
   type RunnerChildProcess,
@@ -86,20 +88,20 @@ function stream(text: string): ReadableStream<Uint8Array> {
   return new Blob([text]).stream();
 }
 
-Deno.test("buildRunnerKickstartCommand constructs exact typed argv", () => {
-  assertEquals(
-    buildRunnerKickstartCommand(job(), ["/usr/local/bin/dn"]),
-    [
-      "/usr/local/bin/dn",
-      "--unattended",
-      "--agent",
-      "codex",
-      "kickstart",
-      "--publish",
-      "pr",
-      "https://github.com/chesapeakedev/dn/issues/213",
-    ],
-  );
+Deno.test("buildRunnerKickstartCommand constructs exact typed argv", async () => {
+  const { argv } = await buildRunnerKickstartCommand(job(), [
+    "/usr/local/bin/dn",
+  ]);
+  assertEquals(argv, [
+    "/usr/local/bin/dn",
+    "--unattended",
+    "--agent",
+    "codex",
+    "kickstart",
+    "--publish",
+    "pr",
+    "https://github.com/chesapeakedev/dn/issues/213",
+  ]);
 });
 
 Deno.test("parseRunnerProgressLine validates invocation correlation", () => {
@@ -209,4 +211,82 @@ Deno.test("runRunnerJob terminates on cancellation and does not complete", async
   assert(signals.includes("SIGTERM"));
   assertEquals(client.failure?.reason, "cancelled");
   assertEquals(client.completion, null);
+});
+
+function denoiseTaskDoc(): DenoiseTaskDocument {
+  return {
+    schema_version: "1.0",
+    id: "task-denoise-1",
+    title: "Denoise test task",
+    body: "Test body content.",
+    repository: "chesapeakedev/dn",
+    created_at: "2026-07-23T12:00:00.000Z",
+  };
+}
+
+function denoiseTaskJob(): RunnerJob {
+  return {
+    protocol_version: "1.0",
+    id: "job-denoise-1",
+    invocation_id: "invocation-denoise-1",
+    runner_id: "runner-1",
+    repository: "chesapeakedev/dn",
+    operation: {
+      type: "denoise-task",
+      task_document: denoiseTaskDoc(),
+      publish: "pr",
+      agent: "codex",
+    },
+    created_at: "2026-07-23T12:00:00.000Z",
+    queued_until: "2026-07-24T12:00:00.000Z",
+    lease: {
+      id: "lease-denoise-1",
+      expires_at: "2026-07-23T12:01:00.000Z",
+      cancel_requested: false,
+    },
+  };
+}
+
+Deno.test("buildRunnerKickstartCommand dispatches denoise-task to temp file", async () => {
+  const { argv, cleanup } = await buildRunnerKickstartCommand(
+    denoiseTaskJob(),
+    ["/usr/local/bin/dn"],
+  );
+  try {
+    assertEquals(argv[0], "/usr/local/bin/dn");
+    assertEquals(argv[1], "--unattended");
+    assertEquals(argv[2], "--agent");
+    assertEquals(argv[3], "codex");
+    assertEquals(argv[4], "kickstart");
+    assertEquals(argv[5], "--publish");
+    assertEquals(argv[6], "pr");
+    assert(argv[7].endsWith(".md"), `Expected .md file, got ${argv[7]}`);
+    // Verify the materialized content
+    const content = await Deno.readTextFile(argv[7]);
+    assert(content.startsWith("# Denoise test task"));
+    assert(content.includes("Test body content."));
+  } finally {
+    if (cleanup) await cleanup();
+  }
+});
+
+Deno.test("buildRunnerDenoiseTaskCommand creates temp file and cleanup", async () => {
+  const { argv, cleanup } = await buildRunnerDenoiseTaskCommand(
+    denoiseTaskJob(),
+    ["/usr/local/bin/dn"],
+  );
+  // Verify the temp file exists before cleanup
+  const fileExists = await Deno.stat(argv[7]).then(() => true).catch(() =>
+    false
+  );
+  assert(fileExists, "Temp file should exist before cleanup");
+  await cleanup();
+  const fileExistsAfter = await Deno.stat(argv[7]).then(() => true).catch(() =>
+    false
+  );
+  assertEquals(
+    fileExistsAfter,
+    false,
+    "Temp file should be removed after cleanup",
+  );
 });
