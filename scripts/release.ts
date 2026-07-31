@@ -12,6 +12,19 @@ export interface CommitEntry {
   subject: string;
 }
 
+interface GitHubRef {
+  object?: {
+    sha?: unknown;
+    type?: unknown;
+  };
+}
+
+interface GitHubTag {
+  object?: {
+    sha?: unknown;
+  };
+}
+
 interface ReleaseOptions {
   dryRun: boolean;
   previousReleaseVersion?: string;
@@ -54,7 +67,7 @@ function showHelp(): void {
   console.log("release.ts - Run the dn release workflow\n");
   console.log("Usage:");
   console.log(
-    "  deno run --allow-read --allow-write --allow-run scripts/release.ts [--version <version>] [--dry-run]",
+    "  deno run --allow-read --allow-write --allow-run --allow-env scripts/release.ts [--version <version>] [--dry-run]",
   );
   console.log("\nOptions:");
   console.log("  --version <version>  Release an explicit semantic version");
@@ -64,6 +77,7 @@ function showHelp(): void {
   console.log("  --dry-run            Show the release without changing files");
 }
 
+// utility function to run shell command
 async function runCommand(args: string[]): Promise<CommandResult> {
   const command = new Deno.Command(args[0], {
     args: args.slice(1),
@@ -251,6 +265,140 @@ async function listCommitsSince(previousNode: string): Promise<CommitEntry[]> {
   return parseSaplingLog(output);
 }
 
+async function resolveRepository(): Promise<string> {
+  return (await runChecked([
+    "gh",
+    "repo",
+    "view",
+    "--json",
+    "nameWithOwner",
+    "--jq",
+    ".nameWithOwner",
+  ])).trim();
+}
+
+async function resolveReleaseCommit(version: string): Promise<CommitEntry> {
+  const repository = await resolveRepository();
+  const tagName = `v${version}`;
+
+  // Verify the release exists before resolving its tag. This avoids silently
+  // using a similarly named tag when recovering from a failed release.
+  await runChecked(["gh", "release", "view", tagName, "--repo", repository]);
+  const ref = JSON.parse(
+    await runChecked([
+      "gh",
+      "api",
+      `repos/${repository}/git/ref/tags/${tagName}`,
+    ]),
+  ) as GitHubRef;
+  const sha = ref.object?.sha;
+  const type = ref.object?.type;
+  if (typeof sha !== "string" || typeof type !== "string") {
+    throw new Error(`GitHub returned an invalid tag reference for ${tagName}`);
+  }
+
+  let commitNode = sha;
+  if (type === "tag") {
+    const tag = JSON.parse(
+      await runChecked([
+        "gh",
+        "api",
+        `repos/${repository}/git/tags/${sha}`,
+      ]),
+    ) as GitHubTag;
+    if (typeof tag.object?.sha !== "string") {
+      throw new Error(
+        `GitHub returned an invalid annotated tag for ${tagName}`,
+      );
+    }
+    commitNode = tag.object.sha;
+  }
+
+  const commit = (await listAncestorCommits()).find((entry) =>
+    commitNode.startsWith(entry.node) || entry.node.startsWith(commitNode)
+  );
+  if (!commit) {
+    throw new Error(
+      `Release ${tagName} points to ${commitNode}, which is not an ancestor of the current checkout`,
+    );
+  }
+  return commit;
+}
+
+function fallbackUserFacingCommits(commits: CommitEntry[]): CommitEntry[] {
+  const internalSubject =
+    /^(?:merge |release\b|chore(?:\([^)]*\))?:|test(?:\([^)]*\))?:)/i;
+  return commits.filter((commit) =>
+    !internalSubject.test(commit.subject.trim())
+  );
+}
+
+function parseSelectedCommitNodes(output: string): Set<string> | null {
+  const matches = [...output.matchAll(/\[[\s\S]*?\]/g)];
+  for (const match of matches.reverse()) {
+    try {
+      const parsed: unknown = JSON.parse(match[0]);
+      if (
+        Array.isArray(parsed) &&
+        parsed.every((node): node is string => typeof node === "string")
+      ) {
+        return new Set(parsed);
+      }
+    } catch {
+      // Try another JSON-looking section in the model response.
+    }
+  }
+  return null;
+}
+
+async function filterUserFacingCommits(
+  commits: CommitEntry[],
+): Promise<CommitEntry[]> {
+  const model = Deno.env.get("RELEASE_NOTES_MODEL")?.trim() ||
+    "opencode/ling-3.0-flash-free";
+  if (model.toLowerCase() === "none") return fallbackUserFacingCommits(commits);
+
+  const prompt = [
+    "Select the commits that describe user-visible changes for release notes.",
+    "Exclude merges, release/version bumps, tests, CI, refactors, and internal maintenance.",
+    "Return ONLY a JSON array containing the commit IDs you selected.",
+    "Commits:",
+    ...commits.map((commit) => `${commit.node}\t${commit.subject}`),
+  ].join("\n");
+  let result: CommandResult;
+  try {
+    result = await runCommand([
+      "opencode",
+      "run",
+      "--model",
+      model,
+      "--format",
+      "default",
+      prompt,
+    ]);
+  } catch {
+    console.warn(
+      "Release notes model unavailable; using commit subjects instead.",
+    );
+    return fallbackUserFacingCommits(commits);
+  }
+  if (result.code !== 0) {
+    console.warn(
+      "Release notes model unavailable; using commit subjects instead.",
+    );
+    return fallbackUserFacingCommits(commits);
+  }
+
+  const selected = parseSelectedCommitNodes(result.stdout);
+  if (!selected) {
+    console.warn(
+      "Release notes model returned invalid output; using commit subjects instead.",
+    );
+    return fallbackUserFacingCommits(commits);
+  }
+  return commits.filter((commit) => selected.has(commit.node));
+}
+
 async function writeTempFile(prefix: string, content: string): Promise<string> {
   const path = await Deno.makeTempFile({ prefix, suffix: ".md" });
   await Deno.writeTextFile(path, content);
@@ -267,16 +415,7 @@ async function runRelease(options: ReleaseOptions): Promise<void> {
   const previousReleaseVersion = options.previousReleaseVersion
     ? validateSemanticVersion(options.previousReleaseVersion)
     : previousVersion;
-  const previousRelease = findPreviousReleaseCommit(
-    await listAncestorCommits(),
-    previousReleaseVersion,
-  );
-
-  if (!previousRelease) {
-    throw new Error(
-      `Could not find an ancestor commit whose subject starts with ${previousReleaseVersion}`,
-    );
-  }
+  const previousRelease = await resolveReleaseCommit(previousReleaseVersion);
 
   const commits = await listCommitsSince(previousRelease.node);
   if (commits.length === 0) {
@@ -285,12 +424,17 @@ async function runRelease(options: ReleaseOptions): Promise<void> {
     );
   }
 
+  const userFacingCommits = await filterUserFacingCommits(commits);
+  if (userFacingCommits.length === 0) {
+    throw new Error("No user-facing commits found since the previous release");
+  }
+
   const commitMessage = formatCommitMessage(
     newVersion,
     previousVersion,
-    commits,
+    userFacingCommits,
   );
-  const releaseNotes = formatReleaseNotes(previousVersion, commits);
+  const releaseNotes = formatReleaseNotes(previousVersion, userFacingCommits);
   console.log(`Preparing dn ${newVersion}`);
   console.log(
     `Previous release: ${previousRelease.node} ${previousRelease.subject}`,
