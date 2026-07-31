@@ -16,3 +16,8 @@ node_modules/
 
 # dn
 .dn
+
+# Local compile / signing smoke-test artifacts (never commit)
+/dn-macos-local
+/dn-macos-local.zip
+/dn-macos-local.*

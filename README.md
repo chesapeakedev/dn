@@ -47,9 +47,9 @@ Prebuilt binaries are also available from the
 | Linux (ARM64)         | `dn-linux-arm64`     |
 | Windows (x64)         | `dn-windows-x64.exe` |
 
-On macOS, downloaded binaries are currently unsigned. If Gatekeeper blocks the
-binary, approve it under **System Settings > Privacy & Security**, or remove the
-quarantine attribute:
+macOS release binaries are signed with a Developer ID certificate and notarized.
+If an older unsigned build is blocked by Gatekeeper, approve it under **System
+Settings > Privacy & Security**, or remove the quarantine attribute:
 
 ```bash
 xattr -d com.apple.quarantine "$(which dn)"

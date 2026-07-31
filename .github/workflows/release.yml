@@ -62,6 +62,17 @@ jobs:
       - name: Build binary
         run: ./compile_dn.sh --target ${{ matrix.target }} -o ${{ matrix.binary }}
 
+      - name: Sign and notarize macOS binary
+        if: runner.os == 'macOS'
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: ./scripts/macos_sign_and_notarize.sh "${{ matrix.binary }}"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v5
         with:

@@ -135,8 +135,10 @@ The workflow runs a matrix build across five platform targets using
 | `macos-latest`  | `aarch64-apple-darwin`      | `dn-macos-arm64`     |
 | `ubuntu-latest` | `x86_64-pc-windows-msvc`    | `dn-windows-x64.exe` |
 
-Each binary is uploaded as a GitHub Actions artifact with 1-day retention.
-Details about the binary:
+Each binary is uploaded as a GitHub Actions artifact with 1-day retention. macOS
+binaries are signed with a Developer ID Application certificate and notarized
+via `scripts/macos_sign_and_notarize.sh` before upload. Details about the
+binary:
 
 - **Runtime:** Deno 2.x
 - **Build command:** `./compile_dn.sh --target <triple> -o <binary>`
@@ -153,6 +155,37 @@ Binary Naming Format: `dn-{os}-{arch}` where:
 
 - `os`: `linux`, `macos`, `windows`
 - `arch`: `x64`, `arm64`
+
+### macOS signing secrets
+
+Configure these repository secrets (Settings → Secrets and variables → Actions)
+before the next macOS release build. Without them, the macOS matrix jobs fail at
+the sign/notarize step.
+
+| Secret                       | Value                                                                |
+| ---------------------------- | -------------------------------------------------------------------- |
+| `APPLE_CERTIFICATE_BASE64`   | Base64-encoded Developer ID Application `.p12`                       |
+| `APPLE_CERTIFICATE_PASSWORD` | Password used when exporting the `.p12`                              |
+| `APPLE_API_KEY`              | Full contents of the App Store Connect API `.p8` private key         |
+| `APPLE_API_KEY_ID`           | Key ID shown in App Store Connect for that `.p8`                     |
+| `APPLE_API_ISSUER_ID`        | Issuer ID (UUID) from App Store Connect → Users and Access → Keys    |
+| `APPLE_SIGNING_IDENTITY`     | Optional. Exact `codesign` identity string; auto-detected if omitted |
+
+Encode the certificate on macOS:
+
+```bash
+base64 -i DeveloperID.p12 | pbcopy
+```
+
+Paste into `APPLE_CERTIFICATE_BASE64`. For `APPLE_API_KEY`, paste the entire
+`.p8` file body (including the `BEGIN PRIVATE KEY` / `END PRIVATE KEY` lines).
+
+Local dry-run of the same script (after exporting the env vars):
+
+```bash
+./compile_dn.sh -o dn-macos-local
+./scripts/macos_sign_and_notarize.sh dn-macos-local
+```
 
 ### Adding New Platforms
 
