@@ -19,22 +19,26 @@ Respond with a single JSON array. Each element is one commit in apply order:
 
 ## Rules
 
+- **Prefer exactly one commit** that includes every changed file. Users can
+  split later with their VCS (`sl split`, interactive git tools, etc.). Do not
+  invent multi-commit layouts from layering (sdk vs cli vs docs) or file count.
+- Split into two or more commits **only** when there is a clear hard boundary,
+  typically production code vs dedicated test files that can land independently.
+  If unsure, use one commit.
 - Use **conventional commits** for every `summary`: `type(scope): description`
   Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
 - Assign **every changed file exactly once** across all commits. Do not omit
   files or assign a file to multiple commits.
 - Do not include plan files (`.plan.md`) in any commit — they are removed after
   landing.
-- Group logically: separate feat vs test vs docs when the diff spans concerns.
 - Keep summaries under 72 characters; reference plan intent in body when useful.
 - Omit `body` or set it to `null` when the summary is sufficient.
-- Order commits so dependencies come first (e.g. core change before tests that
-  depend on it).
+- When using one commit, the single-commit message seed is a strong hint for
+  summary/body; rewrite into conventional-commit form as needed.
 
 ## Input
 
 You receive the plan markdown, optional test plan, list of changed files, diff
-stat, and a suggested single-commit message seed. The seed is a hint only; split
-and rewrite for conventional commits when landing multiple commits.
+stat, full diff, and a suggested single-commit message seed.
 
 Output only the JSON array, no surrounding markdown or explanation.

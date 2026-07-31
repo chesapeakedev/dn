@@ -2,13 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { $ } from "$dax";
-import { commitStaged } from "../archive/commit.ts";
 import type { CommitMessage } from "../archive/derive.ts";
 import { detectVcs } from "../github/vcs.ts";
 import type { LandCommitPlan } from "./types.ts";
 
 /**
  * Stages specific paths and commits them with the given message.
+ *
+ * Sapling has no staging area: `sl commit` without paths would include every
+ * pending change. This always passes an explicit file list so multi-commit
+ * land plans only include the intended paths.
  *
  * @param files - Repository-relative paths to stage
  * @param message - Commit summary and optional body
@@ -28,15 +31,21 @@ export async function commitFiles(
     throw new Error("Cannot commit with an empty file list.");
   }
 
+  const fullMessage = message.body
+    ? `${message.summary}\n\n${message.body}`
+    : message.summary;
+
   if (ctx.vcs === "sapling") {
-    for (const file of files) {
-      await $`sl add ${file}`;
-    }
+    // -A adds/removes the named paths; path args limit the commit contents.
+    await $`sl commit -A -m ${fullMessage} -- ${files}`;
   } else {
     await $`git add -- ${files}`;
+    if (message.body) {
+      await $`git commit -m ${message.summary} -m ${message.body}`;
+    } else {
+      await $`git commit -m ${message.summary}`;
+    }
   }
-
-  await commitStaged(message);
 }
 
 /**

@@ -107,7 +107,10 @@ export interface RunLandPhaseOptions {
 }
 
 /**
- * Runs the agent-driven land phase: propose logical commits and apply them.
+ * Runs the agent-driven land phase: propose a commit plan and apply it.
+ *
+ * Default guidance is one conventional commit for the whole change set; the
+ * agent may split only for a clear hard boundary (e.g. tests vs production).
  */
 export async function runLandPhase(
   options: RunLandPhaseOptions,

@@ -899,12 +899,15 @@ Use `dn land` after a plan-backed task is complete and the workspace contains
 the changes you want to commit. **`dn land` closes out local agentic work into
 durable VCS state** — it is not trunk publish (`dn sync`) and not PR creation.
 
-Default mode discovers the plan file, uses an agent to group changes into
-logical commits with conventional-commit messages, and deletes the plan file on
-success. **`dn land` targets one plan at a time** (explicit path, `PLAN` env, or
-newest `plans/*.plan.md`). For per-issue publish without a separate land step,
-use `dn kickstart --publish pr|direct` instead of stacking multiple kickstarts
-into one dirty workspace.
+Default mode discovers the plan file, uses an agent to draft **one**
+conventional commit covering the workspace changes (splitting only for a clear
+hard boundary such as production code vs dedicated tests), and deletes the plan
+file on success. Prefer `dn land --single` when you want a deterministic message
+with no agent. Users who want finer history can split afterward with their VCS.
+**`dn land` targets one plan at a time** (explicit path, `PLAN` env, or newest
+`plans/*.plan.md`). For per-issue publish without a separate land step, use
+`dn kickstart --publish pr|direct` instead of stacking multiple kickstarts into
+one dirty workspace.
 
 ```bash
 dn land

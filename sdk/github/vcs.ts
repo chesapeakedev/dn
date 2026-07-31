@@ -311,12 +311,11 @@ export async function getChangedFiles(
 }
 
 /**
- * Displays the changes made by opencode.
- * Shows both a summary (stat) and the full diff.
- * Disables pager to prevent hanging in headless mode by capturing output.
+ * Collects workspace change summary and full diff text without printing.
+ * Disables pager to avoid hanging in headless mode.
  *
  * @param vcs - The version control system to use ("git" or "sapling")
- * @returns Promise resolving to object with changed files list and diff stats
+ * @returns Promise resolving to changed files, diffstat, and full diff text
  */
 export async function showChanges(
   vcs: "git" | "sapling",
@@ -327,17 +326,11 @@ export async function showChanges(
   if (vcs === "sapling") {
     // Disable pager for sapling by setting PAGER=cat in environment
     stat = await $`sl diff --stat`.env({ PAGER: "cat" }).text();
-    console.log(stat);
-    console.log("\n=== Full diff ===");
     diff = await $`sl diff`.env({ PAGER: "cat" }).text();
-    console.log(diff);
   } else {
     // Disable pager for git using --no-pager flag and capture output
     stat = await $`git --no-pager diff --stat`.text();
-    console.log(stat);
-    console.log("\n=== Full diff ===");
     diff = await $`git --no-pager diff`.text();
-    console.log(diff);
   }
 
   // Get changed files list
