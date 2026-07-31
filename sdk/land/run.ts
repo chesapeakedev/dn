@@ -6,6 +6,7 @@ import { getRunAgent } from "../github/agentHarness.ts";
 import { formatAgentFailureOutput } from "../github/progress.ts";
 import { detectVcs, getChangedFiles, showChanges } from "../github/vcs.ts";
 import { deriveCommitMessage } from "../archive/derive.ts";
+import { readIncludedSystemPrompt } from "../../kickstart/includedPrompt.ts";
 import { executeCommitPlan } from "./commit.ts";
 import {
   extractLandJson,
@@ -14,41 +15,15 @@ import {
 } from "./parse.ts";
 import type { LandCommitPlan } from "./types.ts";
 
-function getBinaryDir(): string {
-  const url = new URL(import.meta.url);
-  if (url.protocol === "file:") {
-    return new URL(".", url).pathname;
-  }
-  return new URL(".", import.meta.url).pathname;
-}
-
-const BINARY_DIR = getBinaryDir();
-
 async function readLandSystemPrompt(workspaceRoot: string): Promise<string> {
   const filename = "system.prompt.land.md";
-  const candidates: string[] = [];
-
-  // Compiled binary: --include files sit next to the executable.
-  if (typeof import.meta.dirname !== "undefined") {
-    candidates.push(`${import.meta.dirname}/${filename}`);
-    // Development: this module lives under sdk/land/.
-    candidates.push(`${import.meta.dirname}/../../kickstart/${filename}`);
+  try {
+    return await readIncludedSystemPrompt(filename, workspaceRoot);
+  } catch {
+    throw new Error(
+      `Land system prompt not found: ${filename}. Run from dn repo or recompile with --include.`,
+    );
   }
-  candidates.push(`${BINARY_DIR}/${filename}`);
-  candidates.push(`${BINARY_DIR}/../../kickstart/${filename}`);
-  candidates.push(`${workspaceRoot}/kickstart/${filename}`);
-
-  for (const path of candidates) {
-    try {
-      return await Deno.readTextFile(path);
-    } catch {
-      // try next
-    }
-  }
-
-  throw new Error(
-    `Land system prompt not found: ${filename}. Run from dn repo or recompile with --include.`,
-  );
 }
 
 function normalizePath(path: string): string {

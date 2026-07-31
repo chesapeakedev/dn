@@ -30,6 +30,7 @@ import {
   formatSuccess,
   formatWarning,
 } from "../kickstart/output.ts";
+import { readIncludedSystemPrompt } from "../kickstart/includedPrompt.ts";
 
 /**
  * Configuration for fixup command
@@ -371,51 +372,6 @@ function createFixupPlan(prData: PullRequestData): string {
 }
 
 /**
- * Gets the binary directory (works in compiled binary and development mode).
- */
-function getBinaryDir(): string {
-  const url = new URL(import.meta.url);
-  if (url.protocol === "file:") {
-    // Development mode - go up one level from cli/ to dn/, then into kickstart/
-    return new URL("../kickstart/", url).pathname;
-  }
-  return new URL("../kickstart/", import.meta.url).pathname;
-}
-
-/**
- * Reads an included system prompt (works in compiled binary and development mode).
- */
-async function readIncludedPrompt(
-  filename: string,
-  workspaceRoot: string,
-): Promise<string> {
-  const binaryDir = getBinaryDir();
-
-  try {
-    // Try included file first (works in compiled binary)
-    if (typeof import.meta.dirname !== "undefined") {
-      try {
-        return await Deno.readTextFile(
-          import.meta.dirname + `/../kickstart/${filename}`,
-        );
-      } catch {
-        // Fall through to file system fallback
-      }
-    }
-  } catch {
-    // Fall through to file system fallback
-  }
-
-  // Try binary directory
-  try {
-    return await Deno.readTextFile(`${binaryDir}/${filename}`);
-  } catch {
-    // Try workspace root
-    return await Deno.readTextFile(`${workspaceRoot}/dn/kickstart/${filename}`);
-  }
-}
-
-/**
  * Handles the fixup subcommand
  */
 export async function handleFixup(
@@ -529,7 +485,7 @@ export async function handleFixup(
     // Load fixup system prompt
     let fixupSystemPromptPath: string;
     try {
-      let promptContent = await readIncludedPrompt(
+      let promptContent = await readIncludedSystemPrompt(
         "system.prompt.fixup.md",
         workspaceRoot,
       );
