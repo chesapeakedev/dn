@@ -19,9 +19,7 @@
       "templates/**/*.sh",
       "templates/**/*.yml"
     ],
-    "exclude": [
-      "deslop.md"
-    ]
+    "exclude": []
   },
   "tasks": {
     "dev": "deno run --watch cli/main.ts",

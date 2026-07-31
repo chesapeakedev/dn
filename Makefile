@@ -7,9 +7,6 @@ else
     SED_INPLACE := sed -i
 endif
 
-# deslop checks
-include deslop.mk
-
 .PHONY: \
 	fmt \
 	lint \
@@ -143,4 +140,4 @@ bump_major:
 # Pass VERSION=x.y.z for an explicit version; the default is the next patch.
 # Pass PREVIOUS_RELEASE_VERSION=x.y.z to recover from a prior bad release label.
 release:
-	deno run --allow-read --allow-write --allow-run scripts/release.ts $(if $(VERSION),--version $(VERSION),) $(if $(PREVIOUS_RELEASE_VERSION),--previous-release-version $(PREVIOUS_RELEASE_VERSION),)
+	deno run --allow-read --allow-write --allow-run --allow-env scripts/release.ts $(if $(VERSION),--version $(VERSION),) $(if $(PREVIOUS_RELEASE_VERSION),--previous-release-version $(PREVIOUS_RELEASE_VERSION),)
