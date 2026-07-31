@@ -38,8 +38,10 @@ import {
 import { isCI } from "../sdk/github/output.ts";
 import type { PublishMode } from "../sdk/github/publish.ts";
 import { parsePublishMode } from "../sdk/github/publish.ts";
-import type { DenoiseTaskDocument } from "../sdk/runner/types.ts";
-import { denoiseTaskToMarkdown } from "../sdk/runner/types.ts";
+import {
+  denoiseTaskToMarkdown,
+  validateDenoiseTaskDocument,
+} from "../sdk/runner/types.ts";
 import {
   detectVcs,
   getChangedFiles,
@@ -177,12 +179,7 @@ export function parseKickstartArgs(
 
   if (denoiseTaskPath) {
     const jsonText = Deno.readTextFileSync(denoiseTaskPath);
-    const task: DenoiseTaskDocument = JSON.parse(jsonText);
-    if (!task.id || !task.title || !task.body) {
-      throw new Error(
-        "Denoise task document must include id, title, and body.",
-      );
-    }
+    const task = validateDenoiseTaskDocument(JSON.parse(jsonText));
     const markdown = denoiseTaskToMarkdown(task);
     const tmpFile = Deno.makeTempFileSync({
       prefix: "dn-denoise-task-",

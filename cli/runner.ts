@@ -28,12 +28,12 @@ import {
   uninstallRunnerService,
 } from "../sdk/runner/service.ts";
 import {
-  type DenoiseTaskDocument,
   parseRepositorySlug,
   repositoryFromIssueUrl,
   RUNNER_CONFIG_SCHEMA_VERSION,
   RUNNER_PROTOCOL_VERSION,
   type RunnerJobSummary,
+  validateDenoiseTaskDocument,
 } from "../sdk/runner/mod.ts";
 import { serveRunner } from "../sdk/runner/worker.ts";
 import type { PublishMode } from "../sdk/github/publish.ts";
@@ -58,7 +58,7 @@ function showRunnerHelp(): void {
     "  dn runner kickstart <issue> [--publish <mode>] [--wait] [--json]",
   );
   console.log(
-    "  dn runner kickstart --denoise-task <file> [--wait] [--json]",
+    "  dn runner kickstart --denoise-task <file> [--publish <mode>] [--wait] [--json]",
   );
   console.log("  dn runner pause|resume|disconnect [--json]");
   console.log("  dn runner rotate [--json]");
@@ -416,7 +416,7 @@ async function resolveKickstartIssue(
 async function handleKickstart(args: string[]): Promise<void> {
   let issue: string | null = null;
   let denoiseTaskPath: string | null = null;
-  let publish: PublishMode = "pr";
+  let publish: PublishMode | undefined;
   let wait = false;
   let json = false;
   for (let index = 0; index < args.length; index++) {
@@ -442,9 +442,13 @@ async function handleKickstart(args: string[]): Promise<void> {
       "Usage: dn runner kickstart <issue> | dn runner kickstart --denoise-task <file>",
     );
   }
-  if (publish !== "pr") {
+  // Issue-backed device jobs require a PR. Denoise-task jobs may publish none/pr/direct
+  // (free Void uses none; no GitHub issue to open a PR against).
+  const resolvedPublish: PublishMode = publish ??
+    (denoiseTaskPath ? "none" : "pr");
+  if (!denoiseTaskPath && resolvedPublish !== "pr") {
     throw new Error(
-      "Device runner jobs require --publish pr; none and direct are available only for local CLI execution.",
+      "Issue-backed device runner jobs require --publish pr; use --denoise-task for none/direct.",
     );
   }
   const [{ client, runnerId }, config] = await Promise.all([
@@ -454,14 +458,14 @@ async function handleKickstart(args: string[]): Promise<void> {
 
   if (denoiseTaskPath) {
     const jsonText = await Deno.readTextFile(denoiseTaskPath);
-    const taskDocument: DenoiseTaskDocument = JSON.parse(jsonText);
-    if (!taskDocument.id || !taskDocument.title || !taskDocument.body) {
+    const taskDocument = validateDenoiseTaskDocument(JSON.parse(jsonText));
+    const repository = taskDocument.repo_hint ?? undefined;
+    if (!repository) {
       throw new Error(
-        "Denoise task document must include id, title, and body.",
+        "Denoise task document must include repo_hint (owner/repo) for device runner jobs.",
       );
     }
-    const repository = taskDocument.repository ?? undefined;
-    if (repository && !config.repositories[repository]) {
+    if (!config.repositories[repository]) {
       throw new Error(
         `${repository} is not registered; run dn runner register from its checkout.`,
       );
@@ -470,7 +474,7 @@ async function handleKickstart(args: string[]): Promise<void> {
       runner_id: runnerId,
       repository,
       task_document: taskDocument,
-      publish,
+      publish: resolvedPublish,
     });
     if (!wait) {
       if (json) console.log(JSON.stringify(queued));
@@ -514,7 +518,7 @@ async function handleKickstart(args: string[]): Promise<void> {
     runner_id: runnerId,
     repository: resolved.repository,
     issue_url: resolved.issueUrl,
-    publish,
+    publish: resolvedPublish,
   });
   if (!wait) {
     if (json) console.log(JSON.stringify(queued));

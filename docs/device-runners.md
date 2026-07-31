@@ -67,19 +67,23 @@ dn runner kickstart 213 --publish pr --json
 ```
 
 Numeric issue references use the current checkout. A full issue URL must match
-an explicitly registered repository. Protocol v1 requires `pr` publishing so a
-successful remote job has a durable GitHub result.
+an explicitly registered repository. Issue-backed protocol jobs require `pr`
+publishing so a successful remote job has a durable GitHub result. Denoise-task
+jobs may use `publish: none` (default when queueing via `--denoise-task`) when
+there is no GitHub issue to open a PR against.
 
 Queue a denoise-task job (ticketless) from a local JSON file:
 
 ```bash
 dn runner kickstart --denoise-task task.json
-dn runner kickstart --denoise-task task.json --wait --json
+dn runner kickstart --denoise-task task.json --publish none --wait --json
 ```
 
-The `--denoise-task` flag reads a `DenoiseTaskDocument` JSON file, sends it
-inline to the denoise API, and the paired runner materializes it into a
-plan-compatible markdown file before executing `dn kickstart`.
+The `--denoise-task` flag reads a `DenoiseTaskDocument` JSON file (schema v1:
+`id`, `title`, `body`, `status`, `updated_at`, optional `repo_hint` /
+`acceptance_criteria` / `tags`), sends it inline to the denoise API, and the
+paired runner materializes it into plan-compatible markdown before executing
+`dn kickstart`. Progress events for these jobs include `task_id`.
 
 An offline runner can retain a job in the denoise queue for up to 24 hours.
 Denoise does not move that job to paid hosted infrastructure. The outbound

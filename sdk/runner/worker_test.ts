@@ -219,7 +219,9 @@ function denoiseTaskDoc(): DenoiseTaskDocument {
     id: "task-denoise-1",
     title: "Denoise test task",
     body: "Test body content.",
-    repository: "chesapeakedev/dn",
+    status: "open",
+    updated_at: "2026-07-23T12:00:00.000Z",
+    repo_hint: "chesapeakedev/dn",
     created_at: "2026-07-23T12:00:00.000Z",
   };
 }
@@ -234,7 +236,7 @@ function denoiseTaskJob(): RunnerJob {
     operation: {
       type: "denoise-task",
       task_document: denoiseTaskDoc(),
-      publish: "pr",
+      publish: "none",
       agent: "codex",
     },
     created_at: "2026-07-23T12:00:00.000Z",
@@ -259,7 +261,7 @@ Deno.test("buildRunnerKickstartCommand dispatches denoise-task to temp file", as
     assertEquals(argv[3], "codex");
     assertEquals(argv[4], "kickstart");
     assertEquals(argv[5], "--publish");
-    assertEquals(argv[6], "pr");
+    assertEquals(argv[6], "none");
     assert(argv[7].endsWith(".md"), `Expected .md file, got ${argv[7]}`);
     // Verify the materialized content
     const content = await Deno.readTextFile(argv[7]);

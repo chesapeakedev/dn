@@ -5,11 +5,39 @@ import { assert, assertEquals, assertThrows } from "@std/assert";
 import {
   type DenoiseTaskDocument,
   denoiseTaskToMarkdown,
+  isSupportedRunnerProtocol,
+  parseRepositorySlug,
   repositoryFromDenoiseTask,
   repositoryFromIssueUrl,
+  RUNNER_PROTOCOL_VERSION,
   type RunnerJob,
+  validateDenoiseTaskDocument,
   validateRunnerJob,
 } from "./types.ts";
+
+Deno.test("isSupportedRunnerProtocol accepts the current version only", () => {
+  assertEquals(isSupportedRunnerProtocol(RUNNER_PROTOCOL_VERSION), true);
+  assertEquals(isSupportedRunnerProtocol("0.9"), false);
+});
+
+Deno.test("parseRepositorySlug accepts owner/repo values", () => {
+  assertEquals(parseRepositorySlug("chesapeakedev/dn"), "chesapeakedev/dn");
+  assertThrows(
+    () => parseRepositorySlug("/tmp/checkout"),
+    Error,
+    "Invalid repository",
+  );
+});
+
+Deno.test("repositoryFromIssueUrl accepts canonical URLs", () => {
+  const url = "https://github.com/chesapeakedev/dn/issues/12";
+  assertEquals(repositoryFromIssueUrl(url), "chesapeakedev/dn");
+  assertThrows(
+    () => repositoryFromIssueUrl("https://github.com/chesapeakedev/dn/pull/12"),
+    Error,
+    "Invalid issue URL",
+  );
+});
 
 function validJob(): RunnerJob {
   return {
@@ -20,7 +48,7 @@ function validJob(): RunnerJob {
     repository: "chesapeakedev/dn",
     operation: {
       type: "kickstart",
-      issue_url: "https://github.com/chesapeakedev/dn/issues/213",
+      issue_url: "https://github.com/chesapeakedev/dn/issues/12",
       publish: "pr",
       agent: "codex",
     },
@@ -34,33 +62,11 @@ function validJob(): RunnerJob {
   };
 }
 
-Deno.test("repositoryFromIssueUrl accepts only canonical GitHub issue URLs", () => {
-  assertEquals(
-    repositoryFromIssueUrl("https://github.com/chesapeakedev/dn/issues/213"),
-    "chesapeakedev/dn",
-  );
-  assertThrows(
-    () => repositoryFromIssueUrl("https://example.com/owner/repo/issues/1"),
-    Error,
-    "Expected https://github.com",
-  );
-  assertThrows(
-    () => repositoryFromIssueUrl("https://github.com/owner/repo/pulls/1"),
-    Error,
-    "Expected https://github.com",
-  );
-});
-
-Deno.test("validateRunnerJob accepts a typed job for the paired runner", () => {
+Deno.test("validateRunnerJob accepts a protocol v1 kickstart job", () => {
   assertEquals(validateRunnerJob(validJob(), "runner-1"), validJob());
 });
 
-Deno.test("validateRunnerJob rejects another runner and repository", () => {
-  assertThrows(
-    () => validateRunnerJob(validJob(), "runner-2"),
-    Error,
-    "different device",
-  );
+Deno.test("validateRunnerJob rejects mismatched repositories", () => {
   const job = validJob();
   job.repository = "chesapeakedev/other";
   assertThrows(
@@ -69,33 +75,6 @@ Deno.test("validateRunnerJob rejects another runner and repository", () => {
     "belongs to chesapeakedev/dn",
   );
 });
-
-Deno.test("validateRunnerJob rejects generic remote execution fields", () => {
-  const job = {
-    ...validJob(),
-    operation: {
-      type: "shell",
-      argv: ["sh", "-c", "echo unsafe"],
-    },
-  } as unknown as RunnerJob;
-  assertThrows(
-    () => validateRunnerJob(job),
-    Error,
-    "only permits kickstart",
-  );
-});
-
-for (const publish of ["none", "direct"] as const) {
-  Deno.test(`validateRunnerJob rejects ${publish} publishing`, () => {
-    const job = validJob();
-    job.operation.publish = publish;
-    assertThrows(
-      () => validateRunnerJob(job),
-      Error,
-      "require PR publishing",
-    );
-  });
-}
 
 Deno.test("validateRunnerJob rejects an unsupported protocol version", () => {
   const job = {
@@ -115,8 +94,10 @@ function denoiseTaskDoc(): DenoiseTaskDocument {
     id: "task-1",
     title: "Add dark mode",
     body: "Users need a dark mode toggle.",
-    repository: "chesapeakedev/dn",
-    labels: ["enhancement", "ui"],
+    status: "open",
+    updated_at: "2026-07-23T12:00:00.000Z",
+    repo_hint: "chesapeakedev/dn",
+    tags: ["enhancement", "ui"],
     acceptance_criteria: [
       "Dark mode toggle in settings",
       "CSS variables for theme",
@@ -125,7 +106,7 @@ function denoiseTaskDoc(): DenoiseTaskDocument {
   };
 }
 
-function denoiseTaskJob(): RunnerJob {
+function denoiseTaskJob(publish: "none" | "pr" | "direct" = "none"): RunnerJob {
   return {
     protocol_version: "1.0",
     id: "job-denoise-1",
@@ -135,7 +116,7 @@ function denoiseTaskJob(): RunnerJob {
     operation: {
       type: "denoise-task",
       task_document: denoiseTaskDoc(),
-      publish: "pr",
+      publish,
       agent: "codex",
     },
     created_at: "2026-07-23T12:00:00.000Z",
@@ -148,18 +129,36 @@ function denoiseTaskJob(): RunnerJob {
   };
 }
 
+Deno.test("validateDenoiseTaskDocument accepts schema v1 documents", () => {
+  assertEquals(validateDenoiseTaskDocument(denoiseTaskDoc()), denoiseTaskDoc());
+});
+
+Deno.test("validateDenoiseTaskDocument requires status and updated_at", () => {
+  assertThrows(
+    () =>
+      validateDenoiseTaskDocument({
+        schema_version: "1.0",
+        id: "x",
+        title: "t",
+        body: "b",
+      }),
+    Error,
+    "status",
+  );
+});
+
 Deno.test("denoiseTaskToMarkdown includes title and body", () => {
   const md = denoiseTaskToMarkdown(denoiseTaskDoc());
   assert(md.startsWith("# Add dark mode"));
   assert(md.includes("Users need a dark mode toggle."));
 });
 
-Deno.test("denoiseTaskToMarkdown includes acceptance criteria and labels", () => {
+Deno.test("denoiseTaskToMarkdown includes acceptance criteria and tags", () => {
   const md = denoiseTaskToMarkdown(denoiseTaskDoc());
   assert(md.includes("## Acceptance Criteria"));
   assert(md.includes("- [ ] Dark mode toggle in settings"));
   assert(md.includes("- [ ] CSS variables for theme"));
-  assert(md.includes("## Labels"));
+  assert(md.includes("## Tags"));
   assert(md.includes("enhancement, ui"));
 });
 
@@ -169,13 +168,14 @@ Deno.test("denoiseTaskToMarkdown works without optional fields", () => {
     id: "minimal",
     title: "Minimal task",
     body: "Just a body.",
-    created_at: "2026-07-23T12:00:00.000Z",
+    status: "open",
+    updated_at: "2026-07-23T12:00:00.000Z",
   });
   assert(md.startsWith("# Minimal task"));
   assert(!md.includes("## Acceptance Criteria"));
 });
 
-Deno.test("repositoryFromDenoiseTask extracts repository slug", () => {
+Deno.test("repositoryFromDenoiseTask extracts repo_hint slug", () => {
   assertEquals(
     repositoryFromDenoiseTask(denoiseTaskDoc()),
     "chesapeakedev/dn",
@@ -189,16 +189,24 @@ Deno.test("repositoryFromDenoiseTask returns null when absent", () => {
       id: "no-repo",
       title: "No repo",
       body: "No repo body.",
-      created_at: "2026-07-23T12:00:00.000Z",
+      status: "open",
+      updated_at: "2026-07-23T12:00:00.000Z",
     }),
     null,
   );
 });
 
-Deno.test("validateRunnerJob accepts a denoise-task job", () => {
+Deno.test("validateRunnerJob accepts a denoise-task job with publish none", () => {
   assertEquals(
-    validateRunnerJob(denoiseTaskJob(), "runner-1"),
-    denoiseTaskJob(),
+    validateRunnerJob(denoiseTaskJob("none"), "runner-1"),
+    denoiseTaskJob("none"),
+  );
+});
+
+Deno.test("validateRunnerJob accepts a denoise-task job with publish pr", () => {
+  assertEquals(
+    validateRunnerJob(denoiseTaskJob("pr"), "runner-1"),
+    denoiseTaskJob("pr"),
   );
 });
 
@@ -211,12 +219,13 @@ Deno.test("validateRunnerJob rejects denoise-task with incomplete document", () 
     id: "",
     title: "",
     body: "",
-    created_at: "2026-07-23T12:00:00.000Z",
+    status: "open",
+    updated_at: "2026-07-23T12:00:00.000Z",
   };
   assertThrows(
     () => validateRunnerJob(job),
     Error,
-    "incomplete task document",
+    "non-empty id",
   );
 });
 

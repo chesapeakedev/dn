@@ -343,16 +343,26 @@ export async function runRunnerJob(
       options.stderr?.(line);
       return;
     }
+    const progressEvent = job.operation.type === "denoise-task"
+      ? {
+        ...event,
+        task_id: job.operation.task_document.id,
+        data: {
+          ...event.data,
+          task_id: job.operation.task_document.id,
+        },
+      }
+      : event;
     if (
-      event.type === "publish.completed" &&
-      typeof event.data?.pr_url === "string"
+      progressEvent.type === "publish.completed" &&
+      typeof progressEvent.data?.pr_url === "string"
     ) {
-      prUrl = event.data.pr_url;
+      prUrl = progressEvent.data.pr_url;
     }
     if (progressCount >= MAX_PROGRESS_EVENTS) return;
     progressCount++;
     try {
-      await options.client.sendProgress(job.id, event);
+      await options.client.sendProgress(job.id, progressEvent);
     } catch (error) {
       options.stderr?.(
         `Progress delivery failed: ${

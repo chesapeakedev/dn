@@ -88,24 +88,148 @@ export interface RunnerRegistration {
   last_seen_at: string;
 }
 
-/** A self-contained denoise task document describing work without a GitHub issue. */
+/** Lifecycle status for a portable denoise task (not GitHub issue state). */
+export type DenoiseTaskStatus =
+  | "open"
+  | "in_progress"
+  | "done"
+  | "cancelled";
+
+/**
+ * Portable Denoise Task document (schema v1).
+ *
+ * Matches the Spec (#422) JSON encoding without GitHub correlation fields —
+ * free Void tasks must not require issue linkage.
+ */
 export interface DenoiseTaskDocument {
   /** Schema version for forward compatibility. */
   schema_version: "1.0";
-  /** Opaque task identifier. */
+  /** Stable task id for progress round-trip (Void ↔ runner ↔ UI). */
   id: string;
-  /** Task title (maps to H1 in materialized markdown). */
+  /** Short title (maps to H1 in materialized markdown). */
   title: string;
-  /** Markdown description (maps to body content). */
+  /** Spec / description the agent uses as primary context. */
   body: string;
-  /** Optional GitHub `owner/repo` slug. */
-  repository?: string;
-  /** Optional tags. */
-  labels?: string[];
-  /** Optional explicit acceptance criteria items. */
+  /** Task lifecycle status. */
+  status: DenoiseTaskStatus;
+  /** ISO-8601 time of the last local edit. */
+  updated_at: string;
+  /** Optional acceptance criteria the agent must honor. */
   acceptance_criteria?: string[];
-  /** ISO-8601 creation timestamp. */
-  created_at: string;
+  /** Portable tags (not GitHub labels). */
+  tags?: string[];
+  /**
+   * Optional `owner/repo` slug for the runner's registered checkout map.
+   * Never a local filesystem path on the wire.
+   */
+  repo_hint?: string;
+  /** Last/current kickstart invocation id for progress correlation. */
+  invocation_id?: string;
+  /** Last/current device-runner job id. */
+  runner_job_id?: string;
+  /** ISO-8601 creation time. */
+  created_at?: string;
+}
+
+const DENOISE_TASK_STATUSES: readonly DenoiseTaskStatus[] = [
+  "open",
+  "in_progress",
+  "done",
+  "cancelled",
+];
+
+/** Returns true when value is a valid {@link DenoiseTaskStatus}. */
+export function isDenoiseTaskStatus(
+  value: unknown,
+): value is DenoiseTaskStatus {
+  return typeof value === "string" &&
+    (DENOISE_TASK_STATUSES as readonly string[]).includes(value);
+}
+
+/**
+ * Validates a denoise task document against schema v1 required fields.
+ *
+ * @throws Error when the document is incomplete or malformed
+ */
+export function validateDenoiseTaskDocument(
+  value: unknown,
+): DenoiseTaskDocument {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("Denoise task document must be a JSON object.");
+  }
+  const task = value as Record<string, unknown>;
+  if (task.schema_version !== "1.0") {
+    throw new Error(
+      'Denoise task document requires schema_version "1.0".',
+    );
+  }
+  if (typeof task.id !== "string" || task.id.trim() === "") {
+    throw new Error("Denoise task document must include a non-empty id.");
+  }
+  if (typeof task.title !== "string" || task.title.trim() === "") {
+    throw new Error("Denoise task document must include a non-empty title.");
+  }
+  if (typeof task.body !== "string") {
+    throw new Error("Denoise task document must include a body string.");
+  }
+  if (!isDenoiseTaskStatus(task.status)) {
+    throw new Error(
+      'Denoise task document status must be "open", "in_progress", "done", or "cancelled".',
+    );
+  }
+  if (
+    typeof task.updated_at !== "string" ||
+    !Number.isFinite(Date.parse(task.updated_at))
+  ) {
+    throw new Error(
+      "Denoise task document must include a valid updated_at timestamp.",
+    );
+  }
+  if (
+    task.acceptance_criteria !== undefined &&
+    (!Array.isArray(task.acceptance_criteria) ||
+      !task.acceptance_criteria.every((item) => typeof item === "string"))
+  ) {
+    throw new Error(
+      "Denoise task acceptance_criteria must be an array of strings when present.",
+    );
+  }
+  if (
+    task.tags !== undefined &&
+    (!Array.isArray(task.tags) ||
+      !task.tags.every((item) => typeof item === "string"))
+  ) {
+    throw new Error(
+      "Denoise task tags must be an array of strings when present.",
+    );
+  }
+  if (task.repo_hint !== undefined && typeof task.repo_hint !== "string") {
+    throw new Error("Denoise task repo_hint must be a string when present.");
+  }
+  if (
+    task.invocation_id !== undefined && typeof task.invocation_id !== "string"
+  ) {
+    throw new Error(
+      "Denoise task invocation_id must be a string when present.",
+    );
+  }
+  if (
+    task.runner_job_id !== undefined && typeof task.runner_job_id !== "string"
+  ) {
+    throw new Error(
+      "Denoise task runner_job_id must be a string when present.",
+    );
+  }
+  if (
+    task.created_at !== undefined &&
+    (typeof task.created_at !== "string" ||
+      !Number.isFinite(Date.parse(task.created_at)))
+  ) {
+    throw new Error(
+      "Denoise task created_at must be a valid timestamp when present.",
+    );
+  }
+  return task as unknown as DenoiseTaskDocument;
 }
 
 /** Kickstart is the only remotely dispatchable operation in protocol v1. */
@@ -368,6 +492,8 @@ export interface RunnerProgressEvent {
   step?: number;
   /** Redacted human-readable progress summary. */
   message: string;
+  /** Denoise task id when the job is a denoise-task operation. */
+  task_id?: string;
   /** Optional structured event metadata. */
   data?: Record<string, unknown>;
 }
@@ -415,7 +541,8 @@ export function repositoryFromIssueUrl(value: string): string {
 export function repositoryFromDenoiseTask(
   task: DenoiseTaskDocument,
 ): string | null {
-  return task.repository?.trim() ?? null;
+  const hint = task.repo_hint?.trim();
+  return hint ? hint : null;
 }
 
 /** Materializes a denoise task document into plan-compatible markdown. */
@@ -427,8 +554,8 @@ export function denoiseTaskToMarkdown(task: DenoiseTaskDocument): string {
       parts.push(`- [ ] ${criterion}`);
     }
   }
-  if (task.labels && task.labels.length > 0) {
-    parts.push("", "## Labels", `\n${task.labels.join(", ")}`);
+  if (task.tags && task.tags.length > 0) {
+    parts.push("", "## Tags", `\n${task.tags.join(", ")}`);
   }
   return parts.join("\n").trim();
 }
@@ -451,13 +578,15 @@ export function validateRunnerJob(
   }
   const repository = parseRepositorySlug(job.repository);
   if (job.operation.type === "denoise-task") {
+    validateDenoiseTaskDocument(job.operation.task_document);
     if (
-      !job.operation.task_document?.id || !job.operation.task_document?.title
+      job.operation.publish !== "none" &&
+      job.operation.publish !== "pr" &&
+      job.operation.publish !== "direct"
     ) {
-      throw new Error("Denoise-task job has an incomplete task document.");
-    }
-    if (job.operation.publish !== "pr") {
-      throw new Error("Runner jobs require PR publishing.");
+      throw new Error(
+        'Denoise-task jobs require publish "none", "pr", or "direct".',
+      );
     }
     if (
       !["opencode", "cursor", "claude", "codex", "copilot"].includes(

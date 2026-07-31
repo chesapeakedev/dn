@@ -513,10 +513,12 @@ export {
   setRunnerPaused,
   uninstallRunnerService,
   unregisterRunnerRepository,
+  validateDenoiseTaskDocument,
   validateRunnerJob,
 } from "./runner/mod.ts";
 export type {
   DenoiseTaskDocument,
+  DenoiseTaskStatus,
   KickstartInvocationSource,
   KickstartRuntimeChoice,
   LocalRunnerConfig,

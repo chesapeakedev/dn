@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { fetchIssueFromUrl } from "../github/issue.ts";
-import type { DenoiseTaskDocument } from "../runner/types.ts";
-import { denoiseTaskToMarkdown } from "../runner/types.ts";
+import {
+  denoiseTaskToMarkdown,
+  validateDenoiseTaskDocument,
+} from "../runner/types.ts";
 
 const GITHUB_ISSUE_URL =
   /^https:\/\/github\.com\/[^/]+\/[^/]+\/issues\/\d+(?:\?.*)?$/i;
@@ -25,12 +27,10 @@ function tryDenoiseTaskJson(source: string): string | null {
     return null;
   }
   try {
-    const parsed: DenoiseTaskDocument = JSON.parse(
-      Deno.readTextFileSync(trimmed),
+    const parsed = validateDenoiseTaskDocument(
+      JSON.parse(Deno.readTextFileSync(trimmed)),
     );
-    if (parsed.schema_version === "1.0" && parsed.id && parsed.title) {
-      return denoiseTaskToMarkdown(parsed);
-    }
+    return denoiseTaskToMarkdown(parsed);
   } catch {
     // Not a valid denoise task JSON file.
   }

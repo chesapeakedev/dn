@@ -19,8 +19,10 @@ import type { IssueData } from "../sdk/github/issue.ts";
 import { promptAndAddToTodoList } from "../sdk/todo/todo.ts";
 import { resolveAgentHarnessFromFlagsAndEnv } from "../sdk/github/agentHarness.ts";
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
-import type { DenoiseTaskDocument } from "../sdk/runner/types.ts";
-import { denoiseTaskToMarkdown } from "../sdk/runner/types.ts";
+import {
+  denoiseTaskToMarkdown,
+  validateDenoiseTaskDocument,
+} from "../sdk/runner/types.ts";
 import type { SandboxFlagValue } from "../sdk/sandbox/resolve.ts";
 import {
   extractSandboxFlag,
@@ -122,8 +124,8 @@ function parseGitHubIssueUrl(url: string): GitHubIssueRef | null {
 function tryParseDenoiseTask(path: string): boolean {
   try {
     const text = Deno.readTextFileSync(path);
-    const parsed = JSON.parse(text);
-    return parsed?.schema_version === "1.0" && parsed?.id && parsed?.title;
+    validateDenoiseTaskDocument(JSON.parse(text));
+    return true;
   } catch {
     return false;
   }
@@ -270,7 +272,7 @@ export async function resolveLoopTarget(
 
   if (target.kind === "denoise-task") {
     const text = await Deno.readTextFile(target.path);
-    const task: DenoiseTaskDocument = JSON.parse(text);
+    const task = validateDenoiseTaskDocument(JSON.parse(text));
     const markdown = denoiseTaskToMarkdown(task);
     const tmpDir = await Deno.makeTempDir({ prefix: "dn-loop-denoise-" });
     const planFilePath = `${tmpDir}/task.md`;

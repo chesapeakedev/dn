@@ -349,20 +349,25 @@ issue URL:
 ```typescript
 interface DenoiseTaskDocument {
   schema_version: "1.0";
-  id: string; // Opaque task identifier
-  title: string; // Task title (maps to H1 in materialized markdown)
+  id: string; // Stable task id (Void ↔ runner ↔ UI)
+  title: string;
   body: string; // Markdown description
-  repository?: string; // Optional owner/repo slug
-  labels?: string[]; // Optional tags
-  acceptance_criteria?: string[]; // Optional explicit criteria items
-  created_at: string; // ISO-8601 timestamp
+  status: "open" | "in_progress" | "done" | "cancelled";
+  updated_at: string; // ISO-8601
+  acceptance_criteria?: string[];
+  tags?: string[]; // Portable tags (not GitHub labels)
+  repo_hint?: string; // owner/repo for registered checkout map — never a local path
+  invocation_id?: string;
+  runner_job_id?: string;
+  created_at?: string;
 }
 ```
 
 The device runner materializes the task document into a plan-compatible markdown
-file and runs `dn kickstart --publish <mode> <materialized_path>`. Cross-repo
-validation is relaxed for denoise-task operations — the repository is derived
-from `task_document.repository` if present.
+file and runs `dn kickstart --publish <mode> <materialized_path>`. Denoise-task
+jobs allow `publish: "none" | "pr" | "direct"` (free Void uses `"none"`; no
+GitHub issue is required). Cross-repo validation uses `task_document.repo_hint`
+when present. Forwarded progress events include `task_id` (= document `id`).
 
 Queue a denoise-task job via the runner API:
 
@@ -371,7 +376,7 @@ POST /api/runners/denoise-task
 {
   "runner_id": "<id>",
   "task_document": { ... },
-  "publish": "pr"
+  "publish": "none"
 }
 ```
 
