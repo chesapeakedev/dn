@@ -1371,39 +1371,33 @@ export async function runLoopPhase(
 
     if (completionStatus.total > 0) {
       console.log(
-        `\n📊 Completion Status: ${completionStatus.completed}/${completionStatus.total} acceptance criteria completed`,
+        `📊 Completion Status: ${completionStatus.completed}/${completionStatus.total} acceptance criteria completed`,
       );
 
       if (!completionStatus.complete) {
         console.log(
-          `\n${
-            formatWarning(
-              `Plan is incomplete. ${completionStatus.incomplete.length} item(s) remaining.`,
-            )
-          }`,
+          formatWarning(
+            `Plan is incomplete. ${completionStatus.incomplete.length} item(s) remaining.`,
+          ),
         );
 
         // The plan file itself is the continuation point
         // The agent has already updated it, so we just inform the user
         console.log(
-          `\n${
-            formatInfo(
-              `Plan file updated: ${
-                planFilePath.replace(workspaceRoot + "/", "")
-              }`,
-            )
-          }`,
+          formatInfo(
+            `Plan file updated: ${
+              planFilePath.replace(workspaceRoot + "/", "")
+            }`,
+          ),
         );
         console.log(
-          `\n${
-            formatInfo(
-              "To continue this work, run: dn loop " +
-                planFilePath.replace(workspaceRoot + "/", "") + "",
-            )
-          }`,
+          formatInfo(
+            "To continue this work, run: dn loop " +
+              planFilePath.replace(workspaceRoot + "/", "") + "",
+          ),
         );
       } else {
-        console.log(`\n${formatSuccess("All acceptance criteria completed!")}`);
+        console.log(formatSuccess("All acceptance criteria completed!"));
 
         // Delete plan file when all criteria are complete (AWP mode only)
         if (config.publish !== "none") {
@@ -1432,11 +1426,9 @@ export async function runLoopPhase(
       }
     } else {
       console.log(
-        `\n${
-          formatWarning(
-            "No acceptance criteria found in plan file. Unable to determine completion status.",
-          )
-        }`,
+        formatWarning(
+          "No acceptance criteria found in plan file. Unable to determine completion status.",
+        ),
       );
     }
 

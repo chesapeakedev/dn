@@ -1019,42 +1019,34 @@ export async function runOrchestrator(
 
       if (completionStatus.total > 0) {
         console.log(
-          `\n📊 Completion Status: ${completionStatus.completed}/${completionStatus.total} acceptance criteria completed`,
+          `📊 Completion Status: ${completionStatus.completed}/${completionStatus.total} acceptance criteria completed`,
         );
 
         if (!completionStatus.complete) {
           // Plan is incomplete
           console.log(
-            `\n${
-              formatWarning(
-                `Plan is incomplete. ${completionStatus.incomplete.length} item(s) remaining.`,
-              )
-            }`,
+            formatWarning(
+              `Plan is incomplete. ${completionStatus.incomplete.length} item(s) remaining.`,
+            ),
           );
 
           // The plan file itself is the continuation point
           // The agent has already updated it, so we just inform the user
           console.log(
-            `\n${
-              formatInfo(
-                `Plan file updated: ${
-                  finalPlanFilePath.replace(WORKSPACE_ROOT + "/", "")
-                }`,
-              )
-            }`,
+            formatInfo(
+              `Plan file updated: ${
+                finalPlanFilePath.replace(WORKSPACE_ROOT + "/", "")
+              }`,
+            ),
           );
           console.log(
-            `\n${
-              formatInfo(
-                "To continue this work, run: dn loop " +
-                  finalPlanFilePath.replace(WORKSPACE_ROOT + "/", "") + "",
-              )
-            }`,
+            formatInfo(
+              "To continue this work, run: dn loop " +
+                finalPlanFilePath.replace(WORKSPACE_ROOT + "/", "") + "",
+            ),
           );
         } else {
-          console.log(
-            `\n${formatSuccess("All acceptance criteria completed!")}`,
-          );
+          console.log(formatSuccess("All acceptance criteria completed!"));
 
           // Delete plan file when all criteria are complete (publish mode only)
           if (publishesChanges) {
@@ -1083,17 +1075,15 @@ export async function runOrchestrator(
         }
       } else {
         console.log(
-          `\n${
-            formatWarning(
-              "No acceptance criteria found in plan file. Unable to determine completion status.",
-            )
-          }`,
+          formatWarning(
+            "No acceptance criteria found in plan file. Unable to determine completion status.",
+          ),
         );
       }
     } catch (error) {
       // Non-blocking: log warning but continue
       console.warn(
-        "\n⚠️  Error checking completion status (non-blocking):",
+        "⚠️  Error checking completion status (non-blocking):",
       );
       console.warn(error instanceof Error ? error.message : String(error));
     }
@@ -1325,10 +1315,10 @@ export async function runOrchestrator(
           prPlanSummary,
         ) ?? undefined;
         if (prUrl) {
-          console.log(`\n${formatSuccess(`PR created: ${prUrl}`)}`);
+          console.log(formatSuccess(`PR created: ${prUrl}`));
         } else {
           console.log(
-            `\n${formatInfo(`PR creation skipped (using ${gitContext.vcs}).`)}`,
+            formatInfo(`PR creation skipped (using ${gitContext.vcs}).`),
           );
           console.log(
             formatInfo(
@@ -1339,7 +1329,7 @@ export async function runOrchestrator(
         await report("step.completed", "Created pull request", { step: 9 });
       } else {
         console.log(
-          `\n${formatSuccess(`Changes pushed to ${gitContext.branchName}.`)}`,
+          formatSuccess(`Changes pushed to ${gitContext.branchName}.`),
         );
       }
 

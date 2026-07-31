@@ -573,6 +573,48 @@ Deno.test("kickstart --complete requires --milestone", async () => {
   }
 });
 
+Deno.test("kickstart --complete requires --publish", async () => {
+  const testRepo = await createTestRepo();
+
+  try {
+    await Deno.mkdir(`${testRepo.path}/plans`, { recursive: true });
+    await Deno.writeTextFile(
+      `${testRepo.path}/plans/owner_repo_42.stack.md`,
+      `---
+milestone: 42
+repo: owner/repo
+---
+
+# Milestone: Test
+
+## Prioritized Tasks (easiest first)
+
+- [ ] 1 #123 Test issue
+`,
+    );
+
+    const result = await runDnCommand(
+      [
+        "kickstart",
+        "--milestone",
+        "42",
+        "--complete",
+      ],
+      {
+        cwd: testRepo.path,
+        env: { GITHUB_REPOSITORY: "owner/repo" },
+        expectFailure: true,
+      },
+    );
+
+    assert(
+      result.stderr.includes("--complete requires --publish"),
+    );
+  } finally {
+    await cleanupTestRepo(testRepo);
+  }
+});
+
 Deno.test("kickstart --once requires --milestone", async () => {
   const testRepo = await createTestRepo();
 
@@ -602,6 +644,8 @@ Deno.test(
           "--milestone",
           "42",
           "--complete",
+          "--publish",
+          "pr",
           "123",
         ],
         { cwd: testRepo.path, expectFailure: true },
@@ -713,6 +757,8 @@ repo: owner/repo
           "--milestone",
           "42",
           "--complete",
+          "--publish",
+          "pr",
         ],
         {
           cwd: testRepo.path,
@@ -723,6 +769,7 @@ repo: owner/repo
 
       assert(!result.stderr.includes("Cancelled."));
       assert(!result.stderr.includes("Plan file not found"));
+      assert(!result.stderr.includes("--complete requires --publish"));
     } finally {
       await cleanupTestRepo(testRepo);
     }

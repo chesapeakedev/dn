@@ -14,7 +14,6 @@ import { isGitHubIssueUrl } from "../sdk/meld/mod.ts";
 import {
   completeGitHubIssueForRef,
   firstUnchecked,
-  markDone,
   readTodoList,
   resolveGitHubRef,
   type TodoItem,
@@ -39,8 +38,13 @@ import {
 import { isCI } from "../sdk/github/output.ts";
 import type { PublishMode } from "../sdk/github/publish.ts";
 import { parsePublishMode } from "../sdk/github/publish.ts";
-import { publishStackProgressUpdate } from "../sdk/github/vcs.ts";
+import {
+  detectVcs,
+  getChangedFiles,
+  publishStackProgressUpdate,
+} from "../sdk/github/vcs.ts";
 import { writeGithubActionVcsOutputs } from "../sdk/github/publish.ts";
+import { formatInfo, formatWarning } from "./output.ts";
 import type { SandboxFlagValue } from "../sdk/sandbox/resolve.ts";
 import {
   extractSandboxFlag,
@@ -70,6 +74,8 @@ type KickstartCliConfig = KickstartConfig & {
   milestoneAutoAdvance?: boolean;
   /** When true with `--milestone`, run the first unchecked stack item, mark it done, and exit. */
   milestoneRunOnce?: boolean;
+  /** True when the issue/context was chosen from the todo list or milestone stack. */
+  fromQueue?: boolean;
 };
 
 function classifyInput(input: string): {
@@ -258,7 +264,7 @@ function showHelp(): void {
     "  --milestone <url-or-num>  Use milestone-linked stack file (plans/{owner}_{repo}_{milestone}.stack.md)",
   );
   console.log(
-    "  --complete               With --milestone only: run all unchecked stack tasks without y/n prompts between them",
+    "  --complete               With --milestone only: run all unchecked stack tasks without y/n prompts (requires --publish pr|direct)",
   );
   console.log(
     "  --once                   With --milestone only: run one unchecked stack task without y/n prompts",
@@ -288,7 +294,7 @@ function showHelp(): void {
   console.log("  dn kickstart docs/spec.md");
   console.log("  dn kickstart --milestone 42");
   console.log(
-    "  dn kickstart --milestone 42 --complete   # chain every unchecked stack item",
+    "  dn kickstart --publish pr --milestone 42 --complete  # chain every unchecked stack item",
   );
   console.log(
     "  dn kickstart --awp --milestone 42 --once # one queued issue for CI",
@@ -298,7 +304,7 @@ function showHelp(): void {
     "  dn kickstart --cursor-cloud --publish pr <issue_url_or_number>",
   );
   console.log("  dn kickstart --awp --claude <issue_url_or_number>");
-  console.log("  dn --agent codex kickstart --awp <issue_url_or_number>");
+  console.log("  dn kickstart --awp --codex <issue_url_or_number>");
   console.log("  ISSUE=<issue_url_or_number> dn kickstart");
 }
 
@@ -419,6 +425,7 @@ async function runNoTicketFlow(
         issueUrl: ref,
         contextMarkdownPath: undefined,
         milestoneStackMarkdownPath: planPath,
+        fromQueue: true,
       };
     } catch (e) {
       if (e instanceof Deno.errors.NotFound) {
@@ -516,7 +523,56 @@ async function runNoTicketFlow(
   }
 
   const { issueUrl, contextMarkdownPath } = classifyInput(ref);
-  return { ...config, issueUrl: issueUrl ?? null, contextMarkdownPath };
+  return {
+    ...config,
+    issueUrl: issueUrl ?? null,
+    contextMarkdownPath,
+    fromQueue: true,
+  };
+}
+
+/**
+ * Warns when a publish:none kickstart would stack onto an existing dirty tree
+ * that already has a plan file — `dn land` only targets one plan at a time.
+ */
+async function warnStackedUnlandedWork(repoRoot: string): Promise<void> {
+  const previousCwd = Deno.cwd();
+  try {
+    Deno.chdir(repoRoot);
+    const plansDir = `${repoRoot}/plans`;
+    let planCount = 0;
+    for await (const entry of Deno.readDir(plansDir)) {
+      if (
+        entry.isFile &&
+        entry.name.endsWith(".plan.md") &&
+        !entry.name.includes(".test.")
+      ) {
+        planCount++;
+      }
+    }
+    if (planCount === 0) return;
+
+    const vcsContext = await detectVcs();
+    if (!vcsContext) return;
+    const changed = await getChangedFiles(vcsContext.vcs);
+    if (changed.length === 0) return;
+
+    console.warn(
+      formatWarning(
+        `Workspace already has uncommitted changes and ${planCount} plan file(s). ` +
+          "`dn land` targets one plan at a time; stacked kickstarts can mis-attribute commits. " +
+          "Run `dn land` first, or use `--publish pr|direct` for per-issue publish.",
+      ),
+    );
+  } catch {
+    // Non-blocking advisory only
+  } finally {
+    try {
+      Deno.chdir(previousCwd);
+    } catch {
+      // ignore restore failures
+    }
+  }
 }
 
 /**
@@ -539,6 +595,12 @@ export async function handleKickstart(
     if (!config.milestone) {
       console.error(
         "--complete requires --milestone <number-or-url>.",
+      );
+      Deno.exit(1);
+    }
+    if (config.publish === "none") {
+      console.error(
+        "--complete requires --publish pr or --publish direct so each stack item is published before the next (dn land only targets one plan at a time).",
       );
       Deno.exit(1);
     }
@@ -607,6 +669,9 @@ export async function handleKickstart(
 
   for (;;) {
     const repoRoot = config.workspaceRoot ?? Deno.cwd();
+    if (config.publish === "none") {
+      await warnStackedUnlandedWork(repoRoot);
+    }
     const { provider, config: sandboxConfig } = await resolveSandboxConfig(
       repoRoot,
       config.sandboxFlag,
@@ -646,111 +711,102 @@ export async function handleKickstart(
     const ref = config.issueUrl ?? config.contextMarkdownPath;
     if (!ref) break;
 
-    const skipMilestoneQueuePrompts = Boolean(
+    const isBatchQueue = Boolean(
       (config.milestoneAutoAdvance || config.milestoneRunOnce) &&
         config.milestoneStackMarkdownPath,
     );
-    if (
-      !skipMilestoneQueuePrompts &&
-      !promptYesNo(`Mark ${ref} done and continue with next?`)
-    ) {
+
+    // Attended runs: silent exit. Closing/checkoff is left to dn land,
+    // --publish, dn todo done, or --once/--complete automation.
+    if (!isBatchQueue) {
+      if (config.publish === "none" && config.fromQueue) {
+        if (config.milestoneStackMarkdownPath) {
+          console.log(
+            formatInfo(
+              "Queue item left unchecked. After reviewing and landing, update the milestone stack (or re-run with --once/--complete --publish).",
+            ),
+          );
+        } else {
+          console.log(
+            formatInfo(
+              "Queue item left unchecked. After reviewing and landing, run `dn todo done` to check it off and close the GitHub issue if applicable.",
+            ),
+          );
+        }
+      }
       Deno.exit(0);
     }
 
-    const updated = new Date().toISOString().slice(0, 10);
     const stackPath = config.milestoneStackMarkdownPath;
+    if (!stackPath) {
+      Deno.exit(0);
+    }
 
     try {
-      if (stackPath) {
-        const shouldPublishStack = config.publish !== "none" || isCI();
-        if (stackProgressIncludedInPr) {
+      const shouldPublishStack = config.publish !== "none" || isCI();
+      if (stackProgressIncludedInPr) {
+        console.log(
+          "Milestone stack progress is included in the implementation PR.",
+        );
+      } else if (shouldPublishStack) {
+        const stackRepoRoot = config.workspaceRoot ?? Deno.cwd();
+        const stackResult = await publishStackProgressUpdate(
+          stackRepoRoot,
+          stackPath,
+          ref,
+          `dn: mark milestone stack item done (${ref})`,
+        );
+        await writeGithubActionVcsOutputs({
+          ...stackResult,
+          publishMode: "direct",
+        });
+        console.log(
+          `Published stack progress to ${stackResult.branchName} (${
+            stackResult.commitSha.slice(0, 7)
+          }).`,
+        );
+      } else {
+        await markMilestoneStackItemDone(stackPath, ref);
+      }
+      const gh = await resolveGitHubRef(ref);
+      if (gh) {
+        await completeGitHubIssueForRef(gh, {
+          closeComment: "Completed via dn kickstart",
+        });
+      }
+      if (config.milestoneRunOnce) {
+        if (!shouldPublishStack) {
           console.log(
-            "Milestone stack progress is included in the implementation PR.",
-          );
-        } else if (shouldPublishStack) {
-          const repoRoot = config.workspaceRoot ?? Deno.cwd();
-          const stackResult = await publishStackProgressUpdate(
-            repoRoot,
-            stackPath,
-            ref,
-            `dn: mark milestone stack item done (${ref})`,
-          );
-          await writeGithubActionVcsOutputs({
-            ...stackResult,
-            publishMode: "direct",
-          });
-          console.log(
-            `Published stack progress to ${stackResult.branchName} (${
-              stackResult.commitSha.slice(0, 7)
-            }).`,
+            "Completed one milestone stack task. Commit the updated stack file when ready.",
           );
         } else {
-          await markMilestoneStackItemDone(stackPath, ref);
+          console.log("Completed one milestone stack task.");
         }
-        const gh = await resolveGitHubRef(ref);
-        if (gh) {
-          await completeGitHubIssueForRef(gh, {
-            closeComment: "Completed via dn kickstart",
-          });
-        }
-        if (config.milestoneRunOnce) {
-          if (!shouldPublishStack) {
-            console.log(
-              "Completed one milestone stack task. Commit the updated stack file when ready.",
-            );
-          } else {
-            console.log("Completed one milestone stack task.");
-          }
-          Deno.exit(0);
-        }
-        const stackContent = await Deno.readTextFile(stackPath);
-        const { body } = parseFrontmatter(stackContent);
-        const stackItems = parseStackTodoItems(body);
-        const next = firstUnchecked({ meta: {}, items: stackItems });
-        if (!next) {
-          if (!shouldPublishStack) {
-            console.log(
-              "No more unchecked tasks in this milestone stack. Commit the updated stack file when ready.",
-            );
-          } else {
-            console.log("No more unchecked tasks in this milestone stack.");
-          }
-          Deno.exit(0);
-        }
-        if (
-          !skipMilestoneQueuePrompts &&
-          !promptYesNo(`Proceed with ${next.ref}?`)
-        ) {
-          Deno.exit(0);
-        }
-        const { issueUrl, contextMarkdownPath } = classifyInput(next.ref);
-        config = {
-          ...config,
-          issueUrl: issueUrl ?? null,
-          contextMarkdownPath,
-          milestoneStackMarkdownPath: stackPath,
-        };
-      } else {
-        await markDone(ref, { updated });
-        const list = await readTodoList();
-        const next = firstUnchecked(list);
-        if (!next) {
-          console.log(
-            "No more items in todo. Run `dn kickstart` with a ticket or `dn tidy` to refresh.",
-          );
-          Deno.exit(0);
-        }
-        if (!promptYesNo(`Proceed with ${next.ref}?`)) {
-          Deno.exit(0);
-        }
-        const { issueUrl, contextMarkdownPath } = classifyInput(next.ref);
-        config = {
-          ...config,
-          issueUrl: issueUrl ?? null,
-          contextMarkdownPath,
-          milestoneStackMarkdownPath: undefined,
-        };
+        Deno.exit(0);
       }
+      const stackContent = await Deno.readTextFile(stackPath);
+      const { body } = parseFrontmatter(stackContent);
+      const stackItems = parseStackTodoItems(body);
+      const next = firstUnchecked({ meta: {}, items: stackItems });
+      if (!next) {
+        if (!shouldPublishStack) {
+          console.log(
+            "No more unchecked tasks in this milestone stack. Commit the updated stack file when ready.",
+          );
+        } else {
+          console.log("No more unchecked tasks in this milestone stack.");
+        }
+        Deno.exit(0);
+      }
+      // --complete: auto-advance without prompts
+      const { issueUrl, contextMarkdownPath } = classifyInput(next.ref);
+      config = {
+        ...config,
+        issueUrl: issueUrl ?? null,
+        contextMarkdownPath,
+        milestoneStackMarkdownPath: stackPath,
+        fromQueue: true,
+      };
     } catch (err) {
       console.error(err instanceof Error ? err.message : String(err));
       Deno.exit(1);
