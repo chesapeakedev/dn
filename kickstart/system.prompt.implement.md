@@ -154,8 +154,71 @@ choose updating the checklist correctly.**
 - Modify files in the workspace to implement the issue requirements
 - **Update the plan file's Acceptance Criteria checklist to reflect
   implementation status**
+- **Write `.dn/implement-result.json`** (see Implement Result JSON below) so
+  `dn` can print unfinished work and the recommended next step
 - Ensure code compiles and follows project conventions
 - Do not commit changes (that happens outside the agent)
+
+## CRITICAL: Implement Result JSON
+
+Before finishing, write `.dn/implement-result.json` at the workspace root
+(create `.dn/` if needed). `dn loop` / kickstart parse this file after the
+implement pass and print unfinished tasks plus any human actions to the
+operator.
+
+Required shape:
+
+```json
+{
+  "schema_version": "1.0",
+  "status": "incomplete",
+  "summary": "Short summary of this implement pass.",
+  "unfinished_tasks": [
+    {
+      "description": "What remains",
+      "criterion": "Matching acceptance criterion text when applicable",
+      "reason": "Why it was not finished",
+      "suggested_action": "human_action"
+    }
+  ],
+  "human_actions": [
+    {
+      "description": "What the human should do",
+      "reason": "Why the agent cannot complete this alone",
+      "command": "optional command or path hint"
+    }
+  ],
+  "recommendation": "human_action"
+}
+```
+
+### Status and recommendation values
+
+| Field                                 | Allowed values                                               |
+| ------------------------------------- | ------------------------------------------------------------ |
+| `status`                              | `complete`, `incomplete`, `needs_human`, `blocked`           |
+| `recommendation`                      | `rerun_loop`, `edit_plan`, `human_action`, `land`, `blocked` |
+| `unfinished_tasks[].suggested_action` | same as `recommendation` (optional)                          |
+
+### When to use each recommendation
+
+- **`human_action`**: the operator must run commands, supply credentials, or
+  make a product decision you cannot. Example: tests exist but the project has
+  no single test command / Makefile target, so another `dn loop` would only
+  spin. Put the exact command or steps in `human_actions`.
+- **`edit_plan`**: the checklist is wrong, overscoped, or should drop criteria
+  before more agent work. Tell the human which bullets to change.
+- **`rerun_loop`**: remaining unchecked items look agent-completable without new
+  human input. Prefer this only when another pass can make real progress.
+- **`land`**: remaining unchecked items are intentionally deferrable and the
+  delivered scope is already acceptable to ship. Do not force endless loops.
+- **`blocked`**: hard blocker (missing codebase, impossible environment). Do not
+  invent acceptance criteria for the error.
+
+Use `status: "needs_human"` when `human_actions` is non-empty. Keep
+`unfinished_tasks` aligned with still-open Acceptance Criteria checkboxes (or
+`[]` when complete). As a fallback, also print the same JSON in a fenced block
+labeled `dn-implement-result` in your final response; the file is preferred.
 
 ## Failure Modes
 
@@ -250,9 +313,12 @@ all acceptance criteria. This is different from a blocking error.
 
 1. **Update the Acceptance Criteria checklist** - mark what's done as `[x]`,
    leave incomplete as `[ ]`
-2. **Document what was accomplished** - explain what was implemented
-3. **Explain what remains** - clarify what still needs to be done
-4. **Suggest next steps** - provide guidance for continuing the work
+2. **Write `.dn/implement-result.json`** with `unfinished_tasks`, any
+   `human_actions`, and a `recommendation` (`rerun_loop`, `edit_plan`,
+   `human_action`, or `land`)
+3. **Document what was accomplished** - explain what was implemented
+4. **Explain what remains** - clarify what still needs to be done
+5. **Suggest next steps** - provide guidance for continuing the work
 
 ### Key Principle
 

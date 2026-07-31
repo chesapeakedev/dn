@@ -888,6 +888,25 @@ URL or issue number, `dn` searches `plans/` for a matching plan instead of
 falling back to an unrelated local plan. Denoise task JSON files are
 auto-detected, materialized to markdown, and used as the plan.
 
+### Incomplete plans and human actions
+
+After each implement pass, the agent updates the plan Acceptance Criteria
+checkboxes and writes `.dn/implement-result.json`. `dn` prints that result so
+you can decide the next step without guessing from a bare `6/8` counter.
+
+| Recommendation | Meaning                                                          | Typical next step                                                                                         |
+| -------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `rerun_loop`   | Remaining work looks agent-completable                           | Run `dn loop <plan>` again                                                                                |
+| `edit_plan`    | Checklist is wrong or overscoped                                 | Edit `plans/*.plan.md`, then loop or land                                                                 |
+| `human_action` | Operator must run a command or decide something the agent cannot | Do the printed actions (for example run tests when the repo has no single test target), then loop or land |
+| `land`         | Remaining unchecked items are acceptable to leave open           | `dn land` if the delivered scope is enough                                                                |
+| `blocked`      | Hard environment/codebase blocker                                | Fix the blocker before another implement pass                                                             |
+
+Example: feature work is done, but Void only has Deno unit tests and no
+`npm test` / Makefile target. The agent should leave those criteria unchecked,
+set `recommendation` to `human_action`, and list the exact command under
+`human_actions` instead of spinning forever on another `dn loop`.
+
 To repeat work until a shell or prompt gate passes (with an iteration bound and
 optional interval constraints), use
 [`dn until`](#dn-until--iteration-bounded-generatorverifier-gambits) instead of

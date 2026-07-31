@@ -55,6 +55,13 @@ import {
   type MeldNonPlanMarkdownKind,
 } from "../sdk/meld/validate.ts";
 import { createCursorRule } from "./artifacts.ts";
+import {
+  clearImplementResult,
+  type ImplementPhaseResult,
+  implementResultPromptInstruction,
+  loadImplementResult,
+  printImplementResult,
+} from "./implementResult.ts";
 import { completionStatusFromPlanContent } from "./planCompletion.ts";
 import {
   formatError,
@@ -414,6 +421,8 @@ export interface LoopPhaseResult {
     completed: number;
     incomplete: string[];
   };
+  /** Structured implement-phase result from the agent, when available */
+  implementResult?: ImplementPhaseResult;
   /** Path to continuation prompt file (if incomplete) */
   continuationPromptPath?: string;
   /** Path to temp directory */
@@ -1274,7 +1283,8 @@ export async function runLoopPhase(
       );
 
       const planPathInstruction =
-        `\n\n## Plan File Path\n\n**CRITICAL**: You MUST update the Acceptance Criteria checklist in the plan file at this exact path:\n\n\`${planFilePath}\`\n\nUpdate the checkboxes to reflect what was actually implemented. This is MORE IMPORTANT than completing the implementation.\n`;
+        `\n\n## Plan File Path\n\n**CRITICAL**: You MUST update the Acceptance Criteria checklist in the plan file at this exact path:\n\n\`${planFilePath}\`\n\nUpdate the checkboxes to reflect what was actually implemented. This is MORE IMPORTANT than completing the implementation.\n` +
+        implementResultPromptInstruction(workspaceRoot);
 
       if (promptContent.includes("---\n\nThe issue context and plan output")) {
         promptContent = promptContent.replace(
@@ -1311,6 +1321,8 @@ export async function runLoopPhase(
       planOutputPath, // Include plan output
     );
 
+    await clearImplementResult(workspaceRoot);
+
     // Run implement phase (opencode, Cursor, or Claude Code per config)
     const implementResult = await runAgentPhaseInSandbox(
       "implement",
@@ -1330,11 +1342,19 @@ export async function runLoopPhase(
       );
     }
 
-    // Check for blocking errors in the output (even if exit code is 0)
-    const blockingError = detectBlockingError(
+    const structuredImplementResult = await loadImplementResult(
+      workspaceRoot,
       implementResult.stdout,
-      implementResult.stderr,
     );
+
+    // Check for blocking errors in the output (even if exit code is 0)
+    const blockingError = structuredImplementResult?.status === "blocked" ||
+        structuredImplementResult?.recommendation === "blocked"
+      ? structuredImplementResult.summary
+      : detectBlockingError(
+        implementResult.stdout,
+        implementResult.stderr,
+      );
 
     if (blockingError) {
       console.error(
@@ -1346,6 +1366,11 @@ export async function runLoopPhase(
       console.error("─".repeat(60));
       console.error(blockingError);
       console.error("─".repeat(60));
+      if (structuredImplementResult) {
+        printImplementResult(structuredImplementResult, {
+          planRelativePath: planFilePath.replace(workspaceRoot + "/", ""),
+        });
+      }
       console.error(
         "\nStopping execution. Steps 4.5, 5, 6, and 7 will not run.",
       );
@@ -1368,6 +1393,11 @@ export async function runLoopPhase(
     );
 
     let continuationPromptPath: string | undefined;
+    const planRelativePath = planFilePath.replace(workspaceRoot + "/", "");
+
+    if (structuredImplementResult) {
+      printImplementResult(structuredImplementResult, { planRelativePath });
+    }
 
     if (completionStatus.total > 0) {
       console.log(
@@ -1380,22 +1410,48 @@ export async function runLoopPhase(
             `Plan is incomplete. ${completionStatus.incomplete.length} item(s) remaining.`,
           ),
         );
+        if (!structuredImplementResult) {
+          for (const item of completionStatus.incomplete) {
+            console.log(`  - ${item}`);
+          }
+        }
 
         // The plan file itself is the continuation point
         // The agent has already updated it, so we just inform the user
         console.log(
           formatInfo(
-            `Plan file updated: ${
-              planFilePath.replace(workspaceRoot + "/", "")
-            }`,
+            `Plan file updated: ${planRelativePath}`,
           ),
         );
-        console.log(
-          formatInfo(
-            "To continue this work, run: dn loop " +
-              planFilePath.replace(workspaceRoot + "/", "") + "",
-          ),
-        );
+        const recommendation = structuredImplementResult?.recommendation;
+        if (
+          recommendation === undefined ||
+          recommendation === "rerun_loop"
+        ) {
+          console.log(
+            formatInfo(
+              `To continue this work, run: dn loop ${planRelativePath}`,
+            ),
+          );
+        } else if (recommendation === "edit_plan") {
+          console.log(
+            formatInfo(
+              `Edit ${planRelativePath} before another dn loop, or land if the delivered scope is enough.`,
+            ),
+          );
+        } else if (recommendation === "human_action") {
+          console.log(
+            formatInfo(
+              "Complete the human actions above, then re-run dn loop or edit the plan if those tasks should not block landing.",
+            ),
+          );
+        } else if (recommendation === "land") {
+          console.log(
+            formatInfo(
+              "Agent recommends landing without another loop if the unfinished items are acceptable to leave open.",
+            ),
+          );
+        }
       } else {
         console.log(formatSuccess("All acceptance criteria completed!"));
 
@@ -1405,9 +1461,7 @@ export async function runLoopPhase(
             await Deno.remove(planFilePath);
             console.log(
               formatSuccess(
-                `Plan file deleted: ${
-                  planFilePath.replace(workspaceRoot + "/", "")
-                }`,
+                `Plan file deleted: ${planRelativePath}`,
               ),
             );
           } catch (deleteError) {
@@ -1562,6 +1616,7 @@ export async function runLoopPhase(
       return {
         success: true,
         completionStatus,
+        implementResult: structuredImplementResult ?? undefined,
         continuationPromptPath,
         tmpDir,
         combinedPromptImplementPath,
@@ -1578,6 +1633,7 @@ export async function runLoopPhase(
       return {
         success: true,
         completionStatus,
+        implementResult: structuredImplementResult ?? undefined,
         continuationPromptPath,
         tmpDir,
         combinedPromptImplementPath,
@@ -1591,6 +1647,7 @@ export async function runLoopPhase(
     return {
       success: true,
       completionStatus,
+      implementResult: structuredImplementResult ?? undefined,
       continuationPromptPath,
       tmpDir,
       combinedPromptImplementPath,

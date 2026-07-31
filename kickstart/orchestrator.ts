@@ -51,6 +51,12 @@ import {
   runAgentPhaseInSandbox,
   translateSandboxCwd,
 } from "../sdk/sandbox/mod.ts";
+import {
+  clearImplementResult,
+  implementResultPromptInstruction,
+  loadImplementResult,
+  printImplementResult,
+} from "./implementResult.ts";
 import { $ } from "$dax";
 
 /**
@@ -901,9 +907,10 @@ export async function runOrchestrator(
         "system.prompt.implement.md",
       );
 
-      // Inject plan file path into the prompt so agent knows where to update checklist
+      // Inject plan file path and implement-result instructions into the prompt
       const planPathInstruction =
-        `\n\n## Plan File Path\n\n**CRITICAL**: You MUST update the Acceptance Criteria checklist in the plan file at this exact path:\n\n\`${planFilePath}\`\n\nUpdate the checkboxes to reflect what was actually implemented. This is MORE IMPORTANT than completing the implementation.\n`;
+        `\n\n## Plan File Path\n\n**CRITICAL**: You MUST update the Acceptance Criteria checklist in the plan file at this exact path:\n\n\`${planFilePath}\`\n\nUpdate the checkboxes to reflect what was actually implemented. This is MORE IMPORTANT than completing the implementation.\n` +
+        implementResultPromptInstruction(WORKSPACE_ROOT);
 
       // Insert the plan path instruction before "The issue context and plan output" line
       if (promptContent.includes("---\n\nThe issue context and plan output")) {
@@ -936,6 +943,8 @@ export async function runOrchestrator(
       planOutputPath, // Include plan output
     );
 
+    await clearImplementResult(WORKSPACE_ROOT);
+
     // Run implement phase (opencode, Cursor, or Claude Code per config)
     const implementResult = await runAgentPhaseInSandbox(
       "implement",
@@ -964,11 +973,19 @@ export async function runOrchestrator(
       step: 4,
     });
 
-    // Check for blocking errors in the output (even if exit code is 0)
-    const blockingError = detectBlockingError(
+    const structuredImplementResult = await loadImplementResult(
+      WORKSPACE_ROOT,
       implementResult.stdout,
-      implementResult.stderr,
     );
+
+    // Check for blocking errors in the output (even if exit code is 0)
+    const blockingError = structuredImplementResult?.status === "blocked" ||
+        structuredImplementResult?.recommendation === "blocked"
+      ? structuredImplementResult.summary
+      : detectBlockingError(
+        implementResult.stdout,
+        implementResult.stderr,
+      );
 
     if (blockingError) {
       console.error(
@@ -980,6 +997,11 @@ export async function runOrchestrator(
       console.error("─".repeat(60));
       console.error(blockingError);
       console.error("─".repeat(60));
+      if (structuredImplementResult) {
+        printImplementResult(structuredImplementResult, {
+          planRelativePath: planFilePath.replace(WORKSPACE_ROOT + "/", ""),
+        });
+      }
       console.error(
         "\nStopping execution. Steps 4.5, 5, 6, and 7 will not run.",
       );
@@ -996,6 +1018,7 @@ export async function runOrchestrator(
     await report("step.started", "Checking completion status", { step: 4.5 });
     console.log(`\n${formatStep(4.5, "Checking completion status...")}`);
     const finalPlanFilePath = planFilePath;
+    const planRelativePath = planFilePath.replace(WORKSPACE_ROOT + "/", "");
 
     // Extract plan summary before checking completion (needed for PR description)
     // This must be done BEFORE potential plan deletion
@@ -1017,6 +1040,10 @@ export async function runOrchestrator(
         planFilePath,
       );
 
+      if (structuredImplementResult) {
+        printImplementResult(structuredImplementResult, { planRelativePath });
+      }
+
       if (completionStatus.total > 0) {
         console.log(
           `📊 Completion Status: ${completionStatus.completed}/${completionStatus.total} acceptance criteria completed`,
@@ -1029,6 +1056,11 @@ export async function runOrchestrator(
               `Plan is incomplete. ${completionStatus.incomplete.length} item(s) remaining.`,
             ),
           );
+          if (!structuredImplementResult) {
+            for (const item of completionStatus.incomplete) {
+              console.log(`  - ${item}`);
+            }
+          }
 
           // The plan file itself is the continuation point
           // The agent has already updated it, so we just inform the user
@@ -1039,12 +1071,36 @@ export async function runOrchestrator(
               }`,
             ),
           );
-          console.log(
-            formatInfo(
-              "To continue this work, run: dn loop " +
-                finalPlanFilePath.replace(WORKSPACE_ROOT + "/", "") + "",
-            ),
-          );
+          const recommendation = structuredImplementResult?.recommendation;
+          if (
+            recommendation === undefined ||
+            recommendation === "rerun_loop"
+          ) {
+            console.log(
+              formatInfo(
+                "To continue this work, run: dn loop " +
+                  finalPlanFilePath.replace(WORKSPACE_ROOT + "/", "") + "",
+              ),
+            );
+          } else if (recommendation === "edit_plan") {
+            console.log(
+              formatInfo(
+                `Edit ${planRelativePath} before another dn loop, or land if the delivered scope is enough.`,
+              ),
+            );
+          } else if (recommendation === "human_action") {
+            console.log(
+              formatInfo(
+                "Complete the human actions above, then re-run dn loop or edit the plan if those tasks should not block landing.",
+              ),
+            );
+          } else if (recommendation === "land") {
+            console.log(
+              formatInfo(
+                "Agent recommends landing without another loop if the unfinished items are acceptable to leave open.",
+              ),
+            );
+          }
         } else {
           console.log(formatSuccess("All acceptance criteria completed!"));
 
