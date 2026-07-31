@@ -27,6 +27,8 @@ dn <subcommand> -h    # help for a specific subcommand
 | `--claude`              | Alias for `--agent claude`                                       |
 | `--codex`               | Alias for `--agent codex`                                        |
 | `--unattended` / `--ci` | Non-interactive (no spinners, minimal decoration)                |
+| `--trace`               | Live-stream agent harness output (default in CI/unattended)      |
+| `--no-trace`            | Suppress live agent stream (default in attended TTY)             |
 | `--no-color`            | Disable ANSI color                                               |
 | `--color`               | Force ANSI color even on non-TTY                                 |
 | `--json`                | JSON output (supported by most subcommands)                      |
@@ -76,7 +78,7 @@ commit.
 | `dn loop`      | Loop phase (steps 4-7). Implement, completion, lint, artifacts, validate. Requires a plan file.                                                                   |
 | `dn fixup`     | Address PR feedback. Fetches PR description + review comments, creates plan, implements fixes locally.                                                            |
 | `dn meld`      | Merge markdown sources + plan into DRY input (many-to-one plan phase). Supports `--target` (README.md, AGENTS.md, plans/, github:).                               |
-| `dn land`      | Close out completed work into VCS commits. `--issue-testplan` updates the linked GitHub issue; `--single` for one deterministic commit.                            |
+| `dn land`      | Close out work into VCS commits. `--issue-testplan` updates the linked GitHub issue; `--single` derives one commit message from the plan title + truncated overview/body (no agent). |
 
 ### GitHub issue management
 

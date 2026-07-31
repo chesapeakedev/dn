@@ -39,16 +39,19 @@ its arguments.
 | Flag                     | Effect                                                                         |
 | ------------------------ | ------------------------------------------------------------------------------ |
 | `--unattended` or `--ci` | Force unattended mode: no spinner, minimal decoration, no interactive prompts. |
+| `--trace`                | Live-stream agent harness stdout/stderr (default in unattended/CI).            |
+| `--no-trace`             | Suppress live agent stream (default in attended TTY).                          |
 | `--no-color`             | Disable ANSI colors and decoration regardless of TTY.                          |
 | `--color`                | Enable ANSI colors even when stdout is not a TTY (e.g. `dn … \| less`).        |
 
 ## Environment variables
 
-| Variable        | Effect                                                                                                                                                    |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **NO_COLOR**    | If set (any value), disable all ANSI color/decoration. See [no-color.org](https://no-color.org). `dn` sets this automatically in CI when not already set. |
-| **FORCE_COLOR** | If set, enable color even when stdout is not a TTY. See [force-color.org](https://force-color.org).                                                       |
-| **TERM**        | If `TERM=dumb`, `dn` treats output as no color and no fancy sequences.                                                                                    |
+| Variable           | Effect                                                                                                                                                    |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **NO_COLOR**       | If set (any value), disable all ANSI color/decoration. See [no-color.org](https://no-color.org). `dn` sets this automatically in CI when not already set. |
+| **FORCE_COLOR**    | If set, enable color even when stdout is not a TTY. See [force-color.org](https://force-color.org).                                                       |
+| **TERM**           | If `TERM=dumb`, `dn` treats output as no color and no fancy sequences.                                                                                    |
+| **DN_AGENT_TRACE** | `1`/`true` forces live agent stream; `0`/`false` suppresses it. Overrides the attended/unattended default when set.                                       |
 
 ## Branding
 
@@ -61,12 +64,27 @@ from `dn`. Step and status lines use a consistent style, e.g.:
 - `[dn] [WARN] Linting found issues (non-blocking)`
 - `[dn] [ERROR] Blocking error detected`
 
-When delegating to OpenCode, Cursor, or Claude Code, `dn` streams their output
-unchanged; you may see a short `[dn]` progress line before or after the
-delegated output.
-
 Agent-backed phase lines name the selected harness directly, e.g.
 `[dn] Step 3: Running GitHub Copilot CLI to fill empty sections...`.
+
+## Agent harness output (live stream vs failure dumps)
+
+Live streaming of OpenCode, Cursor, Claude Code, Codex, or Copilot output is a
+separate axis from attended chrome (spinners/colors):
+
+| Context                           | Live agent stream                                                                        |
+| --------------------------------- | ---------------------------------------------------------------------------------------- |
+| Attended TTY                      | **Off** by default — show `[dn]` progress and command results (e.g. land commit preview) |
+| Unattended / CI / non-TTY         | **On** by default — full harness stream for script and Actions logs                      |
+| `--trace` / `DN_AGENT_TRACE=1`    | Always stream                                                                            |
+| `--no-trace` / `DN_AGENT_TRACE=0` | Never stream                                                                             |
+
+When an agent-backed step **fails**, dumps of captured agent stdout/stderr use
+the **opposite** policy: attended terminals get the **full** redacted output so
+you can diagnose locally; unattended/CI dumps are **truncated** (and redacted)
+to reduce sensitive content in shared logs. This is independent of
+`DN_PROGRESS_VERBOSE`, which only controls redacted `agent.line` progress events
+sent to Denoise.
 
 ## Agent harness selection
 

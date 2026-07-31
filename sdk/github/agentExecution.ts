@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { OpenCodeResult } from "./opencode.ts";
+import { isAgentTraceEnabled } from "./output.ts";
 import {
   NullReporter,
   type ProgressReporter,
@@ -25,16 +26,21 @@ export async function runAgentCommand(
     stdout: "piped",
     stderr: "piped",
   }).spawn();
+  const streamLive = isAgentTraceEnabled();
   const output = Promise.all([
     streamAgentOutput(child.stdout, reporter, {
       phase,
       stream: "stdout",
-      write: (chunk) => Deno.stdout.write(chunk),
+      ...(streamLive
+        ? { write: (chunk: Uint8Array) => Deno.stdout.write(chunk) }
+        : {}),
     }),
     streamAgentOutput(child.stderr, reporter, {
       phase,
       stream: "stderr",
-      write: (chunk) => Deno.stderr.write(chunk),
+      ...(streamLive
+        ? { write: (chunk: Uint8Array) => Deno.stderr.write(chunk) }
+        : {}),
     }),
   ]);
 

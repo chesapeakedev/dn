@@ -1,6 +1,8 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
+import { isUnattended } from "./output.ts";
+
 /** Versions supported by the kickstart progress-event contract. */
 export type KickstartProgressSchemaVersion = "1.0";
 
@@ -81,6 +83,30 @@ export function redactAgentOutput(line: string): string {
       ),
     line,
   );
+}
+
+/** Max characters of agent output included in unattended failure dumps. */
+export const AGENT_FAILURE_TRUNCATE_CHARS = 500;
+
+/**
+ * Formats captured agent stdout/stderr for error messages.
+ *
+ * Always redacts credentials. In unattended/CI contexts, truncates for
+ * privacy in shared logs; in attended mode returns the full redacted text.
+ *
+ * @param output - Raw agent stdout or stderr
+ * @param options.truncate - Force truncation; defaults to {@link isUnattended}
+ */
+export function formatAgentFailureOutput(
+  output: string,
+  options?: { truncate?: boolean },
+): string {
+  const redacted = redactAgentOutput(output.trim());
+  const shouldTruncate = options?.truncate ?? isUnattended();
+  if (!shouldTruncate || redacted.length <= AGENT_FAILURE_TRUNCATE_CHARS) {
+    return redacted;
+  }
+  return `${redacted.slice(0, AGENT_FAILURE_TRUNCATE_CHARS)}…`;
 }
 
 /**

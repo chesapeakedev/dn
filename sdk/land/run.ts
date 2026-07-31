@@ -3,6 +3,7 @@
 
 import type { AgentHarness } from "../github/agentHarness.ts";
 import { getRunAgent } from "../github/agentHarness.ts";
+import { formatAgentFailureOutput } from "../github/progress.ts";
 import { detectVcs, getChangedFiles, showChanges } from "../github/vcs.ts";
 import { deriveCommitMessage } from "../archive/derive.ts";
 import { executeCommitPlan } from "./commit.ts";
@@ -203,7 +204,7 @@ export async function runLandPhase(
     if (result.code !== 0) {
       throw new Error(
         `Land phase failed (exit ${result.code}): ${
-          result.stderr || result.stdout
+          formatAgentFailureOutput(result.stderr || result.stdout)
         }`,
       );
     }

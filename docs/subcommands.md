@@ -9,6 +9,9 @@ You can pass **output flags** after any subcommand to control output style:
 
 - **`--unattended`** or **`--ci`** – Force unattended mode (no spinner, minimal
   decoration, ASCII-friendly status).
+- **`--trace`** – Live-stream agent harness stdout/stderr (default in CI /
+  unattended).
+- **`--no-trace`** – Suppress the live agent stream (default in attended TTY).
 - **`--no-color`** – Disable colors.
 - **`--color`** – Enable colors even when stdout is not a TTY.
 
@@ -19,7 +22,7 @@ workflows (`kickstart`, `loop`, `meld`, `until`). Omit the value to read
 
 In CI, `dn` automatically sets `NO_COLOR` and runs in unattended mode. See
 [Output and environment](output-and-environment.md) for NO_COLOR, FORCE_COLOR,
-and how unattended mode is detected.
+agent-trace defaults, and how unattended mode is detected.
 
 Use the top-level `--version` or `-V` flag to print only the current version:
 
@@ -922,8 +925,19 @@ dn land --issue-testplan plans/issue-123.plan.md
 The generated checklist targets 5–10 bullets (capped at 12). It is not a second
 implementation plan.
 
-Use `--single` for one deterministic commit (no agent): derives a message from
-the plan title and overview, adds/removes workspace files, and commits.
+Use `--single` for one deterministic commit (**no agent**). It derives the
+commit message from the plan and commits the whole workspace:
+
+- **Summary:** first `#` heading, else frontmatter `name`, else `Plan`. If the
+  filename looks like `<n>-….plan.md`, the summary is prefixed with `#<n>:`.
+- **Body:** frontmatter `overview`, else a `## Overview` section, else the first
+  ~200 characters of the plan body (whitespace collapsed). Plans with a clear H1
+  and overview produce the best messages.
+- Then deletes the plan file and commits (Sapling `addremove` / Git
+  `git add -A`).
+
+Use this as an escape hatch when agent land fails to return a valid commit-plan
+JSON array (try another agent first with `dn --agent <name> land`).
 
 ```bash
 dn land --single plans/issue-123.plan.md

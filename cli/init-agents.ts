@@ -78,6 +78,8 @@ dn <subcommand> -h    # help for a specific subcommand
 | \`--claude\`              | Alias for \`--agent claude\`                                       |
 | \`--codex\`               | Alias for \`--agent codex\`                                        |
 | \`--unattended\` / \`--ci\` | Non-interactive output                                             |
+| \`--trace\`               | Live-stream agent harness output (default in CI)                   |
+| \`--no-trace\`            | Suppress live agent stream (default in attended TTY)               |
 | \`--no-color\`            | Disable ANSI color                                                 |
 | \`--color\`               | Force ANSI color even on non-TTY                                   |
 | \`--json\`                | JSON output where supported                                        |

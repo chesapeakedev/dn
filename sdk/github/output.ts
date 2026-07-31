@@ -11,6 +11,8 @@
 let unattendedOverride: boolean | null = null;
 let noColorOverride: boolean | null = null;
 let forceColorOverride: boolean | null = null;
+/** Override for live agent harness stdout/stderr streaming (`--trace` / `--no-trace`). */
+let agentTraceOverride: boolean | null = null;
 
 /**
  * Detects if running in a CI environment.
@@ -89,16 +91,39 @@ export function isColorEnabled(): boolean {
 }
 
 /**
+ * Whether to live-stream agent harness stdout/stderr to the console.
+ *
+ * Defaults to on in unattended/CI (traceability) and off in attended TTYs
+ * (calm local UX). Explicit CLI (`--trace` / `--no-trace`) or
+ * `DN_AGENT_TRACE=1|0` overrides the default.
+ */
+export function isAgentTraceEnabled(): boolean {
+  if (agentTraceOverride !== null) {
+    return agentTraceOverride;
+  }
+  const env = Deno.env.get("DN_AGENT_TRACE");
+  if (env === "1" || env === "true") {
+    return true;
+  }
+  if (env === "0" || env === "false") {
+    return false;
+  }
+  return isUnattended();
+}
+
+/**
  * Bootstrap output policy from environment and optional CLI overrides.
  * Call once at CLI entry: first with no args to apply CI NO_COLOR, then
- * with parsed flags (unattended, noColor, forceColor) after parsing global flags.
+ * with parsed flags (unattended, noColor, forceColor, agentTrace) after
+ * parsing global flags.
  *
- * @param opts - Optional overrides from global flags (--unattended, --no-color, --color)
+ * @param opts - Optional overrides from global flags
  */
 export function bootstrapFromEnv(opts?: {
   unattended?: boolean;
   noColor?: boolean;
   forceColor?: boolean;
+  agentTrace?: boolean;
 }): void {
   if (opts === undefined) {
     configureForCI();
@@ -113,6 +138,9 @@ export function bootstrapFromEnv(opts?: {
   if (opts.forceColor !== undefined) {
     forceColorOverride = opts.forceColor;
   }
+  if (opts.agentTrace !== undefined) {
+    agentTraceOverride = opts.agentTrace;
+  }
 }
 
 /**
@@ -121,6 +149,16 @@ export function bootstrapFromEnv(opts?: {
  */
 export function setUnattended(value: boolean): void {
   unattendedOverride = value;
+}
+
+/**
+ * Set agent-trace override explicitly (for tests).
+ * Pass `null` to clear the override and fall back to env / unattended default.
+ *
+ * @param value - true/false to force, or null to clear
+ */
+export function setAgentTrace(value: boolean | null): void {
+  agentTraceOverride = value;
 }
 
 /**

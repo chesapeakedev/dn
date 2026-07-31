@@ -3,7 +3,9 @@
 
 import { assertEquals, assertInstanceOf } from "@std/assert";
 import {
+  AGENT_FAILURE_TRUNCATE_CHARS,
   createProgressReporter,
+  formatAgentFailureOutput,
   HttpReporter,
   NdjsonReporter,
   NullReporter,
@@ -162,5 +164,20 @@ Deno.test("redactAgentOutput removes known API-key and bearer-token formats", ()
   assertEquals(
     redactAgentOutput("key=sk-proj-abcdefghijk Bearer abcdefghijkl"),
     "key=[REDACTED] Bearer [REDACTED]",
+  );
+});
+
+Deno.test("formatAgentFailureOutput truncates only when requested or unattended", () => {
+  const long = "x".repeat(AGENT_FAILURE_TRUNCATE_CHARS + 50);
+  assertEquals(
+    formatAgentFailureOutput(long, { truncate: false }),
+    long,
+  );
+  const truncated = formatAgentFailureOutput(long, { truncate: true });
+  assertEquals(truncated.endsWith("…"), true);
+  assertEquals(truncated.length, AGENT_FAILURE_TRUNCATE_CHARS + 1);
+  assertEquals(
+    formatAgentFailureOutput("TOKEN=super-secret-value", { truncate: false }),
+    "TOKEN=[REDACTED]",
   );
 });

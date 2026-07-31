@@ -90,7 +90,8 @@ import { handleRunner } from "./runner.ts";
 
 /**
  * Parses global flags from args and returns bootstrap options plus remaining args.
- * Global flags: --unattended, --ci (alias), --no-color, --color, --version, -V.
+ * Global flags: --unattended, --ci (alias), --no-color, --color, --trace,
+ * --no-trace, --version, -V.
  */
 function parseGlobalFlags(
   args: string[],
@@ -98,6 +99,7 @@ function parseGlobalFlags(
   unattended: boolean;
   noColor: boolean;
   forceColor: boolean;
+  agentTrace: boolean | undefined;
   showVersion: boolean;
   agent: AgentHarness | null;
   sandbox: SandboxFlagValue | null;
@@ -106,6 +108,7 @@ function parseGlobalFlags(
   let unattended = false;
   let noColor = false;
   let forceColor = false;
+  let agentTrace: boolean | undefined;
   let showVersion = false;
   let agent: AgentHarness | null = null;
   let sandbox: SandboxFlagValue | null = null;
@@ -118,6 +121,10 @@ function parseGlobalFlags(
       noColor = true;
     } else if (a === "--color") {
       forceColor = true;
+    } else if (a === "--trace") {
+      agentTrace = true;
+    } else if (a === "--no-trace") {
+      agentTrace = false;
     } else if (a === "--version" || a === "-V") {
       showVersion = true;
     } else if (a === "--sandbox") {
@@ -189,6 +196,7 @@ function parseGlobalFlags(
     unattended,
     noColor,
     forceColor,
+    agentTrace,
     showVersion,
     agent,
     sandbox,
@@ -202,11 +210,13 @@ function parseBootstrapFlags(
   unattended: boolean;
   noColor: boolean;
   forceColor: boolean;
+  agentTrace: boolean | undefined;
   rest: string[];
 } {
   let unattended = false;
   let noColor = false;
   let forceColor = false;
+  let agentTrace: boolean | undefined;
   const rest: string[] = [];
   for (const arg of args) {
     if (arg === "--unattended" || arg === "--ci") {
@@ -215,11 +225,15 @@ function parseBootstrapFlags(
       noColor = true;
     } else if (arg === "--color") {
       forceColor = true;
+    } else if (arg === "--trace") {
+      agentTrace = true;
+    } else if (arg === "--no-trace") {
+      agentTrace = false;
     } else {
       rest.push(arg);
     }
   }
-  return { unattended, noColor, forceColor, rest };
+  return { unattended, noColor, forceColor, agentTrace, rest };
 }
 
 /**
@@ -242,6 +256,12 @@ function showUsage(): void {
     "  --sandbox <none|docker|exe.dev>  Sandbox provider (omit value to read config)",
   );
   console.error("  --unattended      Disable interactive output affordances");
+  console.error(
+    "  --trace           Stream agent harness stdout/stderr (default in CI)",
+  );
+  console.error(
+    "  --no-trace        Suppress live agent stream (default in attended TTY)",
+  );
   console.error("  --no-color        Disable color output");
   console.error("  --color           Force color output");
   console.error("  --version, -V     Print the version and exit\n");
@@ -327,12 +347,14 @@ async function main(): Promise<void> {
   let unattended: boolean;
   let noColor: boolean;
   let forceColor: boolean;
+  let agentTrace: boolean | undefined;
   let showVersion: boolean;
   try {
     ({
       unattended,
       noColor,
       forceColor,
+      agentTrace,
       showVersion,
       agent: globalAgent,
       sandbox: globalSandbox,
@@ -362,12 +384,15 @@ async function main(): Promise<void> {
     unattended: subcommandUnattended,
     noColor: subcommandNoColor,
     forceColor: subcommandForceColor,
+    agentTrace: subcommandAgentTrace,
     rest: subcommandArgs,
   } = parseBootstrapFlags(rawSubcommandArgs);
+  const resolvedAgentTrace = subcommandAgentTrace ?? agentTrace;
   bootstrapFromEnv({
     ...((unattended || subcommandUnattended) && { unattended: true }),
     ...((noColor || subcommandNoColor) && { noColor: true }),
     ...((forceColor || subcommandForceColor) && { forceColor: true }),
+    ...(resolvedAgentTrace !== undefined && { agentTrace: resolvedAgentTrace }),
   });
 
   switch (subcommand) {

@@ -11,10 +11,12 @@ import {
   bootstrapFromEnv as sdkBootstrapFromEnv,
   configureForCI,
   formatElapsedTime,
+  isAgentTraceEnabled,
   isCI,
   isColorEnabled,
   isTty,
   isUnattended,
+  setAgentTrace,
   setUnattended,
   Spinner,
 } from "../sdk/github/output.ts";
@@ -22,10 +24,12 @@ import {
 export {
   configureForCI,
   formatElapsedTime,
+  isAgentTraceEnabled,
   isCI,
   isColorEnabled,
   isTty,
   isUnattended,
+  setAgentTrace,
   setUnattended,
   Spinner,
 };
@@ -45,12 +49,14 @@ const ANSI = {
 
 /**
  * Bootstrap output policy at CLI entry. Call with no args first (applies CI NO_COLOR),
- * then with parsed global flags after parsing --unattended, --no-color, --color.
+ * then with parsed global flags after parsing --unattended, --no-color, --color,
+ * --trace / --no-trace.
  */
 export function bootstrapFromEnv(opts?: {
   unattended?: boolean;
   noColor?: boolean;
   forceColor?: boolean;
+  agentTrace?: boolean;
 }): void {
   sdkBootstrapFromEnv(opts);
 }

@@ -371,7 +371,9 @@ export type {
   ProgressReporter,
 } from "./github/progress.ts";
 export {
+  AGENT_FAILURE_TRUNCATE_CHARS,
   createProgressReporter,
+  formatAgentFailureOutput,
   HttpReporter,
   NdjsonReporter,
   NullReporter,
@@ -405,6 +407,8 @@ export { commitFiles, executeCommitPlan } from "./land/commit.ts";
 export {
   extractLandJson,
   formatCommitPlanPreview,
+  formatLandJsonParseError,
+  LAND_JSON_PARSE_RECOVERY,
   parseCommitPlan,
 } from "./land/parse.ts";
 export { runLandPhase } from "./land/run.ts";

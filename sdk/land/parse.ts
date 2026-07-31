@@ -1,13 +1,38 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
+import { isUnattended } from "../github/output.ts";
+import { formatAgentFailureOutput } from "../github/progress.ts";
 import type { LandCommitGroup, LandCommitPlan } from "./types.ts";
 
 const CONVENTIONAL_COMMIT =
   /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?(!)?: .+/;
 
+/** Recovery hint when the land agent fails to return structured JSON. */
+export const LAND_JSON_PARSE_RECOVERY =
+  "Try a different agent (dn --agent <name> land), or land without an agent (dn land --single).";
+
+/**
+ * Formats an actionable error when land agent stdout is not a commit-plan JSON
+ * array. Attended dumps are full; unattended dumps are truncated and redacted.
+ */
+export function formatLandJsonParseError(stdout: string): string {
+  const truncate = isUnattended();
+  const got = formatAgentFailureOutput(stdout, { truncate });
+  const label = truncate ? "Got (truncated):" : "Got:";
+  return [
+    "Land agent did not return a valid commit-plan JSON array.",
+    label,
+    got,
+    "",
+    LAND_JSON_PARSE_RECOVERY,
+  ].join("\n");
+}
+
 /**
  * Extracts a JSON array from agent stdout (handles fenced or raw JSON).
+ *
+ * @throws Error with {@link formatLandJsonParseError} when stdout is not valid JSON
  */
 export function extractLandJson(stdout: string): unknown {
   const trimmed = stdout.trim();
@@ -15,10 +40,17 @@ export function extractLandJson(stdout: string): unknown {
   const raw = codeBlock ? codeBlock[1].trim() : trimmed;
   const start = raw.indexOf("[");
   const end = raw.lastIndexOf("]") + 1;
-  if (start >= 0 && end > start) {
-    return JSON.parse(raw.slice(start, end)) as unknown;
+  try {
+    if (start >= 0 && end > start) {
+      return JSON.parse(raw.slice(start, end)) as unknown;
+    }
+    return JSON.parse(raw) as unknown;
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      throw new Error(formatLandJsonParseError(stdout));
+    }
+    throw error;
   }
-  return JSON.parse(raw) as unknown;
 }
 
 function normalizePath(path: string): string {

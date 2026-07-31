@@ -109,6 +109,9 @@ function showHelp(): void {
     "  --single     One deterministic commit (no agent); requires plan path",
   );
   console.log(
+    "               Message from plan H1/name + truncated overview/body (~200 chars)",
+  );
+  console.log(
     "  --dry-run    Preview without committing, deleting plans, or updating issues",
   );
   console.log(
