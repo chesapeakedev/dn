@@ -59,7 +59,7 @@ TARGET_DIR=~/.local/bin
 compile: ; @bash ./compile_dn.sh
 install: compile
 	@mkdir -p $(TARGET_DIR)
-	@cp "./.dn" $(TARGET_DIR)/dn
+	@cp "./bin/dn" $(TARGET_DIR)/dn
 	@chmod +x $(TARGET_DIR)/dn
 	@echo "✅ Installed dn to $(TARGET_DIR)/dn"
 

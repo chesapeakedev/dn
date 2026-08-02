@@ -7,6 +7,7 @@
  */
 
 import { formatInfo, formatWarning } from "./output.ts";
+import { ensureWorkspaceStateDir } from "../sdk/workspaceState.ts";
 
 /** Relative path (from the workspace root) for the implement result file. */
 export const IMPLEMENT_RESULT_RELATIVE_PATH = ".dn/implement-result.json";
@@ -258,6 +259,7 @@ export function implementResultPath(workspaceRoot: string): string {
 export async function clearImplementResult(
   workspaceRoot: string,
 ): Promise<void> {
+  await ensureWorkspaceStateDir(workspaceRoot);
   try {
     await Deno.remove(implementResultPath(workspaceRoot));
   } catch (error) {

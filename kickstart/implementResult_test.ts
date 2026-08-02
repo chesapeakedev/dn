@@ -2,8 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { assertEquals, assertThrows } from "@std/assert";
+import { dirname, fromFileUrl, join } from "@std/path";
 import {
+  clearImplementResult,
   extractImplementResultFromStdout,
+  IMPLEMENT_RESULT_RELATIVE_PATH,
   parseImplementPhaseResult,
 } from "./implementResult.ts";
 
@@ -78,3 +81,35 @@ Implementation notes...
 Deno.test("extractImplementResultFromStdout returns null without fence", () => {
   assertEquals(extractImplementResultFromStdout("no result here"), null);
 });
+
+Deno.test(
+  "clearImplementResult migrates a legacy .dn binary then clears the file",
+  async () => {
+    const root = join(
+      dirname(fromFileUrl(import.meta.url)),
+      "..",
+      ".tmp-implement-result-clear",
+    );
+    await Deno.remove(root, { recursive: true }).catch(() => {});
+    await Deno.mkdir(root, { recursive: true });
+    const warn = console.warn;
+    console.warn = () => {};
+    try {
+      await Deno.writeTextFile(join(root, ".dn"), "fake-binary");
+      await clearImplementResult(root);
+      const stateDir = await Deno.stat(join(root, ".dn"));
+      assertEquals(stateDir.isDirectory, true);
+      await Deno.stat(join(root, IMPLEMENT_RESULT_RELATIVE_PATH)).then(
+        () => {
+          throw new Error("implement-result.json should not exist");
+        },
+        (error) => {
+          if (!(error instanceof Deno.errors.NotFound)) throw error;
+        },
+      );
+    } finally {
+      console.warn = warn;
+      await Deno.remove(root, { recursive: true }).catch(() => {});
+    }
+  },
+);

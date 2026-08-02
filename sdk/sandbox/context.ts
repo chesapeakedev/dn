@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { SandboxExecContext } from "./types.ts";
+import { ensureWorkspaceStateDir } from "../workspaceState.ts";
 
 let currentContext: SandboxExecContext | null = null;
 
@@ -29,6 +30,7 @@ export async function createRunTmpDir(
   prefix: string,
 ): Promise<string> {
   if (isSandboxActive()) {
+    await ensureWorkspaceStateDir(workspaceRoot);
     const baseDir = getWorkspaceTmpDir(workspaceRoot);
     await Deno.mkdir(baseDir, { recursive: true });
     return await Deno.makeTempDir({ dir: baseDir, prefix });

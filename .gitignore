@@ -14,8 +14,11 @@ node_modules/
 /playwright/.cache/
 /playwright/.auth/
 
-# dn
+# dn workspace state (.dn/) and local compile output (bin/dn).
+# Older compiles wrote a binary at .dn; keep ignoring that path too.
 .dn
+.dn/
+/bin/dn
 
 # Local compile / signing smoke-test artifacts (never commit)
 /dn-macos-local

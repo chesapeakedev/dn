@@ -11,7 +11,7 @@ set -e
 DN_REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KICKSTART_DIR="${DN_REPO_ROOT}/kickstart"
 WORKFLOW_TEMPLATE_DIR="${DN_REPO_ROOT}/templates/workflows"
-OUTPUT_NAME=".dn"
+OUTPUT_NAME="bin/dn"
 TARGET=""
 
 usage() {
@@ -21,7 +21,7 @@ Usage: $(basename "$0") [options]
 Compile dn with embedded kickstart prompts and workflow templates.
 
 Options:
-  -o, --output PATH   Output binary path (default: .dn in repo root)
+  -o, --output PATH   Output binary path (default: bin/dn in repo root)
   --target TRIPLE     Cross-compile target (e.g. x86_64-unknown-linux-gnu)
   -h, --help          Show this help
 EOF
@@ -54,6 +54,9 @@ if [[ "${OUTPUT_NAME}" == /* ]]; then
 else
   OUTPUT_PATH="${DN_REPO_ROOT}/${OUTPUT_NAME}"
 fi
+
+OUTPUT_DIR="$(dirname "${OUTPUT_PATH}")"
+mkdir -p "${OUTPUT_DIR}"
 
 echo "Compiling dn with included system prompts and workflow templates..."
 echo "  Source: ${DN_REPO_ROOT}/cli/main.ts"
