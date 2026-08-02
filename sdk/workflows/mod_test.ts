@@ -9,6 +9,7 @@ import {
   listWorkflowStatuses,
   loadWorkflowManifest,
   readWorkflowTemplate,
+  removeRetiredTodoLoopWorkflow,
   updateWorkflowTemplates,
   validateWorkflowInstallation,
 } from "./mod.ts";
@@ -54,16 +55,14 @@ Deno.test("workflow install, update, and validate report expected status", async
       "missing",
       "missing",
       "missing",
-      "missing",
     ]);
 
     await installWorkflowSupport(repoRoot, { agent: "opencode" });
     const installed = await installWorkflowTemplates(repoRoot);
-    assertEquals(installed.length, 5);
+    assertEquals(installed.length, 4);
 
     statuses = await listWorkflowStatuses(repoRoot);
     assertEquals(statuses.map((status) => status.status), [
-      "current",
       "current",
       "current",
       "current",
@@ -82,6 +81,39 @@ Deno.test("workflow install, update, and validate report expected status", async
 
     const validation = await validateWorkflowInstallation(repoRoot);
     assertEquals(validation.ok, true);
+  } finally {
+    await Deno.remove(repoRoot, { recursive: true });
+  }
+});
+
+Deno.test("install removes retired todo-loop workflow", async () => {
+  const repoRoot = await Deno.makeTempDir({ prefix: "dn-retire-todo-" });
+  try {
+    await Deno.mkdir(`${repoRoot}/.github/workflows`, { recursive: true });
+    await Deno.writeTextFile(
+      `${repoRoot}/.github/workflows/dn-todo-loop.yml`,
+      "name: retired\n",
+    );
+    assertEquals(
+      await removeRetiredTodoLoopWorkflow(repoRoot),
+      "removed",
+    );
+    assertEquals(
+      await removeRetiredTodoLoopWorkflow(repoRoot),
+      "missing",
+    );
+
+    await Deno.writeTextFile(
+      `${repoRoot}/.github/workflows/dn-todo-loop.yml`,
+      "name: retired\n",
+    );
+    await installWorkflowTemplates(repoRoot);
+    try {
+      await Deno.stat(`${repoRoot}/.github/workflows/dn-todo-loop.yml`);
+      throw new Error("expected retired workflow to be deleted");
+    } catch (error) {
+      assertEquals(error instanceof Deno.errors.NotFound, true);
+    }
   } finally {
     await Deno.remove(repoRoot, { recursive: true });
   }

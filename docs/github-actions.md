@@ -55,13 +55,13 @@ manual `workflow_dispatch` with a `milestone` input. Each run executes one queue
 item:
 
 ```bash
-dn --agent <configured> kickstart --awp --milestone <milestone> --once
+dn --agent <configured> kickstart --publish pr --milestone <milestone> --once
 ```
 
-`dn init workflows` also installs `.github/workflows/dn-todo-loop.yml`, a daily
-workflow that runs `dn loop plans/todo.plan.md`. It uses a stable automation
-branch and opens or advances one recurring PR for that plan. The workflow has a
-manual `workflow_dispatch` input for overriding the plan file path.
+When the milestone variable is unset, the stack file is missing on the default
+branch, or the queue has no unchecked items, the workflow soft-passes with a
+summary message instead of failing. Install/update also removes the retired
+`.github/workflows/dn-todo-loop.yml` file when present.
 
 See [Denoise integration](denoise-integration.md) for payload schemas,
 permissions, secrets, and versioning details.

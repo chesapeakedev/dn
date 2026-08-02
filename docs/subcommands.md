@@ -410,8 +410,9 @@ Installs canonical dn GitHub Actions workflows plus repo agent configuration:
 - `.github/workflows/dn-*.yml` — dispatch and scheduled workflows
 - `.github/dn/config.json` — preferred agent for all dn workflows in this repo
 
-The installed templates include `.github/workflows/dn-todo-loop.yml`, a daily
-todo-loop workflow for `plans/todo.plan.md` that can also be triggered manually.
+The installed templates include the on-demand dispatch workflows plus scheduled
+`dn.daily_kickstart`. Install/update removes the retired
+`.github/workflows/dn-todo-loop.yml` when present.
 
 Choose your agent once (same value for every dispatch):
 

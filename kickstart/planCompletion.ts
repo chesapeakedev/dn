@@ -54,7 +54,7 @@ export function completionStatusFromCheckboxes(
  * Derives completion status from plan markdown content.
  *
  * Uses the `## Acceptance Criteria` section when present; otherwise counts all
- * checkboxes in the document body (for living plans like `plans/todo.plan.md`).
+ * checkboxes in the document body (for living checklist plans).
  */
 export function completionStatusFromPlanContent(content: string): {
   complete: boolean;

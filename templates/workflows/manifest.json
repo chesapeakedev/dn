@@ -150,42 +150,7 @@
         "required": [],
         "optional": ["milestone", "validate_only"]
       },
-      "compatibility_notes": "Requires .github/dn/config.json and a committed plans/{owner}_{repo}_{milestone}.stack.md from dn init stack. Runs dn kickstart --publish pr --milestone <milestone> --once. The implementation and stack progress are committed to one pull request; a later run skips while that issue's pull request remains open."
-    },
-    {
-      "id": "dn.todo_loop",
-      "version": "3.0.0",
-      "source_path": "templates/workflows/dn-todo-loop.yml",
-      "install_path": ".github/workflows/dn-todo-loop.yml",
-      "checksum": "sha256:db4e71eecb43237eddc0f6bf25cf32793df2b3ee31e00142c0ecfee6890c4a04",
-      "latest_version": "3.0.0",
-      "deprecated": false,
-      "deprecation_message": null,
-      "minimum_dn_version": "0.0.31",
-      "permissions": {
-        "contents": "write",
-        "pull-requests": "write",
-        "issues": "write"
-      },
-      "required_secrets": [],
-      "optional_secrets": [
-        "OPENAI_API_KEY",
-        "ANTHROPIC_API_KEY",
-        "CURSOR_API_KEY"
-      ],
-      "triggers": {
-        "repository_dispatch": ["dn.todo_loop"],
-        "workflow_dispatch": true,
-        "schedule": ["0 9 * * *"],
-        "labels": [],
-        "comments": []
-      },
-      "payload_schema_version": "1.0",
-      "payload": {
-        "required": ["schema_version", "dispatch_id"],
-        "optional": ["plan_file", "validate_only", "progress"]
-      },
-      "compatibility_notes": "Requires .github/dn/config.json and a plans/todo.plan.md file. Supports schedule, workflow_dispatch, and repository_dispatch (dn.todo_loop) for denoise web starts. Optional nested progress enables live phase/step ingest. Runs dn loop <path> on a stable automation branch and opens or advances one recurring pull request for that plan. Schedule defaults to daily at 09:00 UTC."
+      "compatibility_notes": "Requires .github/dn/config.json and a committed plans/{owner}_{repo}_{milestone}.stack.md from dn init stack. Runs dn kickstart --publish pr --milestone <milestone> --once. The implementation and stack progress are committed to one pull request; a later run skips while that issue's pull request remains open. When the milestone variable/stack is missing or the queue is empty, the workflow soft-passes with a clear summary instead of failing."
     }
   ]
 }

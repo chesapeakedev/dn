@@ -243,6 +243,32 @@ export async function listWorkflowStatuses(
   );
 }
 
+/** Relative path of the retired daily todo-loop workflow. */
+export const RETIRED_TODO_LOOP_WORKFLOW_REL_PATH =
+  ".github/workflows/dn-todo-loop.yml";
+
+/**
+ * Removes the retired `dn-todo-loop.yml` workflow when present.
+ * Install/update call this so scheduled runs stop failing after the product
+ * was retired.
+ */
+export async function removeRetiredTodoLoopWorkflow(
+  repoRoot: string,
+  options: { dryRun?: boolean } = {},
+): Promise<"missing" | "removed"> {
+  const workflowPath = join(repoRoot, RETIRED_TODO_LOOP_WORKFLOW_REL_PATH);
+  try {
+    await Deno.stat(workflowPath);
+  } catch (error) {
+    if (error instanceof Deno.errors.NotFound) return "missing";
+    throw error;
+  }
+  if (options.dryRun !== true) {
+    await Deno.remove(workflowPath);
+  }
+  return "removed";
+}
+
 /**
  * Install all missing or outdated canonical workflow templates.
  */
@@ -278,6 +304,7 @@ export async function installWorkflowTemplates(
     });
   }
 
+  await removeRetiredTodoLoopWorkflow(repoRoot, { dryRun: options.dryRun });
   return results;
 }
 

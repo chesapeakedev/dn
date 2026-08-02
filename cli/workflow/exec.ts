@@ -4,7 +4,6 @@
 import { join } from "@std/path";
 import type { AgentHarness } from "../../sdk/github/agentHarness.ts";
 import { githubApiUrl } from "../../sdk/github/endpoints.ts";
-import { getDefaultBranch } from "../../sdk/github/github-gql.ts";
 import { resolveStackMode } from "../../sdk/github/publish.ts";
 import {
   getStackArtifactPaths,
@@ -73,37 +72,6 @@ export function openAutomationPullRequestUrl(
   return pulls.find((pull) => pull.head.ref === branchName)?.html_url;
 }
 
-function sanitizeBranchPart(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(
-    /^-|-$/g,
-    "",
-  ).slice(0, 60) || "plan";
-}
-
-/** Stable topic branch used by the recurring todo workflow. */
-export function todoLoopBranchName(planFile: string): string {
-  return `dn/todo-loop-${sanitizeBranchPart(planFile)}`;
-}
-
-async function runGit(
-  args: string[],
-  options: { allowFailure?: boolean } = {},
-): Promise<Deno.CommandOutput> {
-  const output = await new Deno.Command("git", {
-    args,
-    stdout: "piped",
-    stderr: "piped",
-  }).output();
-  if (!output.success && !options.allowFailure) {
-    const detail = new TextDecoder().decode(output.stderr).trim();
-    throw new WorkflowExecError(
-      "git_failed",
-      `git ${args.join(" ")} failed${detail ? `: ${detail}` : ""}`,
-    );
-  }
-  return output;
-}
-
 async function githubRequest(
   path: string,
   init: RequestInit = {},
@@ -151,83 +119,122 @@ async function findDailyKickstartPullRequest(
   milestone: string,
 ): Promise<string | undefined> {
   const { owner, repo } = githubRepository();
+  const readiness = await evaluateDailyKickstartReadiness(
+    workspace,
+    owner,
+    repo,
+    milestone,
+  );
+  if (readiness.kind !== "ready") return undefined;
+  return openKickstartPullRequestUrl(
+    await listOpenPullRequests(),
+    readiness.issueNumber,
+  );
+}
+
+/**
+ * Milestone for daily kickstart from workflow_dispatch input or repo variable.
+ * Empty / missing values return undefined so the workflow can soft-skip.
+ */
+export function resolveDailyKickstartMilestone(
+  event: GitHubEvent,
+  env: Record<string, string | undefined> = Deno.env.toObject(),
+): string | undefined {
+  const inputs = event.inputs === undefined
+    ? {}
+    : requireRecord(event.inputs, "inputs");
+  const raw = inputs.milestone ?? env.DN_DAILY_KICKSTART_MILESTONE;
+  if (raw === undefined || raw === null) return undefined;
+  const value = String(raw).trim();
+  return value === "" ? undefined : value;
+}
+
+/** Soft-skip / ready evaluation for scheduled daily kickstart. */
+export type DailyKickstartReadiness =
+  | {
+    kind: "skip";
+    reason: string;
+  }
+  | {
+    kind: "ready";
+    milestone: string;
+    stackPath: string;
+    issueNumber: string;
+  };
+
+/**
+ * Decide whether daily kickstart should soft-pass or run.
+ * Missing milestone, missing stack, or an empty queue are successful skips.
+ */
+export async function evaluateDailyKickstartReadiness(
+  workspace: string,
+  owner: string,
+  repo: string,
+  milestone: string | undefined,
+): Promise<DailyKickstartReadiness> {
+  if (!milestone) {
+    return {
+      kind: "skip",
+      reason:
+        "Daily kickstart skipped: set DN_DAILY_KICKSTART_MILESTONE or pass a milestone workflow_dispatch input.",
+    };
+  }
+
   const milestoneNumber = milestone.match(/(\d+)$/)?.[1];
-  if (!milestoneNumber) return undefined;
+  if (!milestoneNumber) {
+    return {
+      kind: "skip",
+      reason:
+        `Daily kickstart skipped: milestone "${milestone}" must include a milestone number.`,
+    };
+  }
+
   const stackPath = getStackArtifactPaths(
     workspace,
     owner,
     repo,
     Number(milestoneNumber),
   ).markdownPath;
+
   let content: string;
   try {
     content = await Deno.readTextFile(stackPath);
   } catch (error) {
-    if (error instanceof Deno.errors.NotFound) return undefined;
+    if (error instanceof Deno.errors.NotFound) {
+      return {
+        kind: "skip",
+        reason:
+          `Daily kickstart skipped: stack file missing at ${stackPath}. Run dn.init_stack for milestone ${milestoneNumber} and merge the stack PR first.`,
+      };
+    }
     throw error;
   }
+
   const { body } = parseFrontmatter(content);
   const next = firstUnchecked({ meta: {}, items: parseStackTodoItems(body) });
-  const issueNumber = next?.ref.match(/(\d+)$/)?.[1];
-  if (!issueNumber) return undefined;
-  return openKickstartPullRequestUrl(
-    await listOpenPullRequests(),
+  if (!next) {
+    return {
+      kind: "skip",
+      reason:
+        `Daily kickstart skipped: milestone queue is empty in ${stackPath}.`,
+    };
+  }
+
+  const issueNumber = next.ref.match(/(\d+)$/)?.[1];
+  if (!issueNumber) {
+    return {
+      kind: "skip",
+      reason:
+        `Daily kickstart skipped: next stack item has no issue number (${next.ref}).`,
+    };
+  }
+
+  return {
+    kind: "ready",
+    milestone,
+    stackPath,
     issueNumber,
-  );
-}
-
-async function prepareTodoLoopBranch(
-  branchName: string,
-  hasOpenPullRequest: boolean,
-): Promise<void> {
-  if (hasOpenPullRequest) {
-    await runGit(["fetch", "origin", branchName]);
-    await runGit(["checkout", "-B", branchName, `origin/${branchName}`]);
-  } else {
-    await runGit(["checkout", "-B", branchName]);
-  }
-}
-
-async function publishTodoLoopPullRequest(
-  branchName: string,
-  planFile: string,
-  existingPrUrl: string | undefined,
-): Promise<string | undefined> {
-  await runGit(["add", "-A"]);
-  const diff = await runGit(["diff", "--cached", "--quiet"], {
-    allowFailure: true,
-  });
-  if (diff.success) return existingPrUrl;
-  await runGit(["commit", "-m", `dn: advance ${planFile}`]);
-  await runGit([
-    "push",
-    "-u",
-    "--force-with-lease",
-    "origin",
-    `HEAD:${branchName}`,
-  ]);
-  if (existingPrUrl) return existingPrUrl;
-
-  const { owner, repo } = githubRepository();
-  const defaultBranch = await getDefaultBranch(owner, repo);
-  const response = await githubRequest(`/repos/${owner}/${repo}/pulls`, {
-    method: "POST",
-    body: JSON.stringify({
-      title: `Advance ${planFile}`,
-      body:
-        `Recurring dn automation updates for \`${planFile}\`. Later runs advance this pull request until the plan is complete.`,
-      head: branchName,
-      base: defaultBranch,
-    }),
-  });
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new WorkflowExecError(
-      "pull_request_create_failed",
-      `Could not create pull request: HTTP ${response.status}: ${detail}`,
-    );
-  }
-  return (await response.json() as PullRequestRef).html_url;
+  };
 }
 
 function recordCheck<Result>(
@@ -405,13 +412,13 @@ export function resolveWorkflowArguments(
         `dn.daily_kickstart does not support event ${eventName}`,
       );
     }
-    const inputs = event.inputs === undefined
-      ? {}
-      : requireRecord(event.inputs, "inputs");
-    const milestone = requireMilestone(
-      inputs.milestone || env.DN_DAILY_KICKSTART_MILESTONE,
-      "milestone",
-    );
+    const milestone = resolveDailyKickstartMilestone(event, env);
+    if (!milestone) {
+      throw new WorkflowExecError(
+        "milestone_missing",
+        "Daily kickstart requires DN_DAILY_KICKSTART_MILESTONE or a milestone workflow_dispatch input",
+      );
+    }
     return [
       ...prefix,
       "kickstart",
@@ -421,34 +428,6 @@ export function resolveWorkflowArguments(
       milestone,
       "--once",
     ];
-  }
-
-  if (workflowId === "dn.todo_loop") {
-    if (
-      eventName !== "schedule" && eventName !== "workflow_dispatch" &&
-      eventName !== "repository_dispatch"
-    ) {
-      throw new WorkflowExecError(
-        "event_mismatch",
-        `dn.todo_loop does not support event ${eventName}`,
-      );
-    }
-    if (eventName === "repository_dispatch") {
-      const payload = validateDispatchEnvelope(event, "dn.todo_loop");
-      const planFile = requireNonEmptyString(
-        payload.plan_file || env.DN_TODO_PLAN_PATH || "plans/todo.plan.md",
-        "plan_file",
-      );
-      return [...prefix, "loop", planFile];
-    }
-    const inputs = event.inputs === undefined
-      ? {}
-      : requireRecord(event.inputs, "inputs");
-    const planFile = requireNonEmptyString(
-      inputs.plan_file || env.DN_TODO_PLAN_PATH || "plans/todo.plan.md",
-      "plan_file",
-    );
-    return [...prefix, "loop", planFile];
   }
 
   if (eventName !== "repository_dispatch") {
@@ -818,6 +797,39 @@ export async function handleWorkflowExec(args: string[]): Promise<void> {
     if (!config) throw new Error("unreachable");
     agent = config.agent;
 
+    if (template.id === "dn.daily_kickstart") {
+      const milestone = resolveDailyKickstartMilestone(event);
+      const { owner, repo } = milestone
+        ? githubRepository()
+        : { owner: "unused", repo: "unused" };
+      const readiness = await evaluateDailyKickstartReadiness(
+        workspace,
+        owner,
+        repo,
+        milestone,
+      );
+      if (readiness.kind === "skip") {
+        checks.push({
+          name: "Daily kickstart readiness",
+          status: "passed",
+          message: readiness.reason,
+        });
+        await writeSummary(renderWorkflowSummary({
+          workflowId,
+          eventName,
+          agent,
+          status: validateOnly ? "validated" : "passed",
+          checks,
+        }));
+        await writeActionOutputs(
+          validateOnly ? "validated" : "passed",
+          "skipped",
+          workflowId,
+        );
+        return;
+      }
+    }
+
     executionArgs = recordCheck(checks, "Payload", () => ({
       message: "Inputs are valid",
       result: resolveWorkflowArguments(
@@ -888,44 +900,10 @@ export async function handleWorkflowExec(args: string[]): Promise<void> {
       }
     }
 
-    let todoBranch: string | undefined;
-    let todoPlanFile: string | undefined;
-    let todoPrUrl: string | undefined;
-    if (template.id === "dn.todo_loop") {
-      todoPlanFile = executionArgs.at(-1);
-      if (!todoPlanFile) {
-        throw new WorkflowExecError(
-          "invalid_payload",
-          "dn.todo_loop requires a plan file",
-        );
-      }
-      todoBranch = todoLoopBranchName(todoPlanFile);
-      todoPrUrl = openAutomationPullRequestUrl(
-        await listOpenPullRequests(),
-        todoBranch,
-      );
-      await prepareTodoLoopBranch(todoBranch, todoPrUrl !== undefined);
-    }
-
     phase = "agent-install";
     await installAgent(agent);
     phase = "execution";
     await executeDn(executionArgs);
-    if (todoBranch && todoPlanFile) {
-      phase = "publish";
-      todoPrUrl = await publishTodoLoopPullRequest(
-        todoBranch,
-        todoPlanFile,
-        todoPrUrl,
-      );
-      checks.push({
-        name: "Pull request",
-        status: "passed",
-        message: todoPrUrl
-          ? `Advanced recurring pull request: ${todoPrUrl}`
-          : "No repository changes to publish",
-      });
-    }
     await writeSummary(renderWorkflowSummary({
       workflowId,
       eventName,
@@ -934,7 +912,7 @@ export async function handleWorkflowExec(args: string[]): Promise<void> {
       checks,
       args: executionArgs,
     }));
-    await writeActionOutputs("passed", phase, workflowId, todoPrUrl);
+    await writeActionOutputs("passed", phase, workflowId);
   } catch (error) {
     failure = error instanceof WorkflowExecError
       ? error

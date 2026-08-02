@@ -15,7 +15,9 @@ under `.github/workflows/`.
 | `dn.meld_issue_plan` | `repository_dispatch`           | `.github/workflows/dn-prep-issue-plan.yml` |
 | `dn.kickstart_issue` | `repository_dispatch`           | `.github/workflows/dn-kickstart-issue.yml` |
 | `dn.daily_kickstart` | `schedule`, `workflow_dispatch` | `.github/workflows/dn-daily-kickstart.yml` |
-| `dn.todo_loop`       | `schedule`, `workflow_dispatch` | `.github/workflows/dn-todo-loop.yml`       |
+
+Install and update also remove the retired `.github/workflows/dn-todo-loop.yml`
+file when present.
 
 The machine-readable contract is `templates/workflows/manifest.json`. Each entry
 includes the template version, source path, install path, checksum, required
@@ -204,8 +206,9 @@ stack checkbox are committed to the same PR, so merging the PR advances code and
 queue atomically. If that issue already has an open kickstart PR, later runs
 report its URL and skip duplicate work.
 
-`dn.todo_loop` checks out a stable branch derived from its plan path. Each run
-commits its progress to that branch and opens or advances one recurring PR.
+When `DN_DAILY_KICKSTART_MILESTONE` is unset, the stack file is missing, or the
+queue is empty, `dn.daily_kickstart` soft-passes with a clear job summary
+instead of failing.
 
 ## Execution Runtime Matrix
 
@@ -307,7 +310,6 @@ Canonical templates request the minimum permissions needed for their workflow:
   `issues: write`
 - `dn.daily_kickstart`: `contents: write`, `pull-requests: write`,
   `issues: write`
-- `dn.todo_loop`: `contents: write`, `pull-requests: write`, `issues: write`
 
 `contents: write` permits a workflow to push a topic branch. Opening the
 corresponding PR also requires `pull-requests: write`. Canonical workflows never

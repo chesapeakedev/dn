@@ -2,13 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { assertEquals, assertThrows } from "@std/assert";
+import { join } from "@std/path";
 import {
   applyProgressEnvFromClientPayload,
+  evaluateDailyKickstartReadiness,
   openAutomationPullRequestUrl,
   openKickstartPullRequestUrl,
   renderWorkflowSummary,
+  resolveDailyKickstartMilestone,
   resolveWorkflowArguments,
-  todoLoopBranchName,
 } from "./exec.ts";
 
 Deno.test("applyProgressEnvFromClientPayload sets HTTP progress env", () => {
@@ -293,57 +295,122 @@ Deno.test("resolveWorkflowArguments uses scheduled milestone environment", () =>
   );
 });
 
-Deno.test("resolveWorkflowArguments maps todo loop workflow dispatch input", () => {
+Deno.test("resolveDailyKickstartMilestone reads input and env", () => {
   assertEquals(
-    resolveWorkflowArguments(
-      "dn.todo_loop",
-      "workflow_dispatch",
-      { inputs: { plan_file: "plans/team.plan.md" } },
-      "opencode",
-    ),
-    ["--agent", "opencode", "loop", "plans/team.plan.md"],
+    resolveDailyKickstartMilestone({ inputs: { milestone: "9" } }),
+    "9",
+  );
+  assertEquals(
+    resolveDailyKickstartMilestone({}, { DN_DAILY_KICKSTART_MILESTONE: "3" }),
+    "3",
+  );
+  assertEquals(resolveDailyKickstartMilestone({}, {}), undefined);
+  assertEquals(
+    resolveDailyKickstartMilestone({}, { DN_DAILY_KICKSTART_MILESTONE: "  " }),
+    undefined,
   );
 });
 
-Deno.test("resolveWorkflowArguments uses default todo loop plan path", () => {
-  assertEquals(
-    resolveWorkflowArguments(
-      "dn.todo_loop",
-      "schedule",
-      {},
-      "codex",
-    ),
-    ["--agent", "codex", "loop", "plans/todo.plan.md"],
+Deno.test("evaluateDailyKickstartReadiness soft-skips without milestone", async () => {
+  const result = await evaluateDailyKickstartReadiness(
+    "/tmp",
+    "acme",
+    "widgets",
+    undefined,
   );
+  assertEquals(result.kind, "skip");
+  if (result.kind === "skip") {
+    assertEquals(
+      result.reason.includes("DN_DAILY_KICKSTART_MILESTONE"),
+      true,
+    );
+  }
 });
 
-Deno.test("resolveWorkflowArguments maps todo loop repository dispatch", () => {
-  assertEquals(
-    resolveWorkflowArguments(
-      "dn.todo_loop",
-      "repository_dispatch",
-      {
-        action: "dn.todo_loop",
-        client_payload: {
-          schema_version: "1.0",
-          dispatch_id: "loop-1",
-          plan_file: "plans/custom.plan.md",
-        },
-      },
-      "opencode",
-    ),
-    ["--agent", "opencode", "loop", "plans/custom.plan.md"],
-  );
+Deno.test("evaluateDailyKickstartReadiness soft-skips missing stack", async () => {
+  const workspace = await Deno.makeTempDir({ prefix: "dn-daily-skip-" });
+  try {
+    const result = await evaluateDailyKickstartReadiness(
+      workspace,
+      "acme",
+      "widgets",
+      "42",
+    );
+    assertEquals(result.kind, "skip");
+    if (result.kind === "skip") {
+      assertEquals(result.reason.includes("stack file missing"), true);
+    }
+  } finally {
+    await Deno.remove(workspace, { recursive: true });
+  }
 });
 
-Deno.test("todo loop uses a stable plan-specific automation branch", () => {
-  assertEquals(
-    todoLoopBranchName("plans/Team Queue.plan.md"),
-    "dn/todo-loop-plans-team-queue-plan-md",
-  );
+Deno.test("evaluateDailyKickstartReadiness soft-skips empty queue", async () => {
+  const workspace = await Deno.makeTempDir({ prefix: "dn-daily-empty-" });
+  try {
+    const plansDir = join(workspace, "plans");
+    await Deno.mkdir(plansDir, { recursive: true });
+    const stackPath = join(plansDir, "acme_widgets_7.stack.md");
+    await Deno.writeTextFile(
+      stackPath,
+      [
+        "---",
+        "milestone: 7",
+        "---",
+        "",
+        "- [x] https://github.com/acme/widgets/issues/1 done",
+        "",
+      ].join("\n"),
+    );
+    const result = await evaluateDailyKickstartReadiness(
+      workspace,
+      "acme",
+      "widgets",
+      "7",
+    );
+    assertEquals(result.kind, "skip");
+    if (result.kind === "skip") {
+      assertEquals(result.reason.includes("queue is empty"), true);
+    }
+  } finally {
+    await Deno.remove(workspace, { recursive: true });
+  }
 });
 
-Deno.test("workflow PR matching distinguishes kickstart and recurring branches", () => {
+Deno.test("evaluateDailyKickstartReadiness is ready with unchecked item", async () => {
+  const workspace = await Deno.makeTempDir({ prefix: "dn-daily-ready-" });
+  try {
+    const plansDir = join(workspace, "plans");
+    await Deno.mkdir(plansDir, { recursive: true });
+    await Deno.writeTextFile(
+      join(plansDir, "acme_widgets_7.stack.md"),
+      [
+        "---",
+        "milestone: 7",
+        "---",
+        "",
+        "- [ ] https://github.com/acme/widgets/issues/99 next",
+        "",
+      ].join("\n"),
+    );
+    const result = await evaluateDailyKickstartReadiness(
+      workspace,
+      "acme",
+      "widgets",
+      "7",
+    );
+    assertEquals(result, {
+      kind: "ready",
+      milestone: "7",
+      stackPath: join(plansDir, "acme_widgets_7.stack.md"),
+      issueNumber: "99",
+    });
+  } finally {
+    await Deno.remove(workspace, { recursive: true });
+  }
+});
+
+Deno.test("workflow PR matching distinguishes kickstart and automation branches", () => {
   const pulls = [
     {
       html_url: "https://github.com/acme/widgets/pull/10",
@@ -351,7 +418,7 @@ Deno.test("workflow PR matching distinguishes kickstart and recurring branches",
     },
     {
       html_url: "https://github.com/acme/widgets/pull/11",
-      head: { ref: "dn/todo-loop-plans-team-plan-md" },
+      head: { ref: "dn/automation-plans-team-plan-md" },
     },
   ];
   assertEquals(
@@ -362,7 +429,7 @@ Deno.test("workflow PR matching distinguishes kickstart and recurring branches",
   assertEquals(
     openAutomationPullRequestUrl(
       pulls,
-      "dn/todo-loop-plans-team-plan-md",
+      "dn/automation-plans-team-plan-md",
     ),
     "https://github.com/acme/widgets/pull/11",
   );
