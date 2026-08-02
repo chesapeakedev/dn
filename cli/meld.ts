@@ -128,7 +128,7 @@ async function parseArgs(
       dryRun = true;
     } else if (arg === "--yes" || arg === "-y") {
       autoYes = true;
-    } else if (arg === "--allow-cross-repo") {
+    } else if (arg === "--allow-cross-repo" || arg === "-A") {
       allowCrossRepo = true;
     } else if (
       arg === "--cursor" || arg === "-c" || arg === "--claude" ||
@@ -227,7 +227,7 @@ function showHelp(): void {
   console.log(
     "  --yes, -y               Auto-approve prompts in unattended merges",
   );
-  console.log("  --allow-cross-repo      Allow mismatched repositories");
+  console.log("  --allow-cross-repo, -A  Allow mismatched repositories");
   console.log(
     "  --list, -l <path>       Newline-separated sources (POSIX style)",
   );

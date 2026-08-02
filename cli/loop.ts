@@ -326,7 +326,7 @@ export function parseLoopArgs(
     const arg = flagArgs[i];
     if (arg === "--plan-file" && i + 1 < args.length) {
       planFilePath = args[++i];
-    } else if (arg === "--allow-cross-repo") {
+    } else if (arg === "--allow-cross-repo" || arg === "-A") {
       allowCrossRepo = true;
     } else if (arg === "--cursor" || arg === "-c") {
       cursorFlag = true;
@@ -425,7 +425,7 @@ function showHelp(): void {
     "  --plan-file <path>       Deprecated alias for passing a plan file argument",
   );
   console.log(
-    "  --allow-cross-repo       Allow issue URLs from a different repository",
+    "  --allow-cross-repo, -A   Allow issue URLs from a different repository",
   );
   console.log(
     "  --steer <prompt>         Append supplemental operator guidance to the implement prompt",

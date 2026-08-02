@@ -210,7 +210,7 @@ replace the issue or other workflow context.
 
 By default, kickstart only supports implementing issues from the current
 repository to ensure VCS operations work correctly. To implement issues from a
-different repository, use `--allow-cross-repo`:
+different repository, use `--allow-cross-repo` (or its short alias `-A`):
 
 - **Allowed**: Cross-repo operations without AWP mode
 - **Blocked**: Cross-repo operations with AWP mode (branches, commits, PRs)

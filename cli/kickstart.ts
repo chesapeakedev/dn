@@ -149,7 +149,7 @@ export function parseKickstartArgs(
       copilotFlag = true;
     } else if (arg === "--opencode") {
       opencodeFlag = true;
-    } else if (arg === "--allow-cross-repo") {
+    } else if (arg === "--allow-cross-repo" || arg === "-A") {
       allowCrossRepo = true;
     } else if (arg === "--complete") {
       milestoneAutoAdvance = true;
@@ -280,7 +280,7 @@ function showHelp(): void {
     "  --awp                    Alias for --publish pr (branches, commits, PRs)",
   );
   console.log(
-    "  --allow-cross-repo       Allow implementing issues from different repositories",
+    "  --allow-cross-repo, -A   Allow implementing issues from different repositories",
   );
   console.log(
     "  --steer <prompt>         Append supplemental operator guidance to agent prompts",
