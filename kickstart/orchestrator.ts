@@ -32,6 +32,7 @@ import {
   type ProgressReporter,
 } from "../sdk/github/progress.ts";
 import { createCursorRule } from "./artifacts.ts";
+import { reviewPlanInEditor } from "./editor.ts";
 import { formatSummary } from "../sdk/archive/format.ts";
 import {
   checkAcceptanceCriteriaCompletion,
@@ -878,6 +879,11 @@ export async function runOrchestrator(
     console.log(formatInfo("Validating plan file..."));
     await checkPlanFile(planFilePath);
     console.log(formatInfo(`Plan file location: ${planFilePath}`));
+
+    if (await reviewPlanInEditor(planFilePath)) {
+      console.log(formatInfo("Revalidating plan after editor review..."));
+      await checkPlanFile(planFilePath);
+    }
 
     console.log(formatSuccess("Plan phase completed successfully"));
     await report("step.completed", "Plan step completed", { step: 3 });

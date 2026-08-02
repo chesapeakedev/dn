@@ -56,8 +56,9 @@ Prebuilt binaries are also available from the
 | Windows (x64)         | `dn-windows-x64.exe` |
 
 macOS release binaries are signed with a Developer ID certificate and notarized.
-If an older unsigned build is blocked by Gatekeeper, approve it under **System
-Settings > Privacy & Security**, or remove the quarantine attribute:
+This was done recently, so if an older unsigned build is blocked by Gatekeeper,
+you can approve it under **System Settings > Privacy & Security**, or remove the
+quarantine attribute:
 
 ```bash
 xattr -d com.apple.quarantine "$(which dn)"
@@ -69,37 +70,22 @@ Building requires [Deno](https://deno.com/) 2.6.3 or later:
 
 ```bash
 git clone https://github.com/chesapeakedev/dn.git
-cd dn
-make install
+cd dn && make install
 ```
-
-Run `dn --help` to explore the available workflows.
 
 ## Features
 
-- **Issue to implementation** — Turn a GitHub issue or local spec into working
-  code with `dn kickstart`, optionally opening a pull request
-- **Durable, reviewable plans** — Create plans with `dn meld`, implement with
-  `dn loop`, and close out commits with `dn land`
-- **Goal loops until the gate passes** — Repeat generator/verifier ticks with
-  `dn until` until tests, lint, or another shell gate succeeds
-- **Developer device runners** — Pair a Mac or Linux machine with denoise and
-  run kickstart against warm checkouts and existing agent logins
-- **PR feedback to fixes** — Fetch review comments and implement a focused fix
-  plan with `dn fixup`
-- **Software factory automation** — Install canonical GitHub Actions and run
-  overnight kickstart queues with `dn init workflows` and `dn workflows`
-
-## Choose a path
-
-| Need                             | Workflow                              |
-| -------------------------------- | ------------------------------------- |
-| Issue → plan → PR in one shot    | `dn kickstart --publish pr` / `--awp` |
-| Review the plan before coding    | `dn meld` → `dn loop` → `dn land`     |
-| Keep going until a gate passes   | `dn until`                            |
-| Run Denoise jobs on this machine | `dn runner`                           |
-| Address pull request feedback    | `dn fixup`                            |
-| Overnight / CI agent runs        | `dn init workflows` + `dn workflows`  |
+- **Automate issue to implementation** — Codify and idea into a GitHub issue
+  then working code with `dn kickstart`, optionally opening a pull request
+- **Durable, reviewable plans** — Create human-reviewable handoffs at each step
+  in the SDLC with `dn meld`, `dn loop`, and `dn land`
+- **Setup dn runners** — Pair a Mac or Linux machine with denoise and run
+  commands against warm checkouts and existing agent logins instead of a remote
+  server
+- **Streamline PR maintenance** — Fetch review comments and implement a focused
+  fix plan with `dn fixup`
+- **Build your software factory** — Install GitHub Actions workflows for dn in
+  CI; run the cli overnight & review work in the morning
 
 ## Kickstart a task
 
@@ -117,6 +103,33 @@ dn kickstart docs/spec.md
 # Create a branch or bookmark, commit, push, and open a pull request
 dn kickstart --awp https://github.com/owner/repo/issues/123
 ```
+
+In an attended terminal, set `EDITOR` to review the generated plan before
+implementation starts. The editor must remain open until you finish reviewing;
+VS Code therefore needs `--wait`.
+
+```bash
+# Review and edit with VS Code
+EDITOR="code --wait" dn kickstart 123
+
+# Review and edit with Neovim
+EDITOR=nvim dn kickstart 123
+
+# Review and edit with Vim
+EDITOR=vim dn kickstart 123
+
+# Review the plan with Hunk (read-only; edit with another editor if needed)
+EDITOR="hunk diff --" dn kickstart 123
+```
+
+You can export your preferred editor for repeated runs:
+
+```bash
+export EDITOR=nvim
+dn kickstart 123
+```
+
+Plan review is skipped for unattended, CI, and non-TTY runs.
 
 See the
 [`dn kickstart` command reference](docs/subcommands.md#dn-kickstart--full-workflow)

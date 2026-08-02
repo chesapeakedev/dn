@@ -52,6 +52,7 @@ its arguments.
 | **FORCE_COLOR**    | If set, enable color even when stdout is not a TTY. See [force-color.org](https://force-color.org).                                                       |
 | **TERM**           | If `TERM=dumb`, `dn` treats output as no color and no fancy sequences.                                                                                    |
 | **DN_AGENT_TRACE** | `1`/`true` forces live agent stream; `0`/`false` suppresses it. Overrides the attended/unattended default when set.                                       |
+| **EDITOR**         | In attended `dn kickstart` runs, opens the generated plan with this command before implementation. Supports command arguments such as `code --wait`.      |
 
 ## Branding
 

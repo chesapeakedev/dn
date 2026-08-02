@@ -261,6 +261,13 @@ separate land step, use `--publish pr` or `--publish direct`.
 item is published before the next (avoids stacking multiple plans into one dirty
 tree that `dn land` cannot attribute correctly).
 
+In an attended terminal, set `EDITOR` to review the generated plan before the
+implementation phase. The editor command may include arguments, such as
+`EDITOR="code --wait"`. Vim and Neovim wait by default; Hunk can be used for a
+read-only review with `EDITOR="hunk diff --"`. Plan review is skipped in
+unattended, CI, and non-TTY runs. If `EDITOR` is unset, kickstart continues
+directly to implementation.
+
 On `--once` / `--complete` success, the stack item is marked done and the GitHub
 issue is closed (same automation path as before). `--complete` then advances to
 the next unchecked item until the stack is empty.
