@@ -76,6 +76,18 @@ Deno.test("Cursor cloud prompts preserve kickstart phases and loop plans", () =>
   assertStringIncludes(loopPrompt, "# Existing plan");
 });
 
+Deno.test("Cursor cloud prompts append steering instructions when provided", () => {
+  const steeringPrompt = "Focus on parser validation, including punctuation.";
+  assertStringIncludes(
+    buildCursorCloudKickstartPrompt("Task context", true, steeringPrompt),
+    `# Steering Prompt\n${steeringPrompt}`,
+  );
+  assertStringIncludes(
+    buildCursorCloudLoopPrompt("Existing plan", steeringPrompt),
+    `# Steering Prompt\n${steeringPrompt}`,
+  );
+});
+
 Deno.test("startCursorCloudAgent rejects non-PR publishing", async () => {
   await assertRejects(
     () =>

@@ -317,6 +317,7 @@ export function parseLoopArgs(
   let cursorCloudRefSpecified = false;
   let workspaceRoot: string | undefined = undefined;
   let allowCrossRepo = false;
+  let steeringPrompt: string | undefined = undefined;
 
   const { sandbox: localSandbox, rest: flagArgs } = extractSandboxFlag(args);
   const sandboxFlag = resolveSandboxFlagValue(globalSandbox, localSandbox);
@@ -344,6 +345,11 @@ export function parseLoopArgs(
       opencodeFlag = true;
     } else if (arg === "--workspace-root" && i + 1 < args.length) {
       workspaceRoot = args[++i];
+    } else if (arg === "--steer") {
+      if (i + 1 >= flagArgs.length) {
+        throw new Error("--steer requires a value.");
+      }
+      steeringPrompt = flagArgs[++i];
     } else if (arg === "--help" || arg === "-h") {
       showHelp();
       Deno.exit(0);
@@ -397,6 +403,7 @@ export function parseLoopArgs(
     sandboxFlag,
     cursorCloud,
     cursorCloudRef,
+    ...(steeringPrompt !== undefined ? { steeringPrompt } : {}),
   };
 }
 
@@ -419,6 +426,9 @@ function showHelp(): void {
   );
   console.log(
     "  --allow-cross-repo       Allow issue URLs from a different repository",
+  );
+  console.log(
+    "  --steer <prompt>         Append supplemental operator guidance to the implement prompt",
   );
   console.log("  --cursor, -c             Use Cursor headless agent");
   console.log(
@@ -452,6 +462,9 @@ function showHelp(): void {
   console.log("  dn loop https://github.com/owner/repo/issues/123");
   console.log("  dn loop 123");
   console.log(
+    '  dn loop --steer "Focus on validation and tests" plans/my-feature.plan.md',
+  );
+  console.log(
     "  dn loop --allow-cross-repo https://github.com/owner/repo/issues/123",
   );
   console.log(
@@ -470,6 +483,7 @@ async function dispatchCursorCloudLoop(
   planFilePath: string,
   issueUrl: string | null,
   startingRef: string,
+  steeringPrompt?: string,
 ): Promise<void> {
   requireCursorApiKey();
   const plan = await Deno.readTextFile(planFilePath);
@@ -482,7 +496,7 @@ async function dispatchCursorCloudLoop(
     repositoryUrl = `https://github.com/${owner}/${repo}.git`;
   }
   const result = await runCursorCloudAgentTracked({
-    prompt: buildCursorCloudLoopPrompt(plan),
+    prompt: buildCursorCloudLoopPrompt(plan, steeringPrompt),
     repository: { url: repositoryUrl, startingRef },
     autoCreatePr: true,
   });
@@ -589,6 +603,7 @@ export async function handleLoop(
         config.planFilePath,
         explicitIssueUrl,
         config.cursorCloudRef,
+        config.steeringPrompt,
       );
       return;
     } catch (error) {

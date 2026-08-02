@@ -121,6 +121,7 @@ export function parseKickstartArgs(
   let milestoneAutoAdvance = false;
   let milestoneRunOnce = false;
   let denoiseTaskPath: string | undefined = undefined;
+  let steeringPrompt: string | undefined = undefined;
 
   const { sandbox: localSandbox, rest: flagArgs } = extractSandboxFlag(args);
   const sandboxFlag = resolveSandboxFlagValue(globalSandbox, localSandbox);
@@ -162,6 +163,11 @@ export function parseKickstartArgs(
       milestone = args[++i];
     } else if (arg === "--denoise-task" && i + 1 < args.length) {
       denoiseTaskPath = args[++i];
+    } else if (arg === "--steer") {
+      if (i + 1 >= flagArgs.length) {
+        throw new Error("--steer requires a value.");
+      }
+      steeringPrompt = flagArgs[++i];
     } else if (arg === "--help" || arg === "-h") {
       showHelp();
       Deno.exit(0);
@@ -247,6 +253,7 @@ export function parseKickstartArgs(
     cursorCloud,
     cursorCloudRef,
     ...(denoiseTaskPath ? { denoiseTaskPath } : {}),
+    ...(steeringPrompt !== undefined ? { steeringPrompt } : {}),
   };
 }
 
@@ -274,6 +281,9 @@ function showHelp(): void {
   );
   console.log(
     "  --allow-cross-repo       Allow implementing issues from different repositories",
+  );
+  console.log(
+    "  --steer <prompt>         Append supplemental operator guidance to agent prompts",
   );
   console.log("  --cursor, -c              Use Cursor headless agent");
   console.log(
@@ -349,6 +359,9 @@ function showHelp(): void {
     "  dn kickstart --awp --denoise-task task.json         # ticketless with PR",
   );
   console.log("  ISSUE=<issue_url_or_number> dn kickstart");
+  console.log(
+    '  dn kickstart --steer "Focus on the parser and add regression tests" 123',
+  );
 }
 
 async function dispatchCursorCloudKickstart(
@@ -383,7 +396,11 @@ async function dispatchCursorCloudKickstart(
 
   const autoCreatePr = config.publish === "pr";
   const result = await runCursorCloudAgentTracked({
-    prompt: buildCursorCloudKickstartPrompt(context, autoCreatePr),
+    prompt: buildCursorCloudKickstartPrompt(
+      context,
+      autoCreatePr,
+      config.steeringPrompt,
+    ),
     repository: { url: repositoryUrl, startingRef: config.cursorCloudRef },
     autoCreatePr,
   });

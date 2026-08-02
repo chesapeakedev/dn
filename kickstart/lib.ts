@@ -359,6 +359,8 @@ export interface KickstartConfig {
   sandboxFlag?: SandboxFlagValue | null;
   /** Milestone number or URL to use milestone-linked plan file */
   milestone?: string;
+  /** Optional final operator instruction appended to agent prompts. */
+  steeringPrompt?: string;
   /** Optional flags when invoked from {@link dn meld} only */
   meldPhase?: MeldPhaseCliOptions;
 }
@@ -1111,6 +1113,7 @@ export async function runMeldPhase(
       continueExistingPlan ? existingPlanContent : null,
       mergedDocForPrompt,
       githubBodyForPrompt,
+      config.steeringPrompt,
     );
 
     const planResult = await runAgentPhaseInSandbox(
@@ -1319,6 +1322,10 @@ export async function runLoopPhase(
       workspaceRoot,
       issueContextPathForPrompt,
       planOutputPath, // Include plan output
+      undefined,
+      undefined,
+      undefined,
+      config.steeringPrompt,
     );
 
     await clearImplementResult(workspaceRoot);
@@ -1753,6 +1760,7 @@ export async function runFullKickstart(
     contextMarkdownPath: config.contextMarkdownPath,
     saveCtx: config.saveCtx,
     savedPlanName: config.savedPlanName,
+    steeringPrompt: config.steeringPrompt,
   };
 
   // Set workspace root via environment if provided

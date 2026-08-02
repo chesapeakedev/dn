@@ -40,6 +40,25 @@ Deno.test("loop parses an explicit Cursor cloud starting ref", () => {
   });
 });
 
+Deno.test("kickstart and loop preserve steering prompts", () => {
+  const steeringPrompt =
+    "Prioritize the parser, then add tests: do not refactor.";
+  assertEquals(
+    parseKickstartArgs(["--steer", steeringPrompt, "123"]).steeringPrompt,
+    steeringPrompt,
+  );
+  assertEquals(
+    parseLoopArgs(["--steer", steeringPrompt, "plans/work.plan.md"])
+      .steeringPrompt,
+    steeringPrompt,
+  );
+  assertEquals(parseKickstartArgs(["123"]).steeringPrompt, undefined);
+  assertEquals(
+    parseLoopArgs(["plans/work.plan.md"]).steeringPrompt,
+    undefined,
+  );
+});
+
 Deno.test("Cursor cloud CLI defaults the starting ref to main", () => {
   const kickstart = parseKickstartArgs(["--cursor-cloud", "task.md"]);
   assertEquals(kickstart.cursorCloudRef, "main");
@@ -80,6 +99,14 @@ Deno.test("Cursor cloud mode rejects a simultaneous local Cursor agent", () => {
 });
 
 for (const parseArgs of [parseKickstartArgs, parseLoopArgs]) {
+  Deno.test(`${parseArgs.name} rejects a missing --steer value`, () => {
+    assertThrows(
+      () => parseArgs(["--steer"]),
+      Error,
+      "--steer requires",
+    );
+  });
+
   Deno.test(`${parseArgs.name} requires cloud mode for --ref`, () => {
     assertThrows(
       () => parseArgs(["--ref", "feature/cloud-dispatch", "task.md"]),

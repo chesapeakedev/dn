@@ -22,6 +22,7 @@
  * @param existingPlanContent - Optional existing plan content to include (for continuation)
  * @param existingMeldTargetContent - Optional contents of destination file (`dn meld` merge)
  * @param githubIssueBodyForMeld - Optional live issue body for GitHub-output meld prompts
+ * @param steeringPrompt - Optional final operator instruction to append to the prompt
  * @throws Error if the system prompt file cannot be found
  */
 export async function assembleCombinedPrompt(
@@ -33,6 +34,7 @@ export async function assembleCombinedPrompt(
   existingPlanContent?: string | null,
   existingMeldTargetContent?: string | null,
   githubIssueBodyForMeld?: string | null,
+  steeringPrompt?: string,
 ): Promise<void> {
   // Read system prompt
   let systemPrompt: string;
@@ -129,5 +131,13 @@ export async function assembleCombinedPrompt(
     } catch {
       // Issue context file doesn't exist, skip it
     }
+  }
+
+  if (steeringPrompt !== undefined) {
+    await Deno.writeTextFile(
+      outputPath,
+      `\n\n---\n\n# Steering Prompt\n${steeringPrompt}`,
+      { append: true },
+    );
   }
 }

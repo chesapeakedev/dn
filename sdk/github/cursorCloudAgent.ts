@@ -115,10 +115,14 @@ export function parseCursorCloudRef(value: string | undefined): string {
 export function buildCursorCloudKickstartPrompt(
   context: string,
   autoCreatePr: boolean,
+  steeringPrompt?: string,
 ): string {
   const prInstruction = autoCreatePr
     ? "Create a pull request with the completed work."
     : "Do not create a pull request automatically; leave the completed work in the cloud agent workspace.";
+  const steeringSection = steeringPrompt === undefined
+    ? ""
+    : `\n\n---\n\n# Steering Prompt\n${steeringPrompt}`;
   return `You are running a dn kickstart task in a durable Cursor Cloud Agent. Work directly in the cloned repository and complete both phases below in this single run.
 
 Phase 1 — Plan:
@@ -134,16 +138,22 @@ Phase 2 — Implement:
 
 Task context:
 
-${context}`;
+${context}${steeringSection}`;
 }
 
 /** Builds the durable implementation prompt for an existing dn plan. */
-export function buildCursorCloudLoopPrompt(plan: string): string {
+export function buildCursorCloudLoopPrompt(
+  plan: string,
+  steeringPrompt?: string,
+): string {
+  const steeringSection = steeringPrompt === undefined
+    ? ""
+    : `\n\n---\n\n# Steering Prompt\n${steeringPrompt}`;
   return `You are running the implementation phase of a dn loop task in a durable Cursor Cloud Agent. Work directly in the cloned repository. Review the plan, implement it completely, update tests and documentation as needed, run the repository's required checks, review the final diff against the plan, and create a pull request with the completed work.
 
 Plan:
 
-${plan}`;
+${plan}${steeringSection}`;
 }
 
 /**

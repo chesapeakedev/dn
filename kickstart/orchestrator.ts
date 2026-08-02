@@ -181,6 +181,8 @@ export interface OrchestratorConfig {
   saveCtx: boolean;
   /** Specific plan name to use (if provided via --saved-plan) */
   savedPlanName: string | null;
+  /** Optional final operator instruction appended to agent prompts. */
+  steeringPrompt?: string;
 }
 
 /**
@@ -841,6 +843,9 @@ export async function runOrchestrator(
       issueContextPathFinal,
       undefined, // planOutputPath (not used in plan phase)
       continueExistingPlan ? existingPlanContent : null,
+      undefined,
+      undefined,
+      config.steeringPrompt,
     );
 
     // Run plan phase (opencode, Cursor, or Claude Code per config)
@@ -947,6 +952,10 @@ export async function runOrchestrator(
       WORKSPACE_ROOT,
       issueContextPathFinal,
       planOutputPath, // Include plan output
+      undefined,
+      undefined,
+      undefined,
+      config.steeringPrompt,
     );
 
     await clearImplementResult(WORKSPACE_ROOT);

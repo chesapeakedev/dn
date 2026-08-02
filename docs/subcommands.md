@@ -197,7 +197,14 @@ dn kickstart --sandbox docker https://github.com/owner/repo/issues/123
 # From a denoise task JSON file (ticketless; materialized to markdown)
 dn kickstart --denoise-task task.json
 dn kickstart --awp --denoise-task task.json
+
+# Add supplemental last-minute guidance without changing the issue/context
+dn kickstart --steer "Focus on validation and add regression tests" 123
 ```
+
+`--steer <prompt>` appends supplemental operator guidance as a final, clearly
+labeled context section in both the plan and implement prompts. It does not
+replace the issue or other workflow context.
 
 ### Cross-Repository Operations
 
@@ -888,7 +895,14 @@ dn --agent codex loop plans/issue-123.plan.md
 
 # From a denoise task JSON file (materialized to markdown)
 dn loop task.json
+
+# Add supplemental last-minute guidance without changing the plan
+dn loop --steer "Keep the change minimal and test the edge cases" plans/issue-123.plan.md
 ```
+
+`--steer <prompt>` appends supplemental operator guidance as a final, clearly
+labeled context section in the implement prompt. It does not replace the plan or
+issue context, and is also included for Cursor Cloud runs.
 
 `dn loop` requires an existing plan created by `dn meld`. When you pass an issue
 URL or issue number, `dn` searches `plans/` for a matching plan instead of
