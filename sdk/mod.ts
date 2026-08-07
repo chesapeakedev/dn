@@ -490,6 +490,7 @@ export {
   denoiseTaskToMarkdown,
   detectRunnerCapabilities,
   doctorRunner,
+  formatRunnerServeLog,
   generateLaunchdService,
   generateRunnerService,
   generateSystemdService,

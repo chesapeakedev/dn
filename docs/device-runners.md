@@ -160,10 +160,20 @@ For foreground logs:
 dn runner serve
 ```
 
+The serve loop prints timestamped status lines on stdout when it is ready, when
+a long-poll returns no work, when it claims a job, and when it is paused. After
+an empty claim it waits about 2.5 seconds before polling again. Example idle
+line:
+
+```text
+[2026-08-07T19:55:00.000Z] No work available; waiting for jobs
+```
+
 For the installed service:
 
 ```bash
 # macOS
+tail -f ~/.dn/runner/runner.log
 tail -f ~/.dn/runner/runner.error.log
 
 # Linux

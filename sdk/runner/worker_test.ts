@@ -14,11 +14,18 @@ import type {
 import {
   buildRunnerDenoiseTaskCommand,
   buildRunnerKickstartCommand,
+  formatRunnerServeLog,
   parseRunnerProgressLine,
   type RunnerChildProcess,
   type RunnerWorkerClient,
   runRunnerJob,
+  serveRunner,
 } from "./worker.ts";
+import {
+  getRunnerConfigPaths,
+  RUNNER_CONFIG_SCHEMA_VERSION,
+  saveRunnerConfig,
+} from "./config.ts";
 
 function job(): RunnerJob {
   return {
@@ -291,4 +298,95 @@ Deno.test("buildRunnerDenoiseTaskCommand creates temp file and cleanup", async (
     false,
     "Temp file should be removed after cleanup",
   );
+});
+
+Deno.test("formatRunnerServeLog prefixes an ISO-8601 timestamp", () => {
+  assertEquals(
+    formatRunnerServeLog(
+      "No work available; waiting for jobs",
+      new Date("2026-08-07T19:55:00.000Z"),
+    ),
+    "[2026-08-07T19:55:00.000Z] No work available; waiting for jobs",
+  );
+});
+
+Deno.test("serveRunner logs ready and idle status when no job is claimed", async () => {
+  const directory = await Deno.makeTempDir({ prefix: "dn-runner-serve-" });
+  const previousHome = Deno.env.get("DN_RUNNER_HOME");
+  Deno.env.set("DN_RUNNER_HOME", directory);
+  const logs: string[] = [];
+  const client = new RecordingClient();
+  try {
+    await saveRunnerConfig({
+      schema_version: RUNNER_CONFIG_SCHEMA_VERSION,
+      paused: false,
+      repositories: {},
+    }, getRunnerConfigPaths(directory));
+    await serveRunner({
+      runnerId: "runner-1",
+      dnVersion: "0.0.0-test",
+      commandPrefix: ["/usr/local/bin/dn"],
+      client,
+      once: true,
+      log: (line) => logs.push(line),
+      now: () => new Date("2026-08-07T19:55:00.000Z"),
+    });
+    assertEquals(logs, [
+      "[2026-08-07T19:55:00.000Z] Runner ready; accepting work as runner-1",
+      "[2026-08-07T19:55:00.000Z] No work available; waiting for jobs",
+    ]);
+  } finally {
+    if (previousHome === undefined) Deno.env.delete("DN_RUNNER_HOME");
+    else Deno.env.set("DN_RUNNER_HOME", previousHome);
+    await Deno.remove(directory, { recursive: true });
+  }
+});
+
+Deno.test("serveRunner waits between empty claims", async () => {
+  const directory = await Deno.makeTempDir({ prefix: "dn-runner-idle-" });
+  const previousHome = Deno.env.get("DN_RUNNER_HOME");
+  Deno.env.set("DN_RUNNER_HOME", directory);
+  const client = new RecordingClient();
+  let claims = 0;
+  const originalClaim = client.claimJob.bind(client);
+  client.claimJob = async () => {
+    claims += 1;
+    return await originalClaim();
+  };
+  const controller = new AbortController();
+  try {
+    await saveRunnerConfig({
+      schema_version: RUNNER_CONFIG_SCHEMA_VERSION,
+      paused: false,
+      repositories: {},
+    }, getRunnerConfigPaths(directory));
+    const started = Date.now();
+    const serving = serveRunner({
+      runnerId: "runner-1",
+      dnVersion: "0.0.0-test",
+      commandPrefix: ["/usr/local/bin/dn"],
+      client,
+      signal: controller.signal,
+      idleWaitMs: 80,
+      log: () => {},
+    });
+    const deadline = Date.now() + 5_000;
+    while (claims < 2 && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    controller.abort();
+    await serving;
+    const elapsed = Date.now() - started;
+    assert(claims >= 2, `expected at least 2 claims, got ${claims}`);
+    assert(
+      elapsed >= 80,
+      `expected idle backoff before second claim, elapsed ${elapsed}ms`,
+    );
+    assert(claims <= 8, `idle wait too short: ${claims} claims in ${elapsed}ms`);
+  } finally {
+    controller.abort();
+    if (previousHome === undefined) Deno.env.delete("DN_RUNNER_HOME");
+    else Deno.env.set("DN_RUNNER_HOME", previousHome);
+    await Deno.remove(directory, { recursive: true });
+  }
 });

@@ -20,6 +20,7 @@ import {
 
 const DEFAULT_LEASE_RENEWAL_MS = 15_000;
 const DEFAULT_CANCELLATION_GRACE_MS = 10_000;
+const DEFAULT_IDLE_WAIT_MS = 2_500;
 const MAX_PROGRESS_EVENTS = 10_000;
 const MAX_PROGRESS_LINE_LENGTH = 32 * 1024;
 
@@ -97,6 +98,12 @@ export interface ServeRunnerOptions {
   once?: boolean;
   /** Optional signal that stops the outbound loop. */
   signal?: AbortSignal;
+  /** Receives timestamped loop status lines (defaults to console.log). */
+  log?: (line: string) => void;
+  /** Clock override for deterministic status timestamps in tests. */
+  now?: () => Date;
+  /** Delay after an empty claim before polling again (defaults to 2.5s). */
+  idleWaitMs?: number;
 }
 
 function defaultSpawn(
@@ -258,6 +265,19 @@ function waitFor(ms: number, signal?: AbortSignal): Promise<void> {
       resolvePromise();
     }, { once: true });
   });
+}
+
+/**
+ * Formats one outbound serve-loop status line with an ISO-8601 timestamp.
+ *
+ * @param message - Human-readable status after the timestamp prefix
+ * @param now - Instant used for the timestamp (defaults to the current time)
+ */
+export function formatRunnerServeLog(
+  message: string,
+  now: Date = new Date(),
+): string {
+  return `[${now.toISOString()}] ${message}`;
 }
 
 async function terminateChild(
@@ -451,7 +471,14 @@ export async function runRunnerJob(
 export async function serveRunner(
   options: ServeRunnerOptions,
 ): Promise<void> {
+  const log = options.log ?? console.log;
+  const now = options.now ?? (() => new Date());
+  const idleWaitMs = options.idleWaitMs ?? DEFAULT_IDLE_WAIT_MS;
+  const status = (message: string): void => {
+    log(formatRunnerServeLog(message, now()));
+  };
   const capabilities = await detectRunnerCapabilities();
+  let announcedReady = false;
   do {
     if (options.signal?.aborted) return;
     const config = await loadRunnerConfig();
@@ -465,12 +492,23 @@ export async function serveRunner(
     };
     await options.client.heartbeat(heartbeat);
     if (config.paused) {
+      announcedReady = false;
+      status("Runner paused; not claiming jobs");
       if (options.once) return;
       await waitFor(15_000, options.signal);
       continue;
     }
+    if (!announcedReady) {
+      status(
+        `Runner ready; accepting work as ${options.runnerId}`,
+      );
+      announcedReady = true;
+    }
     const { job } = await options.client.claimJob(25, options.signal);
     if (job) {
+      status(
+        `Claimed job ${job.id} (${job.operation.type}) for ${job.repository}`,
+      );
       await options.client.heartbeat({ ...heartbeat, state: "busy" });
       await runRunnerJob(job, {
         runnerId: options.runnerId,
@@ -480,6 +518,12 @@ export async function serveRunner(
         stdout: console.log,
         stderr: console.error,
       });
+      announcedReady = false;
+    } else {
+      status("No work available; waiting for jobs");
+      if (options.once) return;
+      await waitFor(idleWaitMs, options.signal);
+      continue;
     }
     if (options.once) return;
   } while (!options.signal?.aborted);
