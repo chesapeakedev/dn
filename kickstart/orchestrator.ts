@@ -42,6 +42,10 @@ import {
 } from "./lib.ts";
 import type { PlanSummary } from "./lib.ts";
 import {
+  assessIssueAdequacy,
+  synthesizePlanFromIssue,
+} from "./issueAdequacy.ts";
+import {
   formatError,
   formatInfo,
   formatStep,
@@ -306,6 +310,28 @@ function resolvePlanFilePath(
  * @returns Promise resolving to `true` if plan file is valid
  * @throws Error if file doesn't exist, is malformed, or missing required sections
  */
+function missingPlanSections(content: string): string[] {
+  const requiredSections: { name: string; pattern: RegExp }[] = [
+    { name: "Title (H1)", pattern: /^#\s+.+$/m },
+    { name: "Overview", pattern: /^##\s+Overview/mi },
+    { name: "Implementation Plan", pattern: /^##\s+Implementation\s+Plan/mi },
+    { name: "Acceptance Criteria", pattern: /^##\s+Acceptance\s+Criteria/mi },
+  ];
+  return requiredSections
+    .filter((section) => !section.pattern.test(content))
+    .map((section) => section.name);
+}
+
+async function planFileIsValid(planFilePath: string): Promise<boolean> {
+  try {
+    const content = await Deno.readTextFile(planFilePath);
+    if (!content || content.trim().length === 0) return false;
+    return missingPlanSections(content).length === 0;
+  } catch {
+    return false;
+  }
+}
+
 async function checkPlanFile(planFilePath: string): Promise<boolean> {
   try {
     const content = await Deno.readTextFile(planFilePath);
@@ -316,28 +342,7 @@ async function checkPlanFile(planFilePath: string): Promise<boolean> {
       );
     }
 
-    // Check for required sections
-    const requiredSections = [
-      /^#\s+.+$/m, // H1 title
-      /^##\s+Overview/mi, // Overview section
-      /^##\s+Implementation\s+Plan/mi, // Implementation Plan section
-      /^##\s+Acceptance\s+Criteria/mi, // Acceptance Criteria section
-    ];
-
-    const missingSections: string[] = [];
-    if (!requiredSections[0].test(content)) {
-      missingSections.push("Title (H1)");
-    }
-    if (!requiredSections[1].test(content)) {
-      missingSections.push("Overview");
-    }
-    if (!requiredSections[2].test(content)) {
-      missingSections.push("Implementation Plan");
-    }
-    if (!requiredSections[3].test(content)) {
-      missingSections.push("Acceptance Criteria");
-    }
-
+    const missingSections = missingPlanSections(content);
     if (missingSections.length > 0) {
       throw new Error(
         `Plan file is missing required sections: ${
@@ -752,17 +757,53 @@ export async function runOrchestrator(
       contextTitleForPlanName,
     );
 
-    // Step 2.6: Handle plan continuation (normal mode only)
+    // Step 2.6: Decide whether to skip the plan agent
     let existingPlanContent: string | null = null;
     let continueExistingPlan = false;
-    if (!publishesChanges) {
-      // In normal mode, check if plan exists and prompt to continue
-      const existingPlan = await readExistingPlan(planFilePath);
-      if (existingPlan) {
+    let skipPlanReason: "existing_plan" | "issue_adequate" | null = null;
+
+    const existingPlan = await readExistingPlan(planFilePath);
+    if (existingPlan && await planFileIsValid(planFilePath)) {
+      if (isUnattended() || publishesChanges) {
+        // Unattended / publish: reuse a valid plan on disk instead of re-planning.
+        skipPlanReason = "existing_plan";
+        existingPlanContent = existingPlan;
+      } else {
         continueExistingPlan = promptContinueOrNewPlan(planFilePath);
         if (continueExistingPlan) {
           existingPlanContent = existingPlan;
+          skipPlanReason = "existing_plan";
         }
+      }
+    }
+
+    if (skipPlanReason == null) {
+      const titleForAdequacy = issueHintForPlanName?.title ??
+        contextTitleForPlanName ??
+        "";
+      const bodyForAdequacy = issueHintForPlanName?.body ??
+        (issueContextPathFinal
+          ? await Deno.readTextFile(issueContextPathFinal).catch(() => "")
+          : "");
+      const adequacy = assessIssueAdequacy({
+        title: titleForAdequacy,
+        body: bodyForAdequacy,
+      });
+      if (adequacy.adequate) {
+        skipPlanReason = "issue_adequate";
+        const synthesized = synthesizePlanFromIssue({
+          title: titleForAdequacy,
+          body: bodyForAdequacy,
+        });
+        await Deno.writeTextFile(planFilePath, synthesized);
+        existingPlanContent = synthesized;
+        console.log(
+          formatInfo(
+            `Issue looks implement-ready (score ${adequacy.score}; ${
+              adequacy.signals.join(", ") || "signals"
+            }).`,
+          ),
+        );
       }
     }
 
@@ -772,119 +813,151 @@ export async function runOrchestrator(
       phase: "plan",
       step: 3,
     });
-    console.log(
-      formatStep(
-        3,
-        `Running ${
-          formatAgentHarnessName(config.agentHarness)
-        } for plan phase (read-only)...`,
-      ),
-    );
 
-    // Load plan system prompt (from included file or file system)
-    let planSystemPromptPathFinal: string;
-    try {
-      // Try reading included file (works in compiled binary)
-      let promptContent = await readIncludedPrompt("system.prompt.plan.md");
-
-      // Inject plan file path into the prompt
-      const planPathInstruction =
-        `\n\n## Plan File Path\n\n**IMPORTANT**: You must write the plan file to this exact path:\n\n\`${planFilePath}\`\n\nThis is the ONLY file you are allowed to create or modify.\n`;
-
-      // Insert the plan path instruction before the "The issue context will be provided below" line
-      if (
-        promptContent.includes(
-          "---\n\nThe issue context will be provided below.",
-        )
-      ) {
-        promptContent = promptContent.replace(
-          "---\n\nThe issue context will be provided below.",
-          planPathInstruction +
-            "\n---\n\nThe issue context will be provided below.",
-        );
-      } else {
-        // Fallback: append at the end
-        promptContent = promptContent + planPathInstruction;
-      }
-
-      // If continuing existing plan, add a note
-      if (continueExistingPlan) {
-        const continuationNote =
-          `\n\n**NOTE**: You are continuing an existing plan. Please review the "Previous Plan" section below and update the plan file accordingly. Preserve valid sections and enhance or correct as needed.\n`;
-        promptContent = promptContent.replace(
-          planPathInstruction,
-          planPathInstruction + continuationNote,
-        );
-      }
-
-      // Write to temp file for assembleCombinedPrompt
-      planSystemPromptPathFinal = `${tmpDir}/system.prompt.plan.md`;
-      await Deno.writeTextFile(planSystemPromptPathFinal, promptContent);
-    } catch (error) {
-      throw new Error(
-        `Plan system prompt not found. Error: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+    if (skipPlanReason != null) {
+      console.log(
+        formatStep(
+          3,
+          skipPlanReason === "existing_plan"
+            ? "Skipping plan phase (reusing existing plan file)..."
+            : "Skipping plan phase (issue adequate)...",
+        ),
       );
-    }
-
-    // Assemble prompt for plan phase
-    await assembleCombinedPrompt(
-      combinedPromptPlanPath,
-      planSystemPromptPathFinal,
-      WORKSPACE_ROOT,
-      issueContextPathFinal,
-      undefined, // planOutputPath (not used in plan phase)
-      continueExistingPlan ? existingPlanContent : null,
-      undefined,
-      undefined,
-      config.steeringPrompt,
-    );
-
-    // Run plan phase (opencode, Cursor, or Claude Code per config)
-    const planResult = await runAgentPhaseInSandbox(
-      "plan",
-      combinedPromptPlanPath,
-      WORKSPACE_ROOT,
-      true, // useReadonlyConfig
-      config.agentHarness,
-      reporter,
-    );
-
-    // Save plan output
-    await Deno.writeTextFile(planOutputPath, planResult.stdout);
-    await Deno.writeTextFile(planStdoutPath, planResult.stdout);
-    await Deno.writeTextFile(planStderrPath, planResult.stderr);
-
-    if (planResult.code !== 0) {
-      console.error("\n=== Plan Phase STDERR ===");
-      console.error(planResult.stderr || "(empty)");
-      console.error("\n=== Plan Phase STDOUT ===");
-      console.error(planResult.stdout || "(empty)");
-      const hint = (planResult.stderr || "").includes("resource_exhausted")
-        ? " (often rate limit or quota from the AI backend—retry later or check API limits)"
-        : "";
-      throw new Error(
-        `Plan phase failed with exit code ${planResult.code}${hint}`,
+      console.log(
+        formatInfo(
+          skipPlanReason === "existing_plan"
+            ? `[dn] Skipping plan phase (existing plan at ${planFilePath})`
+            : "[dn] Skipping plan phase (issue adequate)",
+        ),
       );
-    }
-    await report("phase.completed", "Plan phase completed", {
-      phase: "plan",
-      step: 3,
-    });
-
-    // Check for plan file
-    console.log(formatInfo("Validating plan file..."));
-    await checkPlanFile(planFilePath);
-    console.log(formatInfo(`Plan file location: ${planFilePath}`));
-
-    if (await reviewPlanInEditor(planFilePath)) {
-      console.log(formatInfo("Revalidating plan after editor review..."));
+      await Deno.writeTextFile(
+        planOutputPath,
+        existingPlanContent ??
+          (await Deno.readTextFile(planFilePath).catch(() => "")),
+      );
       await checkPlanFile(planFilePath);
-    }
+      await report("phase.completed", "Plan phase skipped", {
+        phase: "plan",
+        step: 3,
+        data: { skipped: true, reason: skipPlanReason },
+      });
+      console.log(formatSuccess("Plan phase skipped successfully"));
+      await report("step.completed", "Plan step completed", { step: 3 });
+    } else {
+      console.log(
+        formatStep(
+          3,
+          `Running ${
+            formatAgentHarnessName(config.agentHarness)
+          } for plan phase (read-only)...`,
+        ),
+      );
 
-    console.log(formatSuccess("Plan phase completed successfully"));
-    await report("step.completed", "Plan step completed", { step: 3 });
+      // Load plan system prompt (from included file or file system)
+      let planSystemPromptPathFinal: string;
+      try {
+        // Try reading included file (works in compiled binary)
+        let promptContent = await readIncludedPrompt("system.prompt.plan.md");
+
+        // Inject plan file path into the prompt
+        const planPathInstruction =
+          `\n\n## Plan File Path\n\n**IMPORTANT**: You must write the plan file to this exact path:\n\n\`${planFilePath}\`\n\nThis is the ONLY file you are allowed to create or modify.\n`;
+
+        // Insert the plan path instruction before the "The issue context will be provided below" line
+        if (
+          promptContent.includes(
+            "---\n\nThe issue context will be provided below.",
+          )
+        ) {
+          promptContent = promptContent.replace(
+            "---\n\nThe issue context will be provided below.",
+            planPathInstruction +
+              "\n---\n\nThe issue context will be provided below.",
+          );
+        } else {
+          // Fallback: append at the end
+          promptContent = promptContent + planPathInstruction;
+        }
+
+        // If continuing existing plan, add a note
+        if (continueExistingPlan) {
+          const continuationNote =
+            `\n\n**NOTE**: You are continuing an existing plan. Please review the "Previous Plan" section below and update the plan file accordingly. Preserve valid sections and enhance or correct as needed.\n`;
+          promptContent = promptContent.replace(
+            planPathInstruction,
+            planPathInstruction + continuationNote,
+          );
+        }
+
+        // Write to temp file for assembleCombinedPrompt
+        planSystemPromptPathFinal = `${tmpDir}/system.prompt.plan.md`;
+        await Deno.writeTextFile(planSystemPromptPathFinal, promptContent);
+      } catch (error) {
+        throw new Error(
+          `Plan system prompt not found. Error: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+
+      // Assemble prompt for plan phase
+      await assembleCombinedPrompt(
+        combinedPromptPlanPath,
+        planSystemPromptPathFinal,
+        WORKSPACE_ROOT,
+        issueContextPathFinal,
+        undefined, // planOutputPath (not used in plan phase)
+        continueExistingPlan ? existingPlanContent : null,
+        undefined,
+        undefined,
+        config.steeringPrompt,
+      );
+
+      // Run plan phase (opencode, Cursor, or Claude Code per config)
+      const planResult = await runAgentPhaseInSandbox(
+        "plan",
+        combinedPromptPlanPath,
+        WORKSPACE_ROOT,
+        true, // useReadonlyConfig
+        config.agentHarness,
+        reporter,
+      );
+
+      // Save plan output
+      await Deno.writeTextFile(planOutputPath, planResult.stdout);
+      await Deno.writeTextFile(planStdoutPath, planResult.stdout);
+      await Deno.writeTextFile(planStderrPath, planResult.stderr);
+
+      if (planResult.code !== 0) {
+        console.error("\n=== Plan Phase STDERR ===");
+        console.error(planResult.stderr || "(empty)");
+        console.error("\n=== Plan Phase STDOUT ===");
+        console.error(planResult.stdout || "(empty)");
+        const hint = (planResult.stderr || "").includes("resource_exhausted")
+          ? " (often rate limit or quota from the AI backend—retry later or check API limits)"
+          : "";
+        throw new Error(
+          `Plan phase failed with exit code ${planResult.code}${hint}`,
+        );
+      }
+      await report("phase.completed", "Plan phase completed", {
+        phase: "plan",
+        step: 3,
+      });
+
+      // Check for plan file
+      console.log(formatInfo("Validating plan file..."));
+      await checkPlanFile(planFilePath);
+      console.log(formatInfo(`Plan file location: ${planFilePath}`));
+
+      if (await reviewPlanInEditor(planFilePath)) {
+        console.log(formatInfo("Revalidating plan after editor review..."));
+        await checkPlanFile(planFilePath);
+      }
+
+      console.log(formatSuccess("Plan phase completed successfully"));
+      await report("step.completed", "Plan step completed", { step: 3 });
+    }
 
     // Step 4: Implement Phase
     await report("step.started", "Starting implement step", { step: 4 });
@@ -1153,107 +1226,130 @@ export async function runOrchestrator(
     }
     await report("step.completed", "Checked completion status", { step: 4.5 });
 
-    // Step 5: Run linting (non-blocking)
+    // Step 5: Run linting (non-blocking). Unattended/device runs often already
+    // lint inside implement; skip the duplicate host pass to save wall clock.
     await report("step.started", "Starting lint step", { step: 5 });
     await report("phase.started", "Lint phase started", {
       phase: "lint",
       step: 5,
     });
-    console.log(
-      `\n${formatStep(5, "Running linting to improve code quality...")}`,
-    );
-    try {
-      if (isSandboxActive()) {
-        const ctx = (await import("../sdk/sandbox/context.ts"))
-          .getCurrentSandboxContext();
-        if (ctx) {
-          try {
-            const lintResult = await ctx.runner.exec(
-              ctx.handle,
-              ["deno", "task", "check"],
-              { cwd: translateSandboxCwd(WORKSPACE_ROOT) },
-            );
-            if (lintResult.code === 0) {
-              console.log(
-                formatSuccess("Linting passed (deno task check in sandbox)"),
+    if (isUnattended()) {
+      console.log(
+        `\n${
+          formatStep(
+            5,
+            "Skipping lint step (unattended; implement phase already runs checks)...",
+          )
+        }`,
+      );
+      await report("lint.completed", "Lint phase skipped", {
+        phase: "lint",
+        step: 5,
+        data: { skipped: true, reason: "unattended_dedupe" },
+      });
+      await report("phase.completed", "Lint phase skipped", {
+        phase: "lint",
+        step: 5,
+        data: { skipped: true, reason: "unattended_dedupe" },
+      });
+      await report("step.completed", "Lint step completed", { step: 5 });
+    } else {
+      console.log(
+        `\n${formatStep(5, "Running linting to improve code quality...")}`,
+      );
+      try {
+        if (isSandboxActive()) {
+          const ctx = (await import("../sdk/sandbox/context.ts"))
+            .getCurrentSandboxContext();
+          if (ctx) {
+            try {
+              const lintResult = await ctx.runner.exec(
+                ctx.handle,
+                ["deno", "task", "check"],
+                { cwd: translateSandboxCwd(WORKSPACE_ROOT) },
               );
-            } else {
+              if (lintResult.code === 0) {
+                console.log(
+                  formatSuccess("Linting passed (deno task check in sandbox)"),
+                );
+              } else {
+                console.warn(
+                  formatWarning(
+                    "Linting found issues in sandbox (non-blocking):",
+                  ),
+                );
+                console.warn(lintResult.stderr || lintResult.stdout);
+              }
+            } catch {
               console.warn(
-                formatWarning(
-                  "Linting found issues in sandbox (non-blocking):",
+                formatWarning("Linting in sandbox failed (non-blocking)"),
+              );
+            }
+          }
+        } else {
+          // Run lint on host
+          try {
+            await Deno.stat(`${WORKSPACE_ROOT}/deno.json`);
+            try {
+              await $`cd ${WORKSPACE_ROOT} && deno task check`.quiet();
+              console.log(formatSuccess("Linting passed (deno task check)"));
+            } catch {
+              try {
+                await $`cd ${WORKSPACE_ROOT} && deno fmt`.quiet();
+                await $`cd ${WORKSPACE_ROOT} && deno lint`.quiet();
+                console.log(formatSuccess("Linting passed (deno fmt + lint)"));
+              } catch (lintError) {
+                console.warn(
+                  formatWarning("Linting found issues (non-blocking):"),
+                );
+                console.warn(
+                  lintError instanceof Error
+                    ? lintError.message
+                    : String(lintError),
+                );
+              }
+            }
+          } catch {
+            try {
+              await Deno.stat(`${WORKSPACE_ROOT}/package.json`);
+              try {
+                await $`cd ${WORKSPACE_ROOT} && npm run lint`.quiet();
+                console.log(formatSuccess("Linting passed (npm run lint)"));
+              } catch (lintError) {
+                console.warn(
+                  formatWarning("Linting found issues (non-blocking):"),
+                );
+                console.warn(
+                  lintError instanceof Error
+                    ? lintError.message
+                    : String(lintError),
+                );
+              }
+            } catch {
+              console.log(
+                formatInfo(
+                  "No linting configuration detected, skipping lint step",
                 ),
               );
-              console.warn(lintResult.stderr || lintResult.stdout);
             }
-          } catch {
-            console.warn(
-              formatWarning("Linting in sandbox failed (non-blocking)"),
-            );
           }
         }
-      } else {
-        // Run lint on host
-        try {
-          await Deno.stat(`${WORKSPACE_ROOT}/deno.json`);
-          try {
-            await $`cd ${WORKSPACE_ROOT} && deno task check`.quiet();
-            console.log(formatSuccess("Linting passed (deno task check)"));
-          } catch {
-            try {
-              await $`cd ${WORKSPACE_ROOT} && deno fmt`.quiet();
-              await $`cd ${WORKSPACE_ROOT} && deno lint`.quiet();
-              console.log(formatSuccess("Linting passed (deno fmt + lint)"));
-            } catch (lintError) {
-              console.warn(
-                formatWarning("Linting found issues (non-blocking):"),
-              );
-              console.warn(
-                lintError instanceof Error
-                  ? lintError.message
-                  : String(lintError),
-              );
-            }
-          }
-        } catch {
-          try {
-            await Deno.stat(`${WORKSPACE_ROOT}/package.json`);
-            try {
-              await $`cd ${WORKSPACE_ROOT} && npm run lint`.quiet();
-              console.log(formatSuccess("Linting passed (npm run lint)"));
-            } catch (lintError) {
-              console.warn(
-                formatWarning("Linting found issues (non-blocking):"),
-              );
-              console.warn(
-                lintError instanceof Error
-                  ? lintError.message
-                  : String(lintError),
-              );
-            }
-          } catch {
-            console.log(
-              formatInfo(
-                "No linting configuration detected, skipping lint step",
-              ),
-            );
-          }
-        }
+      } catch (error) {
+        console.warn(
+          formatWarning("Linting step encountered an error (non-blocking):"),
+        );
+        console.warn(error instanceof Error ? error.message : String(error));
       }
-    } catch (error) {
-      console.warn(
-        formatWarning("Linting step encountered an error (non-blocking):"),
-      );
-      console.warn(error instanceof Error ? error.message : String(error));
+      await report("lint.completed", "Lint phase completed", {
+        phase: "lint",
+        step: 5,
+      });
+      await report("phase.completed", "Lint phase completed", {
+        phase: "lint",
+        step: 5,
+      });
+      await report("step.completed", "Lint step completed", { step: 5 });
     }
-    await report("lint.completed", "Lint phase completed", {
-      phase: "lint",
-      step: 5,
-    });
-    await report("phase.completed", "Lint phase completed", {
-      phase: "lint",
-      step: 5,
-    });
-    await report("step.completed", "Lint step completed", { step: 5 });
 
     // Step 6: Generate artifacts
     await report("step.started", "Generating workspace artifacts", { step: 6 });
