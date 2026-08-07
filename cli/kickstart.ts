@@ -740,9 +740,10 @@ export async function handleKickstart(
       provider === "exe.dev" &&
       (config.publish !== "pr" || config.issueUrl === null)
     ) {
-      throw new Error(
+      console.error(
         "exe.dev sandbox kickstart runs require a GitHub issue and --publish pr so remote work is persisted on a topic branch.",
       );
+      Deno.exit(1);
     }
     const currentRef = config.issueUrl ?? config.contextMarkdownPath;
     const stackPathForRun = config.milestoneStackMarkdownPath;

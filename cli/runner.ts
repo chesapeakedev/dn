@@ -25,6 +25,7 @@ import {
 import {
   generateRunnerService,
   installRunnerService,
+  stopRunnerService,
   uninstallRunnerService,
 } from "../sdk/runner/service.ts";
 import {
@@ -231,6 +232,11 @@ async function handleConnect(args: string[]): Promise<void> {
     await delay(2_000);
   }
   if (!exchangeToken) throw new Error("Pairing approval expired.");
+  // Stop any already-running serve loop before exchange. Re-pairing revokes the
+  // previous credential server-side; leaving the old process up produces a
+  // noisy "Invalid or expired runner credential" crash in the launchd logs.
+  const hadService = await runnerServiceUnitExists();
+  await stopCurrentRunnerServiceBestEffort();
   const exchange = await client.exchangePairing(pairing.id, exchangeToken);
   await saveRunnerCredential({
     schema_version: RUNNER_CONFIG_SCHEMA_VERSION,
@@ -241,11 +247,12 @@ async function handleConnect(args: string[]): Promise<void> {
     created_at: new Date().toISOString(),
     expires_at: exchange.credential_expires_at,
   });
-  if (install) await installCurrentRunnerService();
+  const shouldInstall = install || hadService;
+  if (shouldInstall) await installCurrentRunnerService();
   const result = {
     paired: true,
     runner: exchange.runner,
-    service_installed: install,
+    service_installed: shouldInstall,
     repository_registered: registeredRepository ?? null,
   };
   if (json) console.log(JSON.stringify(result));
@@ -256,6 +263,11 @@ async function handleConnect(args: string[]): Promise<void> {
   } else {
     console.log(
       `${exchange.runner.display_name} paired. Register a checkout with dn runner register.`,
+    );
+  }
+  if (!json && shouldInstall && !install) {
+    console.log(
+      "Existing runner user service restarted with the new credential.",
     );
   }
 }
@@ -595,12 +607,31 @@ async function handlePauseState(
   else console.log(paused ? "Runner paused." : "Runner resumed.");
 }
 
-async function installCurrentRunnerService(): Promise<void> {
-  const definition = generateRunnerService(
+function currentRunnerServiceDefinition() {
+  return generateRunnerService(
     [...currentDnCommand(), "runner", "serve"],
     homeDirectory(),
   );
-  await installRunnerService(definition);
+}
+
+async function runnerServiceUnitExists(): Promise<boolean> {
+  try {
+    await Deno.stat(currentRunnerServiceDefinition().path);
+    return true;
+  } catch (error) {
+    if (error instanceof Deno.errors.NotFound) return false;
+    throw error;
+  }
+}
+
+async function installCurrentRunnerService(): Promise<void> {
+  await installRunnerService(currentRunnerServiceDefinition());
+}
+
+/** Stops a previously installed runner service if its unit file exists. */
+async function stopCurrentRunnerServiceBestEffort(): Promise<void> {
+  if (!(await runnerServiceUnitExists())) return;
+  await stopRunnerService(currentRunnerServiceDefinition());
 }
 
 async function handleInstall(args: string[]): Promise<void> {
@@ -627,23 +658,37 @@ async function handleServe(args: string[]): Promise<void> {
     throw new Error("Device runners must run as a logged-in non-root user.");
   }
   const { client, runnerId } = await authenticatedClient();
-  await serveRunner({
-    runnerId,
-    dnVersion: denoConfig.version,
-    commandPrefix: currentDnCommand(),
-    client,
-    once,
-  });
+  try {
+    await serveRunner({
+      runnerId,
+      dnVersion: denoConfig.version,
+      commandPrefix: currentDnCommand(),
+      client,
+      once,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/invalid or expired runner credential/i.test(message)) {
+      console.error(
+        "Runner credential was rejected. Re-pair with: dn runner connect <code> --install",
+      );
+      // Exit 0 so launchd KeepAlive (SuccessfulExit=false) and systemd
+      // Restart=on-failure do not tight-loop on a permanent auth failure.
+      Deno.exit(0);
+    }
+    console.error(message);
+    Deno.exit(1);
+  }
 }
 
 async function handleDisconnect(args: string[]): Promise<void> {
   const { json } = parseCommonOptions(args);
   const { client } = await authenticatedClient();
+  // Stop before server-side revoke so the serve loop cannot heartbeat with a
+  // credential that disconnect is about to invalidate.
+  await stopCurrentRunnerServiceBestEffort();
   await client.disconnect();
-  const definition = generateRunnerService(
-    [...currentDnCommand(), "runner", "serve"],
-    homeDirectory(),
-  );
+  const definition = currentRunnerServiceDefinition();
   let serviceRemoved = true;
   try {
     await uninstallRunnerService(definition);
@@ -672,6 +717,8 @@ async function handleRotate(args: string[]): Promise<void> {
     apiUrl: credential.api_url,
     credential: credential.credential,
   });
+  // Stop first so the serve loop cannot heartbeat with the value rotate revokes.
+  await stopCurrentRunnerServiceBestEffort();
   const rotated = await client.rotateCredential();
   await saveRunnerCredential({
     ...credential,
@@ -679,11 +726,22 @@ async function handleRotate(args: string[]): Promise<void> {
     created_at: new Date().toISOString(),
     expires_at: rotated.credential_expires_at,
   });
-  const result = { rotated: true, expires_at: rotated.credential_expires_at };
+  let serviceRestarted = false;
+  if (await runnerServiceUnitExists()) {
+    await installCurrentRunnerService();
+    serviceRestarted = true;
+  }
+  const result = {
+    rotated: true,
+    expires_at: rotated.credential_expires_at,
+    service_restarted: serviceRestarted,
+  };
   if (json) console.log(JSON.stringify(result));
   else {
     console.log(
-      `Runner credential rotated; expires ${rotated.credential_expires_at}.`,
+      serviceRestarted
+        ? `Runner credential rotated and service restarted; expires ${rotated.credential_expires_at}.`
+        : `Runner credential rotated; expires ${rotated.credential_expires_at}.`,
     );
   }
 }

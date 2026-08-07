@@ -66,11 +66,18 @@ ${argumentsXml}
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
-    <true/>
+    <dict>
+      <key>SuccessfulExit</key>
+      <false/>
+    </dict>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
     <key>ProcessType</key>
     <string>Background</string>
     <key>EnvironmentVariables</key>
     <dict>
+      <key>HOME</key>
+      <string>${xmlEscape(homeDirectory)}</string>
       <key>PATH</key>
       <string>${xmlEscape(pathValue)}</string>
     </dict>
@@ -108,6 +115,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 ExecStart=${command.map(systemdQuote).join(" ")}
+Environment=${systemdQuote(`HOME=${homeDirectory}`)}
 Environment=${systemdQuote(`PATH=${pathValue}`)}
 Restart=on-failure
 RestartSec=5
@@ -187,8 +195,13 @@ export async function installRunnerService(
   );
 }
 
-/** Stops and removes a previously installed device-runner user service. */
-export async function uninstallRunnerService(
+/**
+ * Stops a previously installed device-runner user service without removing it.
+ *
+ * Use this before rotating or replacing a runner credential so an already-running
+ * serve loop cannot keep heartbeating with a value the server is about to revoke.
+ */
+export async function stopRunnerService(
   definition: RunnerServiceDefinition,
 ): Promise<void> {
   if (definition.platform === "darwin") {
@@ -197,19 +210,31 @@ export async function uninstallRunnerService(
       ["bootout", `gui/${Deno.uid()}`, definition.path],
       true,
     );
-  } else {
-    await runServiceCommand(
-      "systemctl",
-      ["--user", "disable", "--now", "denoise-runner.service"],
-      true,
-    );
+    return;
   }
+  await runServiceCommand(
+    "systemctl",
+    ["--user", "stop", "denoise-runner.service"],
+    true,
+  );
+}
+
+/** Stops and removes a previously installed device-runner user service. */
+export async function uninstallRunnerService(
+  definition: RunnerServiceDefinition,
+): Promise<void> {
+  await stopRunnerService(definition);
   try {
     await Deno.remove(definition.path);
   } catch (error) {
     if (!(error instanceof Deno.errors.NotFound)) throw error;
   }
   if (definition.platform === "linux") {
+    await runServiceCommand(
+      "systemctl",
+      ["--user", "disable", "denoise-runner.service"],
+      true,
+    );
     await runServiceCommand("systemctl", ["--user", "daemon-reload"], true);
   }
 }

@@ -464,5 +464,12 @@ async function main(): Promise<void> {
 }
 
 if (import.meta.main) {
-  await main();
+  try {
+    await main();
+  } catch (error) {
+    // CLI boundary: print the message without a Deno "Uncaught (in promise)"
+    // stack so launchd/systemd logs stay actionable.
+    console.error(error instanceof Error ? error.message : String(error));
+    Deno.exit(1);
+  }
 }
