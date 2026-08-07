@@ -29,9 +29,23 @@ Install the canonical workflow templates and pick one agent for the repository:
 ```bash
 dn init workflows --agent claude
 gh secret set ANTHROPIC_API_KEY
-# Commit .github/dn/config.json and the workflows
+# Commit dn.json and the workflows
 dn workflows validate --json
 ```
+
+## Tiered configuration
+
+`dn` resolves configuration in this order, from lowest to highest precedence:
+built-in defaults, `~/.dn/config.json` (user preferences), repository `dn.json`,
+`DN_AGENT`/`DN_SANDBOX_PROVIDER`, and explicit CLI flags. Objects merge by
+field; arrays replace the lower layer. The legacy `.github/dn/config.json`
+remains supported when `dn.json` is absent and is treated as the repository
+layer.
+
+GitHub Actions resolves only repository configuration. It never reads a
+developer's home directory. The action bridge passes an allowlisted agent and
+sandbox provider; API keys and GitHub tokens remain in repository secrets and
+environment variables and are never written to `dn.json`.
 
 The templates define stable `repository_dispatch` event contracts for
 `dn.init_stack`, `dn.meld_issue_plan`, and `dn.kickstart_issue`, plus the

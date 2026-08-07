@@ -11,6 +11,7 @@ import type { DnSandboxConfig } from "../sandbox/types.ts";
 import { validateSandboxPrerequisites } from "../sandbox/validate.ts";
 import { $ } from "$dax";
 import { computeSha256 } from "./mod.ts";
+import { resolveDnConfig } from "../config/resolve.ts";
 
 /** Relative path to the repo agent config consumed by workflows. */
 export const DN_CONFIG_REL_PATH = ".github/dn/config.json";
@@ -116,16 +117,13 @@ export function parseDnWorkflowAgentConfig(
 export async function readDnWorkflowAgentConfig(
   repoRoot: string,
 ): Promise<DnWorkflowAgentConfig | null> {
-  const path = join(repoRoot, DN_CONFIG_REL_PATH);
-  try {
-    const content = await Deno.readTextFile(path);
-    return parseDnWorkflowAgentConfig(content);
-  } catch (error) {
-    if (error instanceof Deno.errors.NotFound) {
-      return null;
-    }
-    throw error;
-  }
+  const resolved = await resolveDnConfig({ repoRoot, includeUser: false });
+  if (!resolved.agent) return null;
+  return {
+    schema_version: resolved.sandbox ? "1.1" : "1.0",
+    agent: resolved.agent,
+    ...(resolved.sandbox ? { sandbox: resolved.sandbox } : {}),
+  };
 }
 
 /**
@@ -186,7 +184,18 @@ export async function installWorkflowSupport(
 
   if (shouldWriteConfig) {
     const agent = options.agent ?? "opencode";
-    const content = formatDnWorkflowAgentConfig(agent);
+    let config: DnWorkflowAgentConfig = {
+      schema_version: "1.0",
+      agent,
+    };
+    try {
+      const existing = await Deno.readTextFile(configPath);
+      const parsed = parseDnWorkflowAgentConfig(existing);
+      config = { ...parsed, agent };
+    } catch (error) {
+      if (!(error instanceof Deno.errors.NotFound)) throw error;
+    }
+    const content = JSON.stringify(config, null, 2) + "\n";
     if (!dryRun) {
       await Deno.mkdir(dirname(configPath), { recursive: true });
       await Deno.writeTextFile(configPath, content);

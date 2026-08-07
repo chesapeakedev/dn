@@ -28,6 +28,23 @@ export type {
   UserInfo,
 } from "./auth/types.ts";
 
+// Tiered dn configuration
+export {
+  DN_LEGACY_CONFIG_PATH,
+  DN_REPOSITORY_CONFIG_PATH,
+  parseDnConfig,
+  resolveDnConfig,
+  toDnActionsConfig,
+} from "./config/mod.ts";
+export type {
+  DnActionsConfig,
+  DnConfigLayer,
+  DnConfigSource,
+  DnRuntimeOverrides,
+  ResolvedDnConfig,
+  ResolveDnConfigOptions,
+} from "./config/mod.ts";
+
 // Session management
 export {
   createSessionCookie,

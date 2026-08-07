@@ -3,7 +3,7 @@
 
 import { join } from "@std/path";
 import { DN_CONFIG_REL_PATH } from "../workflows/agentConfig.ts";
-import { readDnWorkflowAgentConfig } from "../workflows/agentConfig.ts";
+import { resolveDnConfig } from "../config/resolve.ts";
 import {
   parseDnSandboxConfig,
   parseSandboxProvider,
@@ -53,8 +53,8 @@ export async function resolveSandboxConfig(
   repoRoot: string,
   providerOverride?: SandboxProvider | SandboxFlagValue | null,
 ): Promise<{ provider: SandboxProvider; config: DnSandboxConfig }> {
-  const repoConfig = await readDnWorkflowAgentConfig(repoRoot);
-  const baseSandbox = repoConfig?.sandbox ??
+  const repoConfig = await resolveDnConfig({ repoRoot, includeUser: false });
+  const baseSandbox = repoConfig.sandbox ??
     parseDnSandboxConfig(undefined);
   const envProvider = Deno.env.get("DN_SANDBOX_PROVIDER") ?? null;
   const provider = resolveSandboxProvider({
