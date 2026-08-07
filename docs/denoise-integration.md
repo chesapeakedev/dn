@@ -366,10 +366,13 @@ interface DenoiseTaskDocument {
 ```
 
 The device runner materializes the task document into a plan-compatible markdown
-file and runs `dn kickstart --publish <mode> <materialized_path>`. Denoise-task
+file and runs
+`dn kickstart --sandbox none --publish <mode> <materialized_path>`. Denoise-task
 jobs allow `publish: "none" | "pr" | "direct"` (free Void uses `"none"`; no
 GitHub issue is required). Cross-repo validation uses `task_document.repo_hint`
 when present. Forwarded progress events include `task_id` (= document `id`).
+`--sandbox none` avoids failing against repo `exe.dev` config, which requires a
+GitHub issue and PR publishing.
 
 Queue a denoise-task job via the runner API:
 

@@ -130,8 +130,10 @@ The runner applies these boundaries:
 - Pairing requires signed-in browser approval. The server stores only a hash of
   the expiring runner credential and supports rotation and immediate revocation.
 - Jobs contain a typed kickstart operation. The runner constructs the exact
-  `dn kickstart --publish ...` command locally and rejects argv, shell,
-  environment, and workflow definitions.
+  `dn kickstart --sandbox none --publish ...` command locally and rejects argv,
+  shell, environment, and workflow definitions. `--sandbox none` keeps
+  ticketless denoise-task jobs runnable on devices whose repo config prefers
+  `exe.dev`.
 - The issue URL must belong to the registered repository. Local paths never
   enter heartbeat, job, or progress payloads.
 - GitHub and agent authentication come from the local machine. Denoise does not
@@ -161,13 +163,25 @@ dn runner serve
 ```
 
 The serve loop prints timestamped status lines on stdout when it is ready, when
-a long-poll returns no work, when it claims a job, and when it is paused. After
-an empty claim it waits about 2.5 seconds before polling again. Example idle
-line:
+a long-poll returns no work, when it claims a job, when a job succeeds or fails,
+and when it is paused. After an empty claim it waits about 2.5 seconds before
+polling again. Example idle line:
 
 ```text
 [2026-08-07T19:55:00.000Z] No work available; waiting for jobs
 ```
+
+Job outcomes also appear on this stream (and therefore in `runner.log`):
+
+```text
+[2026-08-07T19:55:00.000Z] Job job-1 succeeded
+[2026-08-07T19:55:00.000Z] Job job-2 failed: dn kickstart exited with code 1. …
+```
+
+Device-runner jobs always invoke kickstart with `--sandbox none` so ticketless
+denoise-task work is not blocked by a repo `exe.dev` sandbox config (exe.dev
+requires a GitHub issue and `--publish pr`). Use local Docker sandboxing for
+untrusted issue content when running kickstart interactively.
 
 For the installed service:
 
@@ -179,6 +193,14 @@ tail -f ~/.dn/runner/runner.error.log
 # Linux
 journalctl --user -u denoise-runner.service -f
 ```
+
+Re-pairing with `dn runner connect` stops the existing user service before
+credential exchange, then starts it again when `--install` is set **or** when a
+service unit was already present. `disconnect` and `rotate` use the same
+stop-before-revoke ordering. On macOS the LaunchAgent sets `HOME`, restarts only
+after unsuccessful exits (`KeepAlive.SuccessfulExit=false`), and applies a 10s
+`ThrottleInterval`. Permanent credential rejection exits successfully so the
+supervisor does not tight-loop.
 
 Unsupported protocol responses include the server's minimum required version.
 Upgrade `dn`, run `dn runner doctor`, and restart the user service.

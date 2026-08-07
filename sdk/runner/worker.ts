@@ -1,6 +1,7 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
+import { formatAgentFailureOutput } from "../github/progress.ts";
 import { checkRunnerRepositories, detectRunnerCapabilities } from "./doctor.ts";
 import type { LocalRunnerConfig } from "./config.ts";
 import { loadRunnerConfig } from "./config.ts";
@@ -23,6 +24,16 @@ const DEFAULT_CANCELLATION_GRACE_MS = 10_000;
 const DEFAULT_IDLE_WAIT_MS = 2_500;
 const MAX_PROGRESS_EVENTS = 10_000;
 const MAX_PROGRESS_LINE_LENGTH = 32 * 1024;
+const MAX_DIAGNOSTIC_STDERR_LINES = 20;
+
+/** Terminal outcome of {@link runRunnerJob} for serve-loop status logging. */
+export type RunnerJobRunResult =
+  | { kind: "succeeded"; prUrl?: string }
+  | {
+    kind: "failed" | "cancelled" | "interrupted";
+    message: string;
+    exitCode?: number;
+  };
 
 /** Minimal API surface required by the local runner loop. */
 export interface RunnerWorkerClient {
@@ -149,6 +160,8 @@ export async function buildRunnerDenoiseTaskCommand(
       "--agent",
       job.operation.agent,
       "kickstart",
+      "--sandbox",
+      "none",
       "--publish",
       job.operation.publish,
       mdPath,
@@ -178,11 +191,42 @@ export function buildRunnerKickstartCommand(
       "--agent",
       job.operation.agent,
       "kickstart",
+      "--sandbox",
+      "none",
       "--publish",
       job.operation.publish,
       job.operation.issue_url,
     ],
   };
+}
+
+/**
+ * Builds the human-readable failJob message from exit code plus kickstart detail.
+ *
+ * Prefers the last `invocation.failed` progress message, then trailing non-progress
+ * stderr lines, so the UI shows why kickstart exited rather than only the code.
+ */
+export function formatRunnerJobFailureMessage(
+  exitCode: number | undefined,
+  options: {
+    invocationFailedMessage?: string;
+    diagnosticLines?: string[];
+  } = {},
+): string {
+  const exitPart = exitCode === undefined
+    ? "dn kickstart failed."
+    : `dn kickstart exited with code ${exitCode}.`;
+  const fromProgress = options.invocationFailedMessage?.trim();
+  const fromStderr = (options.diagnosticLines ?? [])
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .slice(-5)
+    .join("\n");
+  const detail = fromProgress || fromStderr;
+  if (!detail) return exitPart;
+  const summarized = formatAgentFailureOutput(detail, { truncate: true });
+  if (!summarized) return exitPart;
+  return `${exitPart} ${summarized}`;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -322,16 +366,18 @@ function completionFrom(
 export async function runRunnerJob(
   job: RunnerJob,
   options: RunRunnerJobOptions,
-): Promise<void> {
+): Promise<RunnerJobRunResult> {
   validateRunnerJob(job, options.runnerId);
   const registration = options.config.repositories[job.repository];
   if (!registration) {
+    const message =
+      `Repository ${job.repository} is not registered on this device.`;
     await options.client.failJob(job.id, {
       failed_at: new Date().toISOString(),
       reason: "failed",
-      message: `Repository ${job.repository} is not registered on this device.`,
+      message,
     });
-    return;
+    return { kind: "failed", message };
   }
   const { argv: command, cleanup } = await buildRunnerKickstartCommand(
     job,
@@ -352,6 +398,16 @@ export async function runRunnerJob(
   let interrupted = false;
   let progressCount = 0;
   let prUrl: string | undefined;
+  let invocationFailedMessage: string | undefined;
+  const diagnosticLines: string[] = [];
+
+  const recordDiagnostic = (line: string): void => {
+    diagnosticLines.push(line);
+    if (diagnosticLines.length > MAX_DIAGNOSTIC_STDERR_LINES) {
+      diagnosticLines.shift();
+    }
+    options.stderr?.(line);
+  };
 
   const stdoutTask = consumeLines(
     child.stdout,
@@ -360,7 +416,7 @@ export async function runRunnerJob(
   const stderrTask = consumeLines(child.stderr, async (line) => {
     const event = parseRunnerProgressLine(line, job.invocation_id);
     if (!event) {
-      options.stderr?.(line);
+      recordDiagnostic(line);
       return;
     }
     const progressEvent = job.operation.type === "denoise-task"
@@ -379,12 +435,15 @@ export async function runRunnerJob(
     ) {
       prUrl = progressEvent.data.pr_url;
     }
+    if (progressEvent.type === "invocation.failed") {
+      invocationFailedMessage = progressEvent.message;
+    }
     if (progressCount >= MAX_PROGRESS_EVENTS) return;
     progressCount++;
     try {
       await options.client.sendProgress(job.id, progressEvent);
     } catch (error) {
-      options.stderr?.(
+      recordDiagnostic(
         `Progress delivery failed: ${
           error instanceof Error ? error.message : String(error)
         }`,
@@ -421,7 +480,7 @@ export async function runRunnerJob(
         }
       } catch (error) {
         interrupted = true;
-        options.stderr?.(
+        recordDiagnostic(
           `Lease renewal failed; interrupting job to prevent duplicate work: ${
             error instanceof Error ? error.message : String(error)
           }`,
@@ -445,26 +504,48 @@ export async function runRunnerJob(
         : interrupted
         ? "interrupted"
         : "failed";
+      const message = reason === "cancelled"
+        ? "Job cancelled by its owner."
+        : reason === "interrupted"
+        ? "Runner lost its job lease; explicit retry is required."
+        : formatRunnerJobFailureMessage(status.code, {
+          invocationFailedMessage,
+          diagnosticLines,
+        });
       const failure: RunnerJobFailure = {
         failed_at: new Date().toISOString(),
         reason,
-        message: reason === "cancelled"
-          ? "Job cancelled by its owner."
-          : reason === "interrupted"
-          ? "Runner lost its job lease; explicit retry is required."
-          : `dn kickstart exited with code ${status.code}.`,
+        message,
         ...(status.code === undefined ? {} : { exit_code: status.code }),
       };
       await options.client.failJob(job.id, failure);
-      return;
+      return {
+        kind: reason,
+        message,
+        ...(status.code === undefined ? {} : { exitCode: status.code }),
+      };
     }
     await options.client.completeJob(
       job.id,
       completionFrom(startedAt, prUrl),
     );
+    return prUrl ? { kind: "succeeded", prUrl } : { kind: "succeeded" };
   } finally {
     await cleanup?.();
   }
+}
+
+/** Formats a serve-loop status line for a job's terminal outcome. */
+export function formatRunnerJobOutcomeLog(
+  jobId: string,
+  outcome: RunnerJobRunResult,
+): string {
+  if (outcome.kind === "succeeded") {
+    return outcome.prUrl
+      ? `Job ${jobId} succeeded (${outcome.prUrl})`
+      : `Job ${jobId} succeeded`;
+  }
+  return `Job ${jobId} ${outcome.kind}: ${outcome.message}`;
 }
 
 /** Runs the authenticated heartbeat/claim loop with one-job concurrency. */
@@ -510,14 +591,30 @@ export async function serveRunner(
         `Claimed job ${job.id} (${job.operation.type}) for ${job.repository}`,
       );
       await options.client.heartbeat({ ...heartbeat, state: "busy" });
-      await runRunnerJob(job, {
-        runnerId: options.runnerId,
-        commandPrefix: options.commandPrefix,
-        config,
-        client: options.client,
-        stdout: console.log,
-        stderr: console.error,
-      });
+      let outcome: RunnerJobRunResult;
+      try {
+        outcome = await runRunnerJob(job, {
+          runnerId: options.runnerId,
+          commandPrefix: options.commandPrefix,
+          config,
+          client: options.client,
+          stdout: console.log,
+          stderr: console.error,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        try {
+          await options.client.failJob(job.id, {
+            failed_at: new Date().toISOString(),
+            reason: "failed",
+            message,
+          });
+        } catch {
+          // Terminal reporting is best-effort after an unexpected local failure.
+        }
+        outcome = { kind: "failed", message };
+      }
+      status(formatRunnerJobOutcomeLog(job.id, outcome));
       announcedReady = false;
     } else {
       status("No work available; waiting for jobs");

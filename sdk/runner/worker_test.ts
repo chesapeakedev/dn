@@ -14,6 +14,8 @@ import type {
 import {
   buildRunnerDenoiseTaskCommand,
   buildRunnerKickstartCommand,
+  formatRunnerJobFailureMessage,
+  formatRunnerJobOutcomeLog,
   formatRunnerServeLog,
   parseRunnerProgressLine,
   type RunnerChildProcess,
@@ -105,6 +107,8 @@ Deno.test("buildRunnerKickstartCommand constructs exact typed argv", async () =>
     "--agent",
     "codex",
     "kickstart",
+    "--sandbox",
+    "none",
     "--publish",
     "pr",
     "https://github.com/chesapeakedev/dn/issues/213",
@@ -171,6 +175,8 @@ Deno.test("runRunnerJob forwards NDJSON progress and completion receipt", async 
     },
   });
   assertEquals(spawnedCommand[4], "kickstart");
+  assertEquals(spawnedCommand[5], "--sandbox");
+  assertEquals(spawnedCommand[6], "none");
   assertEquals(spawnedEnv.DN_PROGRESS, "ndjson");
   assertEquals(client.progress.length, 1);
   assertEquals(
@@ -267,11 +273,13 @@ Deno.test("buildRunnerKickstartCommand dispatches denoise-task to temp file", as
     assertEquals(argv[2], "--agent");
     assertEquals(argv[3], "codex");
     assertEquals(argv[4], "kickstart");
-    assertEquals(argv[5], "--publish");
+    assertEquals(argv[5], "--sandbox");
     assertEquals(argv[6], "none");
-    assert(argv[7].endsWith(".md"), `Expected .md file, got ${argv[7]}`);
+    assertEquals(argv[7], "--publish");
+    assertEquals(argv[8], "none");
+    assert(argv[9].endsWith(".md"), `Expected .md file, got ${argv[9]}`);
     // Verify the materialized content
-    const content = await Deno.readTextFile(argv[7]);
+    const content = await Deno.readTextFile(argv[9]);
     assert(content.startsWith("# Denoise test task"));
     assert(content.includes("Test body content."));
   } finally {
@@ -284,13 +292,14 @@ Deno.test("buildRunnerDenoiseTaskCommand creates temp file and cleanup", async (
     denoiseTaskJob(),
     ["/usr/local/bin/dn"],
   );
+  const mdPath = argv[9];
   // Verify the temp file exists before cleanup
-  const fileExists = await Deno.stat(argv[7]).then(() => true).catch(() =>
+  const fileExists = await Deno.stat(mdPath).then(() => true).catch(() =>
     false
   );
   assert(fileExists, "Temp file should exist before cleanup");
   await cleanup();
-  const fileExistsAfter = await Deno.stat(argv[7]).then(() => true).catch(() =>
+  const fileExistsAfter = await Deno.stat(mdPath).then(() => true).catch(() =>
     false
   );
   assertEquals(
@@ -298,6 +307,92 @@ Deno.test("buildRunnerDenoiseTaskCommand creates temp file and cleanup", async (
     false,
     "Temp file should be removed after cleanup",
   );
+});
+
+Deno.test("formatRunnerJobFailureMessage prefers invocation.failed detail", () => {
+  assertEquals(
+    formatRunnerJobFailureMessage(1, {
+      invocationFailedMessage:
+        "exe.dev sandbox kickstart runs require a GitHub issue",
+      diagnosticLines: ["ignored stderr"],
+    }),
+    "dn kickstart exited with code 1. exe.dev sandbox kickstart runs require a GitHub issue",
+  );
+});
+
+Deno.test("formatRunnerJobFailureMessage falls back to stderr diagnostics", () => {
+  assertEquals(
+    formatRunnerJobFailureMessage(2, {
+      diagnosticLines: [
+        "noise",
+        "Error: exe.dev sandbox kickstart runs require a GitHub issue and --publish pr so remote work is persisted on a topic branch.",
+      ],
+    }),
+    "dn kickstart exited with code 2. noise\nError: exe.dev sandbox kickstart runs require a GitHub issue and --publish pr so remote work is persisted on a topic branch.",
+  );
+});
+
+Deno.test("formatRunnerJobOutcomeLog summarizes terminal results", () => {
+  assertEquals(
+    formatRunnerJobOutcomeLog("job-1", { kind: "succeeded" }),
+    "Job job-1 succeeded",
+  );
+  assertEquals(
+    formatRunnerJobOutcomeLog("job-1", {
+      kind: "succeeded",
+      prUrl: "https://github.com/chesapeakedev/dn/pull/214",
+    }),
+    "Job job-1 succeeded (https://github.com/chesapeakedev/dn/pull/214)",
+  );
+  assertEquals(
+    formatRunnerJobOutcomeLog("job-2", {
+      kind: "failed",
+      message: "dn kickstart exited with code 1. boom",
+    }),
+    "Job job-2 failed: dn kickstart exited with code 1. boom",
+  );
+});
+
+Deno.test("runRunnerJob includes stderr reason in failJob message", async () => {
+  const client = new RecordingClient();
+  const outcome = await runRunnerJob(job(), {
+    runnerId: "runner-1",
+    commandPrefix: ["/usr/local/bin/dn"],
+    config: {
+      schema_version: "1.0",
+      paused: false,
+      repositories: {
+        "chesapeakedev/dn": {
+          path: "/workspace/dn",
+          trusted_at: "2026-07-23T12:00:00.000Z",
+        },
+      },
+    },
+    client,
+    spawn() {
+      const failed = JSON.stringify({
+        schema_version: "1.0",
+        invocation_id: "invocation-1",
+        seq: 1,
+        ts: "2026-07-23T12:00:00.000Z",
+        type: "invocation.failed",
+        message:
+          "exe.dev sandbox kickstart runs require a GitHub issue and --publish pr",
+      });
+      return {
+        stdout: stream(""),
+        stderr: stream(`${failed}\n`),
+        status: Promise.resolve({ success: false, code: 1, signal: null }),
+        kill() {},
+      };
+    },
+  });
+  assertEquals(outcome.kind, "failed");
+  assertEquals(
+    client.failure?.message,
+    "dn kickstart exited with code 1. exe.dev sandbox kickstart runs require a GitHub issue and --publish pr",
+  );
+  assertEquals(client.failure?.exit_code, 1);
 });
 
 Deno.test("formatRunnerServeLog prefixes an ISO-8601 timestamp", () => {
@@ -382,7 +477,10 @@ Deno.test("serveRunner waits between empty claims", async () => {
       elapsed >= 80,
       `expected idle backoff before second claim, elapsed ${elapsed}ms`,
     );
-    assert(claims <= 8, `idle wait too short: ${claims} claims in ${elapsed}ms`);
+    assert(
+      claims <= 8,
+      `idle wait too short: ${claims} claims in ${elapsed}ms`,
+    );
   } finally {
     controller.abort();
     if (previousHome === undefined) Deno.env.delete("DN_RUNNER_HOME");
