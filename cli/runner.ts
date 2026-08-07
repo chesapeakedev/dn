@@ -48,7 +48,9 @@ function showRunnerHelp(): void {
     "dn runner - Use this developer machine as Denoise infrastructure\n",
   );
   console.log("Usage:");
-  console.log("  dn runner connect <code> [--install] [--name <name>]");
+  console.log(
+    "  dn runner connect <code> [--install] [--repo] [--name <name>]",
+  );
   console.log("  dn runner register [path] [--yes] [--json]");
   console.log("  dn runner unregister <owner/repo> [--json]");
   console.log("  dn runner doctor [--json]");
@@ -161,13 +163,38 @@ async function handleConnect(args: string[]): Promise<void> {
       throw new Error(`Unexpected argument: ${argument}`);
     }
   }
-  if (!code) throw new Error("Usage: dn runner connect <code> [--install]");
+  if (!code) {
+    throw new Error(
+      "Usage: dn runner connect <code> [--install] [--repo]",
+    );
+  }
   if (Deno.build.os !== "darwin" && Deno.build.os !== "linux") {
     throw new Error("Device runners require macOS or Linux.");
   }
   if (Deno.uid() === 0) {
     throw new Error("Device runners must run as a logged-in non-root user.");
   }
+
+  // Register the cwd checkout before pairing so the device announces the
+  // repository slug (never the local path) during approval and exchange.
+  let registeredRepository: string | undefined;
+  try {
+    registeredRepository = await registerCurrentRepository(Deno.cwd(), true);
+    if (!json) {
+      console.error(
+        `Registering ${registeredRepository} from the current checkout.`,
+      );
+    }
+  } catch (error) {
+    if (registerCurrent) {
+      throw new Error(
+        error instanceof Error
+          ? `--repo requires a GitHub checkout: ${error.message}`
+          : "--repo requires a GitHub checkout in the current directory.",
+      );
+    }
+  }
+
   const [capabilities, config] = await Promise.all([
     detectRunnerCapabilities(),
     loadRunnerConfig(),
@@ -214,18 +241,21 @@ async function handleConnect(args: string[]): Promise<void> {
     created_at: new Date().toISOString(),
     expires_at: exchange.credential_expires_at,
   });
-  if (registerCurrent) await registerCurrentRepository(Deno.cwd(), true);
   if (install) await installCurrentRunnerService();
   const result = {
     paired: true,
     runner: exchange.runner,
     service_installed: install,
-    repository_registered: registerCurrent,
+    repository_registered: registeredRepository ?? null,
   };
   if (json) console.log(JSON.stringify(result));
-  else {
+  else if (registeredRepository) {
     console.log(
-      `${exchange.runner.display_name} paired and ready for registered repositories.`,
+      `${exchange.runner.display_name} paired with ${registeredRepository}.`,
+    );
+  } else {
+    console.log(
+      `${exchange.runner.display_name} paired. Register a checkout with dn runner register.`,
     );
   }
 }
