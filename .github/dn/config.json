@@ -2,11 +2,25 @@
   "schema_version": "1.1",
   "agent": "opencode",
   "sandbox": {
-    "provider": "exe.dev",
-    "workspace": "/home/exedev/workspace",
+    "provider": "none",
+    "workspace": "/workspace",
     "sync": {
-      "mode": "git_clone",
+      "mode": "bind",
       "exclude": [".git", "node_modules", ".sl"]
+    },
+    "docker": {
+      "image": "ghcr.io/chesapeakedev/dn:opencode",
+      "network": "none",
+      "read_only_root": true,
+      "mounts": [
+        { "source": ".", "target": "/workspace" }
+      ],
+      "env_pass_through": [
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "CURSOR_API_KEY",
+        "COPILOT_GITHUB_TOKEN"
+      ]
     },
     "exe_dev": {
       "image": "exeuntu",
