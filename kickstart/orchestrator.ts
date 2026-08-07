@@ -5,10 +5,12 @@ import type { IssueData } from "../sdk/github/issue.ts";
 import {
   fetchIssueFromUrl,
   parseIssueFromFile,
+  parseTitleFromContextFile,
   resolveIssueUrlInput,
   summarizeIssueForDisplay,
   writeIssueContext,
 } from "../sdk/github/issue.ts";
+import { resolvePlanName } from "./planName.ts";
 import type { GitContext } from "../sdk/github/vcs.ts";
 import {
   checkForChanges,
@@ -45,6 +47,7 @@ import {
   formatStep,
   formatSuccess,
   formatWarning,
+  isUnattended,
 } from "./output.ts";
 import {
   createRunTmpDir,
@@ -217,38 +220,19 @@ async function ensurePlansDirectory(workspaceRoot: string): Promise<void> {
 }
 
 /**
- * Prompts the user for a plan name with an optional suggestion.
- *
- * @param suggestion - Optional suggested plan name
- * @returns Promise resolving to the plan name chosen by the user
- */
-function promptForPlanName(suggestion?: string): string {
-  if (suggestion) {
-    console.log(`\n${formatInfo(`Suggested plan name: ${suggestion}`)}`);
-    const input = prompt(
-      `Enter plan name (or press Enter to use suggested): `,
-    );
-    if (!input || input.trim() === "") {
-      return suggestion;
-    }
-    return input.trim();
-  } else {
-    const input = prompt(`Enter plan name: `);
-    if (!input || input.trim() === "") {
-      throw new Error("Plan name is required");
-    }
-    return input.trim();
-  }
-}
-
-/**
  * Prompts the user whether to continue an existing plan or start a new one.
  *
+ * Unattended runs default to starting a new plan (same as attended Enter).
+ *
  * @param planPath - Path to the existing plan file
- * @returns Promise resolving to `true` if user wants to continue, `false` to start new
+ * @returns `true` if user wants to continue, `false` to start new
  */
 function promptContinueOrNewPlan(planPath: string): boolean {
   console.log(`\n${formatInfo(`Found existing plan at: ${planPath}`)}`);
+  if (isUnattended()) {
+    console.log(formatInfo("Starting a new plan (unattended default)."));
+    return false;
+  }
   const input = prompt(
     `Continue existing plan? (y/n, default: n): `,
   );
@@ -282,10 +266,14 @@ async function readExistingPlan(planPath: string): Promise<string | null> {
 /**
  * Resolves the plan file path based on configuration and mode.
  *
+ * Unattended runs derive a name from the issue/context title (or branch) and
+ * never prompt. Attended runs still prompt, with branch/title suggestions.
+ *
  * @param config - Orchestrator configuration
  * @param workspaceRoot - Root directory of the workspace
  * @param gitContext - Git context (for branch name suggestion)
  * @param issueHint - Fetched issue or parsed markdown context (shown before the plan name prompt)
+ * @param contextTitle - Title from context markdown when issue data is absent
  * @returns The plan file path
  */
 function resolvePlanFilePath(
@@ -293,13 +281,9 @@ function resolvePlanFilePath(
   workspaceRoot: string,
   gitContext: GitContext | null,
   issueHint: IssueData | null,
+  contextTitle: string | null = null,
 ): string {
   const plansDir = `${workspaceRoot}/plans`;
-
-  // If savedPlanName is provided, use it
-  if (config.savedPlanName) {
-    return `${plansDir}/${config.savedPlanName}.plan.md`;
-  }
 
   if (issueHint) {
     console.log(
@@ -307,9 +291,11 @@ function resolvePlanFilePath(
     );
   }
 
-  // Always prompt for plan name (suggest branch name if available)
-  const suggestion = gitContext?.branchName || undefined;
-  const planName = promptForPlanName(suggestion);
+  const planName = resolvePlanName({
+    savedPlanName: config.savedPlanName,
+    branchName: gitContext?.branchName,
+    issueTitle: issueHint?.title ?? contextTitle ?? undefined,
+  });
   return `${plansDir}/${planName}.plan.md`;
 }
 
@@ -749,14 +735,21 @@ export async function runOrchestrator(
 
     // Step 2.5: Resolve plan file path
     let issueHintForPlanName: IssueData | null = issueData;
+    let contextTitleForPlanName: string | null = null;
     if (!issueHintForPlanName && issueContextPathFinal) {
       issueHintForPlanName = await parseIssueFromFile(issueContextPathFinal);
+      if (!issueHintForPlanName) {
+        contextTitleForPlanName = await parseTitleFromContextFile(
+          issueContextPathFinal,
+        );
+      }
     }
     const planFilePath = resolvePlanFilePath(
       config,
       normalizedWorkspaceRoot,
       gitContext,
       issueHintForPlanName,
+      contextTitleForPlanName,
     );
 
     // Step 2.6: Handle plan continuation (normal mode only)

@@ -574,9 +574,10 @@ issue argument or `ISSUE` env var. `--complete` also requires `--publish pr` or
 `--publish direct`. `--complete` runs every remaining stack item in order.
 `--once` runs the first unchecked stack item, marks that one item done, and
 exits. Both flags skip only the milestone queue prompts in the kickstart CLI;
-plan and implement phases can still prompt internally (for example existing plan
-continuation or plan naming). Use `--saved-plan` or other flags as needed for
-unattended agent runs.
+plan and implement phases can still prompt internally when attended (for example
+existing plan continuation or plan naming). Unattended runs auto-derive a plan
+name from the issue or context title (first two words) and do not prompt; pass
+`--saved-plan` to override.
 
 The milestone-aware kickstart reads from
 `plans/{owner}_{repo}_{milestone}.stack.md` and uses the first unchecked item as

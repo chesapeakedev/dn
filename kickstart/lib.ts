@@ -12,10 +12,12 @@ import type { IssueData } from "../sdk/github/issue.ts";
 import {
   fetchIssueFromUrl,
   parseIssueFromFile,
+  parseTitleFromContextFile,
   resolveIssueUrlInput,
   summarizeIssueForDisplay,
   writeIssueContext,
 } from "../sdk/github/issue.ts";
+import { resolvePlanName } from "./planName.ts";
 import {
   addIssueComment,
   getCurrentRepoFromRemote,
@@ -501,19 +503,16 @@ async function ensurePlansDirectory(workspaceRoot: string): Promise<void> {
  * Resolves the plan file path based on configuration and mode.
  *
  * @param issueHint - Fetched issue or parsed markdown context (shown before the plan name prompt)
+ * @param contextTitle - Title from context markdown when issue data is absent
  */
 function resolvePlanFilePath(
   config: KickstartConfig,
   workspaceRoot: string,
   gitContext: GitContext | null,
   issueHint: IssueData | null,
+  contextTitle: string | null = null,
 ): string {
   const plansDir = `${workspaceRoot}/plans`;
-
-  // If savedPlanName is provided, use it
-  if (config.savedPlanName) {
-    return `${plansDir}/${config.savedPlanName}.plan.md`;
-  }
 
   if (issueHint) {
     console.log(
@@ -521,24 +520,12 @@ function resolvePlanFilePath(
     );
   }
 
-  // Always prompt for plan name (suggest branch name if available)
-  const suggestion = gitContext?.branchName || undefined;
-  if (suggestion) {
-    console.log(`\n${formatInfo(`Suggested plan name: ${suggestion}`)}`);
-    const input = prompt(
-      `Enter plan name (or press Enter to use suggested): `,
-    );
-    if (!input || input.trim() === "") {
-      return `${plansDir}/${suggestion}.plan.md`;
-    }
-    return `${plansDir}/${input.trim()}.plan.md`;
-  } else {
-    const input = prompt(`Enter plan name: `);
-    if (!input || input.trim() === "") {
-      throw new Error("Plan name is required");
-    }
-    return `${plansDir}/${input.trim()}.plan.md`;
-  }
+  const planName = resolvePlanName({
+    savedPlanName: config.savedPlanName,
+    branchName: gitContext?.branchName,
+    issueTitle: issueHint?.title ?? contextTitle ?? undefined,
+  });
+  return `${plansDir}/${planName}.plan.md`;
 }
 
 /**
@@ -557,21 +544,16 @@ async function readExistingPlan(planPath: string): Promise<string | null> {
 }
 
 /**
- * Prompts the user for a plan name.
- */
-function _promptForPlanName(): string {
-  const input = prompt(`Enter plan name: `);
-  if (!input || input.trim() === "") {
-    throw new Error("Plan name is required");
-  }
-  return input.trim();
-}
-
-/**
  * Prompts the user whether to continue an existing plan or start a new one.
+ *
+ * Unattended runs default to starting a new plan (same as attended Enter).
  */
 function promptContinueOrNewPlan(planPath: string): boolean {
   console.log(`\n${formatInfo(`Found existing plan at: ${planPath}`)}`);
+  if (isUnattended()) {
+    console.log(formatInfo("Starting a new plan (unattended default)."));
+    return false;
+  }
   const input = prompt(
     `Continue existing plan? (y/n, default: n): `,
   );
@@ -914,9 +896,15 @@ export async function runMeldPhase(
 
     let issueHintForPlanName: IssueData | null = ghIssuePayload ?? issueData ??
       null;
+    let contextTitleForPlanName: string | null = null;
 
     if (!issueHintForPlanName && issueContextPathFinal) {
       issueHintForPlanName = await parseIssueFromFile(issueContextPathFinal);
+      if (!issueHintForPlanName) {
+        contextTitleForPlanName = await parseTitleFromContextFile(
+          issueContextPathFinal,
+        );
+      }
     }
 
     const isGithubOutput = parsedTarget.kind === "github-issue" ||
@@ -934,6 +922,7 @@ export async function runMeldPhase(
         normalizedWorkspaceRoot,
         gitContext,
         issueHintForPlanName,
+        contextTitleForPlanName,
       );
     } else if (parsedTarget.workspaceRelativePath) {
       outputAbsolute =

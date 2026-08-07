@@ -174,6 +174,56 @@ export async function fetchIssueFromUrl(
 }
 
 /**
+ * Derives a filesystem-safe plan name from a title by taking the first few
+ * words and joining them with hyphens (e.g. "Add dark mode" → `add-dark`).
+ *
+ * @param title - Issue or denoise-task title
+ * @param maxWords - Maximum number of words to keep (default 2)
+ * @returns Slug suitable for `plans/<name>.plan.md`, or `null` when empty
+ */
+export function suggestPlanNameFromTitle(
+  title: string,
+  maxWords: number = 2,
+): string | null {
+  const words = title
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter((word) => word.length > 0)
+    .slice(0, Math.max(1, maxWords));
+  if (words.length === 0) {
+    return null;
+  }
+  return words.join("-");
+}
+
+/**
+ * Extracts a display title from kickstart context markdown.
+ *
+ * Supports GitHub issue context (`# Issue #123: Title`) and denoise-task
+ * materialization (`# Title`).
+ *
+ * @param content - Markdown file contents
+ * @returns Title string, or `null` when no H1 title is found
+ */
+export function parseTitleFromContextMarkdown(
+  content: string,
+): string | null {
+  const issueMatch = content.match(/^# Issue #\d+: (.+)$/m);
+  if (issueMatch) {
+    const title = issueMatch[1].trim();
+    return title.length > 0 ? title : null;
+  }
+  const h1Match = content.match(/^#\s+(.+)$/m);
+  if (h1Match) {
+    const title = h1Match[1].trim();
+    return title.length > 0 ? title : null;
+  }
+  return null;
+}
+
+/**
  * Attempts to parse issue data from a markdown file.
  * Looks for a header in the format `# Issue #123: Title`.
  *
@@ -203,6 +253,23 @@ export async function parseIssueFromFile(
     // Ignore parsing errors
   }
   return null;
+}
+
+/**
+ * Reads a context markdown file and returns its title when present.
+ *
+ * @param filePath - Path to issue context or denoise-task markdown
+ * @returns Title string, or `null` when the file is missing or has no H1
+ */
+export async function parseTitleFromContextFile(
+  filePath: string,
+): Promise<string | null> {
+  try {
+    const content = await Deno.readTextFile(filePath);
+    return parseTitleFromContextMarkdown(content);
+  } catch {
+    return null;
+  }
 }
 
 /**

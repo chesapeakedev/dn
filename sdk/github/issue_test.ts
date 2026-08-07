@@ -5,9 +5,36 @@ import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import {
   emptyIssueRelationships,
   type IssueData,
+  parseTitleFromContextMarkdown,
+  suggestPlanNameFromTitle,
   summarizeIssueForDisplay,
   writeIssueContext,
 } from "./issue.ts";
+
+Deno.test("suggestPlanNameFromTitle takes the first two words", () => {
+  assertEquals(
+    suggestPlanNameFromTitle("Add dark mode support for settings"),
+    "add-dark",
+  );
+  assertEquals(suggestPlanNameFromTitle("Fix"), "fix");
+  assertEquals(suggestPlanNameFromTitle("  "), null);
+  assertEquals(
+    suggestPlanNameFromTitle("Plan: name is required!!!"),
+    "plan-name",
+  );
+});
+
+Deno.test("parseTitleFromContextMarkdown supports issue and denoise headers", () => {
+  assertEquals(
+    parseTitleFromContextMarkdown("# Issue #42: Add dark mode\n\nbody"),
+    "Add dark mode",
+  );
+  assertEquals(
+    parseTitleFromContextMarkdown("# Denoise test task\n\nbody"),
+    "Denoise test task",
+  );
+  assertEquals(parseTitleFromContextMarkdown("no heading"), null);
+});
 
 Deno.test("summarizeIssueForDisplay uses owner/repo and truncates long titles", () => {
   const issue: IssueData = {
