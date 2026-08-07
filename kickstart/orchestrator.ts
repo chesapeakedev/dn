@@ -41,10 +41,7 @@ import {
   extractPlanSummary,
 } from "./lib.ts";
 import type { PlanSummary } from "./lib.ts";
-import {
-  assessIssueAdequacy,
-  synthesizePlanFromIssue,
-} from "./issueAdequacy.ts";
+import { decidePlanSkip, type PlanCompletionStatus } from "./issueAdequacy.ts";
 import {
   formatError,
   formatInfo,
@@ -320,16 +317,6 @@ function missingPlanSections(content: string): string[] {
   return requiredSections
     .filter((section) => !section.pattern.test(content))
     .map((section) => section.name);
-}
-
-async function planFileIsValid(planFilePath: string): Promise<boolean> {
-  try {
-    const content = await Deno.readTextFile(planFilePath);
-    if (!content || content.trim().length === 0) return false;
-    return missingPlanSections(content).length === 0;
-  } catch {
-    return false;
-  }
 }
 
 async function checkPlanFile(planFilePath: string): Promise<boolean> {
@@ -761,46 +748,34 @@ export async function runOrchestrator(
     let existingPlanContent: string | null = null;
     let continueExistingPlan = false;
     let skipPlanReason: "existing_plan" | "issue_adequate" | null = null;
+    let existingPlanCompletion: PlanCompletionStatus | null = null;
 
     const existingPlan = await readExistingPlan(planFilePath);
-    if (existingPlan && await planFileIsValid(planFilePath)) {
-      if (isUnattended() || publishesChanges) {
-        // Unattended / publish: reuse a valid plan on disk instead of re-planning.
-        skipPlanReason = "existing_plan";
-        existingPlanContent = existingPlan;
-      } else {
-        continueExistingPlan = promptContinueOrNewPlan(planFilePath);
-        if (continueExistingPlan) {
-          existingPlanContent = existingPlan;
-          skipPlanReason = "existing_plan";
-        }
-      }
+    const titleForAdequacy = issueHintForPlanName?.title ??
+      contextTitleForPlanName ?? "";
+    const bodyForAdequacy = issueHintForPlanName?.body ??
+      (issueContextPathFinal
+        ? await Deno.readTextFile(issueContextPathFinal).catch(() => "")
+        : "");
+    if (existingPlan && !isUnattended() && !publishesChanges) {
+      continueExistingPlan = promptContinueOrNewPlan(planFilePath);
     }
-
-    if (skipPlanReason == null) {
-      const titleForAdequacy = issueHintForPlanName?.title ??
-        contextTitleForPlanName ??
-        "";
-      const bodyForAdequacy = issueHintForPlanName?.body ??
-        (issueContextPathFinal
-          ? await Deno.readTextFile(issueContextPathFinal).catch(() => "")
-          : "");
-      const adequacy = assessIssueAdequacy({
-        title: titleForAdequacy,
-        body: bodyForAdequacy,
-      });
-      if (adequacy.adequate) {
-        skipPlanReason = "issue_adequate";
-        const synthesized = synthesizePlanFromIssue({
-          title: titleForAdequacy,
-          body: bodyForAdequacy,
-        });
-        await Deno.writeTextFile(planFilePath, synthesized);
-        existingPlanContent = synthesized;
+    const planDecision = decidePlanSkip({
+      issue: { title: titleForAdequacy, body: bodyForAdequacy },
+      existingPlanContent: existingPlan,
+      reuseExistingPlan: continueExistingPlan || isUnattended() ||
+        publishesChanges,
+    });
+    existingPlanCompletion = planDecision.existingPlanCompletion;
+    if (planDecision.reason !== "plan_required") {
+      skipPlanReason = planDecision.reason;
+      existingPlanContent = planDecision.planContent;
+      if (planDecision.reason === "issue_adequate") {
+        await Deno.writeTextFile(planFilePath, planDecision.planContent ?? "");
         console.log(
           formatInfo(
-            `Issue looks implement-ready (score ${adequacy.score}; ${
-              adequacy.signals.join(", ") || "signals"
+            `Issue looks implement-ready (score ${planDecision.adequacy.score}; ${
+              planDecision.adequacy.signals.join(", ") || "signals"
             }).`,
           ),
         );
@@ -839,7 +814,11 @@ export async function runOrchestrator(
       await report("phase.completed", "Plan phase skipped", {
         phase: "plan",
         step: 3,
-        data: { skipped: true, reason: skipPlanReason },
+        data: {
+          skipped: true,
+          reason: skipPlanReason,
+          existingPlanCompletion,
+        },
       });
       console.log(formatSuccess("Plan phase skipped successfully"));
       await report("step.completed", "Plan step completed", { step: 3 });

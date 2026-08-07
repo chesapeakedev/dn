@@ -8,6 +8,8 @@
  * Defaults to planning when unsure — false positives waste less than a bad skip.
  */
 
+import { completionStatusFromPlanContent } from "./planCompletion.ts";
+
 export interface IssueAdequacyInput {
   title: string;
   body: string;
@@ -16,6 +18,7 @@ export interface IssueAdequacyInput {
 export type IssueAdequacyReason =
   | "existing_plan"
   | "issue_adequate"
+  | "plan_required"
   | "thin_issue";
 
 export interface IssueAdequacyResult {
@@ -25,14 +28,38 @@ export interface IssueAdequacyResult {
   reason: IssueAdequacyReason;
 }
 
+export type PlanCompletionStatus = ReturnType<
+  typeof completionStatusFromPlanContent
+>;
+
+export interface PlanSkipDecisionInput {
+  issue: IssueAdequacyInput;
+  existingPlanContent: string | null;
+  reuseExistingPlan: boolean;
+}
+
+export interface PlanSkipDecision {
+  reason: "existing_plan" | "issue_adequate" | "plan_required";
+  planContent: string | null;
+  adequacy: IssueAdequacyResult;
+  existingPlanCompletion: PlanCompletionStatus | null;
+}
+
 const SECTION_PATTERNS: readonly { name: string; pattern: RegExp }[] = [
   { name: "summary_section", pattern: /^#{1,3}\s+summary\b/im },
-  { name: "acceptance_section", pattern: /^#{1,3}\s+acceptance\s+criteria\b/im },
+  {
+    name: "acceptance_section",
+    pattern: /^#{1,3}\s+acceptance\s+criteria\b/im,
+  },
   {
     name: "implementation_section",
-    pattern: /^#{1,3}\s+(implementation(\s+plan)?|proposed(\s+approach)?|approach)\b/im,
+    pattern:
+      /^#{1,3}\s+(implementation(\s+plan)?|proposed(\s+approach)?|approach)\b/im,
   },
-  { name: "context_section", pattern: /^#{1,3}\s+(context|background|details)\b/im },
+  {
+    name: "context_section",
+    pattern: /^#{1,3}\s+(context|background|details)\b/im,
+  },
 ];
 
 const CHECKLIST_PATTERN = /^\s*[-*]\s+\[[ xX]\]\s+\S+/m;
@@ -107,7 +134,11 @@ export function assessIssueAdequacy(
     };
   }
 
-  const adequate = score >= 3 || (body.length >= 800 && score >= 2);
+  const structuralSignals = signals.filter((signal) =>
+    signal !== "body_length" && signal !== "body_long"
+  );
+  const adequate = structuralSignals.length >= 2 &&
+    (score >= 3 || (body.length >= 800 && score >= 2));
   return {
     adequate,
     score,
@@ -126,13 +157,11 @@ export function synthesizePlanFromIssue(input: IssueAdequacyInput): string {
   const checklist = [...body.matchAll(/^\s*[-*]\s+\[[ xX]\]\s+(.+)$/gm)].map(
     (match) => `- [ ] ${match[1].trim()}`,
   );
-  const acceptance = checklist.length > 0
-    ? checklist.join("\n")
-    : [
-      "- [ ] Implement the changes described in the Overview",
-      "- [ ] Add or update tests covering the change",
-      "- [ ] Project lint / typecheck passes",
-    ].join("\n");
+  const acceptance = checklist.length > 0 ? checklist.join("\n") : [
+    "- [ ] Implement the changes described in the Overview",
+    "- [ ] Add or update tests covering the change",
+    "- [ ] Project lint / typecheck passes",
+  ].join("\n");
 
   return `# ${title}
 
@@ -151,4 +180,64 @@ ${body}
 
 ${acceptance}
 `;
+}
+
+function planHasRequiredStructure(content: string): boolean {
+  const requiredSections = [
+    /^#\s+.+$/m,
+    /^##\s+Overview/mi,
+    /^##\s+Implementation\s+Plan/mi,
+    /^##\s+Acceptance\s+Criteria/mi,
+  ];
+  if (!requiredSections.every((pattern) => pattern.test(content))) return false;
+
+  return completionStatusFromPlanContent(content).total > 0;
+}
+
+/**
+ * Chooses the only safe plan-phase skip, in precedence order: reusable plan,
+ * actionable issue synthesis, or normal planning.
+ */
+export function decidePlanSkip(
+  input: PlanSkipDecisionInput,
+): PlanSkipDecision {
+  const existingPlanCompletion = input.existingPlanContent === null
+    ? null
+    : completionStatusFromPlanContent(input.existingPlanContent);
+
+  if (
+    input.reuseExistingPlan &&
+    input.existingPlanContent !== null &&
+    planHasRequiredStructure(input.existingPlanContent) &&
+    existingPlanCompletion !== null
+  ) {
+    // Completed plans remain reusable, while incomplete plans are passed on
+    // unchanged so the implement phase can continue their remaining work.
+    return {
+      reason: "existing_plan",
+      planContent: input.existingPlanContent,
+      adequacy: assessIssueAdequacy(input.issue),
+      existingPlanCompletion,
+    };
+  }
+
+  const adequacy = assessIssueAdequacy(input.issue);
+  if (adequacy.adequate) {
+    const planContent = synthesizePlanFromIssue(input.issue);
+    if (planHasRequiredStructure(planContent)) {
+      return {
+        reason: "issue_adequate",
+        planContent,
+        adequacy,
+        existingPlanCompletion,
+      };
+    }
+  }
+
+  return {
+    reason: "plan_required",
+    planContent: null,
+    adequacy,
+    existingPlanCompletion,
+  };
 }

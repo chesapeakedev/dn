@@ -4,6 +4,7 @@
 import { assertEquals } from "@std/assert";
 import {
   assessIssueAdequacy,
+  decidePlanSkip,
   synthesizePlanFromIssue,
 } from "./issueAdequacy.ts";
 
@@ -47,11 +48,51 @@ Touch \`sdk/config.ts\` and \`cli/main.ts\`.
 Deno.test("synthesizePlanFromIssue includes required plan sections", () => {
   const plan = synthesizePlanFromIssue({
     title: "Add skip-plan",
-    body: "Skip plan when adequate.\n\n- [ ] Heuristic works\n- [ ] Progress event emitted",
+    body:
+      "Skip plan when adequate.\n\n- [ ] Heuristic works\n- [ ] Progress event emitted",
   });
   assertEquals(/^#\s+Add skip-plan/m.test(plan), true);
   assertEquals(/^##\s+Overview/m.test(plan), true);
   assertEquals(/^##\s+Implementation\s+Plan/m.test(plan), true);
   assertEquals(/^##\s+Acceptance\s+Criteria/m.test(plan), true);
   assertEquals(plan.includes("Heuristic works"), true);
+});
+
+Deno.test("long unstructured issues stay on the plan path", () => {
+  const result = assessIssueAdequacy({
+    title: "Improve behavior",
+    body: "This needs a careful improvement. ".repeat(30),
+  });
+  assertEquals(result.adequate, false);
+  assertEquals(result.reason, "thin_issue");
+});
+
+Deno.test("decidePlanSkip rejects malformed existing plans", () => {
+  const result = decidePlanSkip({
+    issue: { title: "Vague", body: "Please improve this." },
+    existingPlanContent: "# Incomplete\n\n## Overview\nNot enough.",
+    reuseExistingPlan: true,
+  });
+  assertEquals(result.reason, "plan_required");
+});
+
+Deno.test("decidePlanSkip reuses valid incomplete plans", () => {
+  const plan = `# Feature
+
+## Overview
+Work
+
+## Implementation Plan
+Do it
+
+## Acceptance Criteria
+- [ ] Remaining
+`;
+  const result = decidePlanSkip({
+    issue: { title: "Vague", body: "Please improve this." },
+    existingPlanContent: plan,
+    reuseExistingPlan: true,
+  });
+  assertEquals(result.reason, "existing_plan");
+  assertEquals(result.existingPlanCompletion?.incomplete, ["Remaining"]);
 });
