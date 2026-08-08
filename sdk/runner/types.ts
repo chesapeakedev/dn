@@ -607,8 +607,14 @@ export function validateRunnerJob(
       );
     }
   } else if (job.operation.type === "kickstart") {
-    if (job.operation.publish !== "pr") {
-      throw new Error("Runner jobs require PR publishing.");
+    if (
+      job.operation.publish !== "none" &&
+      job.operation.publish !== "pr" &&
+      job.operation.publish !== "direct"
+    ) {
+      throw new Error(
+        'Kickstart jobs require publish "none", "pr", or "direct".',
+      );
     }
     if (
       !["opencode", "cursor", "claude", "codex", "copilot"].includes(
