@@ -950,9 +950,16 @@ After each implement pass, the agent updates the plan Acceptance Criteria
 checkboxes and writes `.dn/implement-result.json`. `dn` prints that result so
 you can decide the next step without guessing from a bare `6/8` counter.
 
+Each unfinished task should include `work_kind`: `feature`, `tests`, `docs`, or
+`other`. When every unfinished task is `work_kind: "tests"`, status is
+`incomplete`, and recommendation is `rerun_loop`, attended `dn kickstart` /
+`dn loop` offers a one-shot confirmation to run another implement pass focused
+on tests. Unattended mode skips that prompt and never auto-runs the
+continuation.
+
 | Recommendation | Meaning                                                          | Typical next step                                                                                         |
 | -------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `rerun_loop`   | Remaining work looks agent-completable                           | Run `dn loop <plan>` again                                                                                |
+| `rerun_loop`   | Remaining work looks agent-completable                           | Run `dn loop <plan>` again (or accept the attended tests-only continuation when offered)                  |
 | `edit_plan`    | Checklist is wrong or overscoped                                 | Edit `plans/*.plan.md`, then loop or land                                                                 |
 | `human_action` | Operator must run a command or decide something the agent cannot | Do the printed actions (for example run tests when the repo has no single test target), then loop or land |
 | `land`         | Remaining unchecked items are acceptable to leave open           | `dn land` if the delivered scope is enough                                                                |

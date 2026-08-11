@@ -58,10 +58,16 @@ import {
 } from "../sdk/sandbox/mod.ts";
 import {
   clearImplementResult,
+  type ImplementPhaseResult,
   implementResultPromptInstruction,
   loadImplementResult,
   printImplementResult,
 } from "./implementResult.ts";
+import {
+  confirmTestsOnlyContinuation,
+  mergeTestsOnlySteering,
+  shouldOfferTestsOnlyContinuation,
+} from "./testsOnlyContinuation.ts";
 import { $ } from "$dax";
 
 /**
@@ -1056,10 +1062,11 @@ export async function runOrchestrator(
       step: 4,
     });
 
-    const structuredImplementResult = await loadImplementResult(
-      WORKSPACE_ROOT,
-      implementResult.stdout,
-    );
+    let structuredImplementResult: ImplementPhaseResult | null =
+      await loadImplementResult(
+        WORKSPACE_ROOT,
+        implementResult.stdout,
+      );
 
     // Check for blocking errors in the output (even if exit code is 0)
     const blockingError = structuredImplementResult?.status === "blocked" ||
@@ -1119,7 +1126,7 @@ export async function runOrchestrator(
     }
 
     try {
-      const completionStatus = await checkAcceptanceCriteriaCompletion(
+      let completionStatus = await checkAcceptanceCriteriaCompletion(
         planFilePath,
       );
 
@@ -1131,7 +1138,103 @@ export async function runOrchestrator(
         console.log(
           `📊 Completion Status: ${completionStatus.completed}/${completionStatus.total} acceptance criteria completed`,
         );
+      }
 
+      if (
+        shouldOfferTestsOnlyContinuation(structuredImplementResult) &&
+        confirmTestsOnlyContinuation()
+      ) {
+        console.log(
+          formatInfo("Running tests-only implement continuation..."),
+        );
+        await assembleCombinedPrompt(
+          combinedPromptImplementPath,
+          implementSystemPromptPathFinal,
+          WORKSPACE_ROOT,
+          issueContextPathFinal,
+          planOutputPath,
+          undefined,
+          undefined,
+          undefined,
+          mergeTestsOnlySteering(config.steeringPrompt),
+        );
+        await clearImplementResult(WORKSPACE_ROOT);
+        const continuationResult = await runAgentPhaseInSandbox(
+          "implement",
+          combinedPromptImplementPath,
+          WORKSPACE_ROOT,
+          false,
+          config.agentHarness,
+          reporter,
+        );
+        await Deno.writeTextFile(
+          implementStdoutPath,
+          continuationResult.stdout,
+        );
+        await Deno.writeTextFile(
+          implementStderrPath,
+          continuationResult.stderr,
+        );
+        if (continuationResult.code !== 0) {
+          console.error("\n=== Tests-only continuation STDERR ===");
+          console.error(continuationResult.stderr || "(empty)");
+          console.error("\n=== Tests-only continuation STDOUT ===");
+          console.error(continuationResult.stdout || "(empty)");
+          throw new Error(
+            `Tests-only continuation failed with exit code ${continuationResult.code}`,
+          );
+        }
+        structuredImplementResult = await loadImplementResult(
+          WORKSPACE_ROOT,
+          continuationResult.stdout,
+        );
+        const continuationBlocking =
+          structuredImplementResult?.status === "blocked" ||
+            structuredImplementResult?.recommendation === "blocked"
+            ? structuredImplementResult.summary
+            : detectBlockingError(
+              continuationResult.stdout,
+              continuationResult.stderr,
+            );
+        if (continuationBlocking) {
+          console.error(
+            formatError(
+              "Blocking error detected in tests-only continuation output",
+            ),
+          );
+          console.error("─".repeat(60));
+          console.error(continuationBlocking);
+          console.error("─".repeat(60));
+          if (structuredImplementResult) {
+            printImplementResult(structuredImplementResult, {
+              planRelativePath,
+            });
+          }
+          throw new Error(
+            "Implementation blocked during tests-only continuation. See output above for details.",
+          );
+        }
+        completionStatus = await checkAcceptanceCriteriaCompletion(
+          planFilePath,
+        );
+        try {
+          planSummary = await extractPlanSummary(planFilePath);
+        } catch {
+          // keep prior summary
+        }
+        if (structuredImplementResult) {
+          printImplementResult(structuredImplementResult, {
+            planRelativePath,
+          });
+        }
+        if (completionStatus.total > 0) {
+          console.log(
+            `📊 Completion Status: ${completionStatus.completed}/${completionStatus.total} acceptance criteria completed`,
+          );
+        }
+      }
+
+      if (completionStatus.total > 0) {
         if (!completionStatus.complete) {
           // Plan is incomplete
           console.log(
@@ -1220,6 +1323,13 @@ export async function runOrchestrator(
         );
       }
     } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.message.includes("Tests-only continuation") ||
+          error.message.includes("tests-only continuation"))
+      ) {
+        throw error;
+      }
       // Non-blocking: log warning but continue
       console.warn(
         "⚠️  Error checking completion status (non-blocking):",

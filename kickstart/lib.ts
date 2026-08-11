@@ -64,6 +64,11 @@ import {
   loadImplementResult,
   printImplementResult,
 } from "./implementResult.ts";
+import {
+  confirmTestsOnlyContinuation,
+  mergeTestsOnlySteering,
+  shouldOfferTestsOnlyContinuation,
+} from "./testsOnlyContinuation.ts";
 import { completionStatusFromPlanContent } from "./planCompletion.ts";
 import {
   formatError,
@@ -1342,7 +1347,7 @@ export async function runLoopPhase(
       );
     }
 
-    const structuredImplementResult = await loadImplementResult(
+    let structuredImplementResult = await loadImplementResult(
       workspaceRoot,
       implementResult.stdout,
     );
@@ -1388,7 +1393,7 @@ export async function runLoopPhase(
 
     // Step 4.5: Check completion status
     console.log(formatStep(4.5, "Checking completion status..."));
-    const completionStatus = await checkAcceptanceCriteriaCompletion(
+    let completionStatus = await checkAcceptanceCriteriaCompletion(
       planFilePath,
     );
 
@@ -1403,7 +1408,88 @@ export async function runLoopPhase(
       console.log(
         `📊 Completion Status: ${completionStatus.completed}/${completionStatus.total} acceptance criteria completed`,
       );
+    }
 
+    // Attended-only: one tests-only continuation pass when leftovers are tests.
+    if (
+      shouldOfferTestsOnlyContinuation(structuredImplementResult) &&
+      confirmTestsOnlyContinuation()
+    ) {
+      console.log(
+        formatInfo(
+          "Running tests-only implement continuation...",
+        ),
+      );
+      await assembleCombinedPrompt(
+        combinedPromptImplementPath,
+        implementSystemPromptPathFinal,
+        workspaceRoot,
+        issueContextPathForPrompt,
+        planOutputPath,
+        undefined,
+        undefined,
+        undefined,
+        mergeTestsOnlySteering(config.steeringPrompt),
+      );
+      await clearImplementResult(workspaceRoot);
+      const continuationResult = await runAgentPhaseInSandbox(
+        "implement",
+        combinedPromptImplementPath,
+        workspaceRoot,
+        false,
+        config.agentHarness,
+      );
+      if (continuationResult.code !== 0) {
+        console.error("\n=== Tests-only continuation STDERR ===");
+        console.error(continuationResult.stderr || "(empty)");
+        console.error("\n=== Tests-only continuation STDOUT ===");
+        console.error(continuationResult.stdout || "(empty)");
+        throw new Error(
+          `Tests-only continuation failed with exit code ${continuationResult.code}`,
+        );
+      }
+      structuredImplementResult = await loadImplementResult(
+        workspaceRoot,
+        continuationResult.stdout,
+      );
+      const continuationBlocking =
+        structuredImplementResult?.status === "blocked" ||
+          structuredImplementResult?.recommendation === "blocked"
+          ? structuredImplementResult.summary
+          : detectBlockingError(
+            continuationResult.stdout,
+            continuationResult.stderr,
+          );
+      if (continuationBlocking) {
+        console.error(
+          formatError(
+            "Blocking error detected in tests-only continuation output",
+          ),
+        );
+        console.error("─".repeat(60));
+        console.error(continuationBlocking);
+        console.error("─".repeat(60));
+        if (structuredImplementResult) {
+          printImplementResult(structuredImplementResult, {
+            planRelativePath,
+          });
+        }
+        throw new Error(
+          "Implementation blocked during tests-only continuation. See output above for details.",
+        );
+      }
+      completionStatus = await checkAcceptanceCriteriaCompletion(planFilePath);
+      if (structuredImplementResult) {
+        printImplementResult(structuredImplementResult, { planRelativePath });
+      }
+      if (completionStatus.total > 0) {
+        console.log(
+          `📊 Completion Status: ${completionStatus.completed}/${completionStatus.total} acceptance criteria completed`,
+        );
+      }
+    }
+
+    if (completionStatus.total > 0) {
       if (!completionStatus.complete) {
         console.log(
           formatWarning(

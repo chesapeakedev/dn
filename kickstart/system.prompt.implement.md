@@ -178,7 +178,8 @@ Required shape:
       "description": "What remains",
       "criterion": "Matching acceptance criterion text when applicable",
       "reason": "Why it was not finished",
-      "suggested_action": "human_action"
+      "suggested_action": "human_action",
+      "work_kind": "tests"
     }
   ],
   "human_actions": [
@@ -194,11 +195,26 @@ Required shape:
 
 ### Status and recommendation values
 
-| Field                                 | Allowed values                                               |
-| ------------------------------------- | ------------------------------------------------------------ |
-| `status`                              | `complete`, `incomplete`, `needs_human`, `blocked`           |
-| `recommendation`                      | `rerun_loop`, `edit_plan`, `human_action`, `land`, `blocked` |
-| `unfinished_tasks[].suggested_action` | same as `recommendation` (optional)                          |
+| Field                                 | Allowed values                                                     |
+| ------------------------------------- | ------------------------------------------------------------------ |
+| `status`                              | `complete`, `incomplete`, `needs_human`, `blocked`                 |
+| `recommendation`                      | `rerun_loop`, `edit_plan`, `human_action`, `land`, `blocked`       |
+| `unfinished_tasks[].suggested_action` | same as `recommendation` (optional)                                |
+| `unfinished_tasks[].work_kind`        | `feature`, `tests`, `docs`, `other` (**required** when unfinished) |
+
+### Classifying unfinished work (`work_kind`)
+
+Every unfinished task **must** set `work_kind`:
+
+- **`tests`**: coverage, assertions, test harness, or automated-test leftovers
+- **`feature`**: product behavior, CLI, APIs, or other non-test implementation
+- **`docs`**: documentation-only leftovers
+- **`other`**: anything that is not cleanly feature/tests/docs
+
+Never mark unfinished feature behavior as `tests`. When every remaining item is
+`work_kind: "tests"` and another agent pass can finish them without new human
+input, use `status: "incomplete"` and `recommendation: "rerun_loop"` so attended
+`dn` can offer a tests-only continuation.
 
 ### When to use each recommendation
 
@@ -313,9 +329,9 @@ all acceptance criteria. This is different from a blocking error.
 
 1. **Update the Acceptance Criteria checklist** - mark what's done as `[x]`,
    leave incomplete as `[ ]`
-2. **Write `.dn/implement-result.json`** with `unfinished_tasks`, any
-   `human_actions`, and a `recommendation` (`rerun_loop`, `edit_plan`,
-   `human_action`, or `land`)
+2. **Write `.dn/implement-result.json`** with `unfinished_tasks` (each with
+   `work_kind`), any `human_actions`, and a `recommendation` (`rerun_loop`,
+   `edit_plan`, `human_action`, or `land`)
 3. **Document what was accomplished** - explain what was implemented
 4. **Explain what remains** - clarify what still needs to be done
 5. **Suggest next steps** - provide guidance for continuing the work

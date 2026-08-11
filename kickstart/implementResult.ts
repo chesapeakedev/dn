@@ -38,6 +38,16 @@ export type ImplementRecommendation =
   | "land"
   | "blocked";
 
+/**
+ * Classification of leftover work for operator UX (e.g. tests-only re-loop).
+ *
+ * - `feature`: product/behavior/CLI changes still open
+ * - `tests`: coverage, assertions, or test harness leftovers only
+ * - `docs`: documentation or comment-only leftovers
+ * - `other`: anything that is not cleanly feature/tests/docs
+ */
+export type UnfinishedWorkKind = "feature" | "tests" | "docs" | "other";
+
 /** One unfinished acceptance criterion or plan task. */
 export interface UnfinishedTask {
   /** Short description of remaining work. */
@@ -48,6 +58,12 @@ export interface UnfinishedTask {
   reason?: string;
   /** Suggested next step for this item. */
   suggested_action?: ImplementRecommendation;
+  /**
+   * Kind of remaining work. Required by the implement prompt for unfinished
+   * tasks; optional in the parser so older results still load (detection fails
+   * closed when kinds are missing).
+   */
+  work_kind?: UnfinishedWorkKind;
 }
 
 /** An action only a human can take (or must authorize). */
@@ -86,6 +102,13 @@ const RECOMMENDATION_VALUES = new Set<ImplementRecommendation>([
   "blocked",
 ]);
 
+const WORK_KIND_VALUES = new Set<UnfinishedWorkKind>([
+  "feature",
+  "tests",
+  "docs",
+  "other",
+]);
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -110,6 +133,20 @@ function requiredString(value: unknown, field: string): string {
   return value;
 }
 
+function optionalWorkKind(
+  value: unknown,
+  field: string,
+): UnfinishedWorkKind | undefined {
+  if (value === undefined) return undefined;
+  if (
+    typeof value !== "string" ||
+    !WORK_KIND_VALUES.has(value as UnfinishedWorkKind)
+  ) {
+    throw new TypeError(`Implement result field "${field}" is invalid.`);
+  }
+  return value as UnfinishedWorkKind;
+}
+
 function parseUnfinishedTask(value: unknown, index: number): UnfinishedTask {
   if (!isRecord(value)) {
     throw new TypeError(
@@ -126,6 +163,10 @@ function parseUnfinishedTask(value: unknown, index: number): UnfinishedTask {
       `Implement result unfinished_tasks[${index}].suggested_action is invalid.`,
     );
   }
+  const workKind = optionalWorkKind(
+    value.work_kind,
+    `unfinished_tasks[${index}].work_kind`,
+  );
   return {
     description: requiredString(
       value.description,
@@ -150,7 +191,21 @@ function parseUnfinishedTask(value: unknown, index: number): UnfinishedTask {
     ...(suggested
       ? { suggested_action: suggested as ImplementRecommendation }
       : {}),
+    ...(workKind ? { work_kind: workKind } : {}),
   };
+}
+
+/**
+ * True when every unfinished task is classified as tests-only leftover work
+ * that another agent pass can finish (`rerun_loop`).
+ *
+ * Fails closed when any task omits `work_kind` or mixes non-test kinds.
+ */
+export function onlyTestsRemaining(result: ImplementPhaseResult): boolean {
+  if (result.status !== "incomplete") return false;
+  if (result.recommendation !== "rerun_loop") return false;
+  if (result.unfinished_tasks.length === 0) return false;
+  return result.unfinished_tasks.every((task) => task.work_kind === "tests");
 }
 
 function parseHumanAction(value: unknown, index: number): HumanAction {
@@ -308,6 +363,7 @@ export function printImplementResult(
     for (const task of result.unfinished_tasks) {
       const criterion = task.criterion ? ` (${task.criterion})` : "";
       console.log(`  - ${task.description}${criterion}`);
+      if (task.work_kind) console.log(`      work_kind: ${task.work_kind}`);
       if (task.reason) console.log(`      reason: ${task.reason}`);
       if (task.suggested_action) {
         console.log(`      suggested: ${task.suggested_action}`);
@@ -391,7 +447,8 @@ Use this exact shape:
       "description": "What remains",
       "criterion": "Matching acceptance criterion text when applicable",
       "reason": "Why it was not finished",
-      "suggested_action": "human_action"
+      "suggested_action": "human_action",
+      "work_kind": "tests"
     }
   ],
   "human_actions": [
@@ -410,11 +467,18 @@ Use this exact shape:
 - \`status\`: \`complete\` | \`incomplete\` | \`needs_human\` | \`blocked\`
 - \`recommendation\`: \`rerun_loop\` | \`edit_plan\` | \`human_action\` | \`land\` | \`blocked\`
 - \`unfinished_tasks\`: every still-open acceptance criterion or material leftover task (may be \`[]\` when complete)
+- \`unfinished_tasks[].work_kind\` (**required** on every unfinished task): \`feature\` | \`tests\` | \`docs\` | \`other\`
+  - \`tests\`: coverage, assertions, test harness, or skip-plan/loop test leftovers
+  - \`feature\`: product behavior, CLI, APIs, or other non-test implementation
+  - \`docs\`: documentation-only leftovers
+  - \`other\`: anything that is not cleanly feature/tests/docs
+  - Never mark unfinished feature behavior as \`tests\`
 - \`human_actions\`: use when the operator must run commands, approve access, or make a product decision the headless agent cannot. Prefer this over spinning on \`dn loop\` when there is no single project test/build command, credentials are missing, or the plan needs human judgment.
 - Prefer \`recommendation: "land"\` when remaining unchecked items are intentionally deferrable and the delivered scope is already shippable.
 - Prefer \`recommendation: "edit_plan"\` when the checklist itself is wrong or overscoped.
 - Prefer \`recommendation: "rerun_loop"\` only when another agent pass can finish the remaining work without new human input.
 - Prefer \`recommendation: "blocked"\` for hard blockers (missing codebase, impossible environment).
+- When every unfinished task is \`work_kind: "tests"\` and another agent pass can finish them, use \`status: "incomplete"\` and \`recommendation: "rerun_loop"\` so attended \`dn\` can offer a tests-only continuation.
 
 As a fallback, you may also print the same JSON in a fenced block labeled
 \`dn-implement-result\` in your final response. The file is preferred.

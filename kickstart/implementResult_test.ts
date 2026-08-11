@@ -7,6 +7,7 @@ import {
   clearImplementResult,
   extractImplementResultFromStdout,
   IMPLEMENT_RESULT_RELATIVE_PATH,
+  onlyTestsRemaining,
   parseImplementPhaseResult,
 } from "./implementResult.ts";
 
@@ -76,6 +77,98 @@ Implementation notes...
     "Add pairing parser tests",
   );
   assertEquals(result?.recommendation, "rerun_loop");
+});
+
+Deno.test("parseImplementPhaseResult accepts work_kind on unfinished tasks", () => {
+  const result = parseImplementPhaseResult({
+    schema_version: "1.0",
+    status: "incomplete",
+    summary: "Feature done; tests remain.",
+    unfinished_tasks: [{
+      description: "Add parser coverage",
+      criterion: "Automated tests cover parsing",
+      reason: "Deferred to a follow-up pass",
+      suggested_action: "rerun_loop",
+      work_kind: "tests",
+    }],
+    human_actions: [],
+    recommendation: "rerun_loop",
+  });
+  assertEquals(result.unfinished_tasks[0]?.work_kind, "tests");
+});
+
+Deno.test("parseImplementPhaseResult rejects invalid work_kind", () => {
+  assertThrows(
+    () =>
+      parseImplementPhaseResult({
+        schema_version: "1.0",
+        status: "incomplete",
+        summary: "x",
+        unfinished_tasks: [{
+          description: "Add tests",
+          work_kind: "qa",
+        }],
+        human_actions: [],
+        recommendation: "rerun_loop",
+      }),
+    TypeError,
+    "work_kind",
+  );
+});
+
+Deno.test("onlyTestsRemaining is true for tests-only rerun_loop leftovers", () => {
+  const result = parseImplementPhaseResult({
+    schema_version: "1.0",
+    status: "incomplete",
+    summary: "Only tests left.",
+    unfinished_tasks: [
+      { description: "Unit tests", work_kind: "tests" },
+      { description: "Integration tests", work_kind: "tests" },
+    ],
+    human_actions: [],
+    recommendation: "rerun_loop",
+  });
+  assertEquals(onlyTestsRemaining(result), true);
+});
+
+Deno.test("onlyTestsRemaining fails closed for mixed or missing work_kind", () => {
+  const mixed = parseImplementPhaseResult({
+    schema_version: "1.0",
+    status: "incomplete",
+    summary: "Mixed leftovers.",
+    unfinished_tasks: [
+      { description: "CLI flag", work_kind: "feature" },
+      { description: "Unit tests", work_kind: "tests" },
+    ],
+    human_actions: [],
+    recommendation: "rerun_loop",
+  });
+  assertEquals(onlyTestsRemaining(mixed), false);
+
+  const missingKind = parseImplementPhaseResult({
+    schema_version: "1.0",
+    status: "incomplete",
+    summary: "Missing kinds.",
+    unfinished_tasks: [{ description: "Add tests" }],
+    human_actions: [],
+    recommendation: "rerun_loop",
+  });
+  assertEquals(onlyTestsRemaining(missingKind), false);
+});
+
+Deno.test("onlyTestsRemaining rejects non-rerun_loop recommendations", () => {
+  const result = parseImplementPhaseResult({
+    schema_version: "1.0",
+    status: "incomplete",
+    summary: "Tests need a human runner.",
+    unfinished_tasks: [{
+      description: "Run void tests",
+      work_kind: "tests",
+    }],
+    human_actions: [],
+    recommendation: "human_action",
+  });
+  assertEquals(onlyTestsRemaining(result), false);
 });
 
 Deno.test("extractImplementResultFromStdout returns null without fence", () => {

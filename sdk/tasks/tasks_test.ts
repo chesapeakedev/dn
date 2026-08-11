@@ -64,8 +64,7 @@ Deno.test("tasks store upserts, lists, and deletes documents", async () => {
 Deno.test("tasks store rejects path traversal ids", async () => {
   await withTempHome(async () => {
     await assertRejects(
-      () =>
-        upsertTask(sampleTask({ id: "../escape" })),
+      () => upsertTask(sampleTask({ id: "../escape" })),
       Error,
       "Invalid task id",
     );
