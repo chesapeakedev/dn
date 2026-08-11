@@ -403,6 +403,8 @@ export function parseLoopArgs(
     sandboxFlag,
     cursorCloud,
     cursorCloudRef,
+    verbosity: "medium",
+    skipPlan: false,
     ...(steeringPrompt !== undefined ? { steeringPrompt } : {}),
   };
 }

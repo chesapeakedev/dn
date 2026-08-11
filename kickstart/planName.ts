@@ -77,7 +77,7 @@ export function resolvePlanName(input: PlanNameResolveInput): string {
 
   if (isUnattended()) {
     if (titleFirst) {
-      console.log(`\n${formatInfo(`Using plan name: ${titleFirst}`)}`);
+      console.log(formatInfo(`Using plan name: ${titleFirst}`));
       return titleFirst;
     }
     throw new Error(
@@ -93,7 +93,7 @@ export function resolvePlanName(input: PlanNameResolveInput): string {
  */
 function promptForPlanName(suggestion?: string): string {
   if (suggestion) {
-    console.log(`\n${formatInfo(`Suggested plan name: ${suggestion}`)}`);
+    console.log(formatInfo(`Suggested plan name: ${suggestion}`));
     const input = prompt(
       `Enter plan name (or press Enter to use suggested): `,
     );

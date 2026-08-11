@@ -24,6 +24,23 @@ Deno.test("kickstart parses an explicit Cursor cloud starting ref", () => {
   );
 });
 
+Deno.test("kickstart parses verbosity and skip-plan options", () => {
+  const config = parseKickstartArgs([
+    "--verbosity",
+    "low",
+    "--skip-plan",
+    "123",
+  ]);
+  assertEquals(config.verbosity, "low");
+  assertEquals(config.skipPlan, true);
+  assertEquals(parseKickstartArgs(["123"]).verbosity, "medium");
+  assertThrows(
+    () => parseKickstartArgs(["--verbosity", "verbose", "123"]),
+    Error,
+    "low, medium, high",
+  );
+});
+
 Deno.test("loop parses an explicit Cursor cloud starting ref", () => {
   const config = parseLoopArgs([
     "--cursor-cloud",

@@ -435,6 +435,8 @@ export async function handleMeld(
       saveCtx: false,
       savedPlanName: planName,
       workspaceRoot,
+      verbosity: "medium",
+      skipPlan: false,
       meldPhase: {
         targetRaw: target,
         overwrite,

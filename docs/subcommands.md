@@ -200,11 +200,28 @@ dn kickstart --awp --denoise-task task.json
 
 # Add supplemental last-minute guidance without changing the issue/context
 dn kickstart --steer "Focus on validation and add regression tests" 123
+
+# Adjust plan prompt succinctness (default: medium)
+dn kickstart --verbosity low 123
+dn kickstart --verbosity medium 123
+dn kickstart --verbosity high 123
+
+# Skip plan generation and run implementation directly
+dn kickstart --skip-plan 123
 ```
 
 `--steer <prompt>` appends supplemental operator guidance as a final, clearly
 labeled context section in both the plan and implement prompts. It does not
 replace the issue or other workflow context.
+
+`--verbosity <low|medium|high>` is a prompt hint for the plan agent. It keeps
+the existing plan structure and acceptance-criteria semantics, changing only the
+requested level of explanation detail. The default is `medium`.
+
+`dn kickstart --skip-plan <target>` skips plan-agent generation and proceeds
+through the same implementation, completion, sandbox, publishing, and queue
+paths as the normal kickstart workflow. For a local non-publishing run, it is
+the kickstart equivalent of `dn loop <target>`.
 
 ### Cross-Repository Operations
 

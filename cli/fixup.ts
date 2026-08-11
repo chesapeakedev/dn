@@ -98,6 +98,8 @@ function parseArgs(
     saveCtx: false,
     savedPlanName: null,
     workspaceRoot,
+    verbosity: "medium",
+    skipPlan: false,
     prUrl,
   };
 }

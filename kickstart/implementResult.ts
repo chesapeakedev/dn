@@ -300,11 +300,11 @@ export function printImplementResult(
   result: ImplementPhaseResult,
   options: { planRelativePath: string },
 ): void {
-  console.log(`\n📋 Implement result: ${result.status}`);
+  console.log(`📋 Implement result: ${result.status}`);
   console.log(`   ${result.summary}`);
 
   if (result.unfinished_tasks.length > 0) {
-    console.log("\nUnfinished tasks:");
+    console.log("Unfinished tasks:");
     for (const task of result.unfinished_tasks) {
       const criterion = task.criterion ? ` (${task.criterion})` : "";
       console.log(`  - ${task.description}${criterion}`);
@@ -316,7 +316,7 @@ export function printImplementResult(
   }
 
   if (result.human_actions.length > 0) {
-    console.log("\nHuman actions required:");
+    console.log("Human actions required:");
     for (const action of result.human_actions) {
       console.log(`  - ${action.description}`);
       if (action.reason) console.log(`      reason: ${action.reason}`);
@@ -324,7 +324,6 @@ export function printImplementResult(
     }
   }
 
-  console.log("");
   switch (result.recommendation) {
     case "rerun_loop":
       console.log(

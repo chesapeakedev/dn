@@ -84,6 +84,15 @@ type KickstartCliConfig = KickstartConfig & {
   fromQueue?: boolean;
 };
 
+function parseVerbosity(value: string | undefined): "low" | "medium" | "high" {
+  if (value === "low" || value === "medium" || value === "high") return value;
+  throw new Error(
+    `--verbosity requires one of: low, medium, high (received ${
+      value ?? "no value"
+    }).`,
+  );
+}
+
 function classifyInput(input: string): {
   issueUrl: string | null;
   contextMarkdownPath?: string;
@@ -122,6 +131,8 @@ export function parseKickstartArgs(
   let milestoneRunOnce = false;
   let denoiseTaskPath: string | undefined = undefined;
   let steeringPrompt: string | undefined = undefined;
+  let verbosity: "low" | "medium" | "high" = "medium";
+  let skipPlan = false;
 
   const { sandbox: localSandbox, rest: flagArgs } = extractSandboxFlag(args);
   const sandboxFlag = resolveSandboxFlagValue(globalSandbox, localSandbox);
@@ -168,6 +179,10 @@ export function parseKickstartArgs(
         throw new Error("--steer requires a value.");
       }
       steeringPrompt = flagArgs[++i];
+    } else if (arg === "--verbosity") {
+      verbosity = parseVerbosity(flagArgs[++i]);
+    } else if (arg === "--skip-plan") {
+      skipPlan = true;
     } else if (arg === "--help" || arg === "-h") {
       showHelp();
       Deno.exit(0);
@@ -254,6 +269,8 @@ export function parseKickstartArgs(
     cursorCloudRef,
     ...(denoiseTaskPath ? { denoiseTaskPath } : {}),
     ...(steeringPrompt !== undefined ? { steeringPrompt } : {}),
+    verbosity,
+    skipPlan,
   };
 }
 
@@ -284,6 +301,12 @@ function showHelp(): void {
   );
   console.log(
     "  --steer <prompt>         Append supplemental operator guidance to agent prompts",
+  );
+  console.log(
+    "  --verbosity <low|medium|high>  Plan prompt detail level (default: medium)",
+  );
+  console.log(
+    "  --skip-plan              Skip plan generation and run the implementation phase",
   );
   console.log("  --cursor, -c              Use Cursor headless agent");
   console.log(

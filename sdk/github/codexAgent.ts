@@ -153,16 +153,15 @@ export async function runCodexAgent(
   if (attended) {
     if (exitCode === 0) {
       console.log(
-        `\n✅ ${phase} phase completed in ${formatElapsedTime(elapsed)}`,
+        `✅ ${phase} phase completed in ${formatElapsedTime(elapsed)}`,
       );
     } else {
       console.error(
-        `\n❌ ${phase} phase failed (exit code ${exitCode}) after ${
+        `❌ ${phase} phase failed (exit code ${exitCode}) after ${
           formatElapsedTime(elapsed)
         }`,
       );
     }
-    console.log("");
   } else {
     if (exitCode === 0) {
       console.log(

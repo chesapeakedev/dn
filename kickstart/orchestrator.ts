@@ -187,6 +187,10 @@ export interface OrchestratorConfig {
   savedPlanName: string | null;
   /** Optional final operator instruction appended to agent prompts. */
   steeringPrompt?: string;
+  /** Prompt-level succinctness hint for the plan phase. */
+  verbosity: "low" | "medium" | "high";
+  /** Skip plan generation and proceed directly to implementation. */
+  skipPlan: boolean;
 }
 
 /**
@@ -229,7 +233,7 @@ async function ensurePlansDirectory(workspaceRoot: string): Promise<void> {
  * @returns `true` if user wants to continue, `false` to start new
  */
 function promptContinueOrNewPlan(planPath: string): boolean {
-  console.log(`\n${formatInfo(`Found existing plan at: ${planPath}`)}`);
+  console.log(formatInfo(`Found existing plan at: ${planPath}`));
   if (isUnattended()) {
     console.log(formatInfo("Starting a new plan (unattended default)."));
     return false;
@@ -288,7 +292,7 @@ function resolvePlanFilePath(
 
   if (issueHint) {
     console.log(
-      `\n${formatInfo(`Issue: ${summarizeIssueForDisplay(issueHint)}`)}`,
+      formatInfo(`Issue: ${summarizeIssueForDisplay(issueHint)}`),
     );
   }
 
@@ -509,7 +513,7 @@ async function _mergePlanFiles(
     await Deno.writeTextFile(combinedPromptMergePath, mergePrompt);
 
     // Run opencode merge phase (using implement config for write permissions)
-    console.log(`\n${formatInfo("Merging plan files...")}`);
+    console.log(formatInfo("Merging plan files..."));
     console.log(
       formatInfo(
         `  Original: ${planFilePath.replace(WORKSPACE_ROOT + "/", "")}`,
@@ -532,7 +536,7 @@ async function _mergePlanFiles(
     );
 
     if (mergeResult.code !== 0) {
-      console.warn(`\n${formatWarning("Merge phase failed (non-blocking):")}`);
+      console.warn(formatWarning("Merge phase failed (non-blocking):"));
       console.warn(mergeResult.stderr || "(empty)");
       return false;
     }
@@ -747,7 +751,11 @@ export async function runOrchestrator(
     // Step 2.6: Decide whether to skip the plan agent
     let existingPlanContent: string | null = null;
     let continueExistingPlan = false;
-    let skipPlanReason: "existing_plan" | "issue_adequate" | null = null;
+    let skipPlanReason:
+      | "existing_plan"
+      | "issue_adequate"
+      | "explicit_skip"
+      | null = null;
     let existingPlanCompletion: PlanCompletionStatus | null = null;
 
     const existingPlan = await readExistingPlan(planFilePath);
@@ -767,7 +775,13 @@ export async function runOrchestrator(
         publishesChanges,
     });
     existingPlanCompletion = planDecision.existingPlanCompletion;
-    if (planDecision.reason !== "plan_required") {
+    if (config.skipPlan) {
+      skipPlanReason = "explicit_skip";
+      existingPlanContent = existingPlan ??
+        (issueContextPathFinal
+          ? await Deno.readTextFile(issueContextPathFinal).catch(() => "")
+          : "");
+    } else if (planDecision.reason !== "plan_required") {
       skipPlanReason = planDecision.reason;
       existingPlanContent = planDecision.planContent;
       if (planDecision.reason === "issue_adequate") {
@@ -795,14 +809,18 @@ export async function runOrchestrator(
           3,
           skipPlanReason === "existing_plan"
             ? "Skipping plan phase (reusing existing plan file)..."
-            : "Skipping plan phase (issue adequate)...",
+            : skipPlanReason === "issue_adequate"
+            ? "Skipping plan phase (issue adequate)..."
+            : "Skipping plan phase (--skip-plan)...",
         ),
       );
       console.log(
         formatInfo(
           skipPlanReason === "existing_plan"
             ? `[dn] Skipping plan phase (existing plan at ${planFilePath})`
-            : "[dn] Skipping plan phase (issue adequate)",
+            : skipPlanReason === "issue_adequate"
+            ? "[dn] Skipping plan phase (issue adequate)"
+            : "[dn] Skipping plan phase (--skip-plan)",
         ),
       );
       await Deno.writeTextFile(
@@ -810,7 +828,9 @@ export async function runOrchestrator(
         existingPlanContent ??
           (await Deno.readTextFile(planFilePath).catch(() => "")),
       );
-      await checkPlanFile(planFilePath);
+      if (skipPlanReason !== "explicit_skip") {
+        await checkPlanFile(planFilePath);
+      }
       await report("phase.completed", "Plan phase skipped", {
         phase: "plan",
         step: 3,
@@ -841,6 +861,9 @@ export async function runOrchestrator(
         // Inject plan file path into the prompt
         const planPathInstruction =
           `\n\n## Plan File Path\n\n**IMPORTANT**: You must write the plan file to this exact path:\n\n\`${planFilePath}\`\n\nThis is the ONLY file you are allowed to create or modify.\n`;
+
+        promptContent +=
+          `\n\n## Plan Verbosity\n\nUse **${config.verbosity}** verbosity: keep the required plan structure and acceptance-criteria semantics, while adjusting explanation detail. This is a prompt hint only; do not remove required sections.\n`;
 
         // Insert the plan path instruction before the "The issue context will be provided below" line
         if (
@@ -1049,7 +1072,7 @@ export async function runOrchestrator(
 
     if (blockingError) {
       console.error(
-        `\n${formatError("Blocking error detected in implement phase output")}`,
+        formatError("Blocking error detected in implement phase output"),
       );
       console.error(
         "\nThe agent reported a blocking error that prevents implementation:",
@@ -1076,7 +1099,7 @@ export async function runOrchestrator(
 
     // Step 4.5: Check completion status and handle continuation
     await report("step.started", "Checking completion status", { step: 4.5 });
-    console.log(`\n${formatStep(4.5, "Checking completion status...")}`);
+    console.log(formatStep(4.5, "Checking completion status..."));
     const finalPlanFilePath = planFilePath;
     const planRelativePath = planFilePath.replace(WORKSPACE_ROOT + "/", "");
 
@@ -1214,12 +1237,10 @@ export async function runOrchestrator(
     });
     if (isUnattended()) {
       console.log(
-        `\n${
-          formatStep(
-            5,
-            "Skipping lint step (unattended; implement phase already runs checks)...",
-          )
-        }`,
+        formatStep(
+          5,
+          "Skipping lint step (unattended; implement phase already runs checks)...",
+        ),
       );
       await report("lint.completed", "Lint phase skipped", {
         phase: "lint",
@@ -1234,7 +1255,7 @@ export async function runOrchestrator(
       await report("step.completed", "Lint step completed", { step: 5 });
     } else {
       console.log(
-        `\n${formatStep(5, "Running linting to improve code quality...")}`,
+        formatStep(5, "Running linting to improve code quality..."),
       );
       try {
         if (isSandboxActive()) {
@@ -1332,7 +1353,7 @@ export async function runOrchestrator(
 
     // Step 6: Generate artifacts
     await report("step.started", "Generating workspace artifacts", { step: 6 });
-    console.log(`\n${formatStep(6, "Generating workspace artifacts...")}`);
+    console.log(formatStep(6, "Generating workspace artifacts..."));
     try {
       // Create Cursor rule if enabled
       if (config.agentHarness === "cursor") {
@@ -1356,7 +1377,7 @@ export async function runOrchestrator(
 
     // Step 7: Validate changes
     await report("step.started", "Validating changes", { step: 7 });
-    console.log(`\n${formatStep(7, "Validating changes...")}`);
+    console.log(formatStep(7, "Validating changes..."));
 
     // In non-AWP mode, detect VCS lazily only when needed (to show changes)
     // In AWP mode, vcsType is already set from prepareVcsStateInteractive
@@ -1420,7 +1441,7 @@ export async function runOrchestrator(
         phase: "publish",
         step: 8,
       });
-      console.log(`\n${formatStep(8, "Committing and pushing changes...")}`);
+      console.log(formatStep(8, "Committing and pushing changes..."));
       if (!issueData || !gitContext) {
         throw new Error("Issue data and git context required for commit");
       }
@@ -1436,7 +1457,7 @@ export async function runOrchestrator(
       if (publish === "pr") {
         // Step 9: Create PR
         await report("step.started", "Creating pull request", { step: 9 });
-        console.log(`\n${formatStep(9, "Creating PR...")}`);
+        console.log(formatStep(9, "Creating PR..."));
 
         // Convert PlanSummary to PRPlanSummary for createPR (if available)
         let prPlanSummary: PRPlanSummary | undefined;
@@ -1491,7 +1512,7 @@ export async function runOrchestrator(
       });
       await report("step.completed", "Published changes", { step: 8 });
     } else {
-      console.log(`\n${formatSuccess("Changes applied to workspace.")}`);
+      console.log(formatSuccess("Changes applied to workspace."));
       console.log(
         formatInfo(
           "Review the changes, then run `dn land` to create commits.",

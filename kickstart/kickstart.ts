@@ -176,6 +176,8 @@ async function main() {
     issueUrl,
     saveCtx,
     savedPlanName,
+    verbosity: "medium",
+    skipPlan: false,
   };
 
   try {

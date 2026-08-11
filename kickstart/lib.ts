@@ -363,6 +363,10 @@ export interface KickstartConfig {
   milestone?: string;
   /** Optional final operator instruction appended to agent prompts. */
   steeringPrompt?: string;
+  /** Prompt-level succinctness hint for the plan phase. */
+  verbosity: "low" | "medium" | "high";
+  /** Skip plan generation and proceed directly to implementation. */
+  skipPlan: boolean;
   /** Optional flags when invoked from {@link dn meld} only */
   meldPhase?: MeldPhaseCliOptions;
 }
@@ -516,7 +520,7 @@ function resolvePlanFilePath(
 
   if (issueHint) {
     console.log(
-      `\n${formatInfo(`Issue: ${summarizeIssueForDisplay(issueHint)}`)}`,
+      formatInfo(`Issue: ${summarizeIssueForDisplay(issueHint)}`),
     );
   }
 
@@ -549,7 +553,7 @@ async function readExistingPlan(planPath: string): Promise<string | null> {
  * Unattended runs default to starting a new plan (same as attended Enter).
  */
 function promptContinueOrNewPlan(planPath: string): boolean {
-  console.log(`\n${formatInfo(`Found existing plan at: ${planPath}`)}`);
+  console.log(formatInfo(`Found existing plan at: ${planPath}`));
   if (isUnattended()) {
     console.log(formatInfo("Starting a new plan (unattended default)."));
     return false;
@@ -1354,7 +1358,7 @@ export async function runLoopPhase(
 
     if (blockingError) {
       console.error(
-        `\n${formatError("Blocking error detected in implement phase output")}`,
+        formatError("Blocking error detected in implement phase output"),
       );
       console.error(
         "\nThe agent reported a blocking error that prevents implementation:",
@@ -1383,7 +1387,7 @@ export async function runLoopPhase(
     });
 
     // Step 4.5: Check completion status
-    console.log(`\n${formatStep(4.5, "Checking completion status...")}`);
+    console.log(formatStep(4.5, "Checking completion status..."));
     const completionStatus = await checkAcceptanceCriteriaCompletion(
       planFilePath,
     );
@@ -1484,7 +1488,7 @@ export async function runLoopPhase(
 
     // Step 5: Run linting (non-blocking)
     console.log(
-      `\n${formatStep(5, "Running linting to improve code quality...")}`,
+      formatStep(5, "Running linting to improve code quality..."),
     );
     try {
       if (isSandboxActive()) {
@@ -1576,7 +1580,7 @@ export async function runLoopPhase(
     });
 
     // Step 6: Generate artifacts
-    console.log(`\n${formatStep(6, "Generating workspace artifacts...")}`);
+    console.log(formatStep(6, "Generating workspace artifacts..."));
     try {
       if (config.agentHarness === "cursor") {
         await createCursorRule(workspaceRoot);
@@ -1594,7 +1598,7 @@ export async function runLoopPhase(
     }
 
     // Step 7: Validate changes
-    console.log(`\n${formatStep(7, "Validating changes...")}`);
+    console.log(formatStep(7, "Validating changes..."));
 
     const vcsContext = await detectVcs();
     const vcsType = vcsContext?.vcs || null;
@@ -1750,6 +1754,8 @@ export async function runFullKickstart(
     saveCtx: config.saveCtx,
     savedPlanName: config.savedPlanName,
     steeringPrompt: config.steeringPrompt,
+    verbosity: config.verbosity,
+    skipPlan: config.skipPlan,
   };
 
   // Set workspace root via environment if provided
