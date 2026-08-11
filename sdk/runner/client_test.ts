@@ -21,6 +21,12 @@ Deno.test("RunnerApiClient sends runner credentials only to authenticated endpoi
     if (request.url.endsWith("/api/runners/pairings/pairing-1/status")) {
       return Promise.resolve(Response.json({ state: "pending" }));
     }
+    if (request.url.endsWith("/api/runners/heartbeat")) {
+      return Promise.resolve(Response.json({
+        pending_task_ops: [],
+        list_tasks_requested: false,
+      }));
+    }
     return Promise.resolve(new Response(null, { status: 204 }));
   };
   const client = new RunnerApiClient({
@@ -35,7 +41,7 @@ Deno.test("RunnerApiClient sends runner credentials only to authenticated endpoi
     dn_version: "0.0.33",
     protocol_version: RUNNER_PROTOCOL_VERSION,
     capabilities: {
-      operations: ["kickstart", "denoise-task"],
+      operations: ["kickstart", "denoise-task", "task-sync"],
       harnesses: ["codex"],
       docker: true,
     },
@@ -46,14 +52,18 @@ Deno.test("RunnerApiClient sends runner credentials only to authenticated endpoi
     protocol_version: RUNNER_PROTOCOL_VERSION,
     dn_version: "0.0.33",
     capabilities: {
-      operations: ["kickstart", "denoise-task"],
+      operations: ["kickstart", "denoise-task", "task-sync"],
       harnesses: ["codex"],
       docker: true,
     },
     repositories: [{ repository: "chesapeakedev/dn", ready: true }],
     state: "ready",
   };
-  await client.heartbeat(heartbeat);
+  const heartbeatResponse = await client.heartbeat(heartbeat);
+  assertEquals(heartbeatResponse, {
+    pending_task_ops: [],
+    list_tasks_requested: false,
+  });
   assertEquals(requests[0].headers.has("Authorization"), false);
   assertEquals(requests[1].url.includes("poll-secret"), false);
   assertEquals(await requests[1].clone().json(), {

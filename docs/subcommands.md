@@ -295,10 +295,26 @@ The CLI returns to the shell when any of the following are true:
 - `--complete` finished the last unchecked stack item
 - A run fails (orchestrator error) — the process exits immediately
 
+## `dn task` — Local Denoise task documents
+
+Manages ticketless `DenoiseTaskDocument` JSON files at `~/.dn/tasks/`. Used by
+Void local sync and `dn kickstart --denoise-task`. **Distinct from** `dn todo`
+(`~/.dn/todo.md`), which queues GitHub issues and plan paths.
+
+```bash
+dn task list
+dn task list --json
+dn task show <id>
+dn task upsert --file task.json
+dn task upsert --stdin < task.json
+dn task delete <id>
+```
+
 ## `dn todo` — Prioritized task list
 
 Manages the user-level list at `~/.dn/todo.md` (issues and plan paths,
-optionally scored).
+optionally scored). This is the default no-arg `dn kickstart` queue — not the
+Void document store.
 
 ```bash
 # Mark first unchecked item done (and close GitHub issue if applicable)

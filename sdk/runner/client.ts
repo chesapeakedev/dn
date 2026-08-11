@@ -6,6 +6,7 @@ import type {
   RunnerCredentialRotation,
   RunnerDenoiseTaskRequest,
   RunnerHeartbeat,
+  RunnerHeartbeatResponse,
   RunnerJob,
   RunnerJobCompletion,
   RunnerJobFailure,
@@ -169,8 +170,8 @@ export class RunnerApiClient {
     );
   }
 
-  /** Reports runner and repository readiness. */
-  heartbeat(heartbeat: RunnerHeartbeat): Promise<void> {
+  /** Reports runner and repository readiness; returns pending task-sync work. */
+  heartbeat(heartbeat: RunnerHeartbeat): Promise<RunnerHeartbeatResponse> {
     return this.#request("POST", "/api/runners/heartbeat", heartbeat);
   }
 

@@ -7,6 +7,7 @@ import type { LocalRunnerConfig } from "./config.ts";
 import { loadRunnerConfig } from "./config.ts";
 import type {
   RunnerHeartbeat,
+  RunnerHeartbeatResponse,
   RunnerJob,
   RunnerJobCompletion,
   RunnerJobFailure,
@@ -18,6 +19,7 @@ import {
   RUNNER_PROTOCOL_VERSION,
   validateRunnerJob,
 } from "./types.ts";
+import { applyTaskSyncOp, listTasks } from "../tasks/tasks.ts";
 
 const DEFAULT_LEASE_RENEWAL_MS = 15_000;
 const DEFAULT_CANCELLATION_GRACE_MS = 10_000;
@@ -37,8 +39,8 @@ export type RunnerJobRunResult =
 
 /** Minimal API surface required by the local runner loop. */
 export interface RunnerWorkerClient {
-  /** Reports current device readiness. */
-  heartbeat(heartbeat: RunnerHeartbeat): Promise<void>;
+  /** Reports current device readiness and receives pending task-sync work. */
+  heartbeat(heartbeat: RunnerHeartbeat): Promise<RunnerHeartbeatResponse>;
   /** Atomically claims at most one job after an optional long poll. */
   claimJob(
     waitSeconds?: number,
@@ -560,6 +562,8 @@ export async function serveRunner(
   };
   const capabilities = await detectRunnerCapabilities();
   let announcedReady = false;
+  let pendingAcks: string[] = [];
+  let pendingTaskList: RunnerHeartbeat["task_list"] | undefined;
   do {
     if (options.signal?.aborted) return;
     const config = await loadRunnerConfig();
@@ -570,8 +574,40 @@ export async function serveRunner(
       capabilities,
       repositories,
       state: config.paused ? "paused" : "ready",
+      ...(pendingAcks.length > 0 ? { task_sync_acks: pendingAcks } : {}),
+      ...(pendingTaskList ? { task_list: pendingTaskList } : {}),
     };
-    await options.client.heartbeat(heartbeat);
+    const heartbeatResponse = await options.client.heartbeat(heartbeat);
+    pendingAcks = [];
+    pendingTaskList = undefined;
+
+    const pendingOps = heartbeatResponse?.pending_task_ops ?? [];
+    if (pendingOps.length > 0) {
+      for (const envelope of pendingOps) {
+        try {
+          await applyTaskSyncOp({
+            op: envelope.op,
+            task_id: envelope.task_id,
+            task_document: envelope.task_document,
+          });
+          pendingAcks.push(envelope.id);
+        } catch (error) {
+          status(
+            `Task sync ${envelope.id} failed: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        }
+      }
+      if (pendingAcks.length > 0) {
+        status(`Applied ${pendingAcks.length} local task sync op(s)`);
+      }
+    }
+    if (heartbeatResponse?.list_tasks_requested) {
+      pendingTaskList = await listTasks();
+      status(`Prepared local task list (${pendingTaskList.length})`);
+    }
+
     if (config.paused) {
       announcedReady = false;
       status("Runner paused; not claiming jobs");
@@ -590,7 +626,14 @@ export async function serveRunner(
       status(
         `Claimed job ${job.id} (${job.operation.type}) for ${job.repository}`,
       );
-      await options.client.heartbeat({ ...heartbeat, state: "busy" });
+      await options.client.heartbeat({
+        ...heartbeat,
+        state: "busy",
+        ...(pendingAcks.length > 0 ? { task_sync_acks: pendingAcks } : {}),
+        ...(pendingTaskList ? { task_list: pendingTaskList } : {}),
+      });
+      pendingAcks = [];
+      pendingTaskList = undefined;
       let outcome: RunnerJobRunResult;
       try {
         outcome = await runRunnerJob(job, {

@@ -5,6 +5,7 @@ import { assert, assertEquals } from "@std/assert";
 import type {
   DenoiseTaskDocument,
   RunnerHeartbeat,
+  RunnerHeartbeatResponse,
   RunnerJob,
   RunnerJobCompletion,
   RunnerJobFailure,
@@ -58,8 +59,11 @@ class RecordingClient implements RunnerWorkerClient {
   failure: RunnerJobFailure | null = null;
   cancelOnRenewal = false;
 
-  heartbeat(_heartbeat: RunnerHeartbeat): Promise<void> {
-    return Promise.resolve();
+  heartbeat(_heartbeat: RunnerHeartbeat): Promise<RunnerHeartbeatResponse> {
+    return Promise.resolve({
+      pending_task_ops: [],
+      list_tasks_requested: false,
+    });
   }
   claimJob(): Promise<{ job: RunnerJob | null }> {
     return Promise.resolve({ job: null });

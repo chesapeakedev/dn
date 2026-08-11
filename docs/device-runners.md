@@ -5,8 +5,42 @@ checkout. The runner uses the machine's installed agent, existing logins, Docker
 daemon, and compute. Source code, local checkout paths, GitHub credentials, and
 agent credentials stay on the device.
 
-Device runners are owner-only in protocol v1. They accept kickstart jobs and
-denoise-task jobs, not arbitrary commands or GitHub Actions workflows.
+Device runners are owner-only in protocol v1. They accept kickstart jobs,
+denoise-task jobs, and **task-sync** (Void ↔ `~/.dn/tasks/` relay), not
+arbitrary commands or GitHub Actions workflows.
+
+## Local task sync (Void free plan)
+
+Denoise does not store free-plan task bodies long-term. When The Void creates or
+edits a ticketless task, denoise relays a short-lived envelope to the paired
+runner. `dn runner serve` writes `DenoiseTaskDocument` JSON under
+`~/.dn/tasks/<id>.json` on the laptop. Listing tasks from the browser long-polls
+until the runner attaches a snapshot on the next heartbeat.
+
+This is **not** `dn todo` / `~/.dn/todo.md`. Todo remains the GitHub-issue and
+plan-path kickstart queue (`dn tidy`, `dn peek`, `dn todo done`). Local tasks
+are portable documents for ticketless Void work and `denoise-task` kickstart.
+
+```bash
+# Inspect device-local tasks (no network)
+dn task list
+dn task show <id> --json
+dn task upsert --file task.json
+dn task delete <id>
+
+# Run kickstart from a local document
+dn kickstart --denoise-task ~/.dn/tasks/<id>.json --publish none
+```
+
+Owner session APIs (cookie auth):
+
+```bash
+POST /api/runners/tasks   # { runner_id, op: "upsert"|"delete", task_document?|task_id }
+GET  /api/runners/tasks?runner_id=<id>   # long-poll device snapshot
+```
+
+Heartbeat responses include `pending_task_ops` and `list_tasks_requested`. The
+runner ACKs applied envelopes with `task_sync_acks` and may attach `task_list`.
 
 ## Before you connect
 
@@ -114,6 +148,9 @@ Local runner state lives under `~/.dn/runner/`:
 - `credential.json` contains the expiring runner credential.
 - `config.json` maps repository slugs to local checkout paths.
 - `runner.log` and `runner.error.log` contain launchd service output on macOS.
+
+Local Void task documents (task-sync) live under `~/.dn/tasks/<id>.json`,
+separate from the GitHub/plan queue at `~/.dn/todo.md`.
 
 The directory uses mode `0700`; credential and configuration files use mode
 `0600`.

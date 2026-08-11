@@ -374,19 +374,40 @@ when present. Forwarded progress events include `task_id` (= document `id`).
 `--sandbox none` avoids failing against repo `exe.dev` config, which requires a
 GitHub issue and PR publishing.
 
-Queue a denoise-task job via the runner API:
+Queue a denoise-task job via the runner kickstart API (owner session or device
+credential). Void and the browser use this path; there is no separate
+`/api/runners/denoise-task` route required:
 
 ```bash
-POST /api/runners/denoise-task
+POST /api/runners/kickstart
 {
   "runner_id": "<id>",
-  "task_document": { ... },
-  "publish": "none"
+  "repository": "owner/repo",
+  "operation": {
+    "type": "denoise-task",
+    "task_document": { ... },
+    "publish": "none",
+    "agent": "codex"
+  }
 }
 ```
 
 Returns the same `RunnerKickstartResponse` shape (invocation_id, job_id, state,
 expires_at).
+
+### Local task sync (task-sync capability)
+
+Free Void tasks stay on the paired laptop. Denoise only relays short-lived
+pending envelopes (TTL ~24h, capped backlog) and optional list snapshots:
+
+| Direction | Mechanism |
+|-----------|-----------|
+| Void → device | `POST /api/runners/tasks` upsert/delete → pending KV → heartbeat `pending_task_ops` → `~/.dn/tasks/<id>.json` |
+| Device → Void | `GET /api/runners/tasks?runner_id=` sets a list request; runner returns `task_list` on heartbeat |
+| Execute | Existing `denoise-task` kickstart job (above) |
+
+Do not confuse with `~/.dn/todo.md` (GitHub/plan queue). See
+[device-runners.md](./device-runners.md#local-task-sync-void-free-plan).
 
 ## Stack JSON Contract
 

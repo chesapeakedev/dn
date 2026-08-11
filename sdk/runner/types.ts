@@ -1,8 +1,28 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
-import type { AgentHarness } from "../github/agentHarness.ts";
-import type { PublishMode } from "../github/publish.ts";
+/**
+ * Agent harness identifiers accepted on the runner wire.
+ * Keep in sync with {@link AgentHarness} in `sdk/github/agentHarness.ts`.
+ */
+export type RunnerWireAgentHarness =
+  | "opencode"
+  | "cursor"
+  | "claude"
+  | "codex"
+  | "copilot";
+
+/**
+ * Publish modes accepted on the runner wire.
+ * Keep in sync with {@link PublishMode} in `sdk/github/publish.ts`.
+ */
+export type RunnerWirePublishMode = "none" | "pr" | "direct";
+
+/** @deprecated Prefer {@link RunnerWireAgentHarness}; alias for local dn imports. */
+export type AgentHarness = RunnerWireAgentHarness;
+
+/** @deprecated Prefer {@link RunnerWirePublishMode}; alias for local dn imports. */
+export type PublishMode = RunnerWirePublishMode;
 
 /** Current version of the Denoise device-runner protocol. */
 export const RUNNER_PROTOCOL_VERSION = "1.0" as const;
@@ -47,10 +67,19 @@ export interface RunnerRepositoryReadiness {
   reason?: string;
 }
 
+/** Typed capability tokens advertised by a device runner. */
+export type RunnerCapabilityOperation =
+  | "kickstart"
+  | "denoise-task"
+  | "task-sync";
+
 /** Capabilities detected on a developer device. */
 export interface RunnerCapabilities {
-  /** Typed operations accepted by this protocol version. */
-  operations: readonly ["kickstart", "denoise-task"];
+  /**
+   * Typed operations accepted by this protocol version.
+   * `task-sync` enables Void ↔ ~/.dn/tasks/ relay via heartbeat.
+   */
+  operations: readonly RunnerCapabilityOperation[];
   /** Agent harnesses found on the device. */
   harnesses: AgentHarness[];
   /** Whether the local Docker daemon is available. */
@@ -326,6 +355,20 @@ export interface RunnerJobFailure {
   exit_code?: number;
 }
 
+/** One pending task CRUD envelope relayed Void → denoise → device. */
+export interface RunnerTaskSyncOp {
+  /** Opaque envelope id; ACK this after applying locally. */
+  id: string;
+  /** Mutation kind. */
+  op: "upsert" | "delete";
+  /** Stable Denoise task id. */
+  task_id: string;
+  /** Required for upsert; omitted for delete. */
+  task_document?: DenoiseTaskDocument;
+  /** ISO-8601 enqueue time on denoise. */
+  created_at: string;
+}
+
 /** Heartbeat body sent by the outbound-only runner loop. */
 export interface RunnerHeartbeat {
   /** Protocol version spoken by the device. */
@@ -338,6 +381,49 @@ export interface RunnerHeartbeat {
   repositories: RunnerRepositoryReadiness[];
   /** Current local availability. */
   state: "ready" | "busy" | "paused";
+  /** Envelope ids successfully applied since the previous heartbeat. */
+  task_sync_acks?: string[];
+  /**
+   * Local task snapshot when fulfilling an owner list request
+   * (`list_tasks_requested` on the previous heartbeat response).
+   */
+  task_list?: DenoiseTaskDocument[];
+}
+
+/** Server response body for runner heartbeats (task-sync channel). */
+export interface RunnerHeartbeatResponse {
+  /** Pending CRUD envelopes for ~/.dn/tasks/ (empty when none). */
+  pending_task_ops: RunnerTaskSyncOp[];
+  /** When true, include `task_list` on the next heartbeat. */
+  list_tasks_requested: boolean;
+}
+
+/** Owner session request to push or delete a local task on a paired runner. */
+export interface RunnerOwnerTaskMutationRequest {
+  /** Opaque paired runner id. */
+  runner_id: string;
+  /** Mutation kind. */
+  op: "upsert" | "delete";
+  /** Required for delete; also validated against document.id on upsert. */
+  task_id?: string;
+  /** Required for upsert. */
+  task_document?: DenoiseTaskDocument;
+}
+
+/** Owner session response after enqueueing a task mutation. */
+export interface RunnerOwnerTaskMutationResponse {
+  /** Pending envelope id. */
+  envelope_id: string;
+  /** ISO-8601 expiration of the pending envelope. */
+  expires_at: string;
+}
+
+/** Owner session response for a device task list pull. */
+export interface RunnerOwnerTaskListResponse {
+  /** Tasks reported by the paired device. */
+  tasks: DenoiseTaskDocument[];
+  /** ISO-8601 time the device snapshot was received. */
+  synced_at: string;
 }
 
 /** Response returned when renewing a claimed job lease. */
