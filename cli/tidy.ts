@@ -22,11 +22,9 @@ import {
   type TodoItem,
   writeTodoList,
 } from "../sdk/todo/todo.ts";
-import {
-  parseAgentHarnessFlagsFromArgs,
-  resolveAgentHarnessFromFlagsAndEnv,
-} from "../sdk/github/agentHarness.ts";
+import { parseAgentHarnessFlagsFromArgs } from "../sdk/github/agentHarness.ts";
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
+import { resolveLocalAgentHarness } from "../sdk/config/localAgent.ts";
 
 function promptYesNo(message: string): boolean {
   const answer = prompt(message + " (y/n): ")?.trim().toLowerCase();
@@ -96,7 +94,8 @@ export async function handleTidy(
     // no plans dir
   }
 
-  const agentHarness = resolveAgentHarnessFromFlagsAndEnv({
+  const agentHarness = await resolveLocalAgentHarness({
+    repoRoot: workspaceRoot,
     agent: globalAgent,
     ...parseAgentHarnessFlagsFromArgs(args),
   });

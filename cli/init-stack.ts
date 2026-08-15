@@ -8,11 +8,9 @@ import {
   type Milestone,
 } from "../sdk/github/milestone.ts";
 import { runScoring } from "../kickstart/score.ts";
-import {
-  parseAgentHarnessFlagsFromArgs,
-  resolveAgentHarnessFromFlagsAndEnv,
-} from "../sdk/github/agentHarness.ts";
+import { parseAgentHarnessFlagsFromArgs } from "../sdk/github/agentHarness.ts";
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
+import { resolveLocalAgentHarness } from "../sdk/config/localAgent.ts";
 import { stringifyFrontmatter } from "../sdk/todo/frontmatter.ts";
 import {
   getStackArtifactPaths,
@@ -490,7 +488,8 @@ export async function handleInitStack(
     url: i.url,
   }));
 
-  const agentHarness = resolveAgentHarnessFromFlagsAndEnv({
+  const agentHarness = await resolveLocalAgentHarness({
+    repoRoot,
     agent: globalAgent,
     ...parseAgentHarnessFlagsFromArgs(args),
   });

@@ -17,7 +17,7 @@ import {
 } from "../sdk/github/issue.ts";
 import type { IssueData } from "../sdk/github/issue.ts";
 import { promptAndAddToTodoList } from "../sdk/todo/todo.ts";
-import { resolveAgentHarnessFromFlagsAndEnv } from "../sdk/github/agentHarness.ts";
+import { resolveLocalAgentHarness } from "../sdk/config/localAgent.ts";
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
 import {
   denoiseTaskToMarkdown,
@@ -300,11 +300,11 @@ export async function resolveLoopTarget(
 /**
  * Parses loop-specific arguments
  */
-export function parseLoopArgs(
+export async function parseLoopArgs(
   args: string[],
   globalAgent: AgentHarness | null = null,
   globalSandbox: SandboxFlagValue | null = null,
-): LoopCliConfig {
+): Promise<LoopCliConfig> {
   let planFilePath: string | null = null;
   let targetInput: string | null = null;
   let cursorFlag = false;
@@ -369,7 +369,8 @@ export function parseLoopArgs(
 
   const target = classifyLoopTarget(planFilePath ?? targetInput);
 
-  const agentHarness = resolveAgentHarnessFromFlagsAndEnv({
+  const agentHarness = await resolveLocalAgentHarness({
+    repoRoot: workspaceRoot ?? Deno.cwd(),
     agent: globalAgent,
     cursorFlag,
     claudeFlag,
@@ -574,7 +575,7 @@ export async function handleLoop(
 ): Promise<void> {
   let config: LoopCliConfig;
   try {
-    config = parseLoopArgs(args, globalAgent, globalSandbox);
+    config = await parseLoopArgs(args, globalAgent, globalSandbox);
   } catch (e) {
     console.error(e instanceof Error ? e.message : String(e));
     Deno.exit(1);

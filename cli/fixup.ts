@@ -15,12 +15,12 @@ import {
   parsePullRequestUrl,
 } from "../sdk/github/github-gql.ts";
 import type { PRReview, PullRequestData } from "../sdk/github/github-gql.ts";
+import { resolveLocalAgentHarness } from "../sdk/config/localAgent.ts";
+import type { AgentHarness } from "../sdk/github/agentHarness.ts";
 import {
   formatAgentHarnessName,
   getRunAgent,
 } from "../sdk/github/agentHarness.ts";
-import { resolveAgentHarnessFromFlagsAndEnv } from "../sdk/github/agentHarness.ts";
-import type { AgentHarness } from "../sdk/github/agentHarness.ts";
 import { detectVcs } from "../sdk/github/vcs.ts";
 import { assembleCombinedPrompt } from "../sdk/github/prompt.ts";
 import {
@@ -42,10 +42,10 @@ interface FixupConfig extends KickstartConfig {
 /**
  * Parses fixup-specific arguments
  */
-function parseArgs(
+async function parseArgs(
   args: string[],
   globalAgent: AgentHarness | null = null,
-): FixupConfig {
+): Promise<FixupConfig> {
   let prUrl: string | null = null;
   let cursorFlag = false;
   let claudeFlag = false;
@@ -81,7 +81,8 @@ function parseArgs(
     prUrl = Deno.env.get("PR_URL") || null;
   }
 
-  const agentHarness = resolveAgentHarnessFromFlagsAndEnv({
+  const agentHarness = await resolveLocalAgentHarness({
+    repoRoot: workspaceRoot ?? Deno.cwd(),
     agent: globalAgent,
     cursorFlag,
     claudeFlag,
@@ -382,7 +383,7 @@ export async function handleFixup(
 ): Promise<void> {
   let config: FixupConfig;
   try {
-    config = parseArgs(args, globalAgent);
+    config = await parseArgs(args, globalAgent);
   } catch (e) {
     console.error(e instanceof Error ? e.message : String(e));
     Deno.exit(1);

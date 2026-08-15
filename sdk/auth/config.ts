@@ -6,12 +6,19 @@
  */
 
 import type { AgentHarness } from "../github/agentHarness.ts";
+import type { DnUserDefaults, DnUserRepoOverride } from "../config/types.ts";
 
 /**
- * Configuration structure for dn
+ * Configuration structure for dn user preferences.
+ *
+ * Supports the tiered shape (`defaults` + `repos`) while remaining readable by
+ * older helpers that only looked at `repos`.
  */
 export interface DnConfig {
-  repos: Record<string, { agent: AgentHarness }>;
+  /** Personal defaults applied when no per-repo override matches. */
+  defaults?: DnUserDefaults;
+  /** Per-repository overrides keyed by `owner/name`. */
+  repos: Record<string, DnUserRepoOverride>;
 }
 
 /**
@@ -55,7 +62,11 @@ export async function loadConfig(): Promise<DnConfig> {
   const path = getConfigPath();
   try {
     const content = await Deno.readTextFile(path);
-    return JSON.parse(content) as DnConfig;
+    const parsed = JSON.parse(content) as Partial<DnConfig>;
+    return {
+      ...(parsed.defaults ? { defaults: parsed.defaults } : {}),
+      repos: parsed.repos ?? {},
+    };
   } catch {
     return { repos: {} };
   }
@@ -78,7 +89,9 @@ export async function getRepoAgent(
   repo: string,
 ): Promise<AgentHarness | null> {
   const config = await loadConfig();
-  return config.repos[`${owner}/${repo}`]?.agent ?? null;
+  return config.repos[`${owner}/${repo}`]?.agent ??
+    config.defaults?.agent ??
+    null;
 }
 
 /**
@@ -90,6 +103,9 @@ export async function setRepoAgent(
   agent: AgentHarness,
 ): Promise<void> {
   const config = await loadConfig();
-  config.repos[`${owner}/${repo}`] = { agent };
+  config.repos[`${owner}/${repo}`] = {
+    ...(config.repos[`${owner}/${repo}`] ?? {}),
+    agent,
+  };
   await saveConfig(config);
 }

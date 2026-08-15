@@ -58,6 +58,17 @@ Deno.test("resolveAgentHarnessFromFlagsAndEnv uses explicit global agent", () =>
   );
 });
 
+Deno.test("resolveAgentHarnessFromFlagsAndEnv uses fallbackAgent after env", () => {
+  assertEquals(
+    resolveAgentHarnessFromFlagsAndEnv({
+      cursorFlag: false,
+      claudeFlag: false,
+      fallbackAgent: "cursor",
+    }),
+    "cursor",
+  );
+});
+
 Deno.test("resolveAgentHarnessFromFlagsAndEnv rejects conflicting explicit selections", () => {
   assertThrows(
     () =>

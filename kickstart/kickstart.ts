@@ -24,7 +24,7 @@
  */
 
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
-import { resolveAgentHarnessFromFlagsAndEnv } from "../sdk/github/agentHarness.ts";
+import { resolveLocalAgentHarness } from "../sdk/config/localAgent.ts";
 import type { PublishMode } from "../sdk/github/publish.ts";
 import { parsePublishMode } from "../sdk/github/publish.ts";
 import { type OrchestratorConfig, runOrchestrator } from "./orchestrator.ts";
@@ -32,12 +32,12 @@ import { type OrchestratorConfig, runOrchestrator } from "./orchestrator.ts";
 /**
  * Parses command-line arguments to extract flags and issue source.
  */
-function parseArgs(): {
+async function parseArgs(): Promise<{
   publish: PublishMode;
   agentHarness: AgentHarness;
   issueUrl: string | null;
   savedPlanName: string | null;
-} {
+}> {
   const args = Deno.args;
   let publish: PublishMode = "none";
   let cursorFlag = false;
@@ -74,7 +74,8 @@ function parseArgs(): {
     issueUrl = Deno.env.get("ISSUE") || null;
   }
 
-  const agentHarness = resolveAgentHarnessFromFlagsAndEnv({
+  const agentHarness = await resolveLocalAgentHarness({
+    repoRoot: Deno.cwd(),
     cursorFlag,
     claudeFlag,
     codexFlag,
@@ -118,7 +119,7 @@ async function main() {
   let issueUrl: string | null;
   let savedPlanName: string | null;
   try {
-    ({ publish, agentHarness, issueUrl, savedPlanName } = parseArgs());
+    ({ publish, agentHarness, issueUrl, savedPlanName } = await parseArgs());
   } catch (e) {
     console.error(e instanceof Error ? e.message : String(e));
     Deno.exit(1);

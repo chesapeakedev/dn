@@ -36,16 +36,31 @@ dn workflows validate --json
 ## Tiered configuration
 
 `dn` resolves configuration in this order, from lowest to highest precedence:
-built-in defaults, `~/.dn/config.json` (user preferences), repository `dn.json`,
-`DN_AGENT`/`DN_SANDBOX_PROVIDER`, and explicit CLI flags. Objects merge by
-field; arrays replace the lower layer. The legacy `.github/dn/config.json`
-remains supported when `dn.json` is absent and is treated as the repository
-layer.
 
-GitHub Actions resolves only repository configuration. It never reads a
-developer's home directory. The action bridge passes an allowlisted agent and
-sandbox provider; API keys and GitHub tokens remain in repository secrets and
-environment variables and are never written to `dn.json`.
+1. Built-in defaults (`opencode`, sandbox `none`)
+2. User `~/.dn/config.json` — personal `defaults.agent` / `defaults.sandbox` and
+   optional `repos[owner/name]` overrides (never read by GitHub Actions)
+3. Repository `dn.json` (preferred) or legacy `.github/dn/config.json`
+4. Environment: `DN_AGENT`, `DN_SANDBOX_PROVIDER` (and legacy `*_ENABLED` agent
+   toggles)
+5. Explicit CLI flags (`--agent`, `--sandbox`, …)
+
+Objects merge by field; arrays replace the lower layer. Project `dn.json` may
+also declare optional `rfc` and `strict` blocks (schema only until later tickets
+land).
+
+| Location                 | Belongs here                                             | Does not belong         |
+| ------------------------ | -------------------------------------------------------- | ----------------------- |
+| `dn.json` (repo root)    | Team agent/sandbox policy, `rfc`, `strict`               | Secrets, personal prefs |
+| `~/.dn/config.json`      | `defaults` and per-repo agent/sandbox                    | Secrets, CI policy      |
+| `.github/dn/config.json` | Actions bridge projection (`agent` + optional `sandbox`) | User home config        |
+| Env / GH secrets         | API keys, tokens, one-off overrides                      | Committed JSON          |
+
+GitHub Actions resolves only repository configuration (`includeUser: false`). It
+never reads a developer's home directory. `dn init workflows` projects `dn.json`
+into `.github/dn/config.json` when present so existing action readers keep
+working. API keys and GitHub tokens remain in repository secrets and environment
+variables and are never written to `dn.json`.
 
 The templates define stable `repository_dispatch` event contracts for
 `dn.init_stack`, `dn.meld_issue_plan`, and `dn.kickstart_issue`, plus the

@@ -24,10 +24,8 @@ import {
   getCurrentRepoFromRemote,
   listIssues,
 } from "../sdk/github/github-gql.ts";
-import {
-  type AgentHarness,
-  resolveAgentHarnessFromFlagsAndEnv,
-} from "../sdk/github/agentHarness.ts";
+import type { AgentHarness } from "../sdk/github/agentHarness.ts";
+import { resolveLocalAgentHarness } from "../sdk/config/localAgent.ts";
 import { parseMilestoneUrl } from "../sdk/github/milestone.ts";
 import { parseFrontmatter } from "../sdk/todo/frontmatter.ts";
 import {
@@ -107,11 +105,11 @@ function classifyInput(input: string): {
 /**
  * Parses kickstart-specific arguments
  */
-export function parseKickstartArgs(
+export async function parseKickstartArgs(
   args: string[],
   globalAgent: AgentHarness | null = null,
   globalSandbox: SandboxFlagValue | null = null,
-): KickstartCliConfig {
+): Promise<KickstartCliConfig> {
   let input: string | null = null;
   let publish: PublishMode = "none";
   let publishSpecified = false;
@@ -220,7 +218,8 @@ export function parseKickstartArgs(
     ? classifyInput(input)
     : { issueUrl: null as string | null, contextMarkdownPath: undefined };
 
-  const agentHarness = resolveAgentHarnessFromFlagsAndEnv({
+  const agentHarness = await resolveLocalAgentHarness({
+    repoRoot: workspaceRoot ?? Deno.cwd(),
     agent: globalAgent,
     cursorFlag,
     claudeFlag,
@@ -668,7 +667,7 @@ export async function handleKickstart(
 ): Promise<void> {
   let config: KickstartCliConfig;
   try {
-    config = parseKickstartArgs(args, globalAgent, globalSandbox);
+    config = await parseKickstartArgs(args, globalAgent, globalSandbox);
   } catch (e) {
     console.error(e instanceof Error ? e.message : String(e));
     Deno.exit(1);

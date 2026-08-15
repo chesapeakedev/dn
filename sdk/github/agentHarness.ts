@@ -188,6 +188,7 @@ export function parseAgentHarness(value: string): AgentHarness {
  * @param options.codexFlag - True if `--codex` was passed
  * @param options.copilotFlag - True if `--copilot` was passed
  * @param options.opencodeFlag - True if `--opencode` was passed
+ * @param options.fallbackAgent - Config-derived agent used after flags/env
  * @returns Resolved harness (default `opencode`)
  * @throws Error if conflicting flags or env vars are set
  */
@@ -198,6 +199,7 @@ export function resolveAgentHarnessFromFlagsAndEnv(options: {
   codexFlag?: boolean;
   copilotFlag?: boolean;
   opencodeFlag?: boolean;
+  fallbackAgent?: AgentHarness | null;
 }): AgentHarness {
   const flagSelections: AgentHarness[] = [];
   if (options.opencodeFlag) {
@@ -238,6 +240,11 @@ export function resolveAgentHarnessFromFlagsAndEnv(options: {
     return options.agent;
   }
 
+  const dnAgent = Deno.env.get("DN_AGENT");
+  if (dnAgent) {
+    return parseAgentHarness(dnAgent);
+  }
+
   const envSelections: AgentHarness[] = [];
   if (Deno.env.get("OPENCODE_ENABLED") === "1") {
     envSelections.push("opencode");
@@ -265,6 +272,9 @@ export function resolveAgentHarnessFromFlagsAndEnv(options: {
   }
   if (uniqueEnvSelections[0]) {
     return uniqueEnvSelections[0];
+  }
+  if (options.fallbackAgent) {
+    return options.fallbackAgent;
   }
   return "opencode";
 }

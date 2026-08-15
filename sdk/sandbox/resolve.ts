@@ -53,7 +53,7 @@ export async function resolveSandboxConfig(
   repoRoot: string,
   providerOverride?: SandboxProvider | SandboxFlagValue | null,
 ): Promise<{ provider: SandboxProvider; config: DnSandboxConfig }> {
-  const repoConfig = await resolveDnConfig({ repoRoot, includeUser: false });
+  const repoConfig = await resolveDnConfig({ repoRoot });
   const baseSandbox = repoConfig.sandbox ??
     parseDnSandboxConfig(undefined);
   const envProvider = Deno.env.get("DN_SANDBOX_PROVIDER") ?? null;

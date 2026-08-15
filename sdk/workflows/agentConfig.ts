@@ -169,6 +169,23 @@ export async function installWorkflowSupport(
   const configPath = join(repoRoot, DN_CONFIG_REL_PATH);
   const dryRun = options.dryRun === true;
 
+  // Prefer projecting root dn.json into the Actions bridge when no explicit
+  // --agent override was passed.
+  if (options.agent === undefined) {
+    const { writeActionsConfigProjection } = await import(
+      "../config/actions.ts"
+    );
+    const projection = await writeActionsConfigProjection(repoRoot, { dryRun });
+    if (!projection.skipped) {
+      results.push({
+        path: projection.path,
+        written: projection.written,
+        dry_run: dryRun,
+      });
+      return results;
+    }
+  }
+
   let shouldWriteConfig = options.agent !== undefined;
   if (!shouldWriteConfig) {
     try {

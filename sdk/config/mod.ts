@@ -1,8 +1,19 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
-export { toDnActionsConfig } from "./actions.ts";
-export type { DnActionsConfig } from "./actions.ts";
+export {
+  toActionsProjectionDocument,
+  toDnActionsConfig,
+  writeActionsConfigProjection,
+} from "./actions.ts";
+export type {
+  DnActionsConfig,
+  DnActionsProjectionDocument,
+  WriteActionsConfigProjectionOptions,
+  WriteActionsConfigProjectionResult,
+} from "./actions.ts";
+export { resolveLocalAgentHarness } from "./localAgent.ts";
+export type { ResolveLocalAgentHarnessOptions } from "./localAgent.ts";
 export { parseDnConfig } from "./parse.ts";
 export {
   DN_LEGACY_CONFIG_PATH,
@@ -12,7 +23,11 @@ export {
 export type {
   DnConfigLayer,
   DnConfigSource,
+  DnRfcConfig,
   DnRuntimeOverrides,
+  DnStrictConfig,
+  DnUserDefaults,
+  DnUserRepoOverride,
   ResolvedDnConfig,
   ResolveDnConfigOptions,
 } from "./types.ts";

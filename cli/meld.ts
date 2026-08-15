@@ -14,10 +14,8 @@ import {
   runMeldPhase,
 } from "../kickstart/lib.ts";
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
-import {
-  parseAgentHarnessFlagsFromArgs,
-  resolveAgentHarnessFromFlagsAndEnv,
-} from "../sdk/github/agentHarness.ts";
+import { parseAgentHarnessFlagsFromArgs } from "../sdk/github/agentHarness.ts";
+import { resolveLocalAgentHarness } from "../sdk/config/localAgent.ts";
 import { getCurrentRepoFromRemote } from "../sdk/github/github-gql.ts";
 import { resolveIssueUrlInput } from "../sdk/github/issue.ts";
 import {
@@ -163,7 +161,8 @@ async function parseArgs(
     }
   }
 
-  const agentHarness = resolveAgentHarnessFromFlagsAndEnv({
+  const agentHarness = await resolveLocalAgentHarness({
+    repoRoot: Deno.cwd(),
     agent: globalAgent,
     ...parseAgentHarnessFlagsFromArgs(args),
   });

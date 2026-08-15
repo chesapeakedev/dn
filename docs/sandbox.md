@@ -5,9 +5,13 @@ the host (default), in a local Docker container, or on an exe.dev VM.
 
 ## Config (schema 1.1)
 
-Bump `.github/dn/config.json` to `schema_version: "1.1"` and add an optional
-`sandbox` block. Schema `1.0` configs without `sandbox` behave as today (host
-execution).
+Prefer root `dn.json` for team sandbox policy. Legacy `.github/dn/config.json`
+remains supported when `dn.json` is absent; local CLI also merges personal
+defaults from `~/.dn/config.json` (Actions never does).
+
+Bump schema to `1.1` (legacy bridge) or use `dn.json` `schema_version: "2.0"`
+and add an optional `sandbox` block. Schema `1.0` configs without `sandbox`
+behave as today (host execution).
 
 See `templates/workflows/dn-config.sandbox.example.json` for a full example.
 

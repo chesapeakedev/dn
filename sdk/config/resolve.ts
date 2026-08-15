@@ -2,14 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { join } from "@std/path";
+import { $ } from "$dax";
 import { parseDnConfig } from "./parse.ts";
 import {
   parseDnSandboxConfig,
   parseSandboxProvider,
 } from "../sandbox/config.ts";
+import { repositorySlugFromRemote } from "../runner/doctor.ts";
 import type {
   DnConfigLayer,
   DnConfigSource,
+  DnRfcConfig,
+  DnStrictConfig,
   ResolvedDnConfig,
   ResolveDnConfigOptions,
 } from "./types.ts";
@@ -37,9 +41,22 @@ async function readOptional(
   }
 }
 
-function mergeLayer(
+function mergeSandbox(
+  current: ResolvedDnConfig["sandbox"],
+  next: NonNullable<DnConfigLayer["sandbox"]>,
+): NonNullable<ResolvedDnConfig["sandbox"]> {
+  return {
+    ...(current ?? {} as NonNullable<ResolvedDnConfig["sandbox"]>),
+    ...next,
+    sync: { ...(current?.sync), ...next.sync },
+    docker: { ...(current?.docker), ...next.docker },
+    exe_dev: { ...(current?.exe_dev), ...next.exe_dev },
+  };
+}
+
+function mergeAgentSandbox(
   result: ResolvedDnConfig,
-  layer: DnConfigLayer,
+  layer: { agent?: DnConfigLayer["agent"]; sandbox?: DnConfigLayer["sandbox"] },
   source: DnConfigSource,
 ): void {
   if (layer.agent !== undefined) {
@@ -47,15 +64,72 @@ function mergeLayer(
     result.sources.agent = source;
   }
   if (layer.sandbox !== undefined) {
-    result.sandbox = {
-      ...(result.sandbox ?? {} as ResolvedDnConfig["sandbox"]),
-      ...layer.sandbox,
-      sync: { ...(result.sandbox?.sync), ...layer.sandbox.sync },
-      docker: { ...(result.sandbox?.docker), ...layer.sandbox.docker },
-      exe_dev: { ...(result.sandbox?.exe_dev), ...layer.sandbox.exe_dev },
-    };
+    result.sandbox = mergeSandbox(result.sandbox, layer.sandbox);
     result.sources.sandbox = source;
   }
+}
+
+function mergeRfcStrict(
+  result: ResolvedDnConfig,
+  layer: { rfc?: DnRfcConfig; strict?: DnStrictConfig },
+  source: DnConfigSource,
+): void {
+  if (layer.rfc !== undefined) {
+    result.rfc = { ...(result.rfc ?? {}), ...layer.rfc };
+    result.sources.rfc = source;
+  }
+  if (layer.strict !== undefined) {
+    result.strict = { ...(result.strict ?? {}), ...layer.strict };
+    result.sources.strict = source;
+  }
+}
+
+/** Applies a file layer's top-level agent/sandbox/rfc/strict fields. */
+function mergeLayer(
+  result: ResolvedDnConfig,
+  layer: DnConfigLayer,
+  source: DnConfigSource,
+): void {
+  mergeAgentSandbox(result, layer, source);
+  mergeRfcStrict(result, layer, source);
+}
+
+/**
+ * Applies user-config semantics: `defaults` (and legacy top-level agent/sandbox),
+ * then optional `repos[owner/name]` override.
+ */
+function mergeUserLayer(
+  result: ResolvedDnConfig,
+  user: DnConfigLayer,
+  repositorySlug: string | undefined,
+): void {
+  if (user.defaults) {
+    mergeAgentSandbox(result, user.defaults, "user");
+  }
+  // Legacy / flat user shape: top-level agent/sandbox act as defaults.
+  mergeAgentSandbox(result, user, "user");
+  if (repositorySlug && user.repos?.[repositorySlug]) {
+    mergeAgentSandbox(result, user.repos[repositorySlug], "user");
+  }
+  // User files may carry rfc/strict only if present; project layer still wins later.
+  mergeRfcStrict(result, user, "user");
+}
+
+async function detectRepositorySlug(
+  repoRoot: string,
+): Promise<string | undefined> {
+  const commands = [
+    () => $`git -C ${repoRoot} remote get-url origin`.text(),
+    () => $`sl -R ${repoRoot} paths default`.text(),
+  ];
+  for (const readRemote of commands) {
+    try {
+      return repositorySlugFromRemote((await readRemote()).trim());
+    } catch {
+      // try next VCS
+    }
+  }
+  return undefined;
 }
 
 /** Resolves built-in, user, repository, environment, and CLI configuration. */
@@ -68,7 +142,11 @@ export async function resolveDnConfig(
       options.userConfigPath ?? defaultUserConfigPath(),
       "user config",
     );
-    if (user) mergeLayer(result, user, "user");
+    if (user) {
+      const slug = options.repositorySlug ??
+        await detectRepositorySlug(options.repoRoot);
+      mergeUserLayer(result, user, slug);
+    }
   }
   const repository = await readOptional(
     join(options.repoRoot, DN_REPOSITORY_CONFIG_PATH),

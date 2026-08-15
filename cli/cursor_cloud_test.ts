@@ -1,12 +1,12 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
-import { assertEquals, assertThrows } from "@std/assert";
+import { assertEquals, assertRejects } from "@std/assert";
 import { parseKickstartArgs } from "./kickstart.ts";
 import { parseLoopArgs } from "./loop.ts";
 
-Deno.test("kickstart parses an explicit Cursor cloud starting ref", () => {
-  const config = parseKickstartArgs([
+Deno.test("kickstart parses an explicit Cursor cloud starting ref", async () => {
+  const config = await parseKickstartArgs([
     "--cursor-cloud",
     "--ref",
     "feature/cloud-dispatch",
@@ -24,8 +24,8 @@ Deno.test("kickstart parses an explicit Cursor cloud starting ref", () => {
   );
 });
 
-Deno.test("kickstart parses verbosity and skip-plan options", () => {
-  const config = parseKickstartArgs([
+Deno.test("kickstart parses verbosity and skip-plan options", async () => {
+  const config = await parseKickstartArgs([
     "--verbosity",
     "low",
     "--skip-plan",
@@ -33,16 +33,16 @@ Deno.test("kickstart parses verbosity and skip-plan options", () => {
   ]);
   assertEquals(config.verbosity, "low");
   assertEquals(config.skipPlan, true);
-  assertEquals(parseKickstartArgs(["123"]).verbosity, "medium");
-  assertThrows(
+  assertEquals((await parseKickstartArgs(["123"])).verbosity, "medium");
+  await assertRejects(
     () => parseKickstartArgs(["--verbosity", "verbose", "123"]),
     Error,
     "low, medium, high",
   );
 });
 
-Deno.test("loop parses an explicit Cursor cloud starting ref", () => {
-  const config = parseLoopArgs([
+Deno.test("loop parses an explicit Cursor cloud starting ref", async () => {
+  const config = await parseLoopArgs([
     "--cursor-cloud",
     "--ref",
     "release/1.x",
@@ -57,38 +57,42 @@ Deno.test("loop parses an explicit Cursor cloud starting ref", () => {
   });
 });
 
-Deno.test("kickstart and loop preserve steering prompts", () => {
+Deno.test("kickstart and loop preserve steering prompts", async () => {
   const steeringPrompt =
     "Prioritize the parser, then add tests: do not refactor.";
   assertEquals(
-    parseKickstartArgs(["--steer", steeringPrompt, "123"]).steeringPrompt,
-    steeringPrompt,
-  );
-  assertEquals(
-    parseLoopArgs(["--steer", steeringPrompt, "plans/work.plan.md"])
+    (await parseKickstartArgs(["--steer", steeringPrompt, "123"]))
       .steeringPrompt,
     steeringPrompt,
   );
-  assertEquals(parseKickstartArgs(["123"]).steeringPrompt, undefined);
   assertEquals(
-    parseLoopArgs(["plans/work.plan.md"]).steeringPrompt,
+    (await parseLoopArgs(["--steer", steeringPrompt, "plans/work.plan.md"]))
+      .steeringPrompt,
+    steeringPrompt,
+  );
+  assertEquals(
+    (await parseKickstartArgs(["123"])).steeringPrompt,
+    undefined,
+  );
+  assertEquals(
+    (await parseLoopArgs(["plans/work.plan.md"])).steeringPrompt,
     undefined,
   );
 });
 
-Deno.test("Cursor cloud CLI defaults the starting ref to main", () => {
-  const kickstart = parseKickstartArgs(["--cursor-cloud", "task.md"]);
+Deno.test("Cursor cloud CLI defaults the starting ref to main", async () => {
+  const kickstart = await parseKickstartArgs(["--cursor-cloud", "task.md"]);
   assertEquals(kickstart.cursorCloudRef, "main");
   assertEquals(kickstart.publish, "pr");
   assertEquals(
-    parseLoopArgs(["--cursor-cloud", "plan.md"]).cursorCloudRef,
+    (await parseLoopArgs(["--cursor-cloud", "plan.md"])).cursorCloudRef,
     "main",
   );
 });
 
 for (const publish of ["none", "direct"]) {
-  Deno.test(`Cursor cloud rejects explicit ${publish} publishing`, () => {
-    assertThrows(
+  Deno.test(`Cursor cloud rejects explicit ${publish} publishing`, async () => {
+    await assertRejects(
       () =>
         parseKickstartArgs([
           "--cursor-cloud",
@@ -102,8 +106,8 @@ for (const publish of ["none", "direct"]) {
   });
 }
 
-Deno.test("Cursor cloud mode rejects a simultaneous local Cursor agent", () => {
-  assertThrows(
+Deno.test("Cursor cloud mode rejects a simultaneous local Cursor agent", async () => {
+  await assertRejects(
     () =>
       parseKickstartArgs([
         "--cursor-cloud",
@@ -116,24 +120,24 @@ Deno.test("Cursor cloud mode rejects a simultaneous local Cursor agent", () => {
 });
 
 for (const parseArgs of [parseKickstartArgs, parseLoopArgs]) {
-  Deno.test(`${parseArgs.name} rejects a missing --steer value`, () => {
-    assertThrows(
+  Deno.test(`${parseArgs.name} rejects a missing --steer value`, async () => {
+    await assertRejects(
       () => parseArgs(["--steer"]),
       Error,
       "--steer requires",
     );
   });
 
-  Deno.test(`${parseArgs.name} requires cloud mode for --ref`, () => {
-    assertThrows(
+  Deno.test(`${parseArgs.name} requires cloud mode for --ref`, async () => {
+    await assertRejects(
       () => parseArgs(["--ref", "feature/cloud-dispatch", "task.md"]),
       Error,
       "--ref requires --cursor-cloud",
     );
   });
 
-  Deno.test(`${parseArgs.name} rejects a missing --ref value`, () => {
-    assertThrows(
+  Deno.test(`${parseArgs.name} rejects a missing --ref value`, async () => {
+    await assertRejects(
       () => parseArgs(["--cursor-cloud", "--ref"]),
       Error,
       "--ref requires",

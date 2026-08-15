@@ -34,15 +34,26 @@ export {
   DN_REPOSITORY_CONFIG_PATH,
   parseDnConfig,
   resolveDnConfig,
+  resolveLocalAgentHarness,
+  toActionsProjectionDocument,
   toDnActionsConfig,
+  writeActionsConfigProjection,
 } from "./config/mod.ts";
 export type {
   DnActionsConfig,
+  DnActionsProjectionDocument,
   DnConfigLayer,
   DnConfigSource,
+  DnRfcConfig,
   DnRuntimeOverrides,
+  DnStrictConfig,
+  DnUserDefaults,
+  DnUserRepoOverride,
   ResolvedDnConfig,
   ResolveDnConfigOptions,
+  ResolveLocalAgentHarnessOptions,
+  WriteActionsConfigProjectionOptions,
+  WriteActionsConfigProjectionResult,
 } from "./config/mod.ts";
 
 // Session management

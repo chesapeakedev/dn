@@ -9,9 +9,7 @@
  */
 
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
-import {
-  resolveAgentHarnessFromFlagsAndEnv,
-} from "../sdk/github/agentHarness.ts";
+import { resolveLocalAgentHarness } from "../sdk/config/localAgent.ts";
 import {
   discoverPlanFile,
   discoverTestPlanFile,
@@ -30,10 +28,10 @@ interface LandArgs {
   agentHarness: AgentHarness;
 }
 
-function parseArgs(
+async function parseArgs(
   args: string[],
   globalAgent: AgentHarness | null,
-): LandArgs {
+): Promise<LandArgs> {
   let planFilePath: string | undefined;
   let testPlanPath: string | undefined;
   let issueTestPlan = false;
@@ -78,7 +76,8 @@ function parseArgs(
     }
   }
 
-  const agentHarness = resolveAgentHarnessFromFlagsAndEnv({
+  const agentHarness = await resolveLocalAgentHarness({
+    repoRoot: workspaceRoot ?? Deno.cwd(),
     agent: globalAgent,
     cursorFlag,
     claudeFlag,
@@ -173,7 +172,7 @@ export async function handleLand(
 ): Promise<void> {
   let config: LandArgs;
   try {
-    config = parseArgs(args, globalAgent);
+    config = await parseArgs(args, globalAgent);
   } catch (e) {
     console.error(e instanceof Error ? e.message : String(e));
     Deno.exit(1);

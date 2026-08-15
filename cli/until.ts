@@ -5,10 +5,8 @@
 
 import { dirname, resolve } from "@std/path";
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
-import {
-  parseAgentHarnessFlagsFromArgs,
-  resolveAgentHarnessFromFlagsAndEnv,
-} from "../sdk/github/agentHarness.ts";
+import { parseAgentHarnessFlagsFromArgs } from "../sdk/github/agentHarness.ts";
+import { resolveLocalAgentHarness } from "../sdk/config/localAgent.ts";
 import { runAgentPhaseInSandbox } from "../sdk/sandbox/agentPhase.ts";
 import {
   extractSandboxFlag,
@@ -863,7 +861,8 @@ export async function handleUntil(
     console.log(`Valid gambit config with ${parsed.gambits.length} gambit(s).`);
     return;
   }
-  const agent = resolveAgentHarnessFromFlagsAndEnv({
+  const agent = await resolveLocalAgentHarness({
+    repoRoot: workspaceRoot,
     agent: globalAgent,
     ...agentFlags,
   });
