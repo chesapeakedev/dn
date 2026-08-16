@@ -198,6 +198,9 @@ $ dn
 $ dn meld 123
 $ dn meld product.md architecture.md
 
+# Include extra files in agent prompt context
+$ dn --context-file notes.md kickstart 123
+
 # Implement or refine an existing plan
 $ dn loop plans/issue-123.plan.md
 

@@ -12,6 +12,7 @@ import {
   extractSandboxFlag,
   resolveSandboxFlagValue,
 } from "../sdk/sandbox/cli.ts";
+import { extractContextFiles } from "./contextFiles.ts";
 import {
   parseDnSandboxConfig,
   withSandboxProvider,
@@ -828,7 +829,8 @@ export async function handleUntil(
   globalAgent: AgentHarness | null = null,
   globalSandbox: SandboxFlagValue | null = null,
 ): Promise<void> {
-  const { sandbox: localSandbox, rest } = extractSandboxFlag(args);
+  const { rest: argsAfterContext } = extractContextFiles(args);
+  const { sandbox: localSandbox, rest } = extractSandboxFlag(argsAfterContext);
   const [command, configPath, ...options] = rest;
   if (command === "help" || command === "--help" || command === "-h") {
     return showHelp();

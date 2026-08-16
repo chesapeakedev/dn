@@ -36,6 +36,7 @@ import {
 import { resolveSandboxConfig } from "../sdk/sandbox/resolve.ts";
 import { runWithSandboxLifecycle } from "../sdk/sandbox/lifecycle.ts";
 import { promptAndAddToTodoList } from "../sdk/todo/todo.ts";
+import { resolveContextFileArgs } from "./contextFiles.ts";
 
 const ISSUE_NUMBER_PATTERN = /^#?\d+$/;
 
@@ -68,12 +69,14 @@ interface MeldArgs {
   allowCrossRepo: boolean;
   updateIssue: boolean;
   milestone: string | null;
+  contextFiles: string[];
 }
 
 async function parseArgs(
   args: string[],
   globalAgent: AgentHarness | null = null,
   globalSandbox: SandboxFlagValue | null = null,
+  globalContextFiles: readonly string[] = [],
 ): Promise<MeldArgs & { sandboxFlag: SandboxFlagValue | null }> {
   let listPath: string | null = null;
   let outputPath: string | null = null;
@@ -89,7 +92,13 @@ async function parseArgs(
   let issueUrl: string | null = null;
   const positionals: string[] = [];
 
-  const { sandbox: localSandbox, rest: flagArgs } = extractSandboxFlag(args);
+  const { contextFiles, rest: argsAfterContext } = resolveContextFileArgs(
+    args,
+    globalContextFiles,
+  );
+  const { sandbox: localSandbox, rest: flagArgs } = extractSandboxFlag(
+    argsAfterContext,
+  );
   const sandboxFlag = resolveSandboxFlagValue(globalSandbox, localSandbox);
 
   for (let i = 0; i < flagArgs.length; i++) {
@@ -184,6 +193,7 @@ async function parseArgs(
     updateIssue,
     milestone,
     sandboxFlag,
+    contextFiles,
   };
 }
 
@@ -228,6 +238,9 @@ function showHelp(): void {
     "  --yes, -y               Auto-approve prompts in unattended merges",
   );
   console.log("  --allow-cross-repo, -A  Allow mismatched repositories");
+  console.log(
+    "  --context-file <path>   Include a file in agent prompt context (repeatable; also a global flag)",
+  );
   console.log(
     "  --list, -l <path>       Newline-separated sources (POSIX style)",
   );
@@ -275,6 +288,7 @@ export async function handleMeld(
   args: string[],
   globalAgent: AgentHarness | null = null,
   globalSandbox: SandboxFlagValue | null = null,
+  globalContextFiles: readonly string[] = [],
 ): Promise<void> {
   const {
     sources,
@@ -291,7 +305,8 @@ export async function handleMeld(
     updateIssue,
     milestone,
     sandboxFlag,
-  } = await parseArgs(args, globalAgent, globalSandbox);
+    contextFiles,
+  } = await parseArgs(args, globalAgent, globalSandbox, globalContextFiles);
 
   if (milestone !== null && updateIssue) {
     console.error("Error: --milestone cannot be used with --update-issue.");
@@ -331,6 +346,7 @@ export async function handleMeld(
         milestone,
         resolvedWorkspaceRoot,
         agentHarness,
+        contextFiles,
       );
       if (result.error || !result.success) {
         throw new Error(result.error ?? "Milestone planning failed");
@@ -359,6 +375,7 @@ export async function handleMeld(
         resolvedWorkspaceRoot,
         dryRun,
         agentHarness,
+        contextFiles,
       );
       if (result.error) {
         throw new Error(result.error);
@@ -439,6 +456,7 @@ export async function handleMeld(
       workspaceRoot,
       verbosity: "medium",
       skipPlan: false,
+      ...(contextFiles.length > 0 ? { contextFiles } : {}),
       meldPhase: {
         targetRaw: target,
         overwrite,

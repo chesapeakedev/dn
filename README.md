@@ -258,6 +258,12 @@ dn --agent cursor loop --plan-file plans/issue-123.plan.md
 dn --agent codex kickstart --awp <issue_url>
 ```
 
+Pass extra files into agent prompt context with `--context-file` (repeatable):
+
+```bash
+dn --context-file notes.md --context-file src/parser.ts kickstart 123
+```
+
 | Agent       | Value      |
 | ----------- | ---------- |
 | OpenCode    | `opencode` |

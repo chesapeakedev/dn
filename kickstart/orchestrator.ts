@@ -144,6 +144,8 @@ export interface OrchestratorConfig {
   savedPlanName: string | null;
   /** Optional final operator instruction appended to agent prompts. */
   steeringPrompt?: string;
+  /** Extra files from `--context-file` appended to combined agent prompts. */
+  contextFiles?: readonly string[];
   /** Prompt-level succinctness hint for the plan phase. */
   verbosity: "low" | "medium" | "high";
   /** Skip plan generation and proceed directly to implementation. */
@@ -860,6 +862,7 @@ export async function runOrchestrator(
         undefined,
         undefined,
         config.steeringPrompt,
+        config.contextFiles,
       );
 
       // Run plan phase (opencode, Cursor, or Claude Code per config)
@@ -971,6 +974,7 @@ export async function runOrchestrator(
       undefined,
       undefined,
       config.steeringPrompt,
+      config.contextFiles,
     );
 
     await clearImplementResult(WORKSPACE_ROOT);
@@ -1103,6 +1107,7 @@ export async function runOrchestrator(
           undefined,
           undefined,
           mergeTestsOnlySteering(config.steeringPrompt),
+          config.contextFiles,
         );
         await clearImplementResult(WORKSPACE_ROOT);
         const continuationResult = await runAgentPhaseInSandbox(

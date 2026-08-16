@@ -79,6 +79,8 @@ between sections:
 4. Existing plan or target content, when continuing or merging
 5. Plan-phase output, for implementation
 6. GitHub issue or local markdown context
+7. `--context-file` contents, when provided
+8. `--steer` guidance, when provided
 
 GitHub issue context includes a curated `Relationships` section for parent,
 sub-issue, blocker, and duplicate relationships. Keep this representation

@@ -116,10 +116,12 @@ export function buildCursorCloudKickstartPrompt(
   context: string,
   autoCreatePr: boolean,
   steeringPrompt?: string,
+  contextFileSections?: string,
 ): string {
   const prInstruction = autoCreatePr
     ? "Create a pull request with the completed work."
     : "Do not create a pull request automatically; leave the completed work in the cloud agent workspace.";
+  const includedSection = contextFileSections ?? "";
   const steeringSection = steeringPrompt === undefined
     ? ""
     : `\n\n---\n\n# Steering Prompt\n${steeringPrompt}`;
@@ -138,14 +140,16 @@ Phase 2 — Implement:
 
 Task context:
 
-${context}${steeringSection}`;
+${context}${includedSection}${steeringSection}`;
 }
 
 /** Builds the durable implementation prompt for an existing dn plan. */
 export function buildCursorCloudLoopPrompt(
   plan: string,
   steeringPrompt?: string,
+  contextFileSections?: string,
 ): string {
+  const includedSection = contextFileSections ?? "";
   const steeringSection = steeringPrompt === undefined
     ? ""
     : `\n\n---\n\n# Steering Prompt\n${steeringPrompt}`;
@@ -153,7 +157,7 @@ export function buildCursorCloudLoopPrompt(
 
 Plan:
 
-${plan}${steeringSection}`;
+${plan}${includedSection}${steeringSection}`;
 }
 
 /**

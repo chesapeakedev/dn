@@ -55,6 +55,7 @@ import {
 } from "../sdk/sandbox/cli.ts";
 import { resolveSandboxConfig } from "../sdk/sandbox/resolve.ts";
 import { runWithSandboxLifecycle } from "../sdk/sandbox/lifecycle.ts";
+import { resolveContextFileArgs } from "./contextFiles.ts";
 import {
   buildCursorCloudKickstartPrompt,
   cursorCloudRepositoryUrlFromIssue,
@@ -63,6 +64,7 @@ import {
   requireCursorApiKey,
   runCursorCloudAgentTracked,
 } from "../sdk/github/cursorCloudAgent.ts";
+import { readContextFileSections } from "../sdk/github/prompt.ts";
 
 const ISSUE_NUMBER_PATTERN = /^#?\d+$/;
 
@@ -110,6 +112,7 @@ export async function parseKickstartArgs(
   args: string[],
   globalAgent: AgentHarness | null = null,
   globalSandbox: SandboxFlagValue | null = null,
+  globalContextFiles: readonly string[] = [],
 ): Promise<KickstartCliConfig> {
   let input: string | null = null;
   let publish: PublishMode = "none";
@@ -133,7 +136,13 @@ export async function parseKickstartArgs(
   let verbosity: "low" | "medium" | "high" = "medium";
   let skipPlan = false;
 
-  const { sandbox: localSandbox, rest: flagArgs } = extractSandboxFlag(args);
+  const { contextFiles, rest: argsAfterContext } = resolveContextFileArgs(
+    args,
+    globalContextFiles,
+  );
+  const { sandbox: localSandbox, rest: flagArgs } = extractSandboxFlag(
+    argsAfterContext,
+  );
   const sandboxFlag = resolveSandboxFlagValue(globalSandbox, localSandbox);
 
   for (let i = 0; i < flagArgs.length; i++) {
@@ -141,8 +150,8 @@ export async function parseKickstartArgs(
     if (arg === "--awp") {
       publish = "pr";
       publishSpecified = true;
-    } else if (arg === "--publish" && i + 1 < args.length) {
-      publish = parsePublishMode(args[++i]);
+    } else if (arg === "--publish" && i + 1 < flagArgs.length) {
+      publish = parsePublishMode(flagArgs[++i]);
       publishSpecified = true;
     } else if (arg === "--cursor" || arg === "-c") {
       cursorFlag = true;
@@ -165,14 +174,14 @@ export async function parseKickstartArgs(
       milestoneAutoAdvance = true;
     } else if (arg === "--once") {
       milestoneRunOnce = true;
-    } else if (arg === "--saved-plan" && i + 1 < args.length) {
-      savedPlanName = args[++i];
-    } else if (arg === "--workspace-root" && i + 1 < args.length) {
-      workspaceRoot = args[++i];
-    } else if (arg === "--milestone" && i + 1 < args.length) {
-      milestone = args[++i];
-    } else if (arg === "--denoise-task" && i + 1 < args.length) {
-      denoiseTaskPath = args[++i];
+    } else if (arg === "--saved-plan" && i + 1 < flagArgs.length) {
+      savedPlanName = flagArgs[++i];
+    } else if (arg === "--workspace-root" && i + 1 < flagArgs.length) {
+      workspaceRoot = flagArgs[++i];
+    } else if (arg === "--milestone" && i + 1 < flagArgs.length) {
+      milestone = flagArgs[++i];
+    } else if (arg === "--denoise-task" && i + 1 < flagArgs.length) {
+      denoiseTaskPath = flagArgs[++i];
     } else if (arg === "--steer") {
       if (i + 1 >= flagArgs.length) {
         throw new Error("--steer requires a value.");
@@ -269,6 +278,7 @@ export async function parseKickstartArgs(
     cursorCloudRef,
     ...(denoiseTaskPath ? { denoiseTaskPath } : {}),
     ...(steeringPrompt !== undefined ? { steeringPrompt } : {}),
+    ...(contextFiles.length > 0 ? { contextFiles } : {}),
     verbosity,
     skipPlan,
   };
@@ -301,6 +311,9 @@ function showHelp(): void {
   );
   console.log(
     "  --steer <prompt>         Append supplemental operator guidance to agent prompts",
+  );
+  console.log(
+    "  --context-file <path>    Include a file in agent prompt context (repeatable; also a global flag)",
   );
   console.log(
     "  --verbosity <low|medium|high>  Plan prompt detail level (default: medium)",
@@ -385,6 +398,9 @@ function showHelp(): void {
   console.log(
     '  dn kickstart --steer "Focus on the parser and add regression tests" 123',
   );
+  console.log(
+    "  dn kickstart --context-file notes.md --context-file src/parser.ts 123",
+  );
 }
 
 async function dispatchCursorCloudKickstart(
@@ -418,11 +434,15 @@ async function dispatchCursorCloudKickstart(
   }
 
   const autoCreatePr = config.publish === "pr";
+  const contextFileSections = await readContextFileSections(
+    config.contextFiles,
+  );
   const result = await runCursorCloudAgentTracked({
     prompt: buildCursorCloudKickstartPrompt(
       context,
       autoCreatePr,
       config.steeringPrompt,
+      contextFileSections,
     ),
     repository: { url: repositoryUrl, startingRef: config.cursorCloudRef },
     autoCreatePr,
@@ -665,10 +685,16 @@ export async function handleKickstart(
   args: string[],
   globalAgent: AgentHarness | null = null,
   globalSandbox: SandboxFlagValue | null = null,
+  globalContextFiles: readonly string[] = [],
 ): Promise<void> {
   let config: KickstartCliConfig;
   try {
-    config = await parseKickstartArgs(args, globalAgent, globalSandbox);
+    config = await parseKickstartArgs(
+      args,
+      globalAgent,
+      globalSandbox,
+      globalContextFiles,
+    );
   } catch (e) {
     console.error(e instanceof Error ? e.message : String(e));
     Deno.exit(1);

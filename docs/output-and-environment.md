@@ -37,13 +37,14 @@ These flags can be passed after any subcommand (e.g.
 `dn kickstart --unattended 123`). They are stripped before the subcommand sees
 its arguments.
 
-| Flag                     | Effect                                                                         |
-| ------------------------ | ------------------------------------------------------------------------------ |
-| `--unattended` or `--ci` | Force unattended mode: no spinner, minimal decoration, no interactive prompts. |
-| `--trace`                | Live-stream agent harness stdout/stderr (default in unattended/CI).            |
-| `--no-trace`             | Suppress live agent stream (default in attended TTY).                          |
-| `--no-color`             | Disable ANSI colors and decoration regardless of TTY.                          |
-| `--color`                | Enable ANSI colors even when stdout is not a TTY (e.g. `dn … \| less`).        |
+| Flag                     | Effect                                                                              |
+| ------------------------ | ----------------------------------------------------------------------------------- |
+| `--unattended` or `--ci` | Force unattended mode: no spinner, minimal decoration, no interactive prompts.      |
+| `--trace`                | Live-stream agent harness stdout/stderr (default in unattended/CI).                 |
+| `--no-trace`             | Suppress live agent stream (default in attended TTY).                               |
+| `--no-color`             | Disable ANSI colors and decoration regardless of TTY.                               |
+| `--color`                | Enable ANSI colors even when stdout is not a TTY (e.g. `dn … \| less`).             |
+| `--context-file <path>`  | Append a file to agent prompt context (repeatable; kickstart/loop/meld/fixup/land). |
 
 ## Environment variables
 

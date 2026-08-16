@@ -12,6 +12,7 @@
  *   dn loop <plan-file-or-issue>  # Loop phase only
  */
 
+import { resolve } from "@std/path";
 import { handleLand } from "./land.ts";
 import { handleAuth } from "./auth.ts";
 import { handleContext } from "./context.ts";
@@ -105,7 +106,8 @@ import { handleRunner } from "./runner.ts";
 /**
  * Parses global flags from args and returns bootstrap options plus remaining args.
  * Global flags: --unattended, --ci (alias), --no-color, --color, --trace,
- * --no-trace, --version, -V.
+ * --no-trace, --version, -V, --context-file. `--context-file` is also accepted
+ * after the subcommand by agent-backed parsers.
  */
 function parseGlobalFlags(
   args: string[],
@@ -117,6 +119,7 @@ function parseGlobalFlags(
   showVersion: boolean;
   agent: AgentHarness | null;
   sandbox: SandboxFlagValue | null;
+  contextFiles: string[];
   rest: string[];
 } {
   let unattended = false;
@@ -126,6 +129,7 @@ function parseGlobalFlags(
   let showVersion = false;
   let agent: AgentHarness | null = null;
   let sandbox: SandboxFlagValue | null = null;
+  const contextFiles: string[] = [];
   const rest: string[] = [];
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
@@ -201,6 +205,13 @@ function parseGlobalFlags(
         );
       }
       agent = "copilot";
+    } else if (a === "--context-file") {
+      const value = args[i + 1];
+      if (!value || value.startsWith("-")) {
+        throw new Error("--context-file requires a path.");
+      }
+      contextFiles.push(resolve(value));
+      i++;
     } else {
       rest.push(...args.slice(i));
       break;
@@ -214,6 +225,7 @@ function parseGlobalFlags(
     showVersion,
     agent,
     sandbox,
+    contextFiles,
     rest,
   };
 }
@@ -268,6 +280,9 @@ function showUsage(): void {
   console.error("  --copilot         Alias for --agent copilot");
   console.error(
     "  --sandbox <none|docker|exe.dev>  Sandbox provider (omit value to read config)",
+  );
+  console.error(
+    "  --context-file <path> Include a file in agent prompt context (repeatable)",
   );
   console.error("  --unattended      Disable interactive output affordances");
   console.error(
@@ -373,6 +388,7 @@ async function main(): Promise<void> {
   let args: string[];
   let globalAgent: AgentHarness | null;
   let globalSandbox: SandboxFlagValue | null;
+  let globalContextFiles: string[];
   let unattended: boolean;
   let noColor: boolean;
   let forceColor: boolean;
@@ -387,6 +403,7 @@ async function main(): Promise<void> {
       showVersion,
       agent: globalAgent,
       sandbox: globalSandbox,
+      contextFiles: globalContextFiles,
       rest: args,
     } = parseGlobalFlags(Deno.args));
   } catch (e) {
@@ -453,22 +470,37 @@ async function main(): Promise<void> {
       await handleWorkflows(subcommandArgs);
       break;
     case "kickstart":
-      await handleKickstart(subcommandArgs, globalAgent, globalSandbox);
+      await handleKickstart(
+        subcommandArgs,
+        globalAgent,
+        globalSandbox,
+        globalContextFiles,
+      );
       break;
     case "loop":
-      await handleLoop(subcommandArgs, globalAgent, globalSandbox);
+      await handleLoop(
+        subcommandArgs,
+        globalAgent,
+        globalSandbox,
+        globalContextFiles,
+      );
       break;
     case "until":
       await handleUntil(subcommandArgs, globalAgent, globalSandbox);
       break;
     case "fixup":
-      await handleFixup(subcommandArgs, globalAgent);
+      await handleFixup(subcommandArgs, globalAgent, globalContextFiles);
       break;
     case "meld":
-      await handleMeld(subcommandArgs, globalAgent, globalSandbox);
+      await handleMeld(
+        subcommandArgs,
+        globalAgent,
+        globalSandbox,
+        globalContextFiles,
+      );
       break;
     case "land":
-      await handleLand(subcommandArgs, globalAgent);
+      await handleLand(subcommandArgs, globalAgent, globalContextFiles);
       break;
     case "peek":
       await handlePeek(subcommandArgs);

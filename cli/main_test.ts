@@ -96,15 +96,37 @@ Deno.test("CLI accepts top-level --agent before subcommand", async () => {
   }
 });
 
-Deno.test("CLI accepts top-level agent alias before subcommand", async () => {
+Deno.test("CLI accepts --context-file before and after the subcommand", async () => {
   const testRepo = await createTestRepo();
   try {
-    const result = await runDnCommand(["--codex", "loop", "--help"], {
+    const before = await runDnCommand(
+      ["--context-file", "notes.md", "kickstart", "--help"],
+      { cwd: testRepo.path },
+    );
+    const after = await runDnCommand(
+      ["kickstart", "--context-file", "notes.md", "--help"],
+      { cwd: testRepo.path },
+    );
+
+    assert(before.success);
+    assert(after.success);
+    assert(before.stdout.includes("dn kickstart"));
+    assert(after.stdout.includes("--context-file"));
+  } finally {
+    await cleanupTestRepo(testRepo);
+  }
+});
+
+Deno.test("CLI rejects --context-file without a path", async () => {
+  const testRepo = await createTestRepo();
+  try {
+    const result = await runDnCommand(["--context-file", "--help"], {
       cwd: testRepo.path,
+      expectFailure: true,
     });
 
-    assert(result.success);
-    assert(result.stdout.includes("dn loop"));
+    assertEquals(result.success, false);
+    assert(result.stderr.includes("--context-file requires a path."));
   } finally {
     await cleanupTestRepo(testRepo);
   }

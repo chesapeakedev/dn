@@ -31,6 +31,7 @@ import {
 import { resolveSandboxConfig } from "../sdk/sandbox/resolve.ts";
 import { runWithSandboxLifecycle } from "../sdk/sandbox/lifecycle.ts";
 import { createRunTmpDir } from "../sdk/sandbox/context.ts";
+import { resolveContextFileArgs } from "./contextFiles.ts";
 import {
   buildCursorCloudLoopPrompt,
   cursorCloudRepositoryUrlFromIssue,
@@ -39,6 +40,7 @@ import {
   requireCursorApiKey,
   runCursorCloudAgentTracked,
 } from "../sdk/github/cursorCloudAgent.ts";
+import { readContextFileSections } from "../sdk/github/prompt.ts";
 import { isAbsolute, join } from "@std/path";
 
 const ISSUE_NUMBER_PATTERN = /^#?\d+$/;
@@ -304,6 +306,7 @@ export async function parseLoopArgs(
   args: string[],
   globalAgent: AgentHarness | null = null,
   globalSandbox: SandboxFlagValue | null = null,
+  globalContextFiles: readonly string[] = [],
 ): Promise<LoopCliConfig> {
   let planFilePath: string | null = null;
   let targetInput: string | null = null;
@@ -319,13 +322,19 @@ export async function parseLoopArgs(
   let allowCrossRepo = false;
   let steeringPrompt: string | undefined = undefined;
 
-  const { sandbox: localSandbox, rest: flagArgs } = extractSandboxFlag(args);
+  const { contextFiles, rest: argsAfterContext } = resolveContextFileArgs(
+    args,
+    globalContextFiles,
+  );
+  const { sandbox: localSandbox, rest: flagArgs } = extractSandboxFlag(
+    argsAfterContext,
+  );
   const sandboxFlag = resolveSandboxFlagValue(globalSandbox, localSandbox);
 
   for (let i = 0; i < flagArgs.length; i++) {
     const arg = flagArgs[i];
-    if (arg === "--plan-file" && i + 1 < args.length) {
-      planFilePath = args[++i];
+    if (arg === "--plan-file" && i + 1 < flagArgs.length) {
+      planFilePath = flagArgs[++i];
     } else if (arg === "--allow-cross-repo" || arg === "-A") {
       allowCrossRepo = true;
     } else if (arg === "--cursor" || arg === "-c") {
@@ -343,8 +352,8 @@ export async function parseLoopArgs(
       copilotFlag = true;
     } else if (arg === "--opencode") {
       opencodeFlag = true;
-    } else if (arg === "--workspace-root" && i + 1 < args.length) {
-      workspaceRoot = args[++i];
+    } else if (arg === "--workspace-root" && i + 1 < flagArgs.length) {
+      workspaceRoot = flagArgs[++i];
     } else if (arg === "--steer") {
       if (i + 1 >= flagArgs.length) {
         throw new Error("--steer requires a value.");
@@ -407,6 +416,7 @@ export async function parseLoopArgs(
     verbosity: "medium",
     skipPlan: false,
     ...(steeringPrompt !== undefined ? { steeringPrompt } : {}),
+    ...(contextFiles.length > 0 ? { contextFiles } : {}),
   };
 }
 
@@ -432,6 +442,9 @@ function showHelp(): void {
   );
   console.log(
     "  --steer <prompt>         Append supplemental operator guidance to the implement prompt",
+  );
+  console.log(
+    "  --context-file <path>    Include a file in agent prompt context (repeatable; also a global flag)",
   );
   console.log("  --cursor, -c             Use Cursor headless agent");
   console.log(
@@ -468,6 +481,9 @@ function showHelp(): void {
     '  dn loop --steer "Focus on validation and tests" plans/my-feature.plan.md',
   );
   console.log(
+    "  dn loop --context-file notes.md plans/my-feature.plan.md",
+  );
+  console.log(
     "  dn loop --allow-cross-repo https://github.com/owner/repo/issues/123",
   );
   console.log(
@@ -487,6 +503,7 @@ async function dispatchCursorCloudLoop(
   issueUrl: string | null,
   startingRef: string,
   steeringPrompt?: string,
+  contextFiles?: readonly string[],
 ): Promise<void> {
   requireCursorApiKey();
   const plan = await Deno.readTextFile(planFilePath);
@@ -498,8 +515,13 @@ async function dispatchCursorCloudLoop(
     const { owner, repo } = await getCurrentRepoFromRemote();
     repositoryUrl = `https://github.com/${owner}/${repo}.git`;
   }
+  const contextFileSections = await readContextFileSections(contextFiles);
   const result = await runCursorCloudAgentTracked({
-    prompt: buildCursorCloudLoopPrompt(plan, steeringPrompt),
+    prompt: buildCursorCloudLoopPrompt(
+      plan,
+      steeringPrompt,
+      contextFileSections,
+    ),
     repository: { url: repositoryUrl, startingRef },
     autoCreatePr: true,
   });
@@ -572,10 +594,16 @@ export async function handleLoop(
   args: string[],
   globalAgent: AgentHarness | null = null,
   globalSandbox: SandboxFlagValue | null = null,
+  globalContextFiles: readonly string[] = [],
 ): Promise<void> {
   let config: LoopCliConfig;
   try {
-    config = await parseLoopArgs(args, globalAgent, globalSandbox);
+    config = await parseLoopArgs(
+      args,
+      globalAgent,
+      globalSandbox,
+      globalContextFiles,
+    );
   } catch (e) {
     console.error(e instanceof Error ? e.message : String(e));
     Deno.exit(1);
@@ -607,6 +635,7 @@ export async function handleLoop(
         explicitIssueUrl,
         config.cursorCloudRef,
         config.steeringPrompt,
+        config.contextFiles,
       );
       return;
     } catch (error) {

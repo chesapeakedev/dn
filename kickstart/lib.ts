@@ -319,6 +319,8 @@ export interface KickstartConfig {
   milestone?: string;
   /** Optional final operator instruction appended to agent prompts. */
   steeringPrompt?: string;
+  /** Extra files from `--context-file` appended to combined agent prompts. */
+  contextFiles?: readonly string[];
   /** Prompt-level succinctness hint for the plan phase. */
   verbosity: "low" | "medium" | "high";
   /** Skip plan generation and proceed directly to implementation. */
@@ -1066,6 +1068,7 @@ export async function runMeldPhase(
       mergedDocForPrompt,
       githubBodyForPrompt,
       config.steeringPrompt,
+      config.contextFiles,
     );
 
     const planResult = await runAgentPhaseInSandbox(
@@ -1278,6 +1281,7 @@ export async function runLoopPhase(
       undefined,
       undefined,
       config.steeringPrompt,
+      config.contextFiles,
     );
 
     await clearImplementResult(workspaceRoot);
@@ -1389,6 +1393,7 @@ export async function runLoopPhase(
         undefined,
         undefined,
         mergeTestsOnlySteering(config.steeringPrompt),
+        config.contextFiles,
       );
       await clearImplementResult(workspaceRoot);
       const continuationResult = await runAgentPhaseInSandbox(
@@ -1806,6 +1811,7 @@ export async function runFullKickstart(
     saveCtx: config.saveCtx,
     savedPlanName: config.savedPlanName,
     steeringPrompt: config.steeringPrompt,
+    contextFiles: config.contextFiles,
     verbosity: config.verbosity,
     skipPlan: config.skipPlan,
   };
@@ -1881,6 +1887,7 @@ async function readPrepSystemPrompt(workspaceRoot: string): Promise<string> {
  * @param workspaceRoot - Root directory of the workspace
  * @param dryRun - If true, preview changes without updating GitHub
  * @param agentHarness - Which agent runs the prep LLM (default opencode)
+ * @param contextFiles - Extra files from `--context-file` to include in the prompt
  * @returns Result of the operation
  */
 export async function fillEmptyIssueSections(
@@ -1888,6 +1895,7 @@ export async function fillEmptyIssueSections(
   workspaceRoot: string,
   dryRun: boolean = false,
   agentHarness: AgentHarness = "opencode",
+  contextFiles?: readonly string[],
 ): Promise<FillEmptyIssueSectionsResult> {
   try {
     // Step 1: Resolve and fetch issue
@@ -2021,6 +2029,12 @@ export async function fillEmptyIssueSections(
         systemPromptPath,
         workspaceRoot,
         issueContextPath,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        contextFiles,
       );
 
       // Run LLM (opencode, Cursor, or Claude Code per harness)
@@ -2351,12 +2365,14 @@ async function getMilestoneForPrep(
  * @param milestoneInput - Milestone number, title, or URL
  * @param workspaceRoot - Root directory of the workspace
  * @param agentHarness - Which agent runs the prep LLM (default opencode)
+ * @param contextFiles - Extra files from `--context-file` to include in the prompt
  * @returns Result including the written artifact path
  */
 export async function generateMilestoneDescription(
   milestoneInput: string,
   workspaceRoot: string,
   agentHarness: AgentHarness = "opencode",
+  contextFiles?: readonly string[],
 ): Promise<MilestonePrepResult> {
   const normalizedWorkspaceRoot = workspaceRoot.replace(/\/+$/, "");
 
@@ -2410,6 +2426,12 @@ export async function generateMilestoneDescription(
         systemPromptPath,
         normalizedWorkspaceRoot,
         milestoneContextPath,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        contextFiles,
       );
 
       const fakeOutput = Deno.env.get(MILESTONE_PREP_FAKE_OUTPUT_ENV);

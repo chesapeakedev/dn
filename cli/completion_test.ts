@@ -39,6 +39,13 @@ Deno.test("completeWords skips global flags before the subcommand", () => {
   assertEquals(completeWords(["dn", "--unattended", "ki"]), ["kickstart"]);
 });
 
+Deno.test("completeWords skips --context-file values before the subcommand", () => {
+  assertEquals(
+    completeWords(["dn", "--context-file", "notes.md", "ki"]),
+    ["kickstart"],
+  );
+});
+
 Deno.test("completeWords offers --agent harness values", () => {
   assertEquals(
     completeWords(["dn", "--agent", ""]),

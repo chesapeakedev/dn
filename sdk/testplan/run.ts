@@ -32,6 +32,8 @@ export interface RunIssueTestPlanOptions {
   dryRun: boolean;
   /** Allow issue URLs from a repository other than the current workspace remote */
   allowCrossRepo?: boolean;
+  /** Extra files from `--context-file` appended to the generation prompt */
+  contextFiles?: readonly string[];
 }
 
 /**
@@ -62,6 +64,8 @@ export interface RunIssueTestPlanFromPlanOptions {
   dryRun: boolean;
   /** Allow issue URLs from a repository other than the current workspace remote */
   allowCrossRepo?: boolean;
+  /** Extra files from `--context-file` appended to the generation prompt */
+  contextFiles?: readonly string[];
 }
 
 async function readIncludedTestPlanPrompt(
@@ -84,6 +88,7 @@ async function generateTestPlanSection(options: {
   workspaceRoot: string;
   agentHarness: AgentHarness;
   tmpDir: string;
+  contextFiles?: readonly string[];
 }): Promise<string> {
   const {
     sourceLabel,
@@ -92,6 +97,7 @@ async function generateTestPlanSection(options: {
     workspaceRoot,
     agentHarness,
     tmpDir,
+    contextFiles,
   } = options;
 
   const outputPath = `${tmpDir}/testplan-section.md`;
@@ -116,6 +122,10 @@ async function generateTestPlanSection(options: {
     issueContextPath,
     undefined,
     sourceContent,
+    undefined,
+    undefined,
+    undefined,
+    contextFiles,
   );
 
   console.log(
@@ -188,6 +198,7 @@ export async function runIssueTestPlan(
       workspaceRoot: options.workspaceRoot,
       agentHarness: options.agentHarness,
       tmpDir,
+      contextFiles: options.contextFiles,
     });
 
     if (options.dryRun) {
@@ -227,5 +238,6 @@ export async function runIssueTestPlanFromPlan(
     agentHarness: options.agentHarness,
     dryRun: options.dryRun,
     allowCrossRepo: options.allowCrossRepo,
+    contextFiles: options.contextFiles,
   });
 }

@@ -59,6 +59,7 @@ function agentWorkflowFlags(): string[] {
     "--sandbox",
     "--workspace-root",
     "--steer",
+    "--context-file",
     "--allow-cross-repo",
     "-A",
   ];
@@ -69,6 +70,7 @@ function agentWorkflowFlagValues(): Record<string, string[]> {
     "--sandbox": SANDBOX_PROVIDERS,
     "--workspace-root": FILE_VALUE,
     "--steer": FILE_VALUE,
+    "--context-file": FILE_VALUE,
   };
 }
 
@@ -305,6 +307,7 @@ export const DN_COMPLETION_ROOT: CompletionNode = {
   flags: [
     "--agent",
     "--sandbox",
+    "--context-file",
     "--version",
     "-V",
     ...AGENT_ALIAS_FLAGS,
@@ -314,6 +317,7 @@ export const DN_COMPLETION_ROOT: CompletionNode = {
   flagValues: {
     "--agent": [...AGENT_HARNESSES],
     "--sandbox": SANDBOX_PROVIDERS,
+    "--context-file": FILE_VALUE,
   },
   commands: {
     auth: { flags: HELP_FLAGS },
@@ -485,8 +489,16 @@ export const DN_COMPLETION_ROOT: CompletionNode = {
       },
     },
     fixup: {
-      flags: [...AGENT_ALIAS_FLAGS, "--workspace-root", ...HELP_FLAGS],
-      flagValues: { "--workspace-root": FILE_VALUE },
+      flags: [
+        ...AGENT_ALIAS_FLAGS,
+        "--workspace-root",
+        "--context-file",
+        ...HELP_FLAGS,
+      ],
+      flagValues: {
+        "--workspace-root": FILE_VALUE,
+        "--context-file": FILE_VALUE,
+      },
     },
     meld: {
       flags: [
@@ -528,12 +540,14 @@ export const DN_COMPLETION_ROOT: CompletionNode = {
         "--issue-testplan",
         "--test-plan",
         "--workspace-root",
+        "--context-file",
         ...AGENT_ALIAS_FLAGS,
         ...HELP_FLAGS,
       ],
       flagValues: {
         "--test-plan": FILE_VALUE,
         "--workspace-root": FILE_VALUE,
+        "--context-file": FILE_VALUE,
       },
     },
     peek: {

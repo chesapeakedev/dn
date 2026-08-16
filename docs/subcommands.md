@@ -15,6 +15,15 @@ You can pass **output flags** after any subcommand to control output style:
 - **`--no-color`** – Disable colors.
 - **`--color`** – Enable colors even when stdout is not a TTY.
 
+Use **`--context-file <path>`** (repeatable) to append extra files to agent
+prompt context for `kickstart`, `loop`, `meld`, `fixup`, and
+`land --issue-testplan`. The flag can appear before or after the subcommand:
+
+```bash
+dn --context-file notes.md --context-file src/parser.ts kickstart 123
+dn kickstart --context-file notes.md 123
+```
+
 Use **`--sandbox <none|docker|exe.dev>`** to select a sandbox provider for agent
 workflows (`kickstart`, `loop`, `meld`, `until`). Omit the value to read
 `sandbox.provider` from `.github/dn/config.json`. See
@@ -219,6 +228,10 @@ dn kickstart --awp --denoise-task task.json
 # Add supplemental last-minute guidance without changing the issue/context
 dn kickstart --steer "Focus on validation and add regression tests" 123
 
+# Include extra files in agent prompt context
+dn kickstart --context-file notes.md --context-file src/parser.ts 123
+dn --context-file notes.md kickstart 123
+
 # Adjust plan prompt succinctness (default: medium)
 dn kickstart --verbosity low 123
 dn kickstart --verbosity medium 123
@@ -231,6 +244,10 @@ dn kickstart --skip-plan 123
 `--steer <prompt>` appends supplemental operator guidance as a final, clearly
 labeled context section in both the plan and implement prompts. It does not
 replace the issue or other workflow context.
+
+`--context-file <path>` (repeatable) appends each file as an `Included File`
+section in those same prompts, after issue context and before `--steer`. The
+flag is global: `dn --context-file notes.md kickstart 123` is equivalent.
 
 `--verbosity <low|medium|high>` is a prompt hint for the plan agent. It keeps
 the existing plan structure and acceptance-criteria semantics, changing only the
@@ -1131,11 +1148,17 @@ dn loop task.json
 
 # Add supplemental last-minute guidance without changing the plan
 dn loop --steer "Keep the change minimal and test the edge cases" plans/issue-123.plan.md
+
+# Include extra files in agent prompt context
+dn loop --context-file notes.md plans/issue-123.plan.md
 ```
 
 `--steer <prompt>` appends supplemental operator guidance as a final, clearly
 labeled context section in the implement prompt. It does not replace the plan or
 issue context, and is also included for Cursor Cloud runs.
+
+`--context-file <path>` (repeatable) appends each file as an `Included File`
+section in that prompt, after issue context and before `--steer`.
 
 `dn loop` requires an existing plan created by `dn meld`. When you pass an issue
 URL or issue number, `dn` searches `plans/` for a matching plan instead of

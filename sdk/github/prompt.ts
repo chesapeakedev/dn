@@ -1,6 +1,8 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
+import { isAbsolute, relative, resolve } from "@std/path";
+
 /**
  * Assembles a combined prompt file by concatenating:
  * 1. System prompt (from phase-specific prompt file)
@@ -11,6 +13,8 @@
  * 6. Plan output (if provided, for implement phase)
  * 7. Current GitHub issue body (optional, for `--target github:issue:*` meld prompts)
  * 8. Issue context (`writeIssueContext` markdown, including Relationships when fetched from GitHub)
+ * 9. `--context-file` contents, when provided
+ * 10. `--steer` guidance, when provided
  *
  * Each section is separated by markdown horizontal rules (`---`).
  *
@@ -23,6 +27,7 @@
  * @param existingMeldTargetContent - Optional contents of destination file (`dn meld` merge)
  * @param githubIssueBodyForMeld - Optional live issue body for GitHub-output meld prompts
  * @param steeringPrompt - Optional final operator instruction to append to the prompt
+ * @param contextFiles - Optional extra files from `--context-file` to append before steering
  * @throws Error if the system prompt file cannot be found
  */
 export async function assembleCombinedPrompt(
@@ -35,6 +40,7 @@ export async function assembleCombinedPrompt(
   existingMeldTargetContent?: string | null,
   githubIssueBodyForMeld?: string | null,
   steeringPrompt?: string,
+  contextFiles?: readonly string[],
 ): Promise<void> {
   // Read system prompt
   let systemPrompt: string;
@@ -133,6 +139,14 @@ export async function assembleCombinedPrompt(
     }
   }
 
+  const includedFiles = await readContextFileSections(
+    contextFiles,
+    projectRoot,
+  );
+  if (includedFiles !== "") {
+    await Deno.writeTextFile(outputPath, includedFiles, { append: true });
+  }
+
   if (steeringPrompt !== undefined) {
     await Deno.writeTextFile(
       outputPath,
@@ -140,4 +154,65 @@ export async function assembleCombinedPrompt(
       { append: true },
     );
   }
+}
+
+function displayContextFilePath(
+  filePath: string,
+  projectRoot?: string,
+): string {
+  const absolute = resolve(filePath);
+  if (projectRoot === undefined) {
+    return absolute;
+  }
+  const rel = relative(resolve(projectRoot), absolute);
+  if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) {
+    return absolute;
+  }
+  return rel;
+}
+
+/**
+ * Reads `--context-file` paths into labeled markdown sections.
+ *
+ * Missing paths, directories, and unreadable files throw. Each file becomes its
+ * own `---` section titled `Included File (<path>)`. Paths under `projectRoot`
+ * are shown relative to that root.
+ *
+ * @param contextFiles - Absolute or cwd-relative file paths to include
+ * @param projectRoot - Optional workspace root used only for display paths
+ * @returns Concatenated markdown sections, or an empty string when none given
+ */
+export async function readContextFileSections(
+  contextFiles: readonly string[] | undefined,
+  projectRoot?: string,
+): Promise<string> {
+  if (contextFiles === undefined || contextFiles.length === 0) {
+    return "";
+  }
+
+  const parts: string[] = [];
+  for (const filePath of contextFiles) {
+    const absolute = resolve(filePath);
+    let stat: Deno.FileInfo;
+    try {
+      stat = await Deno.stat(absolute);
+    } catch {
+      throw new Error(`--context-file not found: ${filePath}`);
+    }
+    if (!stat.isFile) {
+      throw new Error(`--context-file is not a file: ${filePath}`);
+    }
+    let content: string;
+    try {
+      content = await Deno.readTextFile(absolute);
+    } catch (error) {
+      throw new Error(
+        `--context-file not readable as text: ${filePath}`,
+        { cause: error },
+      );
+    }
+    const label = displayContextFilePath(absolute, projectRoot);
+    parts.push(`\n\n---\n\n# Included File (${label})\n${content}`);
+  }
+  return parts.join("");
 }

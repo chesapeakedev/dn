@@ -31,6 +31,7 @@ import {
   formatWarning,
 } from "../kickstart/output.ts";
 import { readIncludedSystemPrompt } from "../kickstart/includedPrompt.ts";
+import { resolveContextFileArgs } from "./contextFiles.ts";
 
 /**
  * Configuration for fixup command
@@ -45,6 +46,7 @@ interface FixupConfig extends KickstartConfig {
 async function parseArgs(
   args: string[],
   globalAgent: AgentHarness | null = null,
+  globalContextFiles: readonly string[] = [],
 ): Promise<FixupConfig> {
   let prUrl: string | null = null;
   let cursorFlag = false;
@@ -54,8 +56,13 @@ async function parseArgs(
   let opencodeFlag = false;
   let workspaceRoot: string | undefined = undefined;
 
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
+  const { contextFiles, rest: flagArgs } = resolveContextFileArgs(
+    args,
+    globalContextFiles,
+  );
+
+  for (let i = 0; i < flagArgs.length; i++) {
+    const arg = flagArgs[i];
     if (arg === "--cursor" || arg === "-c") {
       cursorFlag = true;
     } else if (arg === "--claude") {
@@ -66,8 +73,8 @@ async function parseArgs(
       copilotFlag = true;
     } else if (arg === "--opencode") {
       opencodeFlag = true;
-    } else if (arg === "--workspace-root" && i + 1 < args.length) {
-      workspaceRoot = args[++i];
+    } else if (arg === "--workspace-root" && i + 1 < flagArgs.length) {
+      workspaceRoot = flagArgs[++i];
     } else if (arg === "--help" || arg === "-h") {
       showHelp();
       Deno.exit(0);
@@ -101,6 +108,7 @@ async function parseArgs(
     workspaceRoot,
     verbosity: "medium",
     skipPlan: false,
+    ...(contextFiles.length > 0 ? { contextFiles } : {}),
     prUrl,
   };
 }
@@ -113,6 +121,9 @@ function showHelp(): void {
   console.log("Usage:");
   console.log("  dn fixup [options] <pr_url>\n");
   console.log("Options:");
+  console.log(
+    "  --context-file <path>    Include a file in agent prompt context (repeatable; also a global flag)",
+  );
   console.log("  --cursor, -c             Use Cursor headless agent");
   console.log("  --claude                 Use Claude Code CLI (`claude -p`)");
   console.log("  --codex                  Use Codex CLI (`codex exec`)");
@@ -380,10 +391,11 @@ function createFixupPlan(prData: PullRequestData): string {
 export async function handleFixup(
   args: string[],
   globalAgent: AgentHarness | null = null,
+  globalContextFiles: readonly string[] = [],
 ): Promise<void> {
   let config: FixupConfig;
   try {
-    config = await parseArgs(args, globalAgent);
+    config = await parseArgs(args, globalAgent, globalContextFiles);
   } catch (e) {
     console.error(e instanceof Error ? e.message : String(e));
     Deno.exit(1);
@@ -532,6 +544,11 @@ export async function handleFixup(
       workspaceRoot,
       undefined, // No issue context needed - PR context is in the plan
       planOutputPath,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      config.contextFiles,
     );
 
     // Run the implement phase

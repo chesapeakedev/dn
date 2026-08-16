@@ -77,6 +77,7 @@ dn <subcommand> -h    # help for a specific subcommand
 | \`--cursor\` / \`-c\`       | Alias for \`--agent cursor\`                                       |
 | \`--claude\`              | Alias for \`--agent claude\`                                       |
 | \`--codex\`               | Alias for \`--agent codex\`                                        |
+| \`--context-file <path>\` | Include a file in agent prompt context (repeatable)                |
 | \`--unattended\` / \`--ci\` | Non-interactive output                                             |
 | \`--trace\`               | Live-stream agent harness output (default in CI)                   |
 | \`--no-trace\`            | Suppress live agent stream (default in attended TTY)               |

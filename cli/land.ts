@@ -19,6 +19,7 @@ import { runLandRfcComplete } from "../sdk/land/rfcComplete.ts";
 import { runLandPhase } from "../sdk/land/run.ts";
 import { runLandSingle } from "../sdk/land/single.ts";
 import { runIssueTestPlanFromPlan } from "../sdk/testplan/run.ts";
+import { resolveContextFileArgs } from "./contextFiles.ts";
 
 interface LandArgs {
   planFilePath?: string;
@@ -28,11 +29,13 @@ interface LandArgs {
   dryRun: boolean;
   workspaceRoot?: string;
   agentHarness: AgentHarness;
+  contextFiles: string[];
 }
 
 async function parseArgs(
   args: string[],
   globalAgent: AgentHarness | null,
+  globalContextFiles: readonly string[] = [],
 ): Promise<LandArgs> {
   let planFilePath: string | undefined;
   let testPlanPath: string | undefined;
@@ -46,8 +49,13 @@ async function parseArgs(
   let copilotFlag = false;
   let opencodeFlag = false;
 
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
+  const { contextFiles, rest: flagArgs } = resolveContextFileArgs(
+    args,
+    globalContextFiles,
+  );
+
+  for (let i = 0; i < flagArgs.length; i++) {
+    const arg = flagArgs[i];
     if (arg === "--single") {
       single = true;
     } else if (arg === "--dry-run") {
@@ -55,9 +63,9 @@ async function parseArgs(
     } else if (arg === "--issue-testplan") {
       issueTestPlan = true;
     } else if (arg === "--test-plan") {
-      testPlanPath = args[++i];
+      testPlanPath = flagArgs[++i];
     } else if (arg === "--workspace-root") {
-      workspaceRoot = args[++i];
+      workspaceRoot = flagArgs[++i];
     } else if (arg === "--cursor" || arg === "-c") {
       cursorFlag = true;
     } else if (arg === "--claude") {
@@ -96,6 +104,7 @@ async function parseArgs(
     dryRun,
     workspaceRoot,
     agentHarness,
+    contextFiles,
   };
 }
 
@@ -130,6 +139,9 @@ function showHelp(): void {
   console.log(
     "  --workspace-root <path>  Run land from an explicit workspace root",
   );
+  console.log(
+    "  --context-file <path>  Include a file in test-plan agent context (repeatable; also a global flag)",
+  );
   console.log("  --help, -h   Show this help\n");
   console.log("Examples:");
   console.log("  dn land");
@@ -156,6 +168,7 @@ async function maybeRunIssueTestPlan(
   workspaceRoot: string,
   agentHarness: AgentHarness,
   dryRun: boolean,
+  contextFiles: readonly string[] = [],
 ): Promise<void> {
   const planContent = await Deno.readTextFile(planFilePath);
   const result = await runIssueTestPlanFromPlan({
@@ -164,6 +177,7 @@ async function maybeRunIssueTestPlan(
     workspaceRoot,
     agentHarness,
     dryRun,
+    contextFiles,
   });
 
   if (dryRun) {
@@ -178,10 +192,11 @@ async function maybeRunIssueTestPlan(
 export async function handleLand(
   args: string[],
   globalAgent: AgentHarness | null = null,
+  globalContextFiles: readonly string[] = [],
 ): Promise<void> {
   let config: LandArgs;
   try {
-    config = await parseArgs(args, globalAgent);
+    config = await parseArgs(args, globalAgent, globalContextFiles);
   } catch (e) {
     console.error(e instanceof Error ? e.message : String(e));
     Deno.exit(1);
@@ -231,6 +246,7 @@ export async function handleLand(
           workspaceRoot,
           config.agentHarness,
           config.dryRun,
+          config.contextFiles,
         );
       }
       await runLandSingle(config.planFilePath, config.dryRun);
@@ -244,6 +260,7 @@ export async function handleLand(
         workspaceRoot,
         config.agentHarness,
         config.dryRun,
+        config.contextFiles,
       );
     }
 

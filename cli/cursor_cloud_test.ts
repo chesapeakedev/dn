@@ -80,6 +80,30 @@ Deno.test("kickstart and loop preserve steering prompts", async () => {
   );
 });
 
+Deno.test("kickstart and loop parse --context-file without treating the path as input", async () => {
+  const notes = "notes.md";
+  const kickstart = await parseKickstartArgs([
+    "--context-file",
+    notes,
+    "123",
+  ]);
+  assertEquals(kickstart.issueUrl, "123");
+  assertEquals(kickstart.contextFiles?.length, 1);
+  assertEquals(kickstart.contextFiles?.[0].endsWith("notes.md"), true);
+
+  const loop = await parseLoopArgs([
+    "--context-file",
+    notes,
+    "plans/work.plan.md",
+  ]);
+  assertEquals(loop.target, {
+    kind: "plan-file",
+    path: "plans/work.plan.md",
+  });
+  assertEquals(loop.contextFiles?.length, 1);
+  assertEquals(loop.contextFiles?.[0].endsWith("notes.md"), true);
+});
+
 Deno.test("Cursor cloud CLI defaults the starting ref to main", async () => {
   const kickstart = await parseKickstartArgs(["--cursor-cloud", "task.md"]);
   assertEquals(kickstart.cursorCloudRef, "main");
