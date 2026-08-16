@@ -46,7 +46,7 @@ Deno.test("dn sync --help exits zero", async () => {
 
   assert(code === 0);
   assert(helpText.includes("dn sync"));
-  assert(helpText.includes("--skip-lint"));
+  assert(helpText.includes("--skip-preflight"));
   assert(helpText.includes("Sapling or Git"));
 });
 

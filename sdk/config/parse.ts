@@ -10,6 +10,7 @@ import type {
   DnConfigLayer,
   DnRfcConfig,
   DnStrictConfig,
+  DnSyncConfig,
   DnUserDefaults,
   DnUserRepoOverride,
 } from "./types.ts";
@@ -132,6 +133,57 @@ function parseStrictConfig(value: unknown, source: string): DnStrictConfig {
   };
 }
 
+function parsePreflightArgv(
+  entry: unknown,
+  source: string,
+  index: number,
+): string[] {
+  if (!Array.isArray(entry) || entry.length === 0) {
+    throw new Error(
+      `Invalid dn config at ${source}: sync.preflight[${index}] must be a non-empty argv array`,
+    );
+  }
+  return entry.map((arg, argIndex) => {
+    if (typeof arg !== "string" || arg.length === 0) {
+      throw new Error(
+        `Invalid dn config at ${source}: sync.preflight[${index}][${argIndex}] must be a non-empty string`,
+      );
+    }
+    return arg;
+  });
+}
+
+function parseSyncConfig(value: unknown, source: string): DnSyncConfig {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`Invalid dn config at ${source}: sync must be an object`);
+  }
+  const record = value as Record<string, unknown>;
+  if (record.preflight !== undefined && !Array.isArray(record.preflight)) {
+    throw new Error(
+      `Invalid dn config at ${source}: sync.preflight must be an array`,
+    );
+  }
+  if (
+    record.trunk !== undefined &&
+    (typeof record.trunk !== "string" || record.trunk.trim().length === 0 ||
+      /\s/.test(record.trunk))
+  ) {
+    throw new Error(
+      `Invalid dn config at ${source}: sync.trunk must be a non-empty string without whitespace`,
+    );
+  }
+  return {
+    ...(record.preflight !== undefined
+      ? {
+        preflight: record.preflight.map((entry, index) =>
+          parsePreflightArgv(entry, source, index)
+        ),
+      }
+      : {}),
+    ...(typeof record.trunk === "string" ? { trunk: record.trunk } : {}),
+  };
+}
+
 /** Parses a configuration document and rejects malformed known fields. */
 export function parseDnConfig(content: string, source: string): DnConfigLayer {
   let parsed: unknown;
@@ -177,6 +229,9 @@ export function parseDnConfig(content: string, source: string): DnConfigLayer {
       : {}),
     ...(value.strict !== undefined
       ? { strict: parseStrictConfig(value.strict, source) }
+      : {}),
+    ...(value.sync !== undefined
+      ? { sync: parseSyncConfig(value.sync, source) }
       : {}),
   };
 }

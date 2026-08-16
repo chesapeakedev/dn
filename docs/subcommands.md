@@ -821,27 +821,37 @@ Output includes a heuristic **score** line per issue and optional `--verbose`
 boost breakdown. Respect global color/unattended flags the same way as
 `dn glance`.
 
-## `dn sync` — Git/Sapling: lint, rebase, publish
+## `dn sync` — Git/Sapling: rebase onto trunk and publish
 
-Runs the “sync with trunk” flow from `AGENTS.md` (the same flow as `make sync`
-in this repo). It prefers Sapling when both VCS tools recognize the checkout,
-then falls back to Git. **Prerequisites:** Git or Sapling (`sl`), **`make`** on
-PATH, and **Deno** (what `make lint` already uses).
+Trunk-landing workflow: rebase the current stack onto remote trunk and publish
+that HEAD to trunk. It is **not** a pull-request workflow. Other local branches
+and bookmarks are left alone. In this repository `make sync` is a thin alias
+that runs the local TypeScript entrypoint.
+
+It prefers Sapling when both VCS tools recognize the checkout (a `.sl` directory
+is required so an installed `sl` does not capture plain Git repos), then falls
+back to Git. **Prerequisites:** Git or Sapling (`sl`). `make` is needed only
+when `sync.preflight` in `dn.json` invokes it.
 
 **Steps (in order, fail-fast):**
 
-1. **`make lint`** at the repository root (format + typecheck + lint), unless
-   **`--skip-lint`** is passed.
-2. Rebase the current work onto remote **`main`**.
-3. Publish the rebased local commits directly to remote **`main`**, or skip the
-   push when no local commits remain.
+1. Optional **`sync.preflight`** argv lists from `dn.json`, unless
+   **`--skip-preflight`** is passed. Absent or empty `preflight` means no
+   quality gate (the generic default). This repository sets `make lint` then
+   `make tests`.
+2. Rebase the current work onto remote **trunk**. Trunk is `sync.trunk` when
+   set; otherwise the Git remote `HEAD`; otherwise a local `main` ref. If none
+   of those resolve, `dn sync` exits and asks you to set `sync.trunk`.
+3. Publish the rebased local commits directly to remote trunk, or skip the push
+   when no local commits remain.
 
-Sapling uses **`sl pull --rebase -d main`**, conditionally runs **`sl restack`**
-for `children(obsolete()) - obsolete()`, and publishes with
-**`sl push --to main`**. Git resolves the remote tracked by local **`main`**
-(falling back to **`origin`**), fetches **`main`**, rebases onto
-**`FETCH_HEAD`**, and publishes with **`git push <remote> HEAD:main`**. Git does
-not need an equivalent restack step.
+Sapling uses **`sl pull --rebase -d <trunk>`**, conditionally runs
+**`sl restack`** for `children(obsolete()) - obsolete()`, and publishes with
+**`sl push --to <trunk>`** when `draft() & ancestors(.) & descendants(<trunk>)`
+matches. Git resolves the remote tracked by local trunk (falling back to
+**`origin`**), fetches trunk, rebases onto **`FETCH_HEAD`**, and publishes with
+**`git push <remote> HEAD:<trunk>`**. Git does not need an equivalent restack
+step. Git publishes the current HEAD to trunk even from a feature branch.
 
 **Credentials:** `dn auth` configures the GitHub API token (`dn issue`, etc.).
 Git and Sapling pushes use repository credentials (**HTTPS credential helper**,
@@ -854,9 +864,17 @@ From a subdirectory of the checkout:
 dn sync --workspace-root /path/to/checkout
 ```
 
-`make sync` runs the repository lint target once, then invokes the local
-TypeScript entrypoint with `sync --skip-lint` so it does not repeat the same
-validation.
+Project configuration example:
+
+```json
+{
+  "schema_version": "2.0",
+  "sync": {
+    "preflight": [["make", "lint"], ["make", "tests"]],
+    "trunk": "main"
+  }
+}
+```
 
 Troubleshooting:
 
@@ -864,10 +882,12 @@ Troubleshooting:
 - **merge/rebase aborted** — fix conflicts reported by the VCS, then re-run
   **`dn sync`**.
 - **push auth errors** — configure remote credentials (**`gh auth login`**, SSH
-  remote, or a helper).
-- **`make`** missing — install **make**; on this repo **`make configure`**
-  installs `dn`; **`make sync`** runs the local TypeScript entrypoint via
-  **`deno run`**.
+  remote, or a helper). Protected trunk may reject direct pushes; that is
+  expected in PR-based repositories.
+- **Could not determine trunk** — set `sync.trunk` in `dn.json`.
+- **`make`** missing — only required when preflight argv starts with `make`. On
+  this repo **`make configure`** installs `dn`; **`make sync`** runs the local
+  TypeScript entrypoint via **`deno run`**.
 
 See also [`AGENTS.md`](../AGENTS.md) (Workflow: `make sync`) and `cli/sync.ts`.
 

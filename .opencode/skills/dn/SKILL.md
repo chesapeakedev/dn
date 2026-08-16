@@ -122,7 +122,7 @@ description.
 
 | Subcommand     | Description                                                                                                                       |
 | -------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `dn sync`      | Sapling push/pull workflow: `make lint` → `sl pull --rebase -d main` → conditional `sl restack` → conditional `sl push --to main` |
+| `dn sync`      | Rebase current stack onto remote trunk and publish it. Optional `dn.json` `sync.preflight`. |
 | `dn todo done` | Mark first unchecked item done (or specific ref), close GitHub issue if applicable                                                |
 | `dn tidy`      | Groom todo list: re-fetch open issues, re-score, update `~/.dn/todo.md`                                                           |
 | `dn release`   | GitHub release management: `create`, `list`, `view`, `edit`, `delete`                                                             |
@@ -187,18 +187,27 @@ echo '{"schema_version":"1.0","dispatch_id":"'"$(uuidgen)"'","milestone":"1"}' \
 
 ## `make sync` / `dn sync`
 
-The primary push/pull workflow:
+Trunk-landing workflow: rebase the current stack onto remote trunk and publish
+that HEAD to trunk. Not a pull-request workflow. Other local branches and
+bookmarks are left alone.
 
 ```bash
-make sync   # compiles dn, then runs dn sync
+make sync   # this repo: deno run of local cli/main.ts sync
 dn sync     # if dn is on PATH
 ```
 
-This runs: `make lint` → `sl pull --rebase -d main` → conditional `sl restack` →
-conditional `sl push --to main`.
+Optional quality gates come from `dn.json` `sync.preflight` (this repo: `make
+lint` then `make tests`). Repositories without that block run no lint or test
+command. Trunk defaults to the Git remote HEAD, then local `main`, or
+`sync.trunk`.
 
-Use `make sync` when you sit down (to pull latest) and before you get up (to
-push your work).
+Sapling: `sl pull --rebase -d <trunk>` → conditional `sl restack` → conditional
+`sl push --to <trunk>`. Git: fetch trunk, rebase onto `FETCH_HEAD`, push
+`HEAD:<trunk>` when commits remain.
+
+Use `make sync` / `dn sync` when you sit down (to pull latest) and before you
+get up (to push your work). To share a feature branch without landing it, use
+the VCS directly.
 
 ## SDK (`sdk/mod.ts`)
 

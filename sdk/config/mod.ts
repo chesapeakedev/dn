@@ -32,6 +32,7 @@ export type {
   DnRfcConfig,
   DnRuntimeOverrides,
   DnStrictConfig,
+  DnSyncConfig,
   DnUserDefaults,
   DnUserRepoOverride,
   ResolvedDnConfig,

@@ -114,7 +114,7 @@ dn loop plans/task.plan.md                 # Implement from an existing plan
 dn fixup <pull-request-url>                # Address PR review feedback
 dn meld a.md b.md --plan-name merged       # Plan from combined sources
 dn init stack 42                           # Create a milestone task stack
-dn sync                                    # Git/Sapling lint, rebase, publish
+dn sync                                    # Git/Sapling rebase onto trunk and publish
 \`\`\`
 
 ## RFCs and design context

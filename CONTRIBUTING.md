@@ -41,8 +41,9 @@ instructed to do. Many times the advice generalizes. Quality contributions to
 
 This project uses `make` as a task runner, both locally and in CI. Read through
 the [Makefile](./Makefile) to understand useful commands in the project.
-**`make sync`** runs **`dn sync`** (Sapling pull/rebase, optional restack,
-conditional push to `main`); see **`AGENTS.md`** and **`docs/subcommands.md`**.
+**`make sync`** is a thin alias for **`dn sync`** (rebase onto remote trunk,
+optional restack, conditional push). Quality gates live in `dn.json`
+`sync.preflight`; see **`AGENTS.md`** and **`docs/subcommands.md`**.
 
 ## Documentation
 

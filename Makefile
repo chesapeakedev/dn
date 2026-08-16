@@ -47,10 +47,10 @@ tests: ; NODE_ENV=dev deno test --allow-all
 configure: install
 publish: ; deno task publish
 
-# sync your local changes with trunk, rebasing trunk under your work
-# leaves branches alone
-sync: lint tests
-	deno run --allow-all $(CURDIR)/cli/main.ts sync --skip-lint
+# Rebase remote trunk under the current stack and publish it.
+# Quality gates live in dn.json (sync.preflight). Other branches are left alone.
+sync:
+	deno run --allow-all $(CURDIR)/cli/main.ts sync
 
 # compile & install dn locally for the current user
 TARGET_DIR=~/.local/bin

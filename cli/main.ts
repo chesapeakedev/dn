@@ -342,7 +342,7 @@ function showUsage(): void {
     "  tidy         Groom todo list: re-fetch issues, re-score, update ~/.dn/todo.md",
   );
   console.error(
-    "  sync         Git/Sapling: lint, rebase onto main, publish local commits",
+    "  sync         Git/Sapling: rebase onto trunk and publish local commits",
   );
   console.error(
     "  runner       Pair and operate this machine as Denoise infrastructure",

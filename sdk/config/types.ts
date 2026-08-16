@@ -37,6 +37,27 @@ export interface DnStrictConfig {
   require_rfcs?: boolean;
 }
 
+/**
+ * Optional `dn sync` settings (project `dn.json`).
+ *
+ * Absent or empty `preflight` means `dn sync` runs no quality gate. That is
+ * the generic default so repositories without Make are not forced through
+ * `make lint`. This repository sets argv lists such as `make lint` and
+ * `make tests`.
+ */
+export interface DnSyncConfig {
+  /**
+   * Commands to run at the repository root before rebasing, each as an argv
+   * array with no shell. Fail-fast. Empty or omitted skips the gate.
+   */
+  preflight?: string[][];
+  /**
+   * Trunk bookmark or branch name. When omitted, `dn sync` resolves trunk
+   * from the Git remote HEAD, then a local `main` ref.
+   */
+  trunk?: string;
+}
+
 /** Configuration values supported by repository and user configuration files. */
 export interface DnConfigLayer {
   /** Version of the configuration document. */
@@ -58,6 +79,8 @@ export interface DnConfigLayer {
   rfc?: DnRfcConfig;
   /** Strict enforcement settings (project config). */
   strict?: DnStrictConfig;
+  /** Trunk sync settings (project config). */
+  sync?: DnSyncConfig;
 }
 
 /** Runtime values which take precedence over file-based configuration. */
@@ -80,7 +103,7 @@ export type DnConfigSource =
 export interface ResolvedDnConfig extends DnConfigLayer {
   schema_version: "2.0";
   sources: Partial<
-    Record<"agent" | "sandbox" | "rfc" | "strict", DnConfigSource>
+    Record<"agent" | "sandbox" | "rfc" | "strict" | "sync", DnConfigSource>
   >;
 }
 

@@ -177,6 +177,80 @@ Deno.test("parseDnConfig accepts rfc and strict project blocks", () => {
   assertEquals(parsed.strict, { enabled: false, require_rfcs: true });
 });
 
+Deno.test("parseDnConfig accepts sync project blocks", () => {
+  const parsed = parseDnConfig(
+    JSON.stringify({
+      schema_version: "2.0",
+      sync: {
+        preflight: [["make", "lint"], ["make", "tests"]],
+        trunk: "main",
+      },
+    }),
+    "test",
+  );
+  assertEquals(parsed.sync, {
+    preflight: [["make", "lint"], ["make", "tests"]],
+    trunk: "main",
+  });
+});
+
+Deno.test("parseDnConfig rejects malformed sync blocks", () => {
+  assertThrows(
+    () => parseDnConfig('{"sync":[]}', "test"),
+    Error,
+    "sync must be an object",
+  );
+  assertThrows(
+    () => parseDnConfig('{"sync":{"preflight":"make lint"}}', "test"),
+    Error,
+    "sync.preflight must be an array",
+  );
+  assertThrows(
+    () => parseDnConfig('{"sync":{"preflight":[[]]}}', "test"),
+    Error,
+    "must be a non-empty argv array",
+  );
+  assertThrows(
+    () => parseDnConfig('{"sync":{"trunk":"feat branch"}}', "test"),
+    Error,
+    "sync.trunk must be a non-empty string without whitespace",
+  );
+});
+
+Deno.test("resolveDnConfig merges repository sync over user sync", async () => {
+  const root = await Deno.makeTempDir({ prefix: "dn-config-sync-" });
+  const user = `${root}/user.json`;
+  try {
+    await Deno.writeTextFile(
+      user,
+      JSON.stringify({
+        schema_version: "2.0",
+        sync: { trunk: "develop", preflight: [["true"]] },
+      }),
+    );
+    await Deno.writeTextFile(
+      `${root}/dn.json`,
+      JSON.stringify({
+        schema_version: "2.0",
+        sync: { trunk: "main", preflight: [["make", "lint"]] },
+      }),
+    );
+    const config = await resolveDnConfig({
+      repoRoot: root,
+      userConfigPath: user,
+      repositorySlug: "test/repo",
+      env: {},
+    });
+    assertEquals(config.sync, {
+      trunk: "main",
+      preflight: [["make", "lint"]],
+    });
+    assertEquals(config.sources.sync, "repository");
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
 Deno.test("writeActionsConfigProjection emits bridge from dn.json", async () => {
   const root = await Deno.makeTempDir({ prefix: "dn-projection-" });
   try {

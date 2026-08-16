@@ -411,45 +411,46 @@ Run `sl help COMMAND` for any command's full usage. For deeper topics:
 
 ### Workflow: `make sync` / `dn sync`
 
-The primary push/pull workflow is **`make sync`** from the repo root — it
-invokes **`dn sync`** (implemented in `cli/sync.ts`). Equivalent for humans who
-prefer the runner:
+The primary push/pull workflow is **`make sync`** from the repo root — a thin
+alias for **`dn sync`** (implemented in `cli/sync.ts`). Equivalent for humans
+who prefer the runner:
 
 ```bash
-make sync      # Makefile → lint once, then deno run … cli/main.ts sync --skip-lint
+make sync      # Makefile → deno run … cli/main.ts sync
 dn sync        # after `make configure`, if `dn` is on PATH
 ```
 
+`dn sync` is a **trunk-landing** command, not a pull-request workflow. It
+rebases the current stack onto remote trunk and publishes that HEAD to trunk.
+Other local branches and bookmarks are left alone. To share a feature branch
+without landing it, use the VCS directly.
+
 The workflow auto-detects Sapling first, then Git. Both paths run:
 
-1. **`make lint`** to ensure nothing is broken
-2. Rebase remote **`main`** under your local commits
-3. Publish local commits directly to remote **`main`**, skipping the push when
-   no local commits remain
+1. Optional **`sync.preflight`** argv lists from `dn.json` (this repository:
+   `make lint` then `make tests`). Repositories without the block run no quality
+   gate. Pass **`--skip-preflight`** to skip it.
+2. Rebase remote **trunk** under your local commits. Trunk is `sync.trunk` when
+   set, otherwise the Git remote HEAD, otherwise local `main`.
+3. Publish local commits directly to remote trunk, skipping the push when no
+   local commits remain.
 
-The Sapling path uses **`sl pull --rebase -d main`**, followed by conditional
+The Sapling path uses **`sl pull --rebase -d <trunk>`**, followed by conditional
 **`sl restack`** when orphaned draft descendants exist (revset
-**`children(obsolete()) - obsolete()`** — same idea as older shell snippets but
-inlined in **`dn sync`**, unlike the thinner historical **`repo_sync.sh`**
-helper). It runs **`sl push --to main`** only when
-**`draft() & ancestors(.) & descendants(main)`** matches.
+**`children(obsolete()) - obsolete()`**). It runs **`sl push --to <trunk>`**
+only when **`draft() & ancestors(.) & descendants(<trunk>)`** matches.
 
-The Git path selects the remote tracked by local **`main`**, falling back to
-**`origin`**. It fetches remote **`main`**, rebases onto **`FETCH_HEAD`**, and
-runs **`git push <remote> HEAD:main`** only when **`FETCH_HEAD..HEAD`** contains
+The Git path selects the remote tracked by local trunk, falling back to
+**`origin`**. It fetches trunk, rebases onto **`FETCH_HEAD`**, and runs
+**`git push <remote> HEAD:<trunk>`** only when **`FETCH_HEAD..HEAD`** contains
 commits. Git has no restack step because rebase performs the applicable history
 rewrite.
 
 Use **`make sync`** when you sit down (to pull latest) and before you get up (to
-push your work).
+push your work). This repository still uses `deno run` on the local TypeScript
+entrypoint so contributors do not need a freshly compiled `dn`.
 
-`repo_sync.sh` has been deleted. **`make sync`** runs the local TypeScript
-entrypoint directly after linting, so it does not need to compile/install `dn`
-or run the same lint checks twice.
-
-`dn sync` is a trunk-landing workflow: both VCS paths publish the current
-rebased commits directly to remote `main`. To share a feature branch without
-landing it, use the VCS directly. For anonymous Sapling feature branches:
+For anonymous Sapling feature branches:
 
 - `sl goto <rev>` to switch to the branch tip
 - `sl rebase -s <tip> -d main` when ready to land
