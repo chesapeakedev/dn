@@ -709,12 +709,7 @@ export function validateRunnerJob(
     ) {
       throw new Error("Runner job has an unsupported agent harness.");
     }
-    const issueRepository = repositoryFromIssueUrl(job.operation.issue_url);
-    if (issueRepository.toLowerCase() !== repository.toLowerCase()) {
-      throw new Error(
-        `Runner job issue belongs to ${issueRepository}, not ${repository}.`,
-      );
-    }
+    repositoryFromIssueUrl(job.operation.issue_url);
   } else {
     throw new Error(
       "Runner protocol v1 only permits kickstart or denoise-task jobs.",

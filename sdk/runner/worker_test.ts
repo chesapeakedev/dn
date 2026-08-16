@@ -119,6 +119,27 @@ Deno.test("buildRunnerKickstartCommand constructs exact typed argv", async () =>
   ]);
 });
 
+Deno.test("buildRunnerKickstartCommand passes --allow-cross-repo when issue repo differs", async () => {
+  const crossRepoJob = job();
+  crossRepoJob.repository = "chesapeakedev/other";
+  const { argv } = await buildRunnerKickstartCommand(crossRepoJob, [
+    "/usr/local/bin/dn",
+  ]);
+  assertEquals(argv, [
+    "/usr/local/bin/dn",
+    "--unattended",
+    "--agent",
+    "codex",
+    "kickstart",
+    "--sandbox",
+    "none",
+    "--publish",
+    "pr",
+    "--allow-cross-repo",
+    "https://github.com/chesapeakedev/dn/issues/213",
+  ]);
+});
+
 Deno.test("parseRunnerProgressLine validates invocation correlation", () => {
   const line = JSON.stringify({
     schema_version: "1.0",

@@ -16,6 +16,7 @@ import type {
 } from "./types.ts";
 import {
   denoiseTaskToMarkdown,
+  repositoryFromIssueUrl,
   RUNNER_PROTOCOL_VERSION,
   validateRunnerJob,
 } from "./types.ts";
@@ -186,6 +187,9 @@ export function buildRunnerKickstartCommand(
   if (job.operation.type === "denoise-task") {
     return buildRunnerDenoiseTaskCommand(job, commandPrefix);
   }
+  const issueRepository = repositoryFromIssueUrl(job.operation.issue_url);
+  const crossRepo = issueRepository.toLowerCase() !==
+    job.repository.toLowerCase();
   return {
     argv: [
       ...commandPrefix,
@@ -197,6 +201,7 @@ export function buildRunnerKickstartCommand(
       "none",
       "--publish",
       job.operation.publish,
+      ...(crossRepo ? ["--allow-cross-repo"] : []),
       job.operation.issue_url,
     ],
   };

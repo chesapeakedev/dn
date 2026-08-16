@@ -297,7 +297,7 @@ function showHelp(): void {
     "  --awp                    Alias for --publish pr (branches, commits, PRs)",
   );
   console.log(
-    "  --allow-cross-repo, -A   Allow implementing issues from different repositories",
+    "  --allow-cross-repo, -A   Allow issues from a different repo; AWP lands in this workspace",
   );
   console.log(
     "  --steer <prompt>         Append supplemental operator guidance to agent prompts",

@@ -799,15 +799,18 @@ export async function runMeldPhase(
           );
         }
         if (config.publish !== "none") {
-          throw new Error(
-            `Cross-repository operations are not supported with AWP mode. AWP involves VCS operations that require the issue and current workspace to be in the same repository.`,
+          console.log(
+            formatWarning(
+              `Cross-repository AWP: issue stays on ${issueData.owner}/${issueData.repo}; commits and pull request land in ${currentRepo.owner}/${currentRepo.repo}.`,
+            ),
+          );
+        } else {
+          console.log(
+            formatWarning(
+              `Cross-repository operation: Implementing issue from ${issueData.owner}/${issueData.repo} in workspace ${currentRepo.owner}/${currentRepo.repo}`,
+            ),
           );
         }
-        console.log(
-          formatWarning(
-            `Cross-repository operation: Implementing issue from ${issueData.owner}/${issueData.repo} in workspace ${currentRepo.owner}/${currentRepo.repo}`,
-          ),
-        );
       }
       issueContextPathFinal = `${tmpDir}/issue-context.md`;
       await writeIssueContext(issueData, issueContextPathFinal);

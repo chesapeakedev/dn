@@ -247,8 +247,10 @@ By default, kickstart only supports implementing issues from the current
 repository to ensure VCS operations work correctly. To implement issues from a
 different repository, use `--allow-cross-repo` (or its short alias `-A`):
 
-- **Allowed**: Cross-repo operations without AWP mode
-- **Blocked**: Cross-repo operations with AWP mode (branches, commits, PRs)
+- **Allowed**: Cross-repo operations with `--publish none`, `--publish pr`, or
+  `--publish direct`
+- AWP applies version control and the pull request to the **current workspace**
+  (execution repo). The issue URL stays on the planning repository.
 
 Cross-repo workflows are useful when you write tickets in a private repository
 but implement the functionality in a public repository. The changes are applied
