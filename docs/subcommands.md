@@ -410,7 +410,40 @@ later files.
 
 ## `dn init` — Initialize repository context
 
-Manages repository setup with `stack`, `build`, `workflows`, and `agents`.
+Manages repository setup with `stack`, `build`, `workflows`, `agents`, and
+`wizard`.
+
+### `dn init wizard` — Guided first-run setup
+
+Run once per machine and once per project. The wizard detects context
+automatically:
+
+- **Project mode** (inside a git or sapling checkout) writes root `dn.json`,
+  projects `.github/dn/config.json`, and can optionally install workflows, RFC
+  scaffolding, or a repo-scoped dn skill.
+- **User mode** (outside a repository) writes personal defaults to
+  `~/.dn/config.json`. Repository `dn.json` overrides those defaults when you
+  work inside a checkout.
+
+```bash
+dn init wizard
+dn init wizard --project --yes
+dn init wizard --user
+DN_YES=1 dn init wizard
+```
+
+Options:
+
+| Flag          | Effect                                     |
+| ------------- | ------------------------------------------ |
+| `--project`   | Force project mode (requires VCS checkout) |
+| `--user`      | Force user mode                            |
+| `--yes`, `-y` | Accept defaults and skip optional prompts  |
+| `--json`      | Print machine-readable summary             |
+
+The wizard never writes secrets. After user setup, run `dn auth` if you have not
+signed in to GitHub yet. After project setup, commit `dn.json` and any installed
+`.github/` files.
 
 ### `dn init build` — Install build automation workflows
 

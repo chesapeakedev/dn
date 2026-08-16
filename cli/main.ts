@@ -19,6 +19,7 @@ import { bootstrapFromEnv } from "./output.ts";
 import { handleFixup } from "./fixup.ts";
 import { handleInitAgents } from "./init-agents.ts";
 import { handleInitStack } from "./init-stack.ts";
+import { handleInitWizard } from "./init-wizard.ts";
 import { handleIssue } from "./issue.ts";
 import { handleInitWorkflows, handleWorkflows } from "./workflows.ts";
 import {
@@ -50,6 +51,11 @@ async function handleInit(
     return;
   }
 
+  if (subcommand === "wizard") {
+    await handleInitWizard(args.slice(1));
+    return;
+  }
+
   if (
     args.length === 0 || subcommand === "help" || subcommand === "--help" ||
     subcommand === "-h"
@@ -61,7 +67,10 @@ async function handleInit(
     console.log("  stack    Initialize stack context from GitHub milestone");
     console.log("  build    Install GitHub Actions workflow automation");
     console.log("  workflows Install canonical GitHub Actions workflows");
-    console.log("  agents   Update AGENTS.md with dn instructions\n");
+    console.log("  agents   Update AGENTS.md with dn instructions");
+    console.log(
+      "  wizard   Guided first-run setup for project or user config\n",
+    );
     console.log("Examples:");
     console.log("  dn init build");
     console.log("  dn init workflows");
@@ -69,11 +78,13 @@ async function handleInit(
     console.log(
       "  dn init stack https://github.com/owner/repo/milestone/3",
     );
+    console.log("  dn init wizard");
+    console.log("  dn init wizard --project --yes");
     Deno.exit(0);
   }
 
   console.error(`Unknown init subcommand: ${subcommand}\n`);
-  console.error("Valid subcommands: stack, build, workflows, agents");
+  console.error("Valid subcommands: stack, build, workflows, agents, wizard");
   Deno.exit(1);
 }
 import { handleKickstart } from "./kickstart.ts";
@@ -288,6 +299,9 @@ function showUsage(): void {
     "    workflows  Install canonical GitHub Actions workflows",
   );
   console.error("    agents     Update AGENTS.md with dn instructions");
+  console.error(
+    "    wizard     Guided first-run setup for project or user config",
+  );
   console.error(
     "  issue        Manage GitHub issues and relationships",
   );

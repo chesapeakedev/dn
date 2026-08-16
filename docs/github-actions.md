@@ -27,11 +27,16 @@ jobs:
 Install the canonical workflow templates and pick one agent for the repository:
 
 ```bash
+dn init wizard --project
+# or the focused shortcut:
 dn init workflows --agent claude
 gh secret set ANTHROPIC_API_KEY
 # Commit dn.json and the workflows
 dn workflows validate --json
 ```
+
+Run `dn init wizard` once on each machine (`~/.dn/config.json`) and once in each
+repository (`dn.json`) so personal defaults and team policy stay aligned.
 
 ## Tiered configuration
 
