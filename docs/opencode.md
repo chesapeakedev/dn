@@ -29,21 +29,23 @@ make install
 
 ### 2. GitHub Authentication
 
-dn needs GitHub access for most operations. Set up one of:
+dn needs GitHub access for most operations. Prefer GitHub CLI; `dn auth` is
+complementary if you do not use `gh`:
 
-**GitHub CLI (Recommended):**
+**GitHub CLI (preferred):**
 
 ```bash
 gh auth login
 ```
 
-**Browser Authentication:**
+**Browser authentication (complementary):**
 
 ```bash
 dn auth
+dn auth status
 ```
 
-**Environment Variable (for CI):**
+**Environment variable (for CI):**
 
 ```bash
 export GITHUB_TOKEN=your_token_here

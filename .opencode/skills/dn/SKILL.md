@@ -44,8 +44,8 @@ dn <subcommand> -h    # help for a specific subcommand
 ## Token resolution order
 
 1. `GITHUB_TOKEN` (or `DANGEROUS_GITHUB_TOKEN`) env var
-2. `dn auth` cached device-flow token (`~/.dn/`)
-3. `gh auth token` (shell out to GitHub CLI)
+2. `gh auth token` (preferred interactive path: `gh auth login`)
+3. `dn auth` cached device-flow token (`~/.config/dn/`) (complementary)
 
 ## Common env vars
 
@@ -131,7 +131,7 @@ description.
 
 | Subcommand         | Description                                                          |
 | ------------------ | -------------------------------------------------------------------- |
-| `dn auth`          | Sign in to GitHub via browser device flow. Caches token in `~/.dn/`. |
+| `dn auth`          | Complementary browser login (`login`/`status`/`logout`). Prefer `gh auth login`. |
 | `dn context check` | Inspect inherited AGENTS.md context chain for a file/directory       |
 
 ## Few-shot examples

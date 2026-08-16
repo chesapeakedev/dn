@@ -30,6 +30,22 @@ Use the top-level `--version` or `-V` flag to print only the current version:
 dn --version
 ```
 
+## `dn completion` — Shell tab completion
+
+Print a bash or zsh script and eval it from your shell rc:
+
+```bash
+# ~/.bashrc
+eval "$(dn completion bash)"
+
+# ~/.zshrc (after compinit)
+eval "$(dn completion zsh)"
+```
+
+Completes subcommands, nested commands, and known flags (including values such
+as `--agent`). Positional paths fall back to the shell's filename completion.
+The completer does not call GitHub.
+
 ## `dn until` — Iteration-bounded generator/verifier gambits
 
 Runs a bounded multi-tick generator/verifier workflow from a JSON config file.
@@ -365,17 +381,21 @@ dn tidy --limit 10
 
 See `dn tidy --help` for all options.
 
-## `dn auth` — Sign in to GitHub
+## `dn auth` — Complementary GitHub sign-in
 
-Sign in to GitHub in the browser (device flow). The token is cached so
-`dn kickstart`, `dn glance`, etc. can use it without re-prompting:
+Prefer **`gh auth login`** when you use GitHub CLI — `dn` reads `gh auth token`
+automatically. Use `dn auth` only if you do not use `gh`.
 
 ```bash
-dn auth
+dn auth              # browser device flow (Denoise GitHub App by default)
+dn auth login        # same as dn auth
+dn auth status       # show login + which token source won
+dn auth logout       # clear dn cache only (does not affect gh)
 ```
 
-Requires `DN_GITHUB_DEVICE_CLIENT_ID` (or `GITHUB_DEVICE_CLIENT_ID`) set to your
-GitHub OAuth App client ID. See [`docs/authentication.md`](authentication.md).
+Optional: set `DN_GITHUB_DEVICE_CLIENT_ID` (or `GITHUB_DEVICE_CLIENT_ID`) to use
+your own GitHub App instead of Denoise. See
+[`docs/authentication.md`](authentication.md).
 
 ## `dn context` — Inspect inherited `AGENTS.md` context
 
@@ -800,8 +820,8 @@ See [Global flags and output](#global-flags-and-output) for `--no-color`,
 `--color`, and `--unattended` / `--ci`, which affect Unicode vs ASCII and ANSI
 styling (`dn` bootstraps them before glance runs).
 
-Authentication matches other GitHub-backed commands (**`dn auth`**,
-**`gh auth login`**, or **`GITHUB_TOKEN`**).
+Authentication matches other GitHub-backed commands (**`gh auth login`**,
+**`dn auth`**, or **`GITHUB_TOKEN`**).
 
 ## `dn peek` — Suggested next open issues (heuristic)
 

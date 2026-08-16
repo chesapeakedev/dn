@@ -3,7 +3,10 @@
 
 /**
  * Central GitHub token resolution for dn CLI.
- * Order: GITHUB_TOKEN (or DANGEROUS_GITHUB_TOKEN for backward compat) → gh auth token → cached browser token → throw.
+ *
+ * Open-source-first order (prefer user-controlled credentials over the
+ * complementary dn device-flow cache):
+ *   GITHUB_TOKEN (or DANGEROUS_GITHUB_TOKEN) → gh auth token → dn cache → throw.
  */
 
 import { $ } from "$dax";
@@ -12,8 +15,24 @@ const ENV_TOKEN_KEY = "GITHUB_TOKEN";
 const LEGACY_ENV_TOKEN_KEY = "DANGEROUS_GITHUB_TOKEN";
 const AUTH_DOCS_PATH = "docs/authentication.md";
 
+/** Where a resolved GitHub API token came from. */
+export type GitHubTokenSource = "env" | "gh" | "dn";
+
+/** Resolved token plus which ladder step produced it. */
+export interface ResolvedGitHubToken {
+  token: string;
+  source: GitHubTokenSource;
+}
+
+/** Injectable sources for tests. */
+export interface TokenResolverDeps {
+  getEnv: (key: string) => string | undefined;
+  readGhToken: () => Promise<string | null>;
+  readCachedToken: () => Promise<string | null>;
+}
+
 /** In-process cache so we only resolve once per run. */
-let resolved: Promise<string> | null = null;
+let resolved: Promise<ResolvedGitHubToken> | null = null;
 
 /**
  * Returns the platform-specific dn config directory.
@@ -41,7 +60,7 @@ export function getCachedTokenPath(): string {
 /**
  * Read cached token from config dir if present and non-empty.
  */
-async function readCachedToken(): Promise<string | null> {
+export async function readCachedToken(): Promise<string | null> {
   const path = getCachedTokenPath();
   try {
     const content = await Deno.readTextFile(path);
@@ -52,55 +71,104 @@ async function readCachedToken(): Promise<string | null> {
   }
 }
 
+async function readGhAuthToken(): Promise<string | null> {
+  try {
+    const result = await $`gh auth token`.quiet().text();
+    const token = (result ?? "").trim();
+    return token.length > 0 ? token : null;
+  } catch {
+    return null;
+  }
+}
+
+function defaultDeps(): TokenResolverDeps {
+  return {
+    getEnv: (key) => Deno.env.get(key),
+    readGhToken: readGhAuthToken,
+    readCachedToken,
+  };
+}
+
+/**
+ * Resolve a GitHub token and report which source won.
+ * Order: env → gh → dn cache (open-source-first / complementary to gh).
+ */
+export async function resolveGitHubTokenWithSource(
+  deps: TokenResolverDeps = defaultDeps(),
+): Promise<ResolvedGitHubToken> {
+  const envToken = deps.getEnv(ENV_TOKEN_KEY) ??
+    deps.getEnv(LEGACY_ENV_TOKEN_KEY);
+  if (envToken != null && envToken.trim().length > 0) {
+    return { token: envToken.trim(), source: "env" };
+  }
+
+  const ghToken = await deps.readGhToken();
+  if (ghToken) {
+    return { token: ghToken, source: "gh" };
+  }
+
+  const cached = await deps.readCachedToken();
+  if (cached) {
+    return { token: cached, source: "dn" };
+  }
+
+  throw new Error(
+    "No GitHub token found. To use dn:\n" +
+      "  • Preferred: Install GitHub CLI and run `gh auth login`.\n" +
+      "  • Complementary: Run `dn auth` if you do not use gh (caches a token for dn).\n" +
+      "  • CI/scripts: Set GITHUB_TOKEN with a Personal Access Token.\n\n" +
+      `See ${AUTH_DOCS_PATH} for details.`,
+  );
+}
+
 /**
  * Resolve GitHub token in order: env → gh auth token → cached file → throw.
  * Result is cached for the process so callers can call multiple times without re-running gh.
  */
 export async function resolveGitHubToken(): Promise<string> {
   if (resolved) {
-    return await resolved;
+    return (await resolved).token;
   }
 
-  resolved = (async (): Promise<string> => {
-    // 1. Environment variable (CI / scripts). Prefer GITHUB_TOKEN; accept legacy DANGEROUS_GITHUB_TOKEN.
-    const envToken = Deno.env.get(ENV_TOKEN_KEY) ??
-      Deno.env.get(LEGACY_ENV_TOKEN_KEY);
-    if (envToken != null && envToken.trim().length > 0) {
-      return envToken.trim();
-    }
+  resolved = resolveGitHubTokenWithSource();
+  return (await resolved).token;
+}
 
-    // 2. GitHub CLI
-    try {
-      const result = await $`gh auth token`.quiet().text();
-      const token = (result ?? "").trim();
-      if (token.length > 0) {
-        return token;
-      }
-    } catch {
-      // gh not installed or not logged in; fall through
-    }
-
-    // 3. Cached token (browser / device flow)
-    const cached = await readCachedToken();
-    if (cached) {
-      return cached;
-    }
-
-    // 4. No token found
-    throw new Error(
-      "No GitHub token found. To use dn:\n" +
-        "  • Preferred: Install GitHub CLI and run `gh auth login` (no token or env var needed).\n" +
-        "  • Alternative: Run `dn auth` to sign in in the browser; the token is cached for future runs.\n" +
-        "  • CI/scripts: Set GITHUB_TOKEN with a Personal Access Token (fine-grained PAT recommended).\n\n" +
-        `See ${AUTH_DOCS_PATH} for details.`,
-    );
-  })();
-
+/**
+ * Resolve token with source, using the same in-process cache as resolveGitHubToken.
+ */
+export async function resolveGitHubTokenDetails(): Promise<
+  ResolvedGitHubToken
+> {
+  if (resolved) {
+    return await resolved;
+  }
+  resolved = resolveGitHubTokenWithSource();
   return await resolved;
 }
 
 /**
- * Clear the in-process token cache (for tests).
+ * Delete the complementary dn device-flow token cache.
+ * Does not affect gh or environment tokens.
+ * @returns true if a cache file was removed
+ */
+export async function clearCachedToken(): Promise<boolean> {
+  const path = getCachedTokenPath();
+  try {
+    await Deno.remove(path);
+    clearTokenCache();
+    return true;
+  } catch (e) {
+    if (e instanceof Deno.errors.NotFound) {
+      clearTokenCache();
+      return false;
+    }
+    throw e;
+  }
+}
+
+/**
+ * Clear the in-process token cache (for tests and after logout).
  */
 export function clearTokenCache(): void {
   resolved = null;

@@ -346,7 +346,25 @@ export type {
 } from "./github/workflow.ts";
 
 // Token resolution
-export { resolveGitHubToken } from "./github/token.ts";
+export {
+  clearCachedToken,
+  clearTokenCache,
+  getCachedTokenPath,
+  getDnConfigDir,
+  resolveGitHubToken,
+  resolveGitHubTokenDetails,
+  resolveGitHubTokenWithSource,
+} from "./github/token.ts";
+export type {
+  GitHubTokenSource,
+  ResolvedGitHubToken,
+  TokenResolverDeps,
+} from "./github/token.ts";
+export {
+  DENOISE_GITHUB_APP_CLIENT_ID,
+  DEVICE_CLIENT_ID_ENV_VARS,
+  resolveDeviceClientId,
+} from "./github/deviceClientId.ts";
 
 // GitHub REST API utilities
 export { createPR } from "./github/github.ts";

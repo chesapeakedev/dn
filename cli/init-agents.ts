@@ -94,8 +94,8 @@ dn <subcommand> -h    # help for a specific subcommand
 ## Token resolution order
 
 1. \`GITHUB_TOKEN\` or \`DANGEROUS_GITHUB_TOKEN\` environment variable
-2. \`dn auth\` cached device-flow token in \`~/.dn/\`
-3. \`gh auth token\`
+2. \`gh auth token\` (preferred interactive path: \`gh auth login\`)
+3. \`dn auth\` cached device-flow token in \`~/.config/dn/\` (complementary)
 
 ## Common environment variables
 

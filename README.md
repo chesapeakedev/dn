@@ -268,13 +268,14 @@ troubleshooting.
 
 ## Connect GitHub
 
-Commands that access GitHub need authentication. Use an existing GitHub CLI
-session, sign in through `dn`, or provide a token in automation:
+Commands that access GitHub need authentication. Prefer GitHub CLI; `dn auth` is
+complementary if you do not use `gh`:
 
 ```bash
 gh auth login
-# or
+# or, without gh:
 dn auth
+dn auth status
 ```
 
 Set `GITHUB_TOKEN` for CI and other unattended environments. See

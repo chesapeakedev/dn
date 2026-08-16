@@ -281,7 +281,7 @@ function showUsage(): void {
 
   console.error("Subcommands:");
   console.error(
-    "  auth         Sign in to GitHub in the browser (caches token for dn)",
+    "  auth         Complementary GitHub sign-in (login|status|logout); prefer gh",
   );
   console.error(
     "  context      Inspect inherited AGENTS.md context for a file or directory",
