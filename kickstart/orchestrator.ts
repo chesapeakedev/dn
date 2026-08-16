@@ -63,63 +63,13 @@ import {
   loadImplementResult,
   printImplementResult,
 } from "./implementResult.ts";
+import { resolveImplementBlockingError } from "./detectBlockingError.ts";
 import {
   confirmTestsOnlyContinuation,
   mergeTestsOnlySteering,
   shouldOfferTestsOnlyContinuation,
 } from "./testsOnlyContinuation.ts";
 import { $ } from "$dax";
-
-/**
- * Detects if the implement phase output contains a blocking error.
- * Blocking errors are conditions that prevent implementation from proceeding.
- *
- * @param stdout - Standard output from the implement phase
- * @param stderr - Standard error from the implement phase
- * @returns Error message if blocking error detected, null otherwise
- */
-function detectBlockingError(stdout: string, stderr: string): string | null {
-  const combinedOutput = (stdout + "\n" + stderr).toLowerCase();
-
-  // Patterns that indicate blocking errors
-  const blockingPatterns = [
-    /error:\s*cannot proceed/i,
-    /error:\s*implementation blocked/i,
-    /cannot proceed with implementation/i,
-    /implementation blocked:/i,
-    /codebase not present/i,
-    /required.*not present/i,
-    /missing.*codebase/i,
-    /workspace.*not found/i,
-    /critical.*missing/i,
-  ];
-
-  for (const pattern of blockingPatterns) {
-    const match = combinedOutput.match(pattern);
-    if (match) {
-      // Extract the error message from the original output (preserve case)
-      const originalOutput = stdout + "\n" + stderr;
-      const errorMatch = originalOutput.match(new RegExp(pattern.source, "i"));
-      if (errorMatch) {
-        // Try to extract a few lines around the error for context
-        const lines = originalOutput.split("\n");
-        const errorLineIndex = lines.findIndex((line) =>
-          pattern.test(line.toLowerCase())
-        );
-        if (errorLineIndex >= 0) {
-          // Get the error line and a few surrounding lines for context
-          const start = Math.max(0, errorLineIndex - 1);
-          const end = Math.min(lines.length, errorLineIndex + 3);
-          const errorContext = lines.slice(start, end).join("\n");
-          return errorContext.trim();
-        }
-      }
-      return match[0];
-    }
-  }
-
-  return null;
-}
 
 /**
  * Get binary directory (works in both compiled binary and development mode)
@@ -1068,14 +1018,12 @@ export async function runOrchestrator(
         implementResult.stdout,
       );
 
-    // Check for blocking errors in the output (even if exit code is 0)
-    const blockingError = structuredImplementResult?.status === "blocked" ||
-        structuredImplementResult?.recommendation === "blocked"
-      ? structuredImplementResult.summary
-      : detectBlockingError(
-        implementResult.stdout,
-        implementResult.stderr,
-      );
+    // Prefer structured implement-result; never regex-match prompt dumps in stderr
+    const blockingError = resolveImplementBlockingError(
+      structuredImplementResult,
+      implementResult.stdout,
+      implementResult.stderr,
+    );
 
     if (blockingError) {
       console.error(
@@ -1188,14 +1136,11 @@ export async function runOrchestrator(
           WORKSPACE_ROOT,
           continuationResult.stdout,
         );
-        const continuationBlocking =
-          structuredImplementResult?.status === "blocked" ||
-            structuredImplementResult?.recommendation === "blocked"
-            ? structuredImplementResult.summary
-            : detectBlockingError(
-              continuationResult.stdout,
-              continuationResult.stderr,
-            );
+        const continuationBlocking = resolveImplementBlockingError(
+          structuredImplementResult,
+          continuationResult.stdout,
+          continuationResult.stderr,
+        );
         if (continuationBlocking) {
           console.error(
             formatError(

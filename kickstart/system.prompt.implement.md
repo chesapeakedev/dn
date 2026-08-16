@@ -92,11 +92,10 @@ agent-specific status messages.
 
 **DO NOT add to Acceptance Criteria:**
 
-- Error conditions (e.g., "Implementation blocked: codebase not present in
-  workspace")
-- Blocking issues (e.g., "Cannot proceed: missing dependencies")
+- Error conditions (e.g., "Blocked: required project sources unavailable")
+- Blocking issues (e.g., "Stopped: missing critical dependencies")
 - Agent-specific status messages (e.g., "Waiting for user input")
-- Workspace or environment problems (e.g., "Files not found in workspace")
+- Workspace or environment problems (e.g., "Referenced paths were not found")
 
 **DO add to Acceptance Criteria:**
 
@@ -142,7 +141,7 @@ agent-specific status messages.
 
 - [x] A new `glance` CLI exists under `apps/geo/glance` and can be executed via
       Deno.
-- [x] Implementation blocked: Tonite codebase not present in workspace.
+- [x] Blocked: required project sources unavailable in this workspace.
 ```
 
 **Updating the checklist is MORE IMPORTANT than completing the plan. If you must
@@ -256,19 +255,21 @@ the checklist.
 ### Blocking Errors (Cannot Proceed)
 
 If you encounter a **blocking error** that prevents implementation from
-proceeding (e.g., codebase not present, workspace issues, missing critical
-files):
+proceeding (e.g., required sources unavailable, workspace issues, missing
+critical files):
 
 - **DO NOT update the Acceptance Criteria checklist** - these are not
   implementation milestones
 - **DO NOT add error conditions as acceptance criteria items**
-- **Report the error directly** in your output/response to the user
+- Prefer writing `.dn/implement-result.json` with `status: "blocked"` and
+  `recommendation: "blocked"`
+- Also report the error directly in your final response
 - Explain what the blocking issue is
 - Suggest how the user can resolve it
 
 **Examples of blocking errors:**
 
-- Required codebase or directory not present in workspace
+- Required project sources or directory unavailable in the workspace
 - Critical dependencies missing
 - Workspace configuration issues
 - Files referenced in the plan do not exist and cannot be created
@@ -278,14 +279,16 @@ files):
 ```markdown
 ## Acceptance Criteria
 
-- [x] Implementation blocked: Tonite codebase not present in workspace.
+- [x] Blocked: required project sources unavailable in this workspace.
 ```
 
-**Example of what TO do:** Report the error directly in your response:
+**Example of what TO do:** Set implement-result status to `blocked`, and report
+the issue in your final response (do not copy instructional placeholders
+verbatim):
 
 ```
-Error: Cannot proceed with implementation. The Tonite codebase is not present in the workspace. 
-Please ensure the codebase is available before running the implementation phase.
+Blocked: The workspace does not contain the project sources required by this plan.
+Checkout or mount the repository, then re-run the implementation phase.
 ```
 
 ## Error Handling
@@ -298,7 +301,7 @@ to the plan.
 
 **Examples of blocking errors:**
 
-- Required codebase, directory, or project not present in workspace
+- Required project sources or directory unavailable in the workspace
 - Critical files referenced in the plan do not exist and cannot be created
 - Workspace configuration issues that prevent file operations
 - Missing dependencies that cannot be installed or resolved
@@ -308,7 +311,8 @@ to the plan.
 **When you encounter a blocking error:**
 
 1. **Stop implementation** - do not attempt to proceed
-2. **Report the error directly** - communicate clearly what the problem is
+2. **Write implement-result with `status: "blocked"`** and report the error in
+   your final response
 3. **Do NOT update the Acceptance Criteria checklist** - errors are not
    milestones
 4. **Do NOT add error conditions to the plan** - errors should be communicated,
