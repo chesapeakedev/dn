@@ -63,7 +63,8 @@ interface WizardContext {
 interface WizardSelections {
   agent: AgentHarness;
   sandboxProvider: SandboxProvider;
-  strictEnabled: boolean;
+  /** When true, persist strict.require_rfcs (and derive strict.enabled). */
+  requireRfcs: boolean;
   initRfc: boolean;
   installWorkflows: boolean;
   installSkill: boolean;
@@ -142,10 +143,11 @@ function parseInitWizardOptions(args: string[]): InitWizardOptions {
 
 async function resolveRepoRoot(): Promise<string | null> {
   try {
-    return (await $`sl root`.text()).trim();
+    // Probe quietly — missing checkout is a normal outcome for user mode.
+    return (await $`sl root`.quiet().text()).trim();
   } catch {
     try {
-      return (await $`git rev-parse --show-toplevel`.text()).trim();
+      return (await $`git rev-parse --show-toplevel`.quiet().text()).trim();
     } catch {
       return null;
     }
@@ -155,11 +157,12 @@ async function resolveRepoRoot(): Promise<string | null> {
 async function resolveWizardContext(
   options: InitWizardOptions,
 ): Promise<WizardContext> {
-  const repoRoot = await resolveRepoRoot();
-
+  // --user never needs a checkout; skip VCS probes entirely.
   if (options.forceUser) {
-    return { mode: "user", repoRoot };
+    return { mode: "user", repoRoot: null };
   }
+
+  const repoRoot = await resolveRepoRoot();
 
   if (options.forceProject) {
     if (!repoRoot) {
@@ -299,10 +302,10 @@ async function collectSelections(
     options.autoYes,
   );
 
-  const strictEnabled = context.mode === "project"
+  const requireRfcs = context.mode === "project"
     ? promptOptionalStep(
-      "Enable strict mode for this repository?",
-      existingProject?.strict?.enabled === true,
+      "Require a promoted RFC before dn kickstart / dn meld?",
+      existingProject?.strict?.require_rfcs === true,
       options.autoYes,
     )
     : false;
@@ -334,11 +337,31 @@ async function collectSelections(
   return {
     agent,
     sandboxProvider,
-    strictEnabled,
+    requireRfcs,
     initRfc,
     installWorkflows,
     installSkill,
   };
+}
+
+/**
+ * Builds the project `strict` block from concrete policy selections.
+ *
+ * `enabled` is derived: it is set only when at least one enforceable policy
+ * (today: `require_rfcs`) is on. A bare `{ enabled: true }` is never written.
+ */
+export function buildStrictConfig(
+  requireRfcs: boolean,
+  existing: DnStrictConfig | undefined,
+): DnStrictConfig | undefined {
+  if (requireRfcs) {
+    return {
+      ...existing,
+      enabled: true,
+      require_rfcs: true,
+    };
+  }
+  return undefined;
 }
 
 async function loadExistingProjectConfig(
@@ -397,9 +420,7 @@ async function writeProjectConfig(
     throw new Error(`Cancelled updating ${DN_REPOSITORY_CONFIG_PATH}.`);
   }
 
-  const strict: DnStrictConfig | undefined = selections.strictEnabled
-    ? { enabled: true }
-    : existing?.strict;
+  const strict = buildStrictConfig(selections.requireRfcs, existing?.strict);
 
   const document: DnConfigLayer = {
     schema_version: "2.0",
@@ -544,7 +565,7 @@ function printSummary(
     config_path: configPath,
     agent: selections.agent,
     sandbox_provider: selections.sandboxProvider,
-    strict_enabled: selections.strictEnabled,
+    require_rfcs: selections.requireRfcs,
     optional: optionalResults,
   };
 

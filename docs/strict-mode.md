@@ -28,9 +28,12 @@ or access control.
 | `linear_history` | Documented only        | Team expectation for trunk history (see below).               |
 | `path_gates`     | Documented only        | Suggested GitHub ruleset path filters (see below).            |
 
-`dn init wizard --project` may persist `"strict": { "enabled": true }` without
-`require_rfcs`. That remains compatible: only repos that explicitly set
-`require_rfcs: true` get RFC corpus enforcement.
+`dn init wizard --project` asks for concrete policies (today: require a promoted
+RFC before kickstart/meld). It sets
+`"strict": { "enabled": true,
+"require_rfcs": true }` only when that policy is
+accepted; it never writes a bare `{ "enabled": true }` block. Re-running with
+the policy declined omits `strict` entirely.
 
 ## `require_rfcs` policy
 

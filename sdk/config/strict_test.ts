@@ -124,7 +124,7 @@ Deno.test("checkStrictRfcCorpus fails when all RFCs are draft", async () => {
   }
 });
 
-Deno.test("checkStrictRfcCorpus matches init wizard strict default", async () => {
+Deno.test("checkStrictRfcCorpus skips bare enabled without require_rfcs", async () => {
   const root = await Deno.makeTempDir({ prefix: "dn-strict-" });
   try {
     await writeDnJson(root, {
