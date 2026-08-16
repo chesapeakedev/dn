@@ -6,6 +6,11 @@
  */
 
 export {
+  completeRfc,
+  type CompleteRfcResult,
+  resolveRfcRef,
+} from "./complete.ts";
+export {
   computeContentHash,
   createRfcContent,
   parseRfcMetadata,

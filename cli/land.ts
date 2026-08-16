@@ -12,8 +12,10 @@ import type { AgentHarness } from "../sdk/github/agentHarness.ts";
 import { resolveLocalAgentHarness } from "../sdk/config/localAgent.ts";
 import {
   discoverPlanFile,
+  discoverRfcForLand,
   discoverTestPlanFile,
 } from "../sdk/land/discover.ts";
+import { runLandRfcComplete } from "../sdk/land/rfcComplete.ts";
 import { runLandPhase } from "../sdk/land/run.ts";
 import { runLandSingle } from "../sdk/land/single.ts";
 import { runIssueTestPlanFromPlan } from "../sdk/testplan/run.ts";
@@ -102,16 +104,22 @@ function showHelp(): void {
     "dn land - Close out completed work into durable VCS commits\n",
   );
   console.log("Usage:");
-  console.log("  dn land [options] [plan_file.plan.md]\n");
+  console.log("  dn land [options] [plan_file.plan.md | rfc-path-or-ref]\n");
   console.log("Options:");
   console.log(
-    "  --single     One deterministic commit (no agent); requires plan path",
+    "  --single     One deterministic commit (no agent); requires a plan path",
+  );
+  console.log(
+    "               (not valid for RFC paths — use RFC land without --single)",
   );
   console.log(
     "               Message from plan H1/name + truncated overview/body (~200 chars)",
   );
   console.log(
     "  --dry-run    Preview without committing, deleting plans, or updating issues",
+  );
+  console.log(
+    "               RFC land: preview status/state/commit without writing",
   );
   console.log(
     "  --issue-testplan  Upsert ## Test Plan onto the linked GitHub issue before commit",
@@ -126,6 +134,7 @@ function showHelp(): void {
   console.log("Examples:");
   console.log("  dn land");
   console.log("  dn land plans/my-feature.plan.md");
+  console.log("  dn land rfcs/012-session-persistence.md");
   console.log("  dn land --issue-testplan");
   console.log("  dn land --single plans/my-feature.plan.md");
   console.log("  dn land plans/my-feature.plan.md --dry-run");
@@ -182,6 +191,34 @@ export async function handleLand(
   const workspaceRoot = Deno.cwd();
 
   try {
+    if (config.planFilePath) {
+      const rfc = await discoverRfcForLand(config.planFilePath, {
+        repoRoot: workspaceRoot,
+      });
+      if (rfc) {
+        if (config.single) {
+          console.error(
+            "Error: --single applies to execution plans only, not RFC paths.",
+          );
+          console.error("\nUse 'dn land --help' for usage information.");
+          Deno.exit(1);
+        }
+        if (config.issueTestPlan) {
+          console.error(
+            "Error: --issue-testplan applies to execution plans only, not RFC paths.",
+          );
+          console.error("\nUse 'dn land --help' for usage information.");
+          Deno.exit(1);
+        }
+        await runLandRfcComplete({
+          ref: config.planFilePath,
+          workspaceRoot,
+          dryRun: config.dryRun,
+        });
+        Deno.exit(0);
+      }
+    }
+
     if (config.single) {
       if (!config.planFilePath) {
         console.error("Error: Plan file path required with --single.");

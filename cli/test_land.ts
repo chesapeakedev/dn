@@ -11,6 +11,7 @@ import {
   cleanupTestRepo,
   createProjectTestRepo,
   createTestRepo,
+  runCommand,
   runDnCommand,
 } from "./test_utils.ts";
 
@@ -441,6 +442,149 @@ Deno.test("land --issue-testplan fails when plan has no issue reference", async 
     });
 
     assert(result.stderr.includes("Could not resolve a GitHub issue"));
+  } finally {
+    await cleanupTestRepo(testRepo);
+  }
+});
+
+async function initRfcLandFixture(repoPath: string): Promise<string> {
+  const rfcsDir = `${repoPath}/rfcs`;
+  await Deno.mkdir(rfcsDir, { recursive: true });
+  const rfcPath = "rfcs/001-session-persistence.md";
+  await Deno.writeTextFile(
+    `${repoPath}/${rfcPath}`,
+    `---
+id: 1
+title: "Session Persistence"
+status: implementing
+---
+
+# Session Persistence
+`,
+  );
+  await Deno.writeTextFile(
+    `${rfcsDir}/.state.json`,
+    JSON.stringify(
+      {
+        nextId: 2,
+        rfcs: {
+          "1": {
+            path: rfcPath,
+            metadata: {
+              id: 1,
+              title: "Session Persistence",
+              status: "implementing",
+            },
+            contentHash: "placeholder",
+          },
+        },
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+  await runCommand(["git", "add", "."], { cwd: repoPath });
+  await runCommand(["git", "commit", "-m", "Add RFC fixture"], {
+    cwd: repoPath,
+  });
+  return rfcPath;
+}
+
+Deno.test("land RFC path dry-run previews complete-mode without writing", async () => {
+  const testRepo = await createProjectTestRepo();
+
+  try {
+    const rfcPath = await initRfcLandFixture(testRepo.path);
+
+    const result = await runDnCommand([
+      "land",
+      rfcPath,
+      "--dry-run",
+    ], { cwd: testRepo.path });
+
+    assert(result.success);
+    assert(result.stdout.includes("RFC complete (dry-run)"));
+    assert(result.stdout.includes("implementing → done"));
+    assert(
+      result.stdout.includes("docs: complete RFC 001: Session Persistence"),
+    );
+    assert(result.stdout.includes(rfcPath));
+    assert(result.stdout.includes("rfcs/.state.json"));
+
+    const content = await Deno.readTextFile(`${testRepo.path}/${rfcPath}`);
+    assert(content.includes("status: implementing"));
+  } finally {
+    await cleanupTestRepo(testRepo);
+  }
+});
+
+Deno.test("land RFC path completes RFC and retains markdown", async () => {
+  const testRepo = await createProjectTestRepo();
+
+  try {
+    const rfcPath = await initRfcLandFixture(testRepo.path);
+
+    await assertGitState(testRepo.path, { commits: 2 });
+
+    const result = await runDnCommand(["land", rfcPath], {
+      cwd: testRepo.path,
+    });
+
+    assert(result.success);
+    assert(result.stdout.includes("RFC complete"));
+    assert(
+      result.stdout.includes("docs: complete RFC 001: Session Persistence"),
+    );
+
+    const content = await Deno.readTextFile(`${testRepo.path}/${rfcPath}`);
+    assert(content.includes("status: done"));
+
+    await assertGitState(testRepo.path, {
+      commits: 3,
+      files: [rfcPath, "rfcs/.state.json"],
+    });
+  } finally {
+    await cleanupTestRepo(testRepo);
+  }
+});
+
+Deno.test("land plan path still uses plan discovery when not an RFC", async () => {
+  const testRepo = await createProjectTestRepo();
+
+  try {
+    await Deno.mkdir(`${testRepo.path}/plans`, { recursive: true });
+    await Deno.writeTextFile(
+      `${testRepo.path}/changed.ts`,
+      "export const x = 1;\n",
+    );
+    await Deno.writeTextFile(
+      `${testRepo.path}/plans/rfc-named.plan.md`,
+      "# Plan: RFC Named\n\n## Summary\nEnsure plan paths win over RFC heuristics.\n",
+    );
+
+    const fakeOutput = JSON.stringify([
+      {
+        files: ["changed.ts"],
+        summary: "feat: add changed module",
+      },
+    ]);
+
+    const result = await runDnCommand(["land", "plans/rfc-named.plan.md"], {
+      cwd: testRepo.path,
+      env: { DN_LAND_FAKE_OUTPUT: fakeOutput },
+    });
+
+    assert(result.success);
+    assert(result.stdout.includes("feat: add changed module"));
+
+    try {
+      await Deno.stat(`${testRepo.path}/plans/rfc-named.plan.md`);
+      throw new Error("Plan file should have been deleted");
+    } catch (error) {
+      if (!(error instanceof Deno.errors.NotFound)) {
+        throw error;
+      }
+    }
   } finally {
     await cleanupTestRepo(testRepo);
   }

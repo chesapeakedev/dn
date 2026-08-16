@@ -6,6 +6,7 @@
  */
 
 import { join } from "@std/path";
+import { completeRfc } from "../sdk/rfc/complete.ts";
 import {
   generateRfcFilename,
   isRfcStatus,
@@ -308,7 +309,7 @@ async function handleComplete(args: string[]): Promise<void> {
   const ref = args[0];
   const options = repoOptions();
   const before = await findRfc(ref, options);
-  await handleStatus([ref, "done"]);
+  const result = await completeRfc(ref, options);
   if (before) {
     const path = resolveRfcPath(before.path);
     if (!await pathExists(path)) {
@@ -317,7 +318,19 @@ async function handleComplete(args: string[]): Promise<void> {
       );
       Deno.exit(1);
     }
+    console.log(
+      formatSuccess(
+        `Updated RFC ${result.rfc.metadata.id} status to done`,
+      ),
+    );
     console.log(formatInfo(`File retained: ${before.path}`));
+  } else {
+    console.log(
+      formatSuccess(
+        `Updated RFC ${result.rfc.metadata.id} status to done`,
+      ),
+    );
+    console.log(formatInfo(`File retained: ${result.rfc.path}`));
   }
 }
 

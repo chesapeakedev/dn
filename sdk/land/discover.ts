@@ -1,6 +1,32 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
+import { resolveRfcRef } from "../rfc/complete.ts";
+import type { Rfc } from "../rfc/types.ts";
+import type { RfcRepoOptions } from "../rfc/state.ts";
+
+/**
+ * Returns true when the path targets an execution plan (not an RFC).
+ */
+export function isPlanLandTarget(path: string): boolean {
+  return path.endsWith(".plan.md");
+}
+
+/**
+ * Resolves an RFC reference for `dn land` complete-mode.
+ *
+ * Returns null for plan paths or refs that do not match an RFC.
+ */
+export async function discoverRfcForLand(
+  ref: string,
+  options: RfcRepoOptions = {},
+): Promise<Rfc | null> {
+  if (isPlanLandTarget(ref)) {
+    return null;
+  }
+  return await resolveRfcRef(ref, options);
+}
+
 /**
  * Resolves an explicit plan path or discovers one from PLAN env or plans/.
  *

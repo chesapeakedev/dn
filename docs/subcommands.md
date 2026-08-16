@@ -955,14 +955,14 @@ github_issue: "https://github.com/owner/repo/issues/123"
 ### State synchronization
 
 Frontmatter and `.state.json` stay synchronized via CLI mutations. RFCs are
-never deleted by `complete` (unlike `land` with execution plans).
+never deleted by `complete` or RFC land (unlike execution-plan land, which
+removes the plan file on success).
 
 ### Non-goals
 
 Not included in this implementation:
 
 - GitHub issue sync
-- `dn land` RFC completion path
 - Glance metrics
 - Strict-mode enforcement
 - Authoring skill (follow-up)
@@ -1124,12 +1124,17 @@ Use `dn land` after a plan-backed task is complete and the workspace contains
 the changes you want to commit. **`dn land` closes out local agentic work into
 durable VCS state** — it is not trunk publish (`dn sync`) and not PR creation.
 
+**Execution plans** (`plans/*.plan.md`) and **RFCs** (`rfcs/*.md`) use different
+land modes. Plan land uses an agent (or `--single`) to commit workspace changes
+and deletes the plan file. RFC land marks the RFC `done`, refreshes
+`rfcs/.state.json`, commits those files, and **never deletes** the RFC markdown.
+
 Default mode discovers the plan file, uses an agent to draft **one**
 conventional commit covering the workspace changes (splitting only for a clear
 hard boundary such as production code vs dedicated tests), and deletes the plan
 file on success. Prefer `dn land --single` when you want a deterministic message
 with no agent. Users who want finer history can split afterward with their VCS.
-**`dn land` targets one plan at a time** (explicit path, `PLAN` env, or newest
+**Plan land targets one plan at a time** (explicit path, `PLAN` env, or newest
 `plans/*.plan.md`). For per-issue publish without a separate land step, use
 `dn kickstart --publish pr|direct` instead of stacking multiple kickstarts into
 one dirty workspace.
@@ -1137,6 +1142,17 @@ one dirty workspace.
 ```bash
 dn land
 dn land plans/issue-123.plan.md
+dn land rfcs/012-session-persistence.md
+dn land 12                    # RFC by id when registered in rfcs/.state.json
+```
+
+RFC land accepts an RFC path, id, or slug (same refs as `dn rfc show`). It sets
+status to `done`, commits the RFC markdown and `rfcs/.state.json`, and leaves
+the RFC file in place. `--single` and `--issue-testplan` apply to execution
+plans only.
+
+```bash
+dn land rfcs/012-session-persistence.md --dry-run
 ```
 
 Use `--issue-testplan` to generate a compact `## Test Plan` checklist and upsert
@@ -1176,12 +1192,14 @@ not require a staging step: in Sapling repositories it runs `sl addremove`; in
 Git repositories it runs `git add -A`.
 
 Use `--dry-run` to preview without committing, deleting plan files, or updating
-the GitHub issue:
+the GitHub issue. RFC land dry-run previews the status transition and commit
+without writing files:
 
 ```bash
 dn land plans/issue-123.plan.md --dry-run
 dn land --issue-testplan --dry-run
 dn land --single plans/issue-123.plan.md --dry-run
+dn land rfcs/012-session-persistence.md --dry-run
 ```
 
 If a commit step fails after a plan file is removed, `dn land` attempts to
