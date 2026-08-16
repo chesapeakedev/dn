@@ -26,6 +26,7 @@ import {
 } from "../sdk/github/github-gql.ts";
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
 import { resolveLocalAgentHarness } from "../sdk/config/localAgent.ts";
+import { enforceStrictRfcCorpus } from "../sdk/config/strict.ts";
 import { parseMilestoneUrl } from "../sdk/github/milestone.ts";
 import { parseFrontmatter } from "../sdk/todo/frontmatter.ts";
 import {
@@ -739,6 +740,14 @@ export async function handleKickstart(
     }
   }
 
+  const repoRoot = config.workspaceRoot ?? Deno.cwd();
+  try {
+    await enforceStrictRfcCorpus(repoRoot);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    Deno.exit(1);
+  }
+
   if (config.cursorCloud) {
     try {
       await dispatchCursorCloudKickstart(config);
@@ -750,7 +759,6 @@ export async function handleKickstart(
   }
 
   for (;;) {
-    const repoRoot = config.workspaceRoot ?? Deno.cwd();
     if (config.publish === "none") {
       await warnStackedUnlandedWork(repoRoot);
     }

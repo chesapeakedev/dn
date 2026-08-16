@@ -26,11 +26,14 @@ export interface DnRfcConfig {
   dir?: string;
 }
 
-/** Optional strict-mode settings (project `dn.json` only; behavior in later tickets). */
+/** Optional strict-mode settings (project `dn.json` only). */
 export interface DnStrictConfig {
   /** Master switch; absent or false means no enforcement. */
   enabled?: boolean;
-  /** When enabled, require an RFC corpus for kickstart/meld (later ticket). */
+  /**
+   * When true with {@link enabled}, `dn kickstart` and `dn meld` require a
+   * non-empty RFC corpus with at least one non-draft RFC.
+   */
   require_rfcs?: boolean;
 }
 

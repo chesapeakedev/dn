@@ -21,6 +21,7 @@ include “more not shown” lines when totals exceed what was loaded.
 | [Output and environment](output-and-environment.md) | Colors, unattended mode, exit codes, env vars              |
 | [API](api.md)                                       | Programmatic SDK usage and GitHub Actions examples         |
 | [GitHub Actions](github-actions.md)                 | Running `dn` in GitHub Actions CI                          |
+| [Strict mode](strict-mode.md)                       | Opt-in `dn.json` guardrails for RFC-aware planning         |
 | [Denoise integration](denoise-integration.md)       | Workflow templates and dispatch contracts                  |
 | [Developer device runners](device-runners.md)       | Run denoise kickstart jobs on a paired Mac or Linux device |
 

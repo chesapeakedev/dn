@@ -848,3 +848,27 @@ repo: owner/repo
     await cleanupTestRepo(testRepo);
   }
 });
+
+Deno.test("kickstart fails under strict require_rfcs without RFC corpus", async () => {
+  const testRepo = await createProjectTestRepo({
+    initialFiles: {
+      "dn.json": JSON.stringify({
+        schema_version: "2.0",
+        strict: { enabled: true, require_rfcs: true },
+      }),
+      "issue.md": "# Issue\n\n## Acceptance Criteria\n\n- [ ] Do work\n",
+    },
+  });
+
+  try {
+    const result = await runDnCommand(["kickstart", "issue.md"], {
+      cwd: testRepo.path,
+      expectFailure: true,
+      timeout: 15000,
+    });
+
+    assert(result.stderr.includes("Strict mode (require_rfcs)"));
+  } finally {
+    await cleanupTestRepo(testRepo);
+  }
+});

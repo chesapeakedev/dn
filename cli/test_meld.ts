@@ -491,3 +491,33 @@ This is a local markdown file.
     await cleanupTestRepo(testRepo);
   }
 });
+
+Deno.test("meld fails under strict require_rfcs without RFC corpus", async () => {
+  const testRepo = await createProjectTestRepo({
+    initialFiles: {
+      "dn.json": JSON.stringify({
+        schema_version: "2.0",
+        strict: { enabled: true, require_rfcs: true },
+      }),
+      "issue.md": "# Issue\n\n## Acceptance Criteria\n\n- [ ] Plan work\n",
+    },
+  });
+
+  try {
+    const result = await runDnCommand([
+      "meld",
+      "issue.md",
+      "--plan-name",
+      "strict-gate",
+      "--dry-run",
+    ], {
+      cwd: testRepo.path,
+      expectFailure: true,
+      timeout: 15000,
+    });
+
+    assert(result.stderr.includes("Strict mode (require_rfcs)"));
+  } finally {
+    await cleanupTestRepo(testRepo);
+  }
+});

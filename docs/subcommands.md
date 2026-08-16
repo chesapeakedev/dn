@@ -169,7 +169,9 @@ behavior, and troubleshooting.
 
 ## `dn kickstart` — Full workflow
 
-Runs complete kickstart workflow (plan + implement phases):
+Runs complete kickstart workflow (plan + implement phases). Repositories with
+`strict.enabled` and `strict.require_rfcs` in `dn.json` must have a promoted RFC
+corpus before kickstart runs; see [Strict mode](strict-mode.md).
 
 ```bash
 # Default mode: Apply changes locally
@@ -979,6 +981,10 @@ Not included in this implementation:
 `dn meld` is the plan phase of the `meld → loop → land` lifecycle. Give it one
 GitHub issue, issue number, or local Markdown file for the common case. Add
 sources when a useful plan needs product notes, research, or several issues.
+
+When `strict.require_rfcs` is enabled with `strict.enabled`, meld exits before
+agents run if the RFC corpus is missing or draft-only. See
+[Strict mode](strict-mode.md).
 
 ```bash
 # Create a plan from one issue or local specification

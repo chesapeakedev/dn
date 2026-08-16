@@ -51,8 +51,10 @@ repository (`dn.json`) so personal defaults and team policy stay aligned.
 5. Explicit CLI flags (`--agent`, `--sandbox`, …)
 
 Objects merge by field; arrays replace the lower layer. Project `dn.json` may
-also declare optional `rfc` and `strict` blocks (schema only until later tickets
-land).
+also declare optional `rfc` and `strict` blocks. When `strict.enabled` and
+`strict.require_rfcs` are both true, `dn kickstart` and `dn meld` fail before
+agents run if the RFC corpus is missing or has no non-draft RFC. See
+[Strict mode](strict-mode.md) for ruleset guidance and the full policy.
 
 | Location                 | Belongs here                                             | Does not belong         |
 | ------------------------ | -------------------------------------------------------- | ----------------------- |

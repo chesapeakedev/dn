@@ -30,8 +30,11 @@ export type {
 
 // Tiered dn configuration
 export {
+  checkStrictRfcCorpus,
   DN_LEGACY_CONFIG_PATH,
   DN_REPOSITORY_CONFIG_PATH,
+  enforceStrictRfcCorpus,
+  isStrictRfcRequired,
   parseDnConfig,
   resolveDnConfig,
   resolveLocalAgentHarness,
@@ -52,6 +55,7 @@ export type {
   ResolvedDnConfig,
   ResolveDnConfigOptions,
   ResolveLocalAgentHarnessOptions,
+  StrictRfcCheckResult,
   WriteActionsConfigProjectionOptions,
   WriteActionsConfigProjectionResult,
 } from "./config/mod.ts";

@@ -16,6 +16,12 @@ export { resolveLocalAgentHarness } from "./localAgent.ts";
 export type { ResolveLocalAgentHarnessOptions } from "./localAgent.ts";
 export { parseDnConfig } from "./parse.ts";
 export {
+  checkStrictRfcCorpus,
+  enforceStrictRfcCorpus,
+  isStrictRfcRequired,
+} from "./strict.ts";
+export type { StrictRfcCheckResult } from "./strict.ts";
+export {
   DN_LEGACY_CONFIG_PATH,
   DN_REPOSITORY_CONFIG_PATH,
   resolveDnConfig,

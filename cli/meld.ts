@@ -16,6 +16,7 @@ import {
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
 import { parseAgentHarnessFlagsFromArgs } from "../sdk/github/agentHarness.ts";
 import { resolveLocalAgentHarness } from "../sdk/config/localAgent.ts";
+import { enforceStrictRfcCorpus } from "../sdk/config/strict.ts";
 import { getCurrentRepoFromRemote } from "../sdk/github/github-gql.ts";
 import { resolveIssueUrlInput } from "../sdk/github/issue.ts";
 import {
@@ -322,6 +323,8 @@ export async function handleMeld(
   try {
     const resolvedWorkspaceRoot = workspaceRoot ||
       Deno.env.get("WORKSPACE_ROOT") || Deno.cwd();
+
+    await enforceStrictRfcCorpus(resolvedWorkspaceRoot);
 
     if (milestone !== null) {
       const result = await generateMilestoneDescription(
