@@ -824,6 +824,111 @@ Troubleshooting:
 
 See also [`AGENTS.md`](../AGENTS.md) (Workflow: `make sync`) and `cli/sync.ts`.
 
+## `dn rfc` — Manage RFCs (Request for Comments) for design documents
+
+`dn rfc` creates, lists, and manages RFCs (Request for Comments) – durable
+design documents with monotonically numbered IDs, stored as Markdown files under
+`rfcs/` with a Terraform-inspired `.state.json` file.
+
+RFCs are distinct from ephemeral `plans/*.plan.md` execution plans and meant for
+5–15 durable design documents that humans co-author and agents treat as
+filesystem context before issue-level `meld`/`loop`/`land` workflows.
+
+### Creating RFCs
+
+```bash
+# Initialize RFC directory and overview
+dn rfc init
+
+# Create a new RFC with automatic ID allocation
+dn rfc create --title "API Design for Feature X"
+dn rfc create --title "API Design for Feature X" --slug api-design
+dn rfc create --title "API Design for Feature X" --github-issue https://github.com/owner/repo/issues/123
+```
+
+RFCs are created with status `draft` and get a three-digit zero-padded ID
+(`001-slug.md`). The slug is auto-generated from the title if not provided.
+
+### Listing and viewing RFCs
+
+```bash
+# List all RFCs
+dn rfc list
+
+# Filter by status
+dn rfc list --status draft
+dn rfc list --status accepted
+
+# JSON output
+dn rfc list --json
+
+# Show RFC details
+dn rfc show 1          # By ID
+dn rfc show api-design # By slug (from filename)
+dn rfc show 001-api-design.md # By path
+```
+
+### Managing RFC status
+
+RFCs progress through a fixed lifecycle: `draft` → `review` → `accepted` →
+`implementing` → `done` → `superseded`.
+
+```bash
+# Update status
+dn rfc status 1 review
+dn rfc status api-design accepted
+dn rfc complete 1      # Shortcut for status done
+```
+
+### Configuration
+
+The default RFC directory is `rfcs/`. Override via `dn.json`:
+
+```json
+{
+  "rfc": {
+    "dir": "docs/rfcs"
+  }
+}
+```
+
+### File structure
+
+RFCs follow the pattern `rfcs/NNN-kebab-slug.md` where `NNN` is a zero-padded
+three-digit ID allocated monotonically. The `rfcs/.state.json` file tracks:
+
+- `nextId`: Next available RFC ID
+- `rfcs`: Map of ID to metadata (path, status, content hash, optional GitHub
+  issue link)
+
+### Frontmatter
+
+Each RFC includes YAML frontmatter:
+
+```yaml
+---
+id: 1
+title: "API Design for Feature X"
+status: draft
+github_issue: "https://github.com/owner/repo/issues/123"
+---
+```
+
+### State synchronization
+
+Frontmatter and `.state.json` stay synchronized via CLI mutations. RFCs are
+never deleted by `complete` (unlike `land` with execution plans).
+
+### Non-goals
+
+Not included in this implementation:
+
+- GitHub issue sync
+- `dn land` RFC completion path
+- Glance metrics
+- Strict-mode enforcement
+- Authoring skill (follow-up)
+
 ## `dn meld` — Plan from one or more sources
 
 `dn meld` is the plan phase of the `meld → loop → land` lifecycle. Give it one

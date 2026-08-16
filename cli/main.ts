@@ -85,6 +85,7 @@ import { handleTask } from "./task.ts";
 import { handleTodo } from "./todo.ts";
 import { handleTidy } from "./tidy.ts";
 import { handleRelease } from "./release.ts";
+import { handleRfc } from "./rfc.ts";
 import { handleSync } from "./sync.ts";
 import { handleUntil } from "./until.ts";
 import { handleRunner } from "./runner.ts";
@@ -333,7 +334,13 @@ function showUsage(): void {
     "  runner       Pair and operate this machine as Denoise infrastructure",
   );
   console.error(
-    "  release      Manage GitHub releases (create, list, view, delete)\n",
+    "  release      Manage GitHub releases (create, list, view, delete)",
+  );
+  console.error(
+    "  rfc         Manage RFCs (Request for Comments) for design documents",
+  );
+  console.error(
+    "",
   );
   console.error(
     "Use 'dn <subcommand> --help' for subcommand-specific options.",
@@ -458,6 +465,9 @@ async function main(): Promise<void> {
     case "release":
     case "releases":
       await handleRelease(subcommandArgs);
+      break;
+    case "rfc":
+      await handleRfc(subcommandArgs);
       break;
     case "--help":
     case "-h":

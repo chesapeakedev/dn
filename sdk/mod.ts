@@ -597,3 +597,38 @@ export type {
   ServeRunnerOptions,
   StoredRunnerCredential,
 } from "./runner/mod.ts";
+
+// ============================================================================
+// RFC - Request for Comments management
+// ============================================================================
+
+export {
+  computeContentHash,
+  createRfcContent,
+  parseRfcMetadata,
+  readRfc,
+  readRfcIfExists,
+  updateRfcContent,
+  writeRfc,
+} from "./rfc/parser.ts";
+export {
+  findRfc,
+  getRfcDir,
+  getStatePath,
+  listRfcsFromState,
+  loadState,
+  readConfig,
+  removeRfcFromState,
+  saveState,
+  updateRfcInState,
+} from "./rfc/state.ts";
+export {
+  generateRfcFilename,
+  isRfcStatus,
+  isValidStatusTransition,
+  parseRfcIdFromFilename,
+  parseRfcSlugFromFilename,
+  RFC_STATUSES,
+} from "./rfc/types.ts";
+export type { Rfc, RfcMetadata, RfcState, RfcStatus } from "./rfc/types.ts";
+export type { RfcConfig, RfcRepoOptions } from "./rfc/state.ts";
