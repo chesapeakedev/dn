@@ -650,7 +650,7 @@ export async function getCurrentRepoFromRemote(): Promise<{
   // Try sapling first - only catch command execution errors, not GraphQL verification errors
   let saplingPath: string | null = null;
   try {
-    saplingPath = await $`sl paths default`.text();
+    saplingPath = await $`sl paths default`.quiet("stderr").text();
   } catch (_error) {
     // Not sapling, will try git below
     saplingPath = null;
@@ -658,7 +658,10 @@ export async function getCurrentRepoFromRemote(): Promise<{
 
   // If sapling command succeeded, try to parse and verify
   if (saplingPath) {
-    const parsed = parseGitHubUrl(saplingPath.trim());
+    const remote = saplingPath.includes("=")
+      ? saplingPath.slice(saplingPath.indexOf("=") + 1).trim()
+      : saplingPath.trim();
+    const parsed = parseGitHubUrl(remote);
     if (parsed) {
       // Verify with GraphQL API
       const client = await getClient();
@@ -738,7 +741,7 @@ export async function getCurrentRepoFromRemote(): Promise<{
   // Try git - only catch command execution errors, not GraphQL verification errors
   let gitRemote: string | null = null;
   try {
-    gitRemote = await $`git remote get-url origin`.text();
+    gitRemote = await $`git remote get-url origin`.quiet("stderr").text();
   } catch (_error) {
     gitRemote = null;
   }

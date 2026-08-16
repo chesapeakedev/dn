@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { assertEquals, assertThrows } from "@std/assert";
+import { join } from "@std/path";
 import {
   extractAgentFlag,
   formatDnWorkflowAgentConfig,
@@ -10,6 +11,7 @@ import {
   readDnWorkflowAgentConfig,
   removeLegacyInstallScript,
   requiredSecretForAgent,
+  resolveRepoFromRoot,
 } from "./agentConfig.ts";
 
 Deno.test("parseDnWorkflowAgentConfig accepts valid agent", () => {
@@ -73,6 +75,55 @@ Deno.test("installWorkflowSupport writes config when agent is provided", async (
     assertEquals(results.length, 1);
     const config = await readDnWorkflowAgentConfig(repoRoot);
     assertEquals(config?.agent, "claude");
+  } finally {
+    await Deno.remove(repoRoot, { recursive: true });
+  }
+});
+
+Deno.test("resolveRepoFromRoot returns null without VCS metadata", async () => {
+  const repoRoot = await Deno.makeTempDir({ prefix: "dn-repo-none-" });
+  try {
+    assertEquals(await resolveRepoFromRoot(repoRoot), null);
+  } finally {
+    await Deno.remove(repoRoot, { recursive: true });
+  }
+});
+
+Deno.test(
+  "resolveRepoFromRoot ignores missing remotes in Sapling-only checkouts",
+  async () => {
+    const repoRoot = await Deno.makeTempDir({ prefix: "dn-repo-sl-" });
+    try {
+      await Deno.mkdir(join(repoRoot, ".sl"));
+      // No .git → must not probe git; empty .sl → sapling remote read fails quietly.
+      assertEquals(await resolveRepoFromRoot(repoRoot), null);
+    } finally {
+      await Deno.remove(repoRoot, { recursive: true });
+    }
+  },
+);
+
+Deno.test("resolveRepoFromRoot reads Git origin when .git is present", async () => {
+  const repoRoot = await Deno.makeTempDir({ prefix: "dn-repo-git-" });
+  try {
+    const init = await new Deno.Command("git", {
+      args: ["init"],
+      cwd: repoRoot,
+      stdout: "null",
+      stderr: "null",
+    }).output();
+    assertEquals(init.code, 0);
+    const remote = await new Deno.Command("git", {
+      args: ["remote", "add", "origin", "https://github.com/acme/widgets.git"],
+      cwd: repoRoot,
+      stdout: "null",
+      stderr: "null",
+    }).output();
+    assertEquals(remote.code, 0);
+    assertEquals(await resolveRepoFromRoot(repoRoot), {
+      owner: "acme",
+      repo: "widgets",
+    });
   } finally {
     await Deno.remove(repoRoot, { recursive: true });
   }

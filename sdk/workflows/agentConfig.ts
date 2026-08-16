@@ -318,32 +318,59 @@ function parseGitHubRemoteUrl(
   return null;
 }
 
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await Deno.stat(path);
+    return true;
+  } catch (error) {
+    if (error instanceof Deno.errors.NotFound) return false;
+    throw error;
+  }
+}
+
+/**
+ * Normalizes `sl paths` output (`url` or `default = url`) to a remote URL.
+ */
+function normalizeSaplingRemote(raw: string): string {
+  const trimmed = raw.trim();
+  const separator = trimmed.indexOf("=");
+  if (separator === -1) return trimmed;
+  return trimmed.slice(separator + 1).trim();
+}
+
 /**
  * Resolves owner/repo from a checkout without GraphQL verification.
+ *
+ * Prefers Sapling when `.sl` is present and only probes Git when `.git`
+ * exists, so Sapling-only checkouts never emit `fatal: not a git repository`.
  */
 export async function resolveRepoFromRoot(
   repoRoot: string,
 ): Promise<{ owner: string; repo: string } | null> {
-  let hasRepositoryMetadata = false;
-  for (const metadata of [".git", ".sl"]) {
-    try {
-      await Deno.stat(join(repoRoot, metadata));
-      hasRepositoryMetadata = true;
-      break;
-    } catch (error) {
-      if (!(error instanceof Deno.errors.NotFound)) throw error;
-    }
+  const hasSapling = await pathExists(join(repoRoot, ".sl"));
+  const hasGit = await pathExists(join(repoRoot, ".git"));
+  if (!hasSapling && !hasGit) return null;
+
+  // Prefer native Sapling metadata when both are present; never probe a VCS
+  // whose checkout metadata is missing (avoids noisy git failures under sl).
+  const readers: Array<() => Promise<string>> = [];
+  if (hasSapling) {
+    readers.push(async () =>
+      normalizeSaplingRemote(
+        await $`sl -R ${repoRoot} paths default`.quiet("stderr").text(),
+      )
+    );
   }
-  if (!hasRepositoryMetadata) return null;
+  if (hasGit) {
+    readers.push(async () =>
+      (await $`git -C ${repoRoot} remote get-url origin`.quiet("stderr")
+        .text()).trim()
+    );
+  }
 
-  const commands = [
-    () => $`git -C ${repoRoot} remote get-url origin`.text(),
-    () => $`sl -R ${repoRoot} paths default`.text(),
-  ];
-
-  for (const readRemote of commands) {
+  for (const readRemote of readers) {
     try {
-      const parsed = parseGitHubRemoteUrl((await readRemote()).trim());
+      const parsed = parseGitHubRemoteUrl(await readRemote());
       if (parsed) {
         return parsed;
       }
