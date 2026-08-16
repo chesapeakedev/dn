@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
+  formatGlanceJson,
   formatVelocity,
+  gatherRfcMetrics,
   gatherVelocityData,
   getCurrentRepo,
 } from "../glance/mod.ts";
@@ -14,6 +16,7 @@ interface GlanceParseResult {
   days: number;
   compact: boolean;
   noUrls: boolean;
+  json: boolean;
 }
 
 function parseGlanceArgs(args: string[]): GlanceParseResult {
@@ -21,6 +24,7 @@ function parseGlanceArgs(args: string[]): GlanceParseResult {
   let days = 7;
   let compact = false;
   let noUrls = false;
+  let json = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -30,6 +34,8 @@ function parseGlanceArgs(args: string[]): GlanceParseResult {
       compact = true;
     } else if (arg === "--no-urls") {
       noUrls = true;
+    } else if (arg === "--json") {
+      json = true;
     } else if (arg === "--days" || arg === "-d") {
       const daysArg = args[i + 1];
       if (daysArg) {
@@ -42,7 +48,7 @@ function parseGlanceArgs(args: string[]): GlanceParseResult {
     }
   }
 
-  return { help, days, compact, noUrls };
+  return { help, days, compact, noUrls, json };
 }
 
 function showGlanceHelp(): void {
@@ -57,6 +63,7 @@ Options:
   -d, --days N     Show activity for the last N days (default: 7)
       --compact    Fewer blank lines and shorter subsection headers
       --no-urls    Omit URLs for issues and commits (titles and SHAs only)
+      --json       Machine-readable report (includes RFC fields when present)
 `);
 }
 
@@ -83,9 +90,18 @@ export async function handleGlance(args: string[]): Promise<void> {
       repo.repo,
       parsed.days,
     );
+    const rfcMetrics = await gatherRfcMetrics({
+      windowDays: parsed.days,
+      referenceTime: velocity.weekEnd,
+    });
+    if (parsed.json) {
+      console.log(formatGlanceJson(velocity, rfcMetrics));
+      return;
+    }
     const formatOpts: FormatVelocityOptions = {
       compact: parsed.compact,
       noUrls: parsed.noUrls,
+      rfcMetrics,
     };
     console.log(formatVelocity(velocity, formatOpts));
   } catch (e) {

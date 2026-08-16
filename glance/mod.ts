@@ -21,8 +21,16 @@ export {
   getCurrentRepo,
   getWeekWindow,
 } from "./gh.ts";
+export { gatherRfcMetrics } from "./collectRfcMetrics.ts";
+export type {
+  GatherRfcMetricsOptions,
+  RfcMetrics,
+  RfcRecentlyUpdated,
+} from "./collectRfcMetrics.ts";
 export { gatherVelocityData } from "./collectVelocity.ts";
 export { formatVelocity } from "./format.ts";
+export { formatGlanceJson } from "./json.ts";
+export type { GlanceJsonReport } from "./json.ts";
 export { labelsLookLikeBug, scorePeekIssues } from "./peekScore.ts";
 export { formatPeekIssues } from "./peekFormat.ts";
 export type { FormatPeekOutputOptions } from "./peekFormat.ts";

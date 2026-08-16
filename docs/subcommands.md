@@ -782,10 +782,17 @@ timestamps, truncated titles, and contributor share with ASCII micro-bars.
 dn glance
 dn glance --days 14
 dn glance --compact --no-urls
+dn glance --json
 ```
 
+When the repository has an RFC corpus (`rfcs/` or `dn.json` `rfc.dir`), glance
+adds a compact RFC summary strip after the velocity box: counts by status,
+percent done, and RFCs updated within the window. `--json` includes an `rfc`
+object with the same metrics; omit `--json` RFC fields when no corpus directory
+exists.
+
 Standalone entry (parity with CLI flags): run `glance/main.ts` with `--days`,
-`--compact`, and `--no-urls`.
+`--compact`, `--no-urls`, and `--json`.
 
 See [Global flags and output](#global-flags-and-output) for `--no-color`,
 `--color`, and `--unattended` / `--ci`, which affect Unicode vs ASCII and ANSI

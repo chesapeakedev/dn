@@ -2,7 +2,13 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
-import { formatVelocity, gatherVelocityData, getCurrentRepo } from "./mod.ts";
+import {
+  formatGlanceJson,
+  formatVelocity,
+  gatherRfcMetrics,
+  gatherVelocityData,
+  getCurrentRepo,
+} from "./mod.ts";
 import type { FormatVelocityOptions } from "./types.ts";
 
 interface GlanceArgs {
@@ -10,6 +16,7 @@ interface GlanceArgs {
   days: number;
   compact: boolean;
   noUrls: boolean;
+  json: boolean;
 }
 
 function parseGlanceCliArgs(raw: string[]): GlanceArgs {
@@ -17,6 +24,7 @@ function parseGlanceCliArgs(raw: string[]): GlanceArgs {
   let days = 7;
   let compact = false;
   let noUrls = false;
+  let json = false;
 
   for (let i = 0; i < raw.length; i++) {
     const arg = raw[i];
@@ -26,6 +34,8 @@ function parseGlanceCliArgs(raw: string[]): GlanceArgs {
       compact = true;
     } else if (arg === "--no-urls") {
       noUrls = true;
+    } else if (arg === "--json") {
+      json = true;
     } else if (arg === "--days" || arg === "-d") {
       const daysArg = raw[i + 1];
       if (!daysArg) {
@@ -41,7 +51,7 @@ function parseGlanceCliArgs(raw: string[]): GlanceArgs {
     }
   }
 
-  return { help, days, compact, noUrls };
+  return { help, days, compact, noUrls, json };
 }
 
 function showStandaloneHelp(): void {
@@ -56,6 +66,7 @@ Options:
   -d, --days N     Show activity for the last N days (default: 7)
       --compact    Fewer blank lines and shorter subsection headers
       --no-urls    Omit URLs for issues and commits
+      --json       Machine-readable report (includes RFC fields when present)
 
 Description:
   Visualizes recent project velocity using GitHub issues and commits.
@@ -82,13 +93,23 @@ async function main(): Promise<void> {
     console.error(`Repository: ${repo.owner}/${repo.repo}`);
 
     const velocity = await gatherVelocityData(repo.owner, repo.repo, args.days);
+    const rfcMetrics = await gatherRfcMetrics({
+      windowDays: args.days,
+      referenceTime: velocity.weekEnd,
+    });
     console.error(
       `Window: ${velocity.weekStart.toLocaleDateString()} - ${velocity.weekEnd.toLocaleDateString()} (${velocity.windowDays}d vs prior)`,
     );
 
+    if (args.json) {
+      console.log(formatGlanceJson(velocity, rfcMetrics));
+      return;
+    }
+
     const formatOpts: FormatVelocityOptions = {
       compact: args.compact,
       noUrls: args.noUrls,
+      rfcMetrics,
     };
     const output = formatVelocity(velocity, formatOpts);
     console.log(output);

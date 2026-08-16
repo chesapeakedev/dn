@@ -3,6 +3,8 @@
 
 import type { Issue } from "../sdk/mod.ts";
 import { isColorEnabled, isUnattended } from "../sdk/github/output.ts";
+import { RFC_STATUSES } from "../sdk/rfc/types.ts";
+import type { RfcMetrics } from "./collectRfcMetrics.ts";
 import type {
   FormatVelocityOptions,
   TrendDirection,
@@ -132,7 +134,7 @@ function groupIssuesByLabel(issues: Issue[]): Map<string, Issue[]> {
 
 function formatIssueBlocks(
   issues: Issue[],
-  opts: Required<FormatVelocityOptions>,
+  opts: { compact: boolean; noUrls: boolean },
   referenceTime: Date,
   eventTime: (i: Issue) => string | null,
 ): string[] {
@@ -167,6 +169,46 @@ function formatIssueBlocks(
   return lines;
 }
 
+function formatRfcSummaryStrip(
+  metrics: RfcMetrics,
+  opts: { compact: boolean },
+  referenceTime: Date,
+): string[] {
+  const lines: string[] = [];
+  lines.push(...(opts.compact ? [] : [""]));
+
+  const statusParts = RFC_STATUSES
+    .filter((status) => metrics.countsByStatus[status] > 0)
+    .map((status) => `${status}:${metrics.countsByStatus[status]}`);
+
+  const header = isUnattended() ? "RFCs" : "RFCs";
+  lines.push(
+    `${header}: ${metrics.total} total, ${metrics.percentDone}% done (${metrics.doneCount} done)`,
+  );
+  if (statusParts.length > 0) {
+    lines.push(`   ${statusParts.join("  ")}`);
+  }
+
+  if (metrics.recentlyUpdated.length > 0) {
+    lines.push(`   ${opts.compact ? "Updated:" : "Recently updated:"}`);
+    for (const rfc of metrics.recentlyUpdated.slice(0, 5)) {
+      const rel = formatRelativeCalendarDays(rfc.updatedAt, referenceTime);
+      const idStr = rfc.id.toString().padStart(3, "0");
+      const title = truncateWithEllipsis(rfc.title, TITLE_MAX);
+      lines.push(
+        `   - ${idStr} [${rfc.status}] ${title} (${rel})`,
+      );
+    }
+    if (metrics.recentlyUpdated.length > 5) {
+      lines.push(`   ... and ${metrics.recentlyUpdated.length - 5} more`);
+    }
+  } else if (metrics.total > 0) {
+    lines.push("   (no RFCs updated in window)");
+  }
+
+  return lines;
+}
+
 /**
  * Renders velocity data for terminal or CI.
  */
@@ -174,7 +216,7 @@ export function formatVelocity(
   data: VelocityData,
   options: FormatVelocityOptions = {},
 ): string {
-  const opts: Required<FormatVelocityOptions> = {
+  const opts = {
     compact: options.compact ?? false,
     noUrls: options.noUrls ?? false,
   };
@@ -224,6 +266,10 @@ export function formatVelocity(
     lines.push(boxLine(row, contentWidth));
   }
   lines.push(boxFrameBot(contentWidth));
+
+  if (options.rfcMetrics) {
+    lines.push(...formatRfcSummaryStrip(options.rfcMetrics, opts, now));
+  }
 
   const blank = opts.compact ? [] : [""];
   lines.push(...blank);

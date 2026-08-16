@@ -7,6 +7,7 @@
 
 // Import types from sdk/github for use and re-export
 import type { Commit, Issue } from "../sdk/mod.ts";
+import type { RfcMetrics } from "./collectRfcMetrics.ts";
 export type { Commit, Issue };
 
 /** Direction of activity change vs an equal-length prior window. */
@@ -50,4 +51,6 @@ export interface VelocityData {
 export interface FormatVelocityOptions {
   compact?: boolean;
   noUrls?: boolean;
+  /** When set, renders an additive RFC summary strip after the velocity box. */
+  rfcMetrics?: RfcMetrics | null;
 }
