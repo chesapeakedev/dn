@@ -40,18 +40,16 @@ precommit:
 	deno task precommit
 	deno test --allow-read --allow-write \
 		scripts/workflowChecksums_test.ts sdk/workflows/mod_test.ts
-# NOTE: We use --allow-env instead of --allow-env=NODE_ENV because npm packages
-# like graphql access process.env.NODE_ENV at module load time. Deno's scoped
-# env permissions don't work correctly with npm packages - the graphql package
-# checks `process.env.NODE_ENV === 'production'` at import time, which throws
-# NotCapable even with --allow-env=NODE_ENV. See: denoland/deno#28125
-tests: ; NODE_ENV=dev deno test --allow-run --allow-env
+# The suite includes filesystem fixtures, temporary VCS checkouts, and CLI
+# subprocesses, so it must run with the same broad permissions used by the
+# CLI integration tests.
+tests: ; NODE_ENV=dev deno test --allow-all
 configure: install
 publish: ; deno task publish
 
 # sync your local changes with trunk, rebasing trunk under your work
 # leaves branches alone
-sync: lint
+sync: lint tests
 	deno run --allow-all $(CURDIR)/cli/main.ts sync --skip-lint
 
 # compile & install dn locally for the current user
