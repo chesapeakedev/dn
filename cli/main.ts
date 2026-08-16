@@ -87,6 +87,7 @@ async function handleInit(
   console.error("Valid subcommands: stack, build, workflows, agents, wizard");
   Deno.exit(1);
 }
+import { handleComplete, handleCompletion } from "./completion.ts";
 import { handleKickstart } from "./kickstart.ts";
 import { handleLoop } from "./loop.ts";
 import { handleMeld } from "./meld.ts";
@@ -354,6 +355,9 @@ function showUsage(): void {
     "  rfc         Manage RFCs (Request for Comments) for design documents",
   );
   console.error(
+    "  completion  Print bash or zsh tab-completion script",
+  );
+  console.error(
     "",
   );
   console.error(
@@ -402,6 +406,17 @@ async function main(): Promise<void> {
 
   const subcommand = args[0];
   const rawSubcommandArgs = args.slice(1);
+
+  // Completers must see raw argv (including bootstrap flags) and must not
+  // inherit unattended/color policy from the line being completed.
+  if (subcommand === "__complete") {
+    handleComplete(rawSubcommandArgs);
+    return;
+  }
+  if (subcommand === "completion") {
+    handleCompletion(rawSubcommandArgs);
+    return;
+  }
 
   // Bootstrap output policy once at CLI entry: set NO_COLOR in CI, then apply global flags
   bootstrapFromEnv();

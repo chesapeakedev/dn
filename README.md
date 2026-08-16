@@ -73,6 +73,16 @@ git clone https://github.com/chesapeakedev/dn.git
 cd dn && make install
 ```
 
+### Shell completions
+
+```bash
+# bash — add to ~/.bashrc
+eval "$(dn completion bash)"
+
+# zsh — add to ~/.zshrc after compinit
+eval "$(dn completion zsh)"
+```
+
 ## Features
 
 - **Automate issue to implementation** — Codify and idea into a GitHub issue
