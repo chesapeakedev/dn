@@ -1,12 +1,14 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
-import { assertEquals, assertThrows } from "@std/assert";
+import { assertEquals, assertStringIncludes, assertThrows } from "@std/assert";
 import {
   bumpPatchVersion,
   findPreviousReleaseCommit,
   formatCommitMessage,
+  formatJsrPublishDryRunError,
   formatReleaseNotes,
+  JSR_PUBLISH_DRY_RUN_ARGS,
   parseSaplingLog,
   repositoryFromRemoteUrl,
   validateReleaseVersion,
@@ -136,4 +138,48 @@ Deno.test("repositoryFromRemoteUrl parses GitHub remotes", () => {
     repositoryFromRemoteUrl("https://example.com/chesapeakedev/dn.git"),
     undefined,
   );
+});
+
+Deno.test("JSR publish dry-run args do not upload", () => {
+  assertEquals([...JSR_PUBLISH_DRY_RUN_ARGS], [
+    "deno",
+    "publish",
+    "--dry-run",
+  ]);
+});
+
+Deno.test("formatJsrPublishDryRunError tells operators to fix JSR before GitHub", () => {
+  const message = formatJsrPublishDryRunError(
+    "error[excluded-module]: module in package's module graph was excluded from publishing\n --> kickstart/includedPrompt.ts",
+  );
+  assertStringIncludes(message, "JSR publish dry-run failed");
+  assertStringIncludes(message, "before creating a GitHub release");
+  assertStringIncludes(
+    message,
+    "cannot recover a version that already shipped",
+  );
+  assertStringIncludes(message, "error[excluded-module]");
+  assertStringIncludes(message, "kickstart/includedPrompt.ts");
+});
+
+Deno.test("formatJsrPublishDryRunError handles empty command output", () => {
+  assertStringIncludes(formatJsrPublishDryRunError("  \n"), "(no output)");
+});
+
+Deno.test("deno publish --dry-run succeeds for the current package graph", async () => {
+  const result = await new Deno.Command("deno", {
+    args: ["publish", "--dry-run", "--allow-dirty"],
+    stdout: "piped",
+    stderr: "piped",
+  }).output();
+  if (result.code !== 0) {
+    throw new Error(
+      formatJsrPublishDryRunError(
+        [
+          new TextDecoder().decode(result.stderr),
+          new TextDecoder().decode(result.stdout),
+        ].join("\n"),
+      ),
+    );
+  }
 });

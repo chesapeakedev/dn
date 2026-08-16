@@ -74,7 +74,12 @@ function showHelp(): void {
   console.log(
     "  --previous-release-version <version>  Use an explicit prior release boundary",
   );
-  console.log("  --dry-run            Show the release without changing files");
+  console.log(
+    "  --dry-run            Preview notes without changing files; still runs",
+  );
+  console.log(
+    "                       `deno publish --dry-run` to catch JSR graph errors",
+  );
 }
 
 // utility function to run shell command
@@ -265,6 +270,37 @@ async function listCommitsSince(previousNode: string): Promise<CommitEntry[]> {
   return parseSaplingLog(output);
 }
 
+/** Command used to validate the JSR package graph before a GitHub release. */
+export const JSR_PUBLISH_DRY_RUN_ARGS = [
+  "deno",
+  "publish",
+  "--dry-run",
+] as const;
+
+/**
+ * Formats a failed `deno publish --dry-run` so the operator knows to fix the
+ * JSR graph before creating a GitHub release for the same version.
+ */
+export function formatJsrPublishDryRunError(output: string): string {
+  const details = output.trim() || "(no output)";
+  return [
+    "JSR publish dry-run failed. Fix the package graph before creating a GitHub release.",
+    "GitHub and JSR share the deno.json version, so a later `make publish` cannot recover a version that already shipped to GitHub.",
+    details,
+  ].join("\n");
+}
+
+async function assertJsrPublishReady(): Promise<void> {
+  console.log("Checking JSR package graph (deno publish --dry-run)...");
+  const result = await runCommand([...JSR_PUBLISH_DRY_RUN_ARGS]);
+  if (result.code !== 0) {
+    const output = [result.stderr.trim(), result.stdout.trim()].filter(Boolean)
+      .join("\n");
+    throw new Error(formatJsrPublishDryRunError(output));
+  }
+  console.log("JSR publish dry-run succeeded.");
+}
+
 export function repositoryFromRemoteUrl(remote: string): string | undefined {
   const match = remote.trim().match(
     /(?:github\.com[:/]|git@github\.com:)([^/]+)\/([^/.]+?)(?:\.git)?$/i,
@@ -448,6 +484,7 @@ async function writeTempFile(prefix: string, content: string): Promise<string> {
 
 async function runRelease(options: ReleaseOptions): Promise<void> {
   await assertCleanWorkingCopy();
+  await assertJsrPublishReady();
 
   const previousVersion = await readCurrentVersion();
   const newVersion = options.version

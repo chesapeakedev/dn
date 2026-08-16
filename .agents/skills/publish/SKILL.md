@@ -18,9 +18,10 @@ make release VERSION=<version>
 ```
 
 Do not reproduce individual release steps. `scripts/release.ts` validates the
-working copy, updates `deno.json`, runs precommit checks, commits and syncs with
-Sapling, and creates the GitHub release. The GitHub release triggers the binary
-release workflow.
+working copy, runs `deno publish --dry-run` so JSR graph errors fail before a
+GitHub tag exists, updates `deno.json`, runs precommit checks, commits and syncs
+with Sapling, and creates the GitHub release. The GitHub release triggers the
+binary release workflow.
 
 If the command fails after creating the version commit, inspect `sl status` and
 the GitHub release before retrying. Do not bump the version again to recover a
