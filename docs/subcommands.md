@@ -514,7 +514,7 @@ dn init agents
 
 Pass `--skill` to install native skill files for one explicitly selected
 supported agent. `--agent` is required with `--skill`. Optionally pass a skill
-name after `--skill` (`dn` default, or `base-image`).
+name after `--skill` (`dn` default, `base-image`, or `rfc`).
 
 ```bash
 dn init agents --skill --agent codex
@@ -522,13 +522,14 @@ dn init agents --skill --agent claude
 dn init agents --skill --agent opencode
 dn init agents --skill --agent cursor
 dn init agents --skill base-image --agent opencode
+dn init agents --skill rfc --agent opencode
 dn init agents --skill --agent codex --scope user
 dn init agents --skill --agent claude --dry-run --json
 ```
 
 Supported skill agents: `codex`, `claude`, `opencode`, `cursor`.
 
-Supported skill names: `dn` (default), `base-image`.
+Supported skill names: `dn` (default), `base-image`, `rfc`.
 
 Repo-scope installs write (replace `dn` with the skill name when set):
 
@@ -549,6 +550,10 @@ to inspect planned writes, skips, and conflicts without changing files.
 
 The `base-image` skill documents golden-image hygiene and `sandbox.docker.image`
 / `sandbox.docker.dockerfile` configuration. See [sandbox.md](sandbox.md).
+
+The `rfc` skill guides bootstrapping a durable RFC corpus with `dn rfc` for
+greenfield design work. The default `dn` skill includes an RFC context section
+that agents should consult before large design changes.
 
 ### `dn init stack` — Initialize stack from GitHub milestone
 

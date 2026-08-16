@@ -1,0 +1,4 @@
+interface:
+  display_name: "RFC authoring"
+  short_description: "Bootstrap a durable RFC corpus with dn rfc"
+  default_prompt: "Use $rfc to turn this idea into an initial RFC set. Interview first, then write via dn rfc."
