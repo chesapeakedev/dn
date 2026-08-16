@@ -72,6 +72,7 @@ import {
 } from "./testsOnlyContinuation.ts";
 import { completionStatusFromPlanContent } from "./planCompletion.ts";
 import {
+  formatDetail,
   formatError,
   formatInfo,
   formatStep,
@@ -475,7 +476,7 @@ function resolvePlanFilePath(
 
   if (issueHint) {
     console.log(
-      formatInfo(`Issue: ${summarizeIssueForDisplay(issueHint)}`),
+      formatDetail(`Issue: ${summarizeIssueForDisplay(issueHint)}`),
     );
   }
 
@@ -1340,7 +1341,6 @@ export async function runLoopPhase(
     });
 
     // Step 4.5: Check completion status
-    console.log(formatStep(4.5, "Checking completion status..."));
     let completionStatus = await checkAcceptanceCriteriaCompletion(
       planFilePath,
     );
@@ -1349,12 +1349,20 @@ export async function runLoopPhase(
     const planRelativePath = planFilePath.replace(workspaceRoot + "/", "");
 
     if (structuredImplementResult) {
-      printImplementResult(structuredImplementResult, { planRelativePath });
-    }
-
-    if (completionStatus.total > 0) {
+      printImplementResult(structuredImplementResult, {
+        planRelativePath,
+        acceptanceCriteria: completionStatus.total > 0
+          ? {
+            completed: completionStatus.completed,
+            total: completionStatus.total,
+          }
+          : undefined,
+      });
+    } else if (completionStatus.total > 0) {
       console.log(
-        `📊 Completion Status: ${completionStatus.completed}/${completionStatus.total} acceptance criteria completed`,
+        formatDetail(
+          `Acceptance criteria: ${completionStatus.completed}/${completionStatus.total} completed`,
+        ),
       );
     }
 
@@ -1425,11 +1433,20 @@ export async function runLoopPhase(
       }
       completionStatus = await checkAcceptanceCriteriaCompletion(planFilePath);
       if (structuredImplementResult) {
-        printImplementResult(structuredImplementResult, { planRelativePath });
-      }
-      if (completionStatus.total > 0) {
+        printImplementResult(structuredImplementResult, {
+          planRelativePath,
+          acceptanceCriteria: completionStatus.total > 0
+            ? {
+              completed: completionStatus.completed,
+              total: completionStatus.total,
+            }
+            : undefined,
+        });
+      } else if (completionStatus.total > 0) {
         console.log(
-          `📊 Completion Status: ${completionStatus.completed}/${completionStatus.total} acceptance criteria completed`,
+          formatDetail(
+            `Acceptance criteria: ${completionStatus.completed}/${completionStatus.total} completed`,
+          ),
         );
       }
     }
@@ -1484,8 +1501,6 @@ export async function runLoopPhase(
           );
         }
       } else {
-        console.log(formatSuccess("All acceptance criteria completed!"));
-
         // Delete plan file when all criteria are complete (AWP mode only)
         if (config.publish !== "none") {
           try {
@@ -1610,10 +1625,10 @@ export async function runLoopPhase(
       step: 5,
     });
 
-    // Step 6: Generate artifacts
-    console.log(formatStep(6, "Generating workspace artifacts..."));
+    // Step 6: Generate artifacts (only announce when there is work)
     try {
       if (config.agentHarness === "cursor") {
+        console.log(formatStep(6, "Generating workspace artifacts..."));
         await createCursorRule(workspaceRoot);
         console.log(
           formatSuccess(
@@ -1623,9 +1638,12 @@ export async function runLoopPhase(
       }
     } catch (error) {
       console.warn(
-        "⚠️  Artifact generation encountered an error (non-blocking):",
+        formatWarning(
+          `Artifact generation encountered an error (non-blocking): ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        ),
       );
-      console.warn(error instanceof Error ? error.message : String(error));
     }
 
     // Step 7: Validate changes

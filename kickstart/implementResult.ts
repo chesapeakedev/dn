@@ -6,7 +6,7 @@
  * kickstart to parse and print after a run.
  */
 
-import { formatInfo, formatWarning } from "./output.ts";
+import { formatDetail, formatInfo, formatWarning } from "./output.ts";
 import { ensureWorkspaceStateDir } from "../sdk/workspaceState.ts";
 
 /** Relative path (from the workspace root) for the implement result file. */
@@ -353,58 +353,67 @@ export async function loadImplementResult(
  */
 export function printImplementResult(
   result: ImplementPhaseResult,
-  options: { planRelativePath: string },
+  options: {
+    planRelativePath: string;
+    acceptanceCriteria?: { completed: number; total: number };
+  },
 ): void {
-  console.log(`📋 Implement result: ${result.status}`);
-  console.log(`   ${result.summary}`);
+  console.log(formatInfo(`Implement result: ${result.status}`));
+  console.log(formatDetail(result.summary));
 
   if (result.unfinished_tasks.length > 0) {
-    console.log("Unfinished tasks:");
+    console.log(formatDetail("Unfinished tasks:"));
     for (const task of result.unfinished_tasks) {
       const criterion = task.criterion ? ` (${task.criterion})` : "";
-      console.log(`  - ${task.description}${criterion}`);
-      if (task.work_kind) console.log(`      work_kind: ${task.work_kind}`);
-      if (task.reason) console.log(`      reason: ${task.reason}`);
+      console.log(formatDetail(`- ${task.description}${criterion}`));
+      if (task.work_kind) {
+        console.log(formatDetail(`    work_kind: ${task.work_kind}`));
+      }
+      if (task.reason) console.log(formatDetail(`    reason: ${task.reason}`));
       if (task.suggested_action) {
-        console.log(`      suggested: ${task.suggested_action}`);
+        console.log(formatDetail(`    suggested: ${task.suggested_action}`));
       }
     }
   }
 
   if (result.human_actions.length > 0) {
-    console.log("Human actions required:");
+    console.log(formatDetail("Human actions required:"));
     for (const action of result.human_actions) {
-      console.log(`  - ${action.description}`);
-      if (action.reason) console.log(`      reason: ${action.reason}`);
-      if (action.command) console.log(`      command: ${action.command}`);
+      console.log(formatDetail(`- ${action.description}`));
+      if (action.reason) {
+        console.log(formatDetail(`    reason: ${action.reason}`));
+      }
+      if (action.command) {
+        console.log(formatDetail(`    command: ${action.command}`));
+      }
     }
   }
 
   switch (result.recommendation) {
     case "rerun_loop":
       console.log(
-        formatInfo(
+        formatDetail(
           `Recommendation: re-run dn loop ${options.planRelativePath} after reviewing the unfinished tasks.`,
         ),
       );
       break;
     case "edit_plan":
       console.log(
-        formatInfo(
+        formatDetail(
           `Recommendation: edit ${options.planRelativePath} (narrow or drop criteria), then decide whether to re-run dn loop or land.`,
         ),
       );
       break;
     case "human_action":
       console.log(
-        formatInfo(
+        formatDetail(
           "Recommendation: complete the human actions above before re-running dn loop, or edit the plan if those tasks should not block landing.",
         ),
       );
       break;
     case "land":
       console.log(
-        formatInfo(
+        formatDetail(
           "Recommendation: remaining unfinished items can be left open; land the work if the delivered scope is acceptable.",
         ),
       );
@@ -416,6 +425,15 @@ export function printImplementResult(
         ),
       );
       break;
+  }
+
+  const criteria = options.acceptanceCriteria;
+  if (criteria && criteria.total > 0) {
+    console.log(
+      formatDetail(
+        `Acceptance criteria: ${criteria.completed}/${criteria.total} completed`,
+      ),
+    );
   }
 }
 

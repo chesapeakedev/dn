@@ -270,3 +270,126 @@ export function formatElapsedTime(elapsedMs: number): string {
   }
   return `${minutes}m ${remainingSeconds}s`;
 }
+
+/** Prefix for dn-originated lines when logs may mix with other tools. */
+const DN_PREFIX = "[dn] ";
+
+const ANSI = {
+  reset: "\x1b[0m",
+  bold: "\x1b[1m",
+  dim: "\x1b[2m",
+  green: "\x1b[32m",
+  yellow: "\x1b[33m",
+  red: "\x1b[31m",
+  cyan: "\x1b[36m",
+} as const;
+
+/**
+ * Whether stdout lines should carry the `[dn]` brand.
+ * True in unattended/CI, or when agent harness output is live-streamed
+ * (`--trace` / `DN_AGENT_TRACE`), so dn lines stay distinguishable in mixed logs.
+ * False in quiet attended TTYs (agent stream hidden by default).
+ */
+export function shouldBrandDn(): boolean {
+  return isUnattended() || isAgentTraceEnabled();
+}
+
+/**
+ * Format a phase/step header.
+ * Attended quiet: bold message only (no Step N, no `[dn]`).
+ * Branded (unattended or agent-trace): `[dn] Step N: message`.
+ */
+export function formatStep(step: number, message: string): string {
+  if (shouldBrandDn()) {
+    return `${DN_PREFIX}Step ${step}: ${message}`;
+  }
+  if (isColorEnabled()) {
+    return `${ANSI.bold}${message}${ANSI.reset}`;
+  }
+  return message;
+}
+
+/**
+ * Format a success / completion line.
+ * Attended quiet: green text, no emoji.
+ * Branded: `[dn] [OK] message`.
+ */
+export function formatSuccess(message: string): string {
+  if (shouldBrandDn()) {
+    return `${DN_PREFIX}[OK] ${message}`;
+  }
+  if (isColorEnabled()) {
+    return `${ANSI.green}${message}${ANSI.reset}`;
+  }
+  return message;
+}
+
+/**
+ * Format a warning. Attended: yellow + emoji; branded: `[dn] [WARN]`.
+ */
+export function formatWarning(message: string): string {
+  if (shouldBrandDn()) {
+    return `${DN_PREFIX}[WARN] ${message}`;
+  }
+  if (isColorEnabled()) {
+    return `${ANSI.yellow}⚠️  ${message}${ANSI.reset}`;
+  }
+  return `⚠️  ${message}`;
+}
+
+/**
+ * Format an error. Attended: red + emoji; branded: `[dn] [ERROR]`.
+ */
+export function formatError(message: string): string {
+  if (shouldBrandDn()) {
+    return `${DN_PREFIX}[ERROR] ${message}`;
+  }
+  if (isColorEnabled()) {
+    return `${ANSI.red}❌ Error: ${message}${ANSI.reset}`;
+  }
+  return `❌ Error: ${message}`;
+}
+
+/**
+ * Format an informational line.
+ * Attended quiet: cyan/dim text, no emoji.
+ * Branded: `[dn] message`.
+ */
+export function formatInfo(message: string): string {
+  if (shouldBrandDn()) {
+    return DN_PREFIX + message;
+  }
+  if (isColorEnabled()) {
+    return `${ANSI.cyan}${message}${ANSI.reset}`;
+  }
+  return message;
+}
+
+/**
+ * Format a secondary detail under a phase header.
+ * Attended quiet: indented (optionally dim).
+ * Branded: `[dn] message` (no indent, scrape-friendly).
+ */
+export function formatDetail(message: string): string {
+  if (shouldBrandDn()) {
+    return DN_PREFIX + message;
+  }
+  const line = `  ${message}`;
+  if (isColorEnabled()) {
+    return `${ANSI.dim}${line}${ANSI.reset}`;
+  }
+  return line;
+}
+
+/**
+ * Print a section separator. Optional text is branded when provided.
+ */
+export function printSeparator(text?: string): void {
+  if (text) {
+    console.log("\n" + "=".repeat(60));
+    console.log(shouldBrandDn() ? DN_PREFIX + text : text);
+    console.log("=".repeat(60));
+  } else {
+    console.log("=".repeat(60));
+  }
+}

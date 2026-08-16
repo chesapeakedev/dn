@@ -7,17 +7,55 @@ import {
   formatAgentPhaseIntentLog,
   resolveConfiguredAgentModel,
 } from "./agentModel.ts";
+import { setAgentTrace, setUnattended } from "./output.ts";
 
 Deno.test("formatAgentPhaseIntentLog includes model when present", () => {
-  assertEquals(
-    formatAgentPhaseIntentLog("opencode", "deepinfra/zai-org/GLM-5.2"),
-    "[dn] agent=opencode model=deepinfra/zai-org/GLM-5.2",
-  );
+  setUnattended(true);
+  setAgentTrace(null);
+  try {
+    assertEquals(
+      formatAgentPhaseIntentLog("opencode", "deepinfra/zai-org/GLM-5.2"),
+      "[dn] agent=opencode model=deepinfra/zai-org/GLM-5.2",
+    );
+  } finally {
+    setUnattended(false);
+  }
 });
 
 Deno.test("formatAgentPhaseIntentLog omits model when unset", () => {
-  assertEquals(formatAgentPhaseIntentLog("claude"), "[dn] agent=claude");
-  assertEquals(formatAgentPhaseIntentLog("cursor", "  "), "[dn] agent=cursor");
+  setUnattended(true);
+  setAgentTrace(null);
+  try {
+    assertEquals(formatAgentPhaseIntentLog("claude"), "[dn] agent=claude");
+    assertEquals(
+      formatAgentPhaseIntentLog("cursor", "  "),
+      "[dn] agent=cursor",
+    );
+  } finally {
+    setUnattended(false);
+  }
+});
+
+Deno.test({
+  name: "formatAgentPhaseIntentLog is indented detail when attended quiet",
+  permissions: { env: true },
+  fn() {
+    setUnattended(false);
+    setAgentTrace(false);
+    const prev = Deno.env.get("NO_COLOR");
+    Deno.env.set("NO_COLOR", "1");
+    try {
+      assertEquals(
+        formatAgentPhaseIntentLog("codex"),
+        "  agent=codex",
+      );
+    } finally {
+      if (prev !== undefined) Deno.env.set("NO_COLOR", prev);
+      else Deno.env.delete("NO_COLOR");
+      setAgentTrace(null);
+      setUnattended(false);
+    }
+  },
 });
 
 Deno.test("resolveConfiguredAgentModel reads OpenCode phase config", async () => {

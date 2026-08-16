@@ -2,25 +2,24 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { AgentHarness } from "./agentHarness.ts";
-
-const DN_PREFIX = "[dn] ";
+import { formatDetail } from "./output.ts";
 
 /**
  * Formats the harness-agnostic phase-start intent line.
  *
  * @param harness - Selected agent backend
  * @param model - Resolved model id when known; omitted when unset
- * @returns Log line such as `[dn] agent=opencode model=deepinfra/zai-org/GLM-5.2`
+ * @returns Detail line such as `agent=opencode model=…` (branded when mixed logs)
  */
 export function formatAgentPhaseIntentLog(
   harness: AgentHarness,
   model?: string | null,
 ): string {
   const trimmed = model?.trim();
-  if (trimmed) {
-    return `${DN_PREFIX}agent=${harness} model=${trimmed}`;
-  }
-  return `${DN_PREFIX}agent=${harness}`;
+  const body = trimmed
+    ? `agent=${harness} model=${trimmed}`
+    : `agent=${harness}`;
+  return formatDetail(body);
 }
 
 /**

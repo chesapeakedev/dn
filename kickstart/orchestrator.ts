@@ -43,6 +43,7 @@ import {
 import type { PlanSummary } from "./lib.ts";
 import { decidePlanSkip, type PlanCompletionStatus } from "./issueAdequacy.ts";
 import {
+  formatDetail,
   formatError,
   formatInfo,
   formatStep,
@@ -248,7 +249,7 @@ function resolvePlanFilePath(
 
   if (issueHint) {
     console.log(
-      formatInfo(`Issue: ${summarizeIssueForDisplay(issueHint)}`),
+      formatDetail(`Issue: ${summarizeIssueForDisplay(issueHint)}`),
     );
   }
 
@@ -743,7 +744,7 @@ export async function runOrchestrator(
       if (planDecision.reason === "issue_adequate") {
         await Deno.writeTextFile(planFilePath, planDecision.planContent ?? "");
         console.log(
-          formatInfo(
+          formatDetail(
             `Issue looks implement-ready (score ${planDecision.adequacy.score}; ${
               planDecision.adequacy.signals.join(", ") || "signals"
             }).`,
@@ -764,19 +765,10 @@ export async function runOrchestrator(
         formatStep(
           3,
           skipPlanReason === "existing_plan"
-            ? "Skipping plan phase (reusing existing plan file)..."
+            ? `Skipping plan phase (existing plan at ${planFilePath})`
             : skipPlanReason === "issue_adequate"
-            ? "Skipping plan phase (issue adequate)..."
-            : "Skipping plan phase (--skip-plan)...",
-        ),
-      );
-      console.log(
-        formatInfo(
-          skipPlanReason === "existing_plan"
-            ? `[dn] Skipping plan phase (existing plan at ${planFilePath})`
-            : skipPlanReason === "issue_adequate"
-            ? "[dn] Skipping plan phase (issue adequate)"
-            : "[dn] Skipping plan phase (--skip-plan)",
+            ? "Skipping plan phase (issue adequate)"
+            : "Skipping plan phase (--skip-plan)",
         ),
       );
       await Deno.writeTextFile(
@@ -796,7 +788,6 @@ export async function runOrchestrator(
           existingPlanCompletion,
         },
       });
-      console.log(formatSuccess("Plan phase skipped successfully"));
       await report("step.completed", "Plan step completed", { step: 3 });
     } else {
       console.log(
@@ -1054,7 +1045,6 @@ export async function runOrchestrator(
 
     // Step 4.5: Check completion status and handle continuation
     await report("step.started", "Checking completion status", { step: 4.5 });
-    console.log(formatStep(4.5, "Checking completion status..."));
     const finalPlanFilePath = planFilePath;
     const planRelativePath = planFilePath.replace(WORKSPACE_ROOT + "/", "");
 
@@ -1079,12 +1069,20 @@ export async function runOrchestrator(
       );
 
       if (structuredImplementResult) {
-        printImplementResult(structuredImplementResult, { planRelativePath });
-      }
-
-      if (completionStatus.total > 0) {
+        printImplementResult(structuredImplementResult, {
+          planRelativePath,
+          acceptanceCriteria: completionStatus.total > 0
+            ? {
+              completed: completionStatus.completed,
+              total: completionStatus.total,
+            }
+            : undefined,
+        });
+      } else if (completionStatus.total > 0) {
         console.log(
-          `📊 Completion Status: ${completionStatus.completed}/${completionStatus.total} acceptance criteria completed`,
+          formatDetail(
+            `Acceptance criteria: ${completionStatus.completed}/${completionStatus.total} completed`,
+          ),
         );
       }
 
@@ -1170,11 +1168,18 @@ export async function runOrchestrator(
         if (structuredImplementResult) {
           printImplementResult(structuredImplementResult, {
             planRelativePath,
+            acceptanceCriteria: completionStatus.total > 0
+              ? {
+                completed: completionStatus.completed,
+                total: completionStatus.total,
+              }
+              : undefined,
           });
-        }
-        if (completionStatus.total > 0) {
+        } else if (completionStatus.total > 0) {
           console.log(
-            `📊 Completion Status: ${completionStatus.completed}/${completionStatus.total} acceptance criteria completed`,
+            formatDetail(
+              `Acceptance criteria: ${completionStatus.completed}/${completionStatus.total} completed`,
+            ),
           );
         }
       }
@@ -1233,8 +1238,6 @@ export async function runOrchestrator(
             );
           }
         } else {
-          console.log(formatSuccess("All acceptance criteria completed!"));
-
           // Delete plan file when all criteria are complete (publish mode only)
           if (publishesChanges) {
             try {
@@ -1406,12 +1409,11 @@ export async function runOrchestrator(
       await report("step.completed", "Lint step completed", { step: 5 });
     }
 
-    // Step 6: Generate artifacts
+    // Step 6: Generate artifacts (only announce when there is work)
     await report("step.started", "Generating workspace artifacts", { step: 6 });
-    console.log(formatStep(6, "Generating workspace artifacts..."));
     try {
-      // Create Cursor rule if enabled
       if (config.agentHarness === "cursor") {
+        console.log(formatStep(6, "Generating workspace artifacts..."));
         await createCursorRule(WORKSPACE_ROOT);
         console.log(
           formatSuccess(
@@ -1420,11 +1422,13 @@ export async function runOrchestrator(
         );
       }
     } catch (error) {
-      // Artifact generation errors are non-blocking, just log a warning
       console.warn(
-        "⚠️  Artifact generation encountered an error (non-blocking):",
+        formatWarning(
+          `Artifact generation encountered an error (non-blocking): ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        ),
       );
-      console.warn(error instanceof Error ? error.message : String(error));
     }
     await report("step.completed", "Generated workspace artifacts", {
       step: 6,

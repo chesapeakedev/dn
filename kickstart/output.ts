@@ -3,12 +3,13 @@
 
 /**
  * Output formatting utilities for kickstart.
- * Re-exports CLI output policy and formatters (TTY, spinners, [dn] branding, color-aware formatting).
+ * Re-exports CLI output policy and formatters (TTY, spinners, branding, color-aware formatting).
  */
 
 export {
   bootstrapFromEnv,
   configureForCI,
+  formatDetail,
   formatElapsedTime,
   formatError,
   formatInfo,
@@ -21,5 +22,6 @@ export {
   isUnattended,
   printSeparator,
   setUnattended,
+  shouldBrandDn,
   Spinner,
 } from "../cli/output.ts";

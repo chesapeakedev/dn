@@ -3,10 +3,17 @@
 
 import { $ } from "$dax";
 import { runAgentCommand } from "./agentExecution.ts";
-import { formatElapsedTime, isTty, isUnattended, Spinner } from "./output.ts";
+import {
+  formatElapsedTime,
+  formatError,
+  formatInfo,
+  formatSuccess,
+  formatWarning,
+  isTty,
+  isUnattended,
+  Spinner,
+} from "./output.ts";
 import type { ProgressReporter } from "./progress.ts";
-
-const DN_PREFIX = "[dn] ";
 
 /**
  * Persist an additional `permission.edit.allow` glob into `opencode.plan.json`.
@@ -75,7 +82,9 @@ export async function augmentOpenCodePlanEditPermission(
     JSON.stringify(parsed, null, 2) + "\n",
   );
   console.warn(
-    `${DN_PREFIX}[WARN] OpenCode plan edit permission added for meld target: ${rel}`,
+    formatWarning(
+      `OpenCode plan edit permission added for meld target: ${rel}`,
+    ),
   );
 }
 
@@ -127,7 +136,9 @@ export async function runOpenCode(
 
   if (!attended) {
     console.log(
-      `${DN_PREFIX}Running opencode ${phase} phase with combined prompt: ${combinedPromptPath}`,
+      formatInfo(
+        `Running opencode ${phase} phase with combined prompt: ${combinedPromptPath}`,
+      ),
     );
   }
 
@@ -158,7 +169,7 @@ export async function runOpenCode(
       if (!hasPlanFiles) {
         // Config exists but doesn't allow plan files - add permissions
         console.warn(
-          `${DN_PREFIX}[WARN] Adding plan file permissions to opencode.plan.json`,
+          formatWarning("Adding plan file permissions to opencode.plan.json"),
         );
         editPerms["plans/**/*.plan.md"] = "allow";
         editPerms["plans/*.plan.md"] = "allow";
@@ -303,15 +314,17 @@ export async function runOpenCode(
       if (!attended) {
         if (elapsed > longRunWarningMs && elapsed < timeoutWarningMs) {
           console.warn(
-            `${DN_PREFIX}[WARN] opencode ${phase} phase has been running for ${
-              Math.round(elapsed / 1000)
-            }s. If it appears to hang, check stderr for prompts.`,
+            formatWarning(
+              `opencode ${phase} phase has been running for ${
+                Math.round(elapsed / 1000)
+              }s. If it appears to hang, check stderr for prompts.`,
+            ),
           );
         }
         if (elapsed > timeoutWarningMs) {
           const remaining = Math.round((timeoutMs - elapsed) / 1000);
           console.warn(
-            `${DN_PREFIX}[WARN] Approaching timeout (${remaining}s remaining).`,
+            formatWarning(`Approaching timeout (${remaining}s remaining).`),
           );
         }
       }
@@ -354,35 +367,27 @@ export async function runOpenCode(
 
     if (hasPromptIndicators && result.code !== 0) {
       console.warn(
-        `${DN_PREFIX}[WARN] stderr suggests opencode may have been waiting for input. Consider non-interactive config.`,
+        formatWarning(
+          "stderr suggests opencode may have been waiting for input. Consider non-interactive config.",
+        ),
       );
     }
 
     const exitCode = result.code ?? 0;
-    if (attended) {
-      if (exitCode === 0) {
-        console.log(
-          `✅ ${phase} phase completed in ${formatElapsedTime(elapsed)}`,
-        );
-      } else {
-        console.error(
-          `❌ ${phase} phase failed (exit code ${exitCode}) after ${
+    if (exitCode === 0) {
+      console.log(
+        formatSuccess(
+          `${phase} phase completed in ${formatElapsedTime(elapsed)}`,
+        ),
+      );
+    } else {
+      console.error(
+        formatError(
+          `${phase} phase failed (exit ${exitCode}) after ${
             formatElapsedTime(elapsed)
           }`,
-        );
-      }
-    } else {
-      if (exitCode === 0) {
-        console.log(
-          `${DN_PREFIX}${phase} phase done (${formatElapsedTime(elapsed)}).`,
-        );
-      } else {
-        console.error(
-          `${DN_PREFIX}[ERROR] ${phase} phase failed (exit ${exitCode}) after ${
-            formatElapsedTime(elapsed)
-          }.`,
-        );
-      }
+        ),
+      );
     }
 
     return {

@@ -4,10 +4,17 @@
 import { $ } from "$dax";
 import { runAgentCommand } from "./agentExecution.ts";
 import type { OpenCodeResult } from "./opencode.ts";
-import { formatElapsedTime, isTty, isUnattended, Spinner } from "./output.ts";
+import {
+  formatElapsedTime,
+  formatError,
+  formatInfo,
+  formatSuccess,
+  formatWarning,
+  isTty,
+  isUnattended,
+  Spinner,
+} from "./output.ts";
 import type { ProgressReporter } from "./progress.ts";
-
-const DN_PREFIX = "[dn] ";
 
 /**
  * Executes the Cursor headless CLI (agent) with the specified phase and prompt file.
@@ -58,7 +65,9 @@ export async function runCursorAgent(
 
   if (!attended) {
     console.log(
-      `${DN_PREFIX}Running Cursor agent ${phase} phase with combined prompt: ${combinedPromptPath}`,
+      formatInfo(
+        `Running Cursor agent ${phase} phase with combined prompt: ${combinedPromptPath}`,
+      ),
     );
   }
 
@@ -86,15 +95,17 @@ export async function runCursorAgent(
     if (!attended) {
       if (elapsed > longRunWarningMs && elapsed < timeoutWarningMs) {
         console.warn(
-          `${DN_PREFIX}[WARN] Cursor agent ${phase} phase has been running for ${
-            Math.round(elapsed / 1000)
-          }s.`,
+          formatWarning(
+            `Cursor agent ${phase} phase has been running for ${
+              Math.round(elapsed / 1000)
+            }s.`,
+          ),
         );
       }
       if (elapsed > timeoutWarningMs) {
         const remaining = Math.round((timeoutMs - elapsed) / 1000);
         console.warn(
-          `${DN_PREFIX}[WARN] Approaching timeout (${remaining}s remaining).`,
+          formatWarning(`Approaching timeout (${remaining}s remaining).`),
         );
       }
     }
@@ -124,30 +135,20 @@ export async function runCursorAgent(
   const elapsed = Date.now() - startTime;
   const exitCode = result.code ?? 0;
 
-  if (attended) {
-    if (exitCode === 0) {
-      console.log(
-        `✅ ${phase} phase completed in ${formatElapsedTime(elapsed)}`,
-      );
-    } else {
-      console.error(
-        `❌ ${phase} phase failed (exit code ${exitCode}) after ${
+  if (exitCode === 0) {
+    console.log(
+      formatSuccess(
+        `${phase} phase completed in ${formatElapsedTime(elapsed)}`,
+      ),
+    );
+  } else {
+    console.error(
+      formatError(
+        `${phase} phase failed (exit ${exitCode}) after ${
           formatElapsedTime(elapsed)
         }`,
-      );
-    }
-  } else {
-    if (exitCode === 0) {
-      console.log(
-        `${DN_PREFIX}${phase} phase done (${formatElapsedTime(elapsed)}).`,
-      );
-    } else {
-      console.error(
-        `${DN_PREFIX}[ERROR] ${phase} phase failed (exit ${exitCode}) after ${
-          formatElapsedTime(elapsed)
-        }.`,
-      );
-    }
+      ),
+    );
   }
 
   return {

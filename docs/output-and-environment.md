@@ -15,7 +15,8 @@ branding) and how to control it via environment variables and global flags.
 - Never blocks on interactive prompts; uses env or defaults.
 
 **Attended** means an interactive terminal: colors, spinners, elapsed times, and
-clear section headers.
+sparse phase headers. When the agent live stream is off (the attended default),
+`dn` omits per-line `[dn]` branding and Step numbers so progress stays readable.
 
 Unattended mode is enabled when any of the following is true:
 
@@ -56,29 +57,68 @@ its arguments.
 
 ## Branding
 
-All `dn`-originated lines are prefixed with `[dn]` so that in mixed logs (e.g.
-`dn` plus OpenCode, Cursor, or Claude Code output) you can tell which lines came
-from `dn`. Step and status lines use a consistent style, e.g.:
+`dn` brands its own lines with `[dn]` **only when logs can mix with other
+tools**:
+
+- **Unattended / CI / non-TTY** — always brand.
+- **Attended with `--trace` / `DN_AGENT_TRACE=1`** — brand, because harness
+  stdout/stderr is live-streamed alongside `dn` progress.
+- **Attended quiet (default)** — no `[dn]` prefix; hierarchy comes from blank
+  lines, bold phase headers, and indented details.
+
+Unattended step and status lines stay scrape-friendly:
 
 - `[dn] Step 1: Resolving issue context...`
 - `[dn] [OK] Plan phase completed successfully`
 - `[dn] [WARN] Linting found issues (non-blocking)`
 - `[dn] [ERROR] Blocking error detected`
 
-Agent-backed phase lines name the selected harness directly, e.g.
-`[dn] Step 3: Running GitHub Copilot CLI to fill empty sections...`.
+Attended quiet examples (no Step numbers; emoji only on warn/error):
+
+```text
+Resolving issue context...
+  Issue: owner/repo#404 — short title
+  Suggested plan name: short-title
+
+Skipping plan phase (issue adequate)
+
+Running Codex CLI for implement phase...
+  agent=codex
+implement phase completed in 4m 39s
+
+Implement result: complete
+  Summary of what landed…
+  Recommendation: land the work if the delivered scope is acceptable.
+  Acceptance criteria: 8/8 completed
+
+Running linting to improve code quality...
+Linting passed (deno fmt + lint)
+
+Validating changes...
+Changes applied to workspace.
+Review the changes, then run `dn land` to create commits.
+```
+
+Info and success lines are plain (optionally colored) text. Warnings and errors
+still use `⚠️` / `❌` in attended mode so they stand out against the quieter
+chrome.
+
+Agent-backed phase headers name the selected harness directly, e.g.
+`Running GitHub Copilot CLI to fill empty sections...` (attended) or
+`[dn] Step 3: Running GitHub Copilot CLI to fill empty sections...`
+(unattended).
 
 ## Agent harness output (live stream vs failure dumps)
 
 Live streaming of OpenCode, Cursor, Claude Code, Codex, or Copilot output is a
 separate axis from attended chrome (spinners/colors):
 
-| Context                           | Live agent stream                                                                        |
-| --------------------------------- | ---------------------------------------------------------------------------------------- |
-| Attended TTY                      | **Off** by default — show `[dn]` progress and command results (e.g. land commit preview) |
-| Unattended / CI / non-TTY         | **On** by default — full harness stream for script and Actions logs                      |
-| `--trace` / `DN_AGENT_TRACE=1`    | Always stream                                                                            |
-| `--no-trace` / `DN_AGENT_TRACE=0` | Never stream                                                                             |
+| Context                           | Live agent stream                                                                              |
+| --------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Attended TTY                      | **Off** by default — show sparse phase progress and command results (e.g. land commit preview) |
+| Unattended / CI / non-TTY         | **On** by default — full harness stream for script and Actions logs                            |
+| `--trace` / `DN_AGENT_TRACE=1`    | Always stream                                                                                  |
+| `--no-trace` / `DN_AGENT_TRACE=0` | Never stream                                                                                   |
 
 When an agent-backed step **fails**, dumps of captured agent stdout/stderr use
 the **opposite** policy: attended terminals get the **full** redacted output so

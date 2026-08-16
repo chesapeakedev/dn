@@ -6,7 +6,7 @@
  */
 
 import { suggestPlanNameFromTitle } from "../sdk/github/issue.ts";
-import { formatInfo, isUnattended } from "./output.ts";
+import { formatDetail, formatInfo, isUnattended } from "./output.ts";
 
 /** Inputs used to choose a plan basename when `--saved-plan` is absent. */
 export interface PlanNameResolveInput {
@@ -93,7 +93,7 @@ export function resolvePlanName(input: PlanNameResolveInput): string {
  */
 function promptForPlanName(suggestion?: string): string {
   if (suggestion) {
-    console.log(formatInfo(`Suggested plan name: ${suggestion}`));
+    console.log(formatDetail(`Suggested plan name: ${suggestion}`));
     const input = prompt(
       `Enter plan name (or press Enter to use suggested): `,
     );

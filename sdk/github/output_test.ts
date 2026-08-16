@@ -9,12 +9,16 @@ import {
   setUnattended,
 } from "./output.ts";
 
-Deno.test("isAgentTraceEnabled defaults to unattended mode", () => {
-  setAgentTrace(null);
-  setUnattended(true);
-  assertEquals(isAgentTraceEnabled(), true);
-  setUnattended(false);
-  assertEquals(isAgentTraceEnabled(), false);
+Deno.test({
+  name: "isAgentTraceEnabled defaults to unattended mode",
+  permissions: { env: true },
+  fn() {
+    setAgentTrace(null);
+    setUnattended(true);
+    assertEquals(isAgentTraceEnabled(), true);
+    setUnattended(false);
+    assertEquals(isAgentTraceEnabled(), false);
+  },
 });
 
 Deno.test({
