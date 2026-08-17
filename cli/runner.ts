@@ -484,13 +484,13 @@ async function handleKickstart(args: string[]): Promise<void> {
       "Usage: dn runner kickstart <issue> | dn runner kickstart --denoise-task <file>",
     );
   }
-  // Issue-backed device jobs require a PR. Denoise-task jobs may publish none/pr/direct
-  // (free Void uses none; no GitHub issue to open a PR against).
+  // Issue-backed device jobs may leave work local (`none`) or open a PR (`pr`).
+  // Denoise-task jobs may publish none/pr/direct (free Void uses none).
   const resolvedPublish: PublishMode = publish ??
     (denoiseTaskPath ? "none" : "pr");
-  if (!denoiseTaskPath && resolvedPublish !== "pr") {
+  if (!denoiseTaskPath && resolvedPublish === "direct") {
     throw new Error(
-      "Issue-backed device runner jobs require --publish pr; use --denoise-task for none/direct.",
+      "Issue-backed device runner jobs support --publish none or pr; use --denoise-task for direct.",
     );
   }
   const [{ client, runnerId }, config] = await Promise.all([

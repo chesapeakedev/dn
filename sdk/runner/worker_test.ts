@@ -287,6 +287,46 @@ function denoiseTaskJob(): RunnerJob {
   };
 }
 
+Deno.test("buildRunnerKickstartCommand constructs land argv without --single", async () => {
+  const land = job();
+  land.operation = {
+    type: "land",
+    issue_url: "https://github.com/chesapeakedev/dn/issues/213",
+    agent: "cursor",
+  };
+  const { argv } = await buildRunnerKickstartCommand(land, [
+    "/usr/local/bin/dn",
+  ]);
+  assertEquals(argv, [
+    "/usr/local/bin/dn",
+    "--unattended",
+    "--agent",
+    "cursor",
+    "land",
+  ]);
+});
+
+Deno.test("buildRunnerKickstartCommand appends a repo-relative land plan file", async () => {
+  const land = job();
+  land.operation = {
+    type: "land",
+    issue_url: "https://github.com/chesapeakedev/dn/issues/213",
+    agent: "codex",
+    plan_file: "plans/foo.plan.md",
+  };
+  const { argv } = await buildRunnerKickstartCommand(land, [
+    "/usr/local/bin/dn",
+  ]);
+  assertEquals(argv, [
+    "/usr/local/bin/dn",
+    "--unattended",
+    "--agent",
+    "codex",
+    "land",
+    "plans/foo.plan.md",
+  ]);
+});
+
 Deno.test("buildRunnerKickstartCommand dispatches denoise-task to temp file", async () => {
   const { argv, cleanup } = await buildRunnerKickstartCommand(
     denoiseTaskJob(),

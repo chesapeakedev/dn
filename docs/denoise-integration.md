@@ -95,8 +95,22 @@ Optional fields:
 - `awp` may be omitted or set to `true`
 - `validate_only` validates configuration without running the mapped command
 
-Canonical Actions dispatches reject `none`, `direct`, and `awp: false`. Those
-publish modes remain available for explicit local CLI invocations.
+Canonical Actions and hosted-VM dispatches reject `none`, `direct`, and
+`awp: false`. Device-runner kickstart may set `publish` to `none` or `pr` so the
+paired checkout can land locally. Those publish modes remain available for
+explicit local CLI invocations.
+
+### `dn.land`
+
+Device-runner only. Queues default-agent `dn land` on the paired checkout (not
+`--single`). Required fields:
+
+- `schema_version`
+- `dispatch_id`
+- exactly one of `issue_url` or `issue_number`
+
+Optional `plan_file` must be a repo-relative `plans/*.plan.md` path. Omit it to
+let `dn land` discover the newest plan. Land does not push to trunk.
 
 ### `dn.init_stack`
 
@@ -274,8 +288,9 @@ invalidate the previous value immediately.
 Heartbeat repository entries contain `owner/repo`, readiness, and an optional
 reason. They never contain local paths. Jobs contain opaque IDs, invocation and
 runner IDs, repository slug, issue URL or task document, publish mode, agent
-harness, timestamps, and lease state. Protocol v1 accepts `kickstart` and
-`denoise-task` operation types.
+harness, timestamps, and lease state. Protocol v1 accepts `kickstart`,
+`denoise-task`, and `land` operation types. Land jobs use the same harness as
+kickstart and never include local filesystem paths.
 
 Queue offline jobs for at most 24 hours and do not fall back to a hosted
 runtime. Claim one job per runner atomically. A reconnect after lease loss marks

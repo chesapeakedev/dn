@@ -187,6 +187,18 @@ export function buildRunnerKickstartCommand(
   if (job.operation.type === "denoise-task") {
     return buildRunnerDenoiseTaskCommand(job, commandPrefix);
   }
+  if (job.operation.type === "land") {
+    return {
+      argv: [
+        ...commandPrefix,
+        "--unattended",
+        "--agent",
+        job.operation.agent,
+        "land",
+        ...(job.operation.plan_file != null ? [job.operation.plan_file] : []),
+      ],
+    };
+  }
   const issueRepository = repositoryFromIssueUrl(job.operation.issue_url);
   const crossRepo = issueRepository.toLowerCase() !==
     job.repository.toLowerCase();

@@ -234,3 +234,43 @@ Deno.test("validateRunnerJob rejects denoise-task with mismatched repository", (
     "belongs to chesapeakedev/dn",
   );
 });
+
+function landJob(planFile?: string): RunnerJob {
+  return {
+    protocol_version: "1.0",
+    id: "job-land-1",
+    invocation_id: "invocation-land-1",
+    runner_id: "runner-1",
+    repository: "chesapeakedev/dn",
+    operation: {
+      type: "land",
+      issue_url: "https://github.com/chesapeakedev/dn/issues/12",
+      agent: "codex",
+      ...(planFile != null ? { plan_file: planFile } : {}),
+    },
+    created_at: "2026-07-23T12:00:00.000Z",
+    queued_until: "2026-07-24T12:00:00.000Z",
+    lease: {
+      id: "lease-land-1",
+      expires_at: "2026-07-23T12:01:00.000Z",
+      cancel_requested: false,
+    },
+  };
+}
+
+Deno.test("validateRunnerJob accepts a land job", () => {
+  assertEquals(validateRunnerJob(landJob(), "runner-1"), landJob());
+});
+
+Deno.test("validateRunnerJob accepts a land job with a repo-relative plan file", () => {
+  const job = landJob("plans/foo.plan.md");
+  assertEquals(validateRunnerJob(job, "runner-1"), job);
+});
+
+Deno.test("validateRunnerJob rejects a land job with a local filesystem plan path", () => {
+  assertThrows(
+    () => validateRunnerJob(landJob("/tmp/plans/foo.plan.md"), "runner-1"),
+    Error,
+    "plans/*.plan.md",
+  );
+});
