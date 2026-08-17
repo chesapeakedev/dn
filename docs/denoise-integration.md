@@ -130,8 +130,8 @@ land. Required fields:
 - exactly one of `issue_url` or `issue_number`
 
 Sync runs `dn.json` `sync.preflight` fail-fast (this repo: `make lint` then
-`make tests`), rebases onto trunk, and pushes. It does not run a fixer agent
-and must not pass `--skip-preflight`. This Sync is not Void **task-sync**.
+`make tests`), rebases onto trunk, and pushes. It does not run a fixer agent and
+must not pass `--skip-preflight`. This Sync is not Void **task-sync**.
 
 ### `dn.init_stack`
 

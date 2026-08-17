@@ -95,9 +95,9 @@ Project configuration example:
 }
 ```
 
-Recipe names match `[a-z][a-z0-9_-]*`. Kickstart and `dn loop` run the **`lint`**
-recipe (fixer on) after implement so fmt/lint is fixed before land or a PR.
-They do not run `ensure.tests`. Kickstart, loop, meld, and fixup prompts
+Recipe names match `[a-z][a-z0-9_-]*`. Kickstart and `dn loop` run the
+**`lint`** recipe (fixer on) after implement so fmt/lint is fixed before land or
+a PR. They do not run `ensure.tests`. Kickstart, loop, meld, and fixup prompts
 include a **Delegated commands** section when recipes exist, telling outer
 agents to call `dn ensure <name>` instead of the raw argv. Nested `dn ensure`
 inside a fixer agent is passthrough (`DN_ENSURE_ACTIVE`) so the loop cannot
@@ -248,11 +248,12 @@ behavior, and troubleshooting.
 
 ## `dn kickstart` — Full workflow
 
-Runs complete kickstart workflow (plan + implement phases), then **`dn ensure
-lint`** so a fixer agent can clear fmt/lint. Kickstart does not run tests and
-does not push to trunk. After a leave-local run, **Land** commits and **Sync**
-is the trunk gate. These verbs match the denoise task dialog; see denoise-docs
-**Kickstart, land, sync, and done**. Repositories with
+Runs complete kickstart workflow (plan + implement phases), then
+**`dn ensure
+lint`** so a fixer agent can clear fmt/lint. Kickstart does not run
+tests and does not push to trunk. After a leave-local run, **Land** commits and
+**Sync** is the trunk gate. These verbs match the denoise task dialog; see
+denoise-docs **Kickstart, land, sync, and done**. Repositories with
 `strict.enabled` and `strict.require_rfcs` in `dn.json` must have a promoted RFC
 corpus before kickstart runs; see [Strict mode](strict-mode.md).
 
