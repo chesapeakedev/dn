@@ -60,15 +60,16 @@ the nearest `dn.json` when that file is readable.
 
 Runs a **named recipe** from project `dn.json` `ensure`. Each recipe freezes
 argv (no shell) and an **intent** string so dn does not have to infer why you
-ran the command. Happy path is cheap: exec the argv, stream output, exit 0.
-On failure, dn captures stdout/stderr/status and runs a fixer agent with the
-intent plus logs, then retries the argv until it exits 0 or the iteration bound
-is reached (default 5, or `iterations` on the recipe).
+ran the command. Happy path is cheap: exec the argv, stream output, exit 0. On
+failure, dn captures stdout/stderr/status and runs a fixer agent with the intent
+plus logs, then retries the argv until it exits 0 or the iteration bound is
+reached (default 5, or `iterations` on the recipe).
 
-This is **gate-first**, unlike [`dn until`](#dn-until--iteration-bounded-generatorverifier-gambits)
-(generate then verify). Prefer named recipes for project commands with clear
-intent (`make lint`). Do not pass extra flags after the recipe name — add a
-separate recipe for a different argv.
+This is **gate-first**, unlike
+[`dn until`](#dn-until--iteration-bounded-generatorverifier-gambits) (generate
+then verify). Prefer named recipes for project commands with clear intent
+(`make lint`). Do not pass extra flags after the recipe name — add a separate
+recipe for a different argv.
 
 ```bash
 dn ensure                 # List recipes

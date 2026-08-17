@@ -48,14 +48,14 @@ its arguments.
 
 ## Environment variables
 
-| Variable           | Effect                                                                                                                                                    |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **NO_COLOR**       | If set (any value), disable all ANSI color/decoration. See [no-color.org](https://no-color.org). `dn` sets this automatically in CI when not already set. |
-| **FORCE_COLOR**    | If set, enable color even when stdout is not a TTY. See [force-color.org](https://force-color.org).                                                       |
-| **TERM**           | If `TERM=dumb`, `dn` treats output as no color and no fancy sequences.                                                                                    |
-| **DN_AGENT_TRACE** | `1`/`true` forces live agent stream; `0`/`false` suppresses it. Overrides the attended/unattended default when set.                                       |
-| **DN_ENSURE_ACTIVE** | Set to `1` by `dn ensure` around fixer agents. Nested `dn ensure` becomes argv passthrough (no fixer) so the loop cannot recurse.                       |
-| **EDITOR**         | In attended `dn kickstart` runs, opens the generated plan with this command before implementation. Supports command arguments such as `code --wait`.      |
+| Variable             | Effect                                                                                                                                                    |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **NO_COLOR**         | If set (any value), disable all ANSI color/decoration. See [no-color.org](https://no-color.org). `dn` sets this automatically in CI when not already set. |
+| **FORCE_COLOR**      | If set, enable color even when stdout is not a TTY. See [force-color.org](https://force-color.org).                                                       |
+| **TERM**             | If `TERM=dumb`, `dn` treats output as no color and no fancy sequences.                                                                                    |
+| **DN_AGENT_TRACE**   | `1`/`true` forces live agent stream; `0`/`false` suppresses it. Overrides the attended/unattended default when set.                                       |
+| **DN_ENSURE_ACTIVE** | Set to `1` by `dn ensure` around fixer agents. Nested `dn ensure` becomes argv passthrough (no fixer) so the loop cannot recurse.                         |
+| **EDITOR**           | In attended `dn kickstart` runs, opens the generated plan with this command before implementation. Supports command arguments such as `code --wait`.      |
 
 ## Branding
 

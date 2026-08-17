@@ -60,12 +60,12 @@ and the trunk name; they are unused by GitHub Actions templates. `ensure`
 defines named `dn ensure` recipes (frozen argv plus intent); repository-owned
 like `sync`, and unused by GitHub Actions templates.
 
-| Location                 | Belongs here                                                    | Does not belong         |
-| ------------------------ | --------------------------------------------------------------- | ----------------------- |
-| `dn.json` (repo root)    | Team agent/sandbox policy, `rfc`, `strict`, `sync`, `ensure`    | Secrets, personal prefs |
-| `~/.dn/config.json`      | `defaults` and per-repo agent/sandbox                    | Secrets, CI policy      |
-| `.github/dn/config.json` | Actions bridge projection (`agent` + optional `sandbox`) | User home config        |
-| Env / GH secrets         | API keys, tokens, one-off overrides                      | Committed JSON          |
+| Location                 | Belongs here                                                 | Does not belong         |
+| ------------------------ | ------------------------------------------------------------ | ----------------------- |
+| `dn.json` (repo root)    | Team agent/sandbox policy, `rfc`, `strict`, `sync`, `ensure` | Secrets, personal prefs |
+| `~/.dn/config.json`      | `defaults` and per-repo agent/sandbox                        | Secrets, CI policy      |
+| `.github/dn/config.json` | Actions bridge projection (`agent` + optional `sandbox`)     | User home config        |
+| Env / GH secrets         | API keys, tokens, one-off overrides                          | Committed JSON          |
 
 GitHub Actions resolves only repository configuration (`includeUser: false`). It
 never reads a developer's home directory. `dn init workflows` projects `dn.json`
