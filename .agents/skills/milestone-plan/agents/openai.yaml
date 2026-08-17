@@ -1,0 +1,4 @@
+interface:
+  display_name: "Milestone planning"
+  short_description: "Decompose projects into dn milestones and tracked issues"
+  default_prompt: "Use $milestone-plan to reason about this multi-issue project, confirm the scope, then write and publish a dn milestone plan."

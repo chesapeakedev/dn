@@ -1,0 +1,34 @@
+{
+  "schema_version": "1.0",
+  "slug": "example-project",
+  "title": "Example project",
+  "overview": "A small example showing how a project becomes an ordered milestone.",
+  "milestone": {
+    "title": "Example project",
+    "description": "Published from a confirmed milestone plan."
+  },
+  "assumptions": [
+    "The repository and required GitHub credentials are configured for dn."
+  ],
+  "issues": [
+    {
+      "slug": "define-contract",
+      "title": "Define the project contract",
+      "body": "## Overview\n\nDocument the contract needed by the implementation issues.\n\n## Acceptance Criteria\n\n- [ ] Contract is documented and reviewed.\n- [ ] Required inputs and outputs are explicit.",
+      "acceptance_criteria": [
+        "Contract is documented and reviewed.",
+        "Required inputs and outputs are explicit."
+      ]
+    },
+    {
+      "slug": "implement-contract",
+      "title": "Implement the project contract",
+      "body": "## Overview\n\nImplement the contract from the prerequisite issue.\n\n## Acceptance Criteria\n\n- [ ] Implementation satisfies the documented contract.\n- [ ] Automated tests cover the supported behavior.",
+      "acceptance_criteria": [
+        "Implementation satisfies the documented contract.",
+        "Automated tests cover the supported behavior."
+      ],
+      "depends_on": ["define-contract"]
+    }
+  ]
+}

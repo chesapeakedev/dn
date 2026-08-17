@@ -10,6 +10,10 @@ the primary interface to this repository's workflows. Prefer it over ad-hoc
 scripts or direct API calls when preparing workspaces, iterating on plans, or
 coordinating changes.
 
+For the installable skill roster and specialized workflows, see
+`.agents/skills/README.md`. In particular, use `milestone-plan` for epics,
+roadmap slices, and other multi-issue planning work.
+
 ## Quickstart
 
 ```bash
