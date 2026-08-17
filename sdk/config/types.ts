@@ -58,6 +58,33 @@ export interface DnSyncConfig {
   trunk?: string;
 }
 
+/**
+ * A named `dn ensure` recipe from project `dn.json`.
+ *
+ * Frozen argv plus intent: `dn ensure <name>` runs `argv` with no shell, and
+ * on failure a fixer agent uses `intent` plus captured output until the
+ * command exits 0 or the iteration bound is reached.
+ */
+export interface DnEnsureRecipe {
+  /** Command and arguments, no shell. */
+  argv: string[];
+  /** Why this command is run and what the fixer agent should do on failure. */
+  intent: string;
+  /**
+   * Maximum gate attempts including the first exec. Defaults to 5 at runtime
+   * when omitted.
+   */
+  iterations?: number;
+}
+
+/**
+ * Named `dn ensure` recipes keyed by recipe name (`[a-z][a-z0-9_-]*`).
+ *
+ * Absent or empty means `dn ensure` has no recipes. Repository `dn.json` is
+ * the source of truth (team policy), like {@link DnSyncConfig}.
+ */
+export type DnEnsureConfig = Record<string, DnEnsureRecipe>;
+
 /** Configuration values supported by repository and user configuration files. */
 export interface DnConfigLayer {
   /** Version of the configuration document. */
@@ -81,6 +108,8 @@ export interface DnConfigLayer {
   strict?: DnStrictConfig;
   /** Trunk sync settings (project config). */
   sync?: DnSyncConfig;
+  /** Named ensure recipes (project config). */
+  ensure?: DnEnsureConfig;
 }
 
 /** Runtime values which take precedence over file-based configuration. */
@@ -103,7 +132,10 @@ export type DnConfigSource =
 export interface ResolvedDnConfig extends DnConfigLayer {
   schema_version: "2.0";
   sources: Partial<
-    Record<"agent" | "sandbox" | "rfc" | "strict" | "sync", DnConfigSource>
+    Record<
+      "agent" | "sandbox" | "rfc" | "strict" | "sync" | "ensure",
+      DnConfigSource
+    >
   >;
 }
 

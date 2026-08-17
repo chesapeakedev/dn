@@ -101,6 +101,7 @@ import { handleRelease } from "./release.ts";
 import { handleRfc } from "./rfc.ts";
 import { handleSync } from "./sync.ts";
 import { handleUntil } from "./until.ts";
+import { handleEnsure } from "./ensure.ts";
 import { handleRunner } from "./runner.ts";
 
 /**
@@ -334,6 +335,9 @@ function showUsage(): void {
     "  until        Run bounded generator/verifier gambits until done",
   );
   console.error(
+    "  ensure       Run a named dn.json recipe; fixer agent on failure",
+  );
+  console.error(
     "  fixup        Address PR feedback locally (fetch comments, plan, implement)",
   );
   console.error(
@@ -487,6 +491,9 @@ async function main(): Promise<void> {
       break;
     case "until":
       await handleUntil(subcommandArgs, globalAgent, globalSandbox);
+      break;
+    case "ensure":
+      await handleEnsure(subcommandArgs, globalAgent, globalSandbox);
       break;
     case "fixup":
       await handleFixup(subcommandArgs, globalAgent, globalContextFiles);

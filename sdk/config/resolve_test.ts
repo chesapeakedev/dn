@@ -294,3 +294,132 @@ Deno.test("toActionsProjectionDocument requires an agent", () => {
     { schema_version: "1.0", agent: "opencode" },
   );
 });
+
+Deno.test("parseDnConfig accepts ensure recipes", () => {
+  const parsed = parseDnConfig(
+    JSON.stringify({
+      schema_version: "2.0",
+      ensure: {
+        lint: {
+          argv: ["make", "lint"],
+          intent: "Fix lint until make lint exits 0.",
+        },
+        tests: {
+          argv: ["make", "tests"],
+          intent: "Fix failing tests.",
+          iterations: 3,
+        },
+      },
+    }),
+    "test",
+  );
+  assertEquals(parsed.ensure, {
+    lint: {
+      argv: ["make", "lint"],
+      intent: "Fix lint until make lint exits 0.",
+    },
+    tests: {
+      argv: ["make", "tests"],
+      intent: "Fix failing tests.",
+      iterations: 3,
+    },
+  });
+});
+
+Deno.test("parseDnConfig rejects malformed ensure blocks", () => {
+  assertThrows(
+    () => parseDnConfig('{"ensure":[]}', "test"),
+    Error,
+    "ensure must be an object",
+  );
+  assertThrows(
+    () =>
+      parseDnConfig(
+        '{"ensure":{"Lint":{"argv":["make","lint"],"intent":"x"}}}',
+        "test",
+      ),
+    Error,
+    'ensure recipe name "Lint" must match [a-z][a-z0-9_-]*',
+  );
+  assertThrows(
+    () =>
+      parseDnConfig(
+        '{"ensure":{"lint":{"argv":["make","lint"]}}}',
+        "test",
+      ),
+    Error,
+    "ensure.lint.intent must be a non-empty string",
+  );
+  assertThrows(
+    () =>
+      parseDnConfig(
+        '{"ensure":{"lint":{"argv":[],"intent":"x"}}}',
+        "test",
+      ),
+    Error,
+    "ensure.lint.argv must be a non-empty argv array",
+  );
+  assertThrows(
+    () =>
+      parseDnConfig(
+        '{"ensure":{"lint":{"argv":["make","lint"],"intent":"x","iterations":0}}}',
+        "test",
+      ),
+    Error,
+    "ensure.lint.iterations must be a positive integer",
+  );
+});
+
+Deno.test("resolveDnConfig merges repository ensure over user ensure", async () => {
+  const root = await Deno.makeTempDir({ prefix: "dn-config-ensure-" });
+  const user = `${root}/user.json`;
+  try {
+    await Deno.writeTextFile(
+      user,
+      JSON.stringify({
+        schema_version: "2.0",
+        ensure: {
+          lint: {
+            argv: ["true"],
+            intent: "user lint",
+          },
+          extra: {
+            argv: ["true"],
+            intent: "user extra",
+          },
+        },
+      }),
+    );
+    await Deno.writeTextFile(
+      `${root}/dn.json`,
+      JSON.stringify({
+        schema_version: "2.0",
+        ensure: {
+          lint: {
+            argv: ["make", "lint"],
+            intent: "repo lint",
+          },
+        },
+      }),
+    );
+    const config = await resolveDnConfig({
+      repoRoot: root,
+      userConfigPath: user,
+      repositorySlug: "test/repo",
+      env: {},
+    });
+    assertEquals(config.ensure, {
+      lint: {
+        argv: ["make", "lint"],
+        intent: "repo lint",
+      },
+      extra: {
+        argv: ["true"],
+        intent: "user extra",
+      },
+    });
+    assertEquals(config.sources.ensure, "repository");
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});

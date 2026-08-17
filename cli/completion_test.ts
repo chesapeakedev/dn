@@ -5,6 +5,7 @@ import { assert, assertEquals } from "@std/assert";
 import {
   bashCompletionScript,
   completeWords,
+  DN_COMPLETION_ROOT,
   zshCompletionScript,
 } from "./completion.ts";
 import { runDnCommand } from "./test_utils.ts";
@@ -14,12 +15,28 @@ Deno.test("completeWords offers top-level commands for an empty prefix", () => {
   assert(matches.includes("kickstart"));
   assert(matches.includes("loop"));
   assert(matches.includes("rfc"));
+  assert(matches.includes("ensure"));
   assert(matches.includes("completion"));
   assertEquals(matches.includes("__complete"), false);
 });
 
 Deno.test("completeWords filters top-level commands by prefix", () => {
   assertEquals(completeWords(["dn", "ki"]), ["kickstart"]);
+});
+
+Deno.test("completeWords offers ensure recipe names", () => {
+  assertEquals(
+    completeWords(["dn", "ensure", ""], DN_COMPLETION_ROOT, {
+      ensureRecipes: ["lint", "tests"],
+    }),
+    ["lint", "tests"],
+  );
+  assertEquals(
+    completeWords(["dn", "ensure", "li"], DN_COMPLETION_ROOT, {
+      ensureRecipes: ["lint", "tests"],
+    }),
+    ["lint"],
+  );
 });
 
 Deno.test("completeWords offers nested rfc subcommands", () => {

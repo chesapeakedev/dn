@@ -2,19 +2,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { isAbsolute, relative, resolve } from "@std/path";
+import { resolveDnConfig } from "../config/resolve.ts";
+import type { DnEnsureConfig } from "../config/types.ts";
 
 /**
  * Assembles a combined prompt file by concatenating:
  * 1. System prompt (from phase-specific prompt file)
  * 2. AGENTS.md (project guidelines, if it exists)
  * 3. deno.json (project configuration, if it exists)
- * 4. Previous plan (if provided, for continuing existing plans)
- * 5. Previous target file content (`dn meld` merge mode, when rewriting docs)
- * 6. Plan output (if provided, for implement phase)
- * 7. Current GitHub issue body (optional, for `--target github:issue:*` meld prompts)
- * 8. Issue context (`writeIssueContext` markdown, including Relationships when fetched from GitHub)
- * 9. `--context-file` contents, when provided
- * 10. `--steer` guidance, when provided
+ * 4. Delegated `dn ensure` recipes from `dn.json`, when present
+ * 5. Previous plan (if provided, for continuing existing plans)
+ * 6. Previous target file content (`dn meld` merge mode, when rewriting docs)
+ * 7. Plan output (if provided, for implement phase)
+ * 8. Current GitHub issue body (optional, for `--target github:issue:*` meld prompts)
+ * 9. Issue context (`writeIssueContext` markdown, including Relationships when fetched from GitHub)
+ * 10. `--context-file` contents, when provided
+ * 11. `--steer` guidance, when provided
  *
  * Each section is separated by markdown horizontal rules (`---`).
  *
@@ -80,6 +83,8 @@ export async function assembleCombinedPrompt(
   } catch {
     // deno.json doesn't exist, skip it
   }
+
+  await appendDelegatedCommandsSection(outputPath, projectRoot);
 
   // Append existing plan content if provided (for continuation)
   if (existingPlanContent) {
@@ -154,6 +159,67 @@ export async function assembleCombinedPrompt(
       { append: true },
     );
   }
+}
+
+function quoteArgv(argv: string[]): string {
+  return argv.map((arg) => {
+    if (/^[\w./:=+-]+$/.test(arg)) return arg;
+    return JSON.stringify(arg);
+  }).join(" ");
+}
+
+/**
+ * Builds the Delegated commands markdown section for outer agent prompts.
+ *
+ * Empty or missing recipes produce an empty string so callers can skip the
+ * write. Recipe lines prefer `dn ensure <name>` over the raw argv.
+ *
+ * @param recipes - Named ensure recipes from project `dn.json`, if any
+ * @returns A `---` section, or an empty string when there is nothing to list
+ */
+export function formatDelegatedCommandsPrompt(
+  recipes: DnEnsureConfig | undefined,
+): string {
+  if (recipes === undefined) return "";
+  const names = Object.keys(recipes).sort();
+  if (names.length === 0) return "";
+  const lines = [
+    "",
+    "",
+    "---",
+    "",
+    "# Delegated commands",
+    "",
+    "When you need to perform these project tasks, invoke them through",
+    "`dn ensure <name>` rather than the raw argv. `dn ensure` captures",
+    "failures and retries with a fixer agent using the stated intent.",
+    "",
+  ];
+  for (const name of names) {
+    const recipe = recipes[name];
+    if (recipe === undefined) continue;
+    lines.push(
+      `- \`dn ensure ${name}\` — \`${
+        quoteArgv(recipe.argv)
+      }\` — ${recipe.intent}`,
+    );
+  }
+  lines.push("");
+  return lines.join("\n");
+}
+
+async function appendDelegatedCommandsSection(
+  outputPath: string,
+  projectRoot: string,
+): Promise<void> {
+  const config = await resolveDnConfig({
+    repoRoot: projectRoot,
+    includeUser: false,
+    env: {},
+  });
+  const section = formatDelegatedCommandsPrompt(config.ensure);
+  if (section === "") return;
+  await Deno.writeTextFile(outputPath, section, { append: true });
 }
 
 function displayContextFilePath(

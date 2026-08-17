@@ -12,6 +12,7 @@ import { repositorySlugFromRemote } from "../runner/doctor.ts";
 import type {
   DnConfigLayer,
   DnConfigSource,
+  DnEnsureConfig,
   DnRfcConfig,
   DnStrictConfig,
   DnSyncConfig,
@@ -70,12 +71,13 @@ function mergeAgentSandbox(
   }
 }
 
-function mergeRfcStrictSync(
+function mergeRfcStrictSyncEnsure(
   result: ResolvedDnConfig,
   layer: {
     rfc?: DnRfcConfig;
     strict?: DnStrictConfig;
     sync?: DnSyncConfig;
+    ensure?: DnEnsureConfig;
   },
   source: DnConfigSource,
 ): void {
@@ -91,16 +93,20 @@ function mergeRfcStrictSync(
     result.sync = { ...(result.sync ?? {}), ...layer.sync };
     result.sources.sync = source;
   }
+  if (layer.ensure !== undefined) {
+    result.ensure = { ...(result.ensure ?? {}), ...layer.ensure };
+    result.sources.ensure = source;
+  }
 }
 
-/** Applies a file layer's top-level agent/sandbox/rfc/strict/sync fields. */
+/** Applies a file layer's top-level agent/sandbox/rfc/strict/sync/ensure fields. */
 function mergeLayer(
   result: ResolvedDnConfig,
   layer: DnConfigLayer,
   source: DnConfigSource,
 ): void {
   mergeAgentSandbox(result, layer, source);
-  mergeRfcStrictSync(result, layer, source);
+  mergeRfcStrictSyncEnsure(result, layer, source);
 }
 
 /**
@@ -120,8 +126,8 @@ function mergeUserLayer(
   if (repositorySlug && user.repos?.[repositorySlug]) {
     mergeAgentSandbox(result, user.repos[repositorySlug], "user");
   }
-  // User files may carry rfc/strict/sync only if present; project layer still wins later.
-  mergeRfcStrictSync(result, user, "user");
+  // User files may carry rfc/strict/sync/ensure only if present; project layer still wins later.
+  mergeRfcStrictSyncEnsure(result, user, "user");
 }
 
 async function detectRepositorySlug(

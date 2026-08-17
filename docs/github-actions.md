@@ -51,16 +51,18 @@ repository (`dn.json`) so personal defaults and team policy stay aligned.
 5. Explicit CLI flags (`--agent`, `--sandbox`, …)
 
 Objects merge by field; arrays replace the lower layer. Project `dn.json` may
-also declare optional `rfc`, `strict`, and `sync` blocks. When `strict.enabled`
-and `strict.require_rfcs` are both true, `dn kickstart` and `dn meld` fail
-before agents run if the RFC corpus is missing or has no non-draft RFC. See
-[Strict mode](strict-mode.md) for ruleset guidance and the full policy.
-`sync.preflight` and `sync.trunk` configure `dn sync` quality gates and the
-trunk name; they are unused by GitHub Actions templates.
+also declare optional `rfc`, `strict`, `sync`, and `ensure` blocks. When
+`strict.enabled` and `strict.require_rfcs` are both true, `dn kickstart` and
+`dn meld` fail before agents run if the RFC corpus is missing or has no
+non-draft RFC. See [Strict mode](strict-mode.md) for ruleset guidance and the
+full policy. `sync.preflight` and `sync.trunk` configure `dn sync` quality gates
+and the trunk name; they are unused by GitHub Actions templates. `ensure`
+defines named `dn ensure` recipes (frozen argv plus intent); repository-owned
+like `sync`, and unused by GitHub Actions templates.
 
-| Location                 | Belongs here                                             | Does not belong         |
-| ------------------------ | -------------------------------------------------------- | ----------------------- |
-| `dn.json` (repo root)    | Team agent/sandbox policy, `rfc`, `strict`, `sync`       | Secrets, personal prefs |
+| Location                 | Belongs here                                                    | Does not belong         |
+| ------------------------ | --------------------------------------------------------------- | ----------------------- |
+| `dn.json` (repo root)    | Team agent/sandbox policy, `rfc`, `strict`, `sync`, `ensure`    | Secrets, personal prefs |
 | `~/.dn/config.json`      | `defaults` and per-repo agent/sandbox                    | Secrets, CI policy      |
 | `.github/dn/config.json` | Actions bridge projection (`agent` + optional `sandbox`) | User home config        |
 | Env / GH secrets         | API keys, tokens, one-off overrides                      | Committed JSON          |

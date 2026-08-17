@@ -8,12 +8,17 @@ import {
 import { parseDnSandboxConfig } from "../sandbox/config.ts";
 import type {
   DnConfigLayer,
+  DnEnsureConfig,
+  DnEnsureRecipe,
   DnRfcConfig,
   DnStrictConfig,
   DnSyncConfig,
   DnUserDefaults,
   DnUserRepoOverride,
 } from "./types.ts";
+
+/** Recipe names accepted in `dn.json` `ensure`. */
+export const ENSURE_RECIPE_NAME_PATTERN = /^[a-z][a-z0-9_-]*$/;
 
 function parseOptionalAgent(
   value: unknown,
@@ -133,24 +138,89 @@ function parseStrictConfig(value: unknown, source: string): DnStrictConfig {
   };
 }
 
-function parsePreflightArgv(
+function parseArgv(
   entry: unknown,
   source: string,
-  index: number,
+  field: string,
 ): string[] {
   if (!Array.isArray(entry) || entry.length === 0) {
     throw new Error(
-      `Invalid dn config at ${source}: sync.preflight[${index}] must be a non-empty argv array`,
+      `Invalid dn config at ${source}: ${field} must be a non-empty argv array`,
     );
   }
   return entry.map((arg, argIndex) => {
     if (typeof arg !== "string" || arg.length === 0) {
       throw new Error(
-        `Invalid dn config at ${source}: sync.preflight[${index}][${argIndex}] must be a non-empty string`,
+        `Invalid dn config at ${source}: ${field}[${argIndex}] must be a non-empty string`,
       );
     }
     return arg;
   });
+}
+
+function parsePreflightArgv(
+  entry: unknown,
+  source: string,
+  index: number,
+): string[] {
+  return parseArgv(entry, source, `sync.preflight[${index}]`);
+}
+
+function parseEnsureRecipe(
+  value: unknown,
+  source: string,
+  name: string,
+): DnEnsureRecipe {
+  const field = `ensure.${name}`;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(
+      `Invalid dn config at ${source}: ${field} must be an object`,
+    );
+  }
+  const record = value as Record<string, unknown>;
+  if (typeof record.intent !== "string" || record.intent.trim().length === 0) {
+    throw new Error(
+      `Invalid dn config at ${source}: ${field}.intent must be a non-empty string`,
+    );
+  }
+  if (record.iterations !== undefined) {
+    if (
+      typeof record.iterations !== "number" ||
+      !Number.isInteger(record.iterations) ||
+      record.iterations < 1
+    ) {
+      throw new Error(
+        `Invalid dn config at ${source}: ${field}.iterations must be a positive integer`,
+      );
+    }
+  }
+  return {
+    argv: parseArgv(record.argv, source, `${field}.argv`),
+    intent: record.intent,
+    ...(typeof record.iterations === "number"
+      ? { iterations: record.iterations }
+      : {}),
+  };
+}
+
+function parseEnsureConfig(value: unknown, source: string): DnEnsureConfig {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(
+      `Invalid dn config at ${source}: ensure must be an object`,
+    );
+  }
+  const recipes: DnEnsureConfig = {};
+  for (
+    const [name, entry] of Object.entries(value as Record<string, unknown>)
+  ) {
+    if (!ENSURE_RECIPE_NAME_PATTERN.test(name)) {
+      throw new Error(
+        `Invalid dn config at ${source}: ensure recipe name "${name}" must match [a-z][a-z0-9_-]*`,
+      );
+    }
+    recipes[name] = parseEnsureRecipe(entry, source, name);
+  }
+  return recipes;
 }
 
 function parseSyncConfig(value: unknown, source: string): DnSyncConfig {
@@ -232,6 +302,9 @@ export function parseDnConfig(content: string, source: string): DnConfigLayer {
       : {}),
     ...(value.sync !== undefined
       ? { sync: parseSyncConfig(value.sync, source) }
+      : {}),
+    ...(value.ensure !== undefined
+      ? { ensure: parseEnsureConfig(value.ensure, source) }
       : {}),
   };
 }

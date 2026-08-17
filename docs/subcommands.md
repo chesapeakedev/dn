@@ -25,8 +25,8 @@ dn kickstart --context-file notes.md 123
 ```
 
 Use **`--sandbox <none|docker|exe.dev>`** to select a sandbox provider for agent
-workflows (`kickstart`, `loop`, `meld`, `until`). Omit the value to read
-`sandbox.provider` from `.github/dn/config.json`. See
+workflows (`kickstart`, `loop`, `meld`, `until`, `ensure`). Omit the value to
+read `sandbox.provider` from `.github/dn/config.json`. See
 [Sandbox providers](sandbox.md).
 
 In CI, `dn` automatically sets `NO_COLOR` and runs in unattended mode. See
@@ -53,7 +53,57 @@ eval "$(dn completion zsh)"
 
 Completes subcommands, nested commands, and known flags (including values such
 as `--agent`). Positional paths fall back to the shell's filename completion.
-The completer does not call GitHub.
+The completer does not call GitHub. `dn ensure` also completes recipe names from
+the nearest `dn.json` when that file is readable.
+
+## `dn ensure` — Make a named `dn.json` recipe pass
+
+Runs a **named recipe** from project `dn.json` `ensure`. Each recipe freezes
+argv (no shell) and an **intent** string so dn does not have to infer why you
+ran the command. Happy path is cheap: exec the argv, stream output, exit 0.
+On failure, dn captures stdout/stderr/status and runs a fixer agent with the
+intent plus logs, then retries the argv until it exits 0 or the iteration bound
+is reached (default 5, or `iterations` on the recipe).
+
+This is **gate-first**, unlike [`dn until`](#dn-until--iteration-bounded-generatorverifier-gambits)
+(generate then verify). Prefer named recipes for project commands with clear
+intent (`make lint`). Do not pass extra flags after the recipe name — add a
+separate recipe for a different argv.
+
+```bash
+dn ensure                 # List recipes
+dn ensure lint            # Exec make lint; fixer agent on failure
+dn ensure tests --no-fix  # Fail-fast after one exec
+```
+
+Project configuration example:
+
+```json
+{
+  "schema_version": "2.0",
+  "ensure": {
+    "lint": {
+      "argv": ["make", "lint"],
+      "intent": "Fix format, typecheck, and lint failures until make lint exits 0."
+    },
+    "tests": {
+      "argv": ["make", "tests"],
+      "intent": "Fix failing tests until make tests exits 0."
+    }
+  }
+}
+```
+
+Recipe names match `[a-z][a-z0-9_-]*`. Kickstart, loop, meld, and fixup prompts
+include a **Delegated commands** section when recipes exist, telling outer
+agents to call `dn ensure <name>` instead of the raw argv. Nested `dn ensure`
+inside a fixer agent is passthrough (`DN_ENSURE_ACTIVE`) so the loop cannot
+recurse.
+
+`--no-fix` skips the fixer (CI or wrap-only). `--workspace-root` selects where
+to search for `dn.json` (walks up from that directory).
+
+See also `cli/ensure.ts`.
 
 ## `dn until` — Iteration-bounded generator/verifier gambits
 

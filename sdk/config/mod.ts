@@ -14,7 +14,7 @@ export type {
 } from "./actions.ts";
 export { resolveLocalAgentHarness } from "./localAgent.ts";
 export type { ResolveLocalAgentHarnessOptions } from "./localAgent.ts";
-export { parseDnConfig } from "./parse.ts";
+export { ENSURE_RECIPE_NAME_PATTERN, parseDnConfig } from "./parse.ts";
 export {
   checkStrictRfcCorpus,
   enforceStrictRfcCorpus,
@@ -29,6 +29,8 @@ export {
 export type {
   DnConfigLayer,
   DnConfigSource,
+  DnEnsureConfig,
+  DnEnsureRecipe,
   DnRfcConfig,
   DnRuntimeOverrides,
   DnStrictConfig,

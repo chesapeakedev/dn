@@ -10,6 +10,7 @@
 
 import { AGENT_HARNESSES } from "../sdk/github/agentHarness.ts";
 import { RFC_STATUSES } from "../sdk/rfc/types.ts";
+import { loadEnsureRecipeNames } from "./ensure.ts";
 
 /** Descriptor for one CLI node (root, subcommand, or nested command). */
 export interface CompletionNode {
@@ -488,6 +489,18 @@ export const DN_COMPLETION_ROOT: CompletionNode = {
         },
       },
     },
+    ensure: {
+      flags: [
+        "--no-fix",
+        "--workspace-root",
+        ...agentWorkflowFlags(),
+        ...HELP_FLAGS,
+      ],
+      flagValues: {
+        "--workspace-root": FILE_VALUE,
+        ...agentWorkflowFlagValues(),
+      },
+    },
     fixup: {
       flags: [
         ...AGENT_ALIAS_FLAGS,
@@ -698,6 +711,7 @@ function takesValue(node: CompletionNode, flag: string): boolean {
 export function completeWords(
   words: string[],
   root: CompletionNode = DN_COMPLETION_ROOT,
+  extra: { ensureRecipes?: readonly string[] } = {},
 ): string[] {
   if (words.length === 0) {
     return [];
@@ -775,11 +789,19 @@ export function completeWords(
     return filterPrefix(nodeFlags(node), prefix);
   }
 
-  if (node.commands) {
-    return filterPrefix(Object.keys(node.commands), prefix);
+  const commandMatches = node.commands
+    ? filterPrefix(Object.keys(node.commands), prefix)
+    : [];
+  if (
+    extra.ensureRecipes &&
+    extra.ensureRecipes.length > 0 &&
+    node === root.commands?.ensure &&
+    !prefix.startsWith("-")
+  ) {
+    const recipeMatches = filterPrefix([...extra.ensureRecipes], prefix);
+    return [...new Set([...commandMatches, ...recipeMatches])].sort();
   }
-
-  return [];
+  return commandMatches;
 }
 
 /** Bash wrapper registered with `complete -F`. */
@@ -881,7 +903,12 @@ export function handleCompletion(args: string[]): void {
 export function handleComplete(args: string[]): void {
   try {
     const words = args[0] === "--" ? args.slice(1) : args;
-    for (const candidate of completeWords(words)) {
+    const ensureRecipes = loadEnsureRecipeNames(Deno.cwd());
+    for (
+      const candidate of completeWords(words, DN_COMPLETION_ROOT, {
+        ensureRecipes,
+      })
+    ) {
       console.log(candidate);
     }
   } catch {

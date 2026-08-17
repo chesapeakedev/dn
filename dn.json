@@ -4,5 +4,15 @@
   "sync": {
     "preflight": [["make", "lint"], ["make", "tests"]],
     "trunk": "main"
+  },
+  "ensure": {
+    "lint": {
+      "argv": ["make", "lint"],
+      "intent": "Fix format, typecheck, and lint failures until make lint exits 0."
+    },
+    "tests": {
+      "argv": ["make", "tests"],
+      "intent": "Fix failing tests until make tests exits 0. Prefer production-code fixes when tests are correct."
+    }
   }
 }

@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
-import { assembleCombinedPrompt } from "./prompt.ts";
+import {
+  assembleCombinedPrompt,
+  formatDelegatedCommandsPrompt,
+} from "./prompt.ts";
 
 async function withPromptFixture(options: {
   steeringPrompt?: string;
@@ -70,6 +73,40 @@ Deno.test("combined prompts append included files before steering", async () => 
     output.indexOf("# Included File") < output.indexOf("# Steering Prompt"),
     true,
   );
+});
+
+Deno.test("combined prompts include delegated commands from dn.json", async () => {
+  const output = await withPromptFixture({
+    extraFiles: {
+      "dn.json": JSON.stringify({
+        schema_version: "2.0",
+        ensure: {
+          lint: {
+            argv: ["make", "lint"],
+            intent: "Fix lint until make lint exits 0.",
+          },
+        },
+      }),
+    },
+  });
+  assertStringIncludes(output, "# Delegated commands");
+  assertStringIncludes(output, "`dn ensure lint`");
+  assertStringIncludes(output, "`make lint`");
+});
+
+Deno.test("combined prompts omit delegated commands when none are configured", async () => {
+  const output = await withPromptFixture({});
+  assertEquals(output.includes("# Delegated commands"), false);
+});
+
+Deno.test("formatDelegatedCommandsPrompt lists recipes", () => {
+  const section = formatDelegatedCommandsPrompt({
+    lint: { argv: ["make", "lint"], intent: "Fix lint." },
+  });
+  assertStringIncludes(section, "# Delegated commands");
+  assertStringIncludes(section, "`dn ensure lint`");
+  assertEquals(formatDelegatedCommandsPrompt(undefined), "");
+  assertEquals(formatDelegatedCommandsPrompt({}), "");
 });
 
 Deno.test("combined prompts fail when a context file is missing", async () => {
