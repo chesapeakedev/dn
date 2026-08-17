@@ -4,6 +4,14 @@
 tools such as denoise can install workflows, validate repository readiness, and
 dispatch agent workflows without scraping markdown or duplicating trigger logic.
 
+The user-facing verbs **Kickstart**, **Land**, **Sync**, and **Done** are the
+same in the `dn` CLI and the denoise task dialog. Kickstart implements, then
+runs `dn ensure lint` (fixer agent) so fmt/lint is fixed before land or a PR.
+Land commits locally. Sync re-runs that lint fail-fast, runs tests
+(`sync.preflight`), then publishes to trunk. Done closes the GitHub issue.
+Canonical user docs: denoise-docs **Kickstart, land, sync, and done**
+(`/close-out/`). This file is the integrator contract.
+
 ## Workflow Templates
 
 Templates live in `templates/workflows/` and install into consumer repositories
@@ -111,6 +119,19 @@ Device-runner only. Queues default-agent `dn land` on the paired checkout (not
 
 Optional `plan_file` must be a repo-relative `plans/*.plan.md` path. Omit it to
 let `dn land` discover the newest plan. Land does not push to trunk.
+
+### `dn.sync`
+
+Device-runner only. Queues `dn --unattended sync` on the paired checkout after
+land. Required fields:
+
+- `schema_version`
+- `dispatch_id`
+- exactly one of `issue_url` or `issue_number`
+
+Sync runs `dn.json` `sync.preflight` fail-fast (this repo: `make lint` then
+`make tests`), rebases onto trunk, and pushes. It does not run a fixer agent
+and must not pass `--skip-preflight`. This Sync is not Void **task-sync**.
 
 ### `dn.init_stack`
 
@@ -289,8 +310,9 @@ Heartbeat repository entries contain `owner/repo`, readiness, and an optional
 reason. They never contain local paths. Jobs contain opaque IDs, invocation and
 runner IDs, repository slug, issue URL or task document, publish mode, agent
 harness, timestamps, and lease state. Protocol v1 accepts `kickstart`,
-`denoise-task`, and `land` operation types. Land jobs use the same harness as
-kickstart and never include local filesystem paths.
+`denoise-task`, `land`, and `sync` operation types. Land jobs use the same
+harness as kickstart and never include local filesystem paths. Sync jobs run
+`dn --unattended sync` in the registered checkout (no `--skip-preflight`).
 
 Queue offline jobs for at most 24 hours and do not fall back to a hosted
 runtime. Claim one job per runner atomically. A reconnect after lease loss marks

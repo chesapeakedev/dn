@@ -80,13 +80,11 @@ import {
   formatWarning,
 } from "./output.ts";
 import type { SandboxFlagValue } from "../sdk/sandbox/resolve.ts";
+import { createRunTmpDir, runAgentPhaseInSandbox } from "../sdk/sandbox/mod.ts";
 import {
-  createRunTmpDir,
-  isSandboxActive,
-  runAgentPhaseInSandbox,
-  translateSandboxCwd,
-} from "../sdk/sandbox/mod.ts";
-import { $ } from "$dax";
+  kickstartEnsureLintFailureMessage,
+  runKickstartEnsureLint,
+} from "./ensureLint.ts";
 
 const MILESTONE_PREP_FIXTURE_ENV = "DN_PREP_MILESTONE_FIXTURE";
 const MILESTONE_PREP_FAKE_OUTPUT_ENV = "DN_PREP_MILESTONE_FAKE_OUTPUT";
@@ -1540,98 +1538,45 @@ export async function runLoopPhase(
       );
     }
 
-    // Step 5: Run linting (non-blocking)
+    // Step 5: Run ensure.lint (fixer agent). Blocking when the recipe exists.
     console.log(
-      formatStep(5, "Running linting to improve code quality..."),
+      formatStep(5, "Running dn ensure lint (fixer agent on failure)..."),
     );
-    try {
-      if (isSandboxActive()) {
-        const ctx = (await import("../sdk/sandbox/context.ts"))
-          .getCurrentSandboxContext();
-        if (ctx) {
-          try {
-            const lintResult = await ctx.runner.exec(
-              ctx.handle,
-              ["deno", "task", "check"],
-              { cwd: translateSandboxCwd(workspaceRoot) },
-            );
-            if (lintResult.code === 0) {
-              console.log(
-                formatSuccess("Linting passed (deno task check in sandbox)"),
-              );
-            } else {
-              console.warn(
-                formatWarning(
-                  "Linting found issues in sandbox (non-blocking):",
-                ),
-              );
-              console.warn(lintResult.stderr || lintResult.stdout);
-            }
-          } catch {
-            console.warn(
-              formatWarning("Linting in sandbox failed (non-blocking)"),
-            );
-          }
-        }
-      } else {
-        try {
-          await Deno.stat(`${workspaceRoot}/deno.json`);
-          try {
-            await $`cd ${workspaceRoot} && deno task check`.quiet();
-            console.log(formatSuccess("Linting passed (deno task check)"));
-          } catch {
-            try {
-              await $`cd ${workspaceRoot} && deno fmt`.quiet();
-              await $`cd ${workspaceRoot} && deno lint`.quiet();
-              console.log(formatSuccess("Linting passed (deno fmt + lint)"));
-            } catch (lintError) {
-              console.warn(
-                formatWarning("Linting found issues (non-blocking):"),
-              );
-              console.warn(
-                lintError instanceof Error
-                  ? lintError.message
-                  : String(lintError),
-              );
-            }
-          }
-        } catch {
-          try {
-            await Deno.stat(`${workspaceRoot}/package.json`);
-            try {
-              await $`cd ${workspaceRoot} && npm run lint`.quiet();
-              console.log(formatSuccess("Linting passed (npm run lint)"));
-            } catch (lintError) {
-              console.warn(
-                formatWarning("Linting found issues (non-blocking):"),
-              );
-              console.warn(
-                lintError instanceof Error
-                  ? lintError.message
-                  : String(lintError),
-              );
-            }
-          } catch {
-            console.log(
-              formatInfo(
-                "No linting configuration detected, skipping lint step",
-              ),
-            );
-          }
-        }
-      }
-    } catch (error) {
-      console.warn(
-        formatWarning("Linting step encountered an error (non-blocking):"),
-      );
-      console.warn(error instanceof Error ? error.message : String(error));
-    }
-    await reporter.report({
-      type: "lint.completed",
-      message: "Lint step finished",
-      phase: "lint",
-      step: 5,
+    const lintOutcome = await runKickstartEnsureLint({
+      workspaceRoot,
+      agent: config.agentHarness,
     });
+    if (lintOutcome.status === "skipped") {
+      console.log(
+        formatInfo(
+          "No ensure.lint recipe in dn.json; skipping lint step. Add ensure.lint so kickstart can fmt/lint with a fixer agent.",
+        ),
+      );
+      await reporter.report({
+        type: "lint.completed",
+        message: "Lint step skipped",
+        phase: "lint",
+        step: 5,
+        data: { skipped: true, reason: "missing_recipe" },
+      });
+    } else if (lintOutcome.status === "failed") {
+      await reporter.report({
+        type: "lint.completed",
+        message: "Lint step failed",
+        phase: "lint",
+        step: 5,
+        data: { failed: true, code: lintOutcome.code },
+      });
+      throw new Error(kickstartEnsureLintFailureMessage(lintOutcome.code));
+    } else {
+      console.log(formatSuccess("ensure lint passed"));
+      await reporter.report({
+        type: "lint.completed",
+        message: "Lint step finished",
+        phase: "lint",
+        step: 5,
+      });
+    }
 
     // Step 6: Generate artifacts (only announce when there is work)
     try {

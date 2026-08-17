@@ -199,6 +199,15 @@ export function buildRunnerKickstartCommand(
       ],
     };
   }
+  if (job.operation.type === "sync") {
+    return {
+      argv: [
+        ...commandPrefix,
+        "--unattended",
+        "sync",
+      ],
+    };
+  }
   const issueRepository = repositoryFromIssueUrl(job.operation.issue_url);
   const crossRepo = issueRepository.toLowerCase() !==
     job.repository.toLowerCase();

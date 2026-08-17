@@ -95,11 +95,14 @@ Project configuration example:
 }
 ```
 
-Recipe names match `[a-z][a-z0-9_-]*`. Kickstart, loop, meld, and fixup prompts
+Recipe names match `[a-z][a-z0-9_-]*`. Kickstart and `dn loop` run the **`lint`**
+recipe (fixer on) after implement so fmt/lint is fixed before land or a PR.
+They do not run `ensure.tests`. Kickstart, loop, meld, and fixup prompts
 include a **Delegated commands** section when recipes exist, telling outer
 agents to call `dn ensure <name>` instead of the raw argv. Nested `dn ensure`
 inside a fixer agent is passthrough (`DN_ENSURE_ACTIVE`) so the loop cannot
-recurse.
+recurse. Keep `ensure.lint.argv` aligned with the lint entry of
+`sync.preflight`.
 
 `--no-fix` skips the fixer (CI or wrap-only). `--workspace-root` selects where
 to search for `dn.json` (walks up from that directory).
@@ -245,7 +248,11 @@ behavior, and troubleshooting.
 
 ## `dn kickstart` — Full workflow
 
-Runs complete kickstart workflow (plan + implement phases). Repositories with
+Runs complete kickstart workflow (plan + implement phases), then **`dn ensure
+lint`** so a fixer agent can clear fmt/lint. Kickstart does not run tests and
+does not push to trunk. After a leave-local run, **Land** commits and **Sync**
+is the trunk gate. These verbs match the denoise task dialog; see denoise-docs
+**Kickstart, land, sync, and done**. Repositories with
 `strict.enabled` and `strict.require_rfcs` in `dn.json` must have a promoted RFC
 corpus before kickstart runs; see [Strict mode](strict-mode.md).
 
@@ -928,7 +935,10 @@ when `sync.preflight` in `dn.json` invokes it.
 1. Optional **`sync.preflight`** argv lists from `dn.json`, unless
    **`--skip-preflight`** is passed. Absent or empty `preflight` means no
    quality gate (the generic default). This repository sets `make lint` then
-   `make tests`.
+   `make tests`. Preflight is fail-fast and does **not** run a fixer agent.
+   Kickstart already ran `dn ensure lint` (fixer) so this lint pass catches
+   drift after review; tests are the additional trunk gate. `--skip-preflight`
+   is a CLI escape hatch only — denoise never sends it.
 2. Rebase the current work onto remote **trunk**. Trunk is `sync.trunk` when
    set; otherwise the Git remote `HEAD`; otherwise a local `main` ref. If none
    of those resolve, `dn sync` exits and asks you to set `sync.trunk`.
@@ -1252,6 +1262,9 @@ re-running `dn loop` by hand.
 Use `dn land` after a plan-backed task is complete and the workspace contains
 the changes you want to commit. **`dn land` closes out local agentic work into
 durable VCS state** — it is not trunk publish (`dn sync`) and not PR creation.
+After land, `dn sync` is the trunk gate (lint + tests, then rebase/push). These
+verbs match the denoise task dialog; see denoise-docs **Kickstart, land, sync,
+and done**.
 
 **Execution plans** (`plans/*.plan.md`) and **RFCs** (`rfcs/*.md`) use different
 land modes. Plan land uses an agent (or `--single`) to commit workspace changes

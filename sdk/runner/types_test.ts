@@ -274,3 +274,28 @@ Deno.test("validateRunnerJob rejects a land job with a local filesystem plan pat
     "plans/*.plan.md",
   );
 });
+
+function syncJob(): RunnerJob {
+  return {
+    protocol_version: "1.0",
+    id: "job-sync-1",
+    invocation_id: "invocation-sync-1",
+    runner_id: "runner-1",
+    repository: "chesapeakedev/dn",
+    operation: {
+      type: "sync",
+      issue_url: "https://github.com/chesapeakedev/dn/issues/12",
+    },
+    created_at: "2026-07-23T12:00:00.000Z",
+    queued_until: "2026-07-24T12:00:00.000Z",
+    lease: {
+      id: "lease-sync-1",
+      expires_at: "2026-07-23T12:01:00.000Z",
+      cancel_requested: false,
+    },
+  };
+}
+
+Deno.test("validateRunnerJob accepts a sync job", () => {
+  assertEquals(validateRunnerJob(syncJob(), "runner-1"), syncJob());
+});

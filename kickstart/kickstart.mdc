@@ -106,6 +106,6 @@ Notes:
 
 1. **Plan Phase**: Kickstart analyzes the issue and creates an implementation plan (read-only)
 2. **Implement Phase**: Kickstart applies the changes to the codebase
-3. **Linting**: Kickstart runs linting to improve code quality
+3. **Linting**: Kickstart runs `dn ensure lint` so a fixer agent can clear fmt/lint before land or a PR
 4. **Artifacts**: Kickstart generates cursor rules if configured
 5. **VCS** (AWP mode): Kickstart creates branch, commits, and opens draft PR

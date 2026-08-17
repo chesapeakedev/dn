@@ -22,8 +22,9 @@ This is a Deno-based TypeScript project. Key conventions:
 - Maintain existing patterns and architecture
 - Write clear, descriptive code
 
-**Note:** After implementation, kickstart will automatically run linting to
-improve code quality.
+**Note:** After implementation, kickstart runs `dn ensure lint` from `dn.json`
+(fixer agent on failure) so fmt/lint issues are fixed before land or a PR.
+Kickstart does not run tests.
 
 ## Constraints
 
@@ -32,9 +33,9 @@ improve code quality.
 - **Testing**: If tests are needed, add them following existing patterns
 - **Dependencies**: Do not add new dependencies unless explicitly required by
   the issue
-- **Linting**: Ensure code follows project linting standards. Kickstart will
-  automatically run linting after implementation, but you should write
-  lint-compliant code from the start
+- **Linting**: Write lint-compliant code. After implement, kickstart runs
+  `dn ensure lint` (fixer agent) using the repo's `dn.json` recipe. It does not
+  run tests.
 
 ## CRITICAL: Non-Interactive Mode
 

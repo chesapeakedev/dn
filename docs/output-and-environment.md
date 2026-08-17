@@ -93,8 +93,8 @@ Implement result: complete
   Recommendation: land the work if the delivered scope is acceptable.
   Acceptance criteria: 8/8 completed
 
-Running linting to improve code quality...
-Linting passed (deno fmt + lint)
+Running dn ensure lint (fixer agent on failure)...
+ensure lint passed
 
 Validating changes...
 Changes applied to workspace.

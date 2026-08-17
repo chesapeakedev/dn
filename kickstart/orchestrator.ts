@@ -51,12 +51,7 @@ import {
   formatWarning,
   isUnattended,
 } from "./output.ts";
-import {
-  createRunTmpDir,
-  isSandboxActive,
-  runAgentPhaseInSandbox,
-  translateSandboxCwd,
-} from "../sdk/sandbox/mod.ts";
+import { createRunTmpDir, runAgentPhaseInSandbox } from "../sdk/sandbox/mod.ts";
 import {
   clearImplementResult,
   type ImplementPhaseResult,
@@ -71,6 +66,10 @@ import {
   shouldOfferTestsOnlyContinuation,
 } from "./testsOnlyContinuation.ts";
 import { $ } from "$dax";
+import {
+  kickstartEnsureLintFailureMessage,
+  runKickstartEnsureLint,
+} from "./ensureLint.ts";
 
 /**
  * Get binary directory (works in both compiled binary and development mode)
@@ -1291,118 +1290,51 @@ export async function runOrchestrator(
     }
     await report("step.completed", "Checked completion status", { step: 4.5 });
 
-    // Step 5: Run linting (non-blocking). Unattended/device runs often already
-    // lint inside implement; skip the duplicate host pass to save wall clock.
+    // Step 5: Run ensure.lint (fixer agent). Blocking when the recipe exists.
     await report("step.started", "Starting lint step", { step: 5 });
     await report("phase.started", "Lint phase started", {
       phase: "lint",
       step: 5,
     });
-    if (isUnattended()) {
+    console.log(
+      formatStep(5, "Running dn ensure lint (fixer agent on failure)..."),
+    );
+    const lintOutcome = await runKickstartEnsureLint({
+      workspaceRoot: WORKSPACE_ROOT,
+      agent: config.agentHarness,
+    });
+    if (lintOutcome.status === "skipped") {
       console.log(
-        formatStep(
-          5,
-          "Skipping lint step (unattended; implement phase already runs checks)...",
+        formatInfo(
+          "No ensure.lint recipe in dn.json; skipping lint step. Add ensure.lint so kickstart can fmt/lint with a fixer agent.",
         ),
       );
       await report("lint.completed", "Lint phase skipped", {
         phase: "lint",
         step: 5,
-        data: { skipped: true, reason: "unattended_dedupe" },
+        data: { skipped: true, reason: "missing_recipe" },
       });
       await report("phase.completed", "Lint phase skipped", {
         phase: "lint",
         step: 5,
-        data: { skipped: true, reason: "unattended_dedupe" },
+        data: { skipped: true, reason: "missing_recipe" },
       });
       await report("step.completed", "Lint step completed", { step: 5 });
+    } else if (lintOutcome.status === "failed") {
+      const message = kickstartEnsureLintFailureMessage(lintOutcome.code);
+      await report("lint.completed", "Lint phase failed", {
+        phase: "lint",
+        step: 5,
+        data: { failed: true, code: lintOutcome.code },
+      });
+      await report("phase.completed", "Lint phase failed", {
+        phase: "lint",
+        step: 5,
+        data: { failed: true, code: lintOutcome.code },
+      });
+      throw new Error(message);
     } else {
-      console.log(
-        formatStep(5, "Running linting to improve code quality..."),
-      );
-      try {
-        if (isSandboxActive()) {
-          const ctx = (await import("../sdk/sandbox/context.ts"))
-            .getCurrentSandboxContext();
-          if (ctx) {
-            try {
-              const lintResult = await ctx.runner.exec(
-                ctx.handle,
-                ["deno", "task", "check"],
-                { cwd: translateSandboxCwd(WORKSPACE_ROOT) },
-              );
-              if (lintResult.code === 0) {
-                console.log(
-                  formatSuccess("Linting passed (deno task check in sandbox)"),
-                );
-              } else {
-                console.warn(
-                  formatWarning(
-                    "Linting found issues in sandbox (non-blocking):",
-                  ),
-                );
-                console.warn(lintResult.stderr || lintResult.stdout);
-              }
-            } catch {
-              console.warn(
-                formatWarning("Linting in sandbox failed (non-blocking)"),
-              );
-            }
-          }
-        } else {
-          // Run lint on host
-          try {
-            await Deno.stat(`${WORKSPACE_ROOT}/deno.json`);
-            try {
-              await $`cd ${WORKSPACE_ROOT} && deno task check`.quiet();
-              console.log(formatSuccess("Linting passed (deno task check)"));
-            } catch {
-              try {
-                await $`cd ${WORKSPACE_ROOT} && deno fmt`.quiet();
-                await $`cd ${WORKSPACE_ROOT} && deno lint`.quiet();
-                console.log(formatSuccess("Linting passed (deno fmt + lint)"));
-              } catch (lintError) {
-                console.warn(
-                  formatWarning("Linting found issues (non-blocking):"),
-                );
-                console.warn(
-                  lintError instanceof Error
-                    ? lintError.message
-                    : String(lintError),
-                );
-              }
-            }
-          } catch {
-            try {
-              await Deno.stat(`${WORKSPACE_ROOT}/package.json`);
-              try {
-                await $`cd ${WORKSPACE_ROOT} && npm run lint`.quiet();
-                console.log(formatSuccess("Linting passed (npm run lint)"));
-              } catch (lintError) {
-                console.warn(
-                  formatWarning("Linting found issues (non-blocking):"),
-                );
-                console.warn(
-                  lintError instanceof Error
-                    ? lintError.message
-                    : String(lintError),
-                );
-              }
-            } catch {
-              console.log(
-                formatInfo(
-                  "No linting configuration detected, skipping lint step",
-                ),
-              );
-            }
-          }
-        }
-      } catch (error) {
-        console.warn(
-          formatWarning("Linting step encountered an error (non-blocking):"),
-        );
-        console.warn(error instanceof Error ? error.message : String(error));
-      }
+      console.log(formatSuccess("ensure lint passed"));
       await report("lint.completed", "Lint phase completed", {
         phase: "lint",
         step: 5,

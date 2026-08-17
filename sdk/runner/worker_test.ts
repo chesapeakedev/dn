@@ -306,6 +306,23 @@ Deno.test("buildRunnerKickstartCommand constructs land argv without --single", a
   ]);
 });
 
+Deno.test("buildRunnerKickstartCommand constructs sync argv without skip-preflight", async () => {
+  const sync = job();
+  sync.operation = {
+    type: "sync",
+    issue_url: "https://github.com/chesapeakedev/dn/issues/213",
+  };
+  const { argv } = await buildRunnerKickstartCommand(sync, [
+    "/usr/local/bin/dn",
+  ]);
+  assertEquals(argv, [
+    "/usr/local/bin/dn",
+    "--unattended",
+    "sync",
+  ]);
+  assertEquals(argv.includes("--skip-preflight"), false);
+});
+
 Deno.test("buildRunnerKickstartCommand appends a repo-relative land plan file", async () => {
   const land = job();
   land.operation = {

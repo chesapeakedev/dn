@@ -6,9 +6,14 @@ daemon, and compute. Source code, local checkout paths, GitHub credentials, and
 agent credentials stay on the device.
 
 Device runners are owner-only in protocol v1. They accept kickstart jobs,
-**land** jobs (`dn land` on the paired checkout), denoise-task jobs, and
+**land** jobs (`dn land` on the paired checkout), **sync** jobs (`dn sync` on
+the paired checkout; trunk quality gate), denoise-task jobs, and
 **task-sync** (Void ↔ `~/.dn/tasks/` relay), not arbitrary commands or GitHub
 Actions workflows.
+
+The close-out verbs match the denoise task dialog: Kickstart → Land → Sync →
+Done. See denoise-docs **Kickstart, land, sync, and done** (`/close-out/`).
+Void **task-sync** is unrelated to trunk `dn sync`.
 
 ## Local task sync (Void free plan)
 
@@ -104,8 +109,9 @@ dn runner kickstart 213 --publish none --json
 
 Numeric issue references use the current checkout. A full issue URL must match
 an explicitly registered repository. Issue-backed protocol jobs may leave work
-local (`--publish none`) so you can `dn land` from denoise or the CLI, or open a
-pull request (`--publish pr`). GitHub Actions and hosted VMs stay PR-only.
+local (`--publish none`) so you can `dn land` then `dn sync` from denoise or
+the CLI, or open a pull request (`--publish pr`). GitHub Actions and hosted VMs
+stay PR-only.
 Denoise-task jobs may use `publish: none` (default when queueing via
 `--denoise-task`) when there is no GitHub issue to open a PR against.
 
@@ -169,14 +175,15 @@ The runner applies these boundaries:
 - It makes outbound authenticated HTTPS requests. No inbound port is opened.
 - Pairing requires signed-in browser approval. The server stores only a hash of
   the expiring runner credential and supports rotation and immediate revocation.
-- Jobs contain a typed kickstart, land, or denoise-task operation. The runner
-  constructs the exact local command (`dn kickstart --sandbox none --publish …`
-  or `dn --unattended --agent <harness> land [plan_file]`) and rejects argv,
+- Jobs contain a typed kickstart, land, sync, or denoise-task operation. The runner
+  constructs the exact local command (`dn kickstart --sandbox none --publish …`,
+  `dn --unattended --agent <harness> land [plan_file]`, or
+  `dn --unattended sync`) and rejects argv,
   shell, environment, and workflow definitions. `--sandbox none` keeps
   ticketless denoise-task jobs runnable on devices whose repo config prefers
   `exe.dev`. Land jobs never receive local filesystem paths; `plan_file` is
   repo-relative (`plans/*.plan.md`) or omitted so `dn land` picks the newest
-  plan.
+  plan. Sync jobs never pass `--skip-preflight`.
 - The issue URL must belong to the registered repository. Local paths never
   enter heartbeat, job, or progress payloads.
 - GitHub and agent authentication come from the local machine. Denoise does not

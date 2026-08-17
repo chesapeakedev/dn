@@ -72,7 +72,8 @@ export type RunnerCapabilityOperation =
   | "kickstart"
   | "denoise-task"
   | "task-sync"
-  | "land";
+  | "land"
+  | "sync";
 
 /** Capabilities detected on a developer device. */
 export interface RunnerCapabilities {
@@ -298,11 +299,20 @@ export interface RunnerLandOperation {
   plan_file?: string;
 }
 
+/** Publish landed commits on the paired checkout with `dn sync`. */
+export interface RunnerSyncOperation {
+  /** Discriminator for sync operations. */
+  type: "sync";
+  /** Canonical GitHub issue URL used to correlate the landed work. */
+  issue_url: string;
+}
+
 /** Typed operation union reserved for future protocol additions. */
 export type RunnerOperation =
   | RunnerKickstartOperation
   | RunnerDenoiseTaskOperation
-  | RunnerLandOperation;
+  | RunnerLandOperation
+  | RunnerSyncOperation;
 
 /** State of the renewable lease held by a device runner. */
 export interface RunnerJobLease {
@@ -741,9 +751,11 @@ export function validateRunnerJob(
         "Land jobs require a repo-relative plans/*.plan.md path when plan_file is set.",
       );
     }
+  } else if (job.operation.type === "sync") {
+    repositoryFromIssueUrl(job.operation.issue_url);
   } else {
     throw new Error(
-      "Runner protocol v1 only permits kickstart, denoise-task, or land jobs.",
+      "Runner protocol v1 only permits kickstart, denoise-task, land, or sync jobs.",
     );
   }
   if (
