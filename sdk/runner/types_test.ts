@@ -5,8 +5,14 @@ import { assert, assertEquals, assertThrows } from "@std/assert";
 import {
   type DenoiseTaskDocument,
   denoiseTaskToMarkdown,
+  githubActionsRunnerId,
+  isRunnerProviderId,
   isSupportedRunnerProtocol,
+  kickstartSourceFromProvider,
+  parseGithubActionsRunnerId,
   parseRepositorySlug,
+  resolveRunnerProvider,
+  runnerProviderFromSource,
   repositoryFromDenoiseTask,
   repositoryFromIssueUrl,
   RUNNER_PROTOCOL_VERSION,
@@ -18,6 +24,24 @@ import {
 Deno.test("isSupportedRunnerProtocol accepts the current version only", () => {
   assertEquals(isSupportedRunnerProtocol(RUNNER_PROTOCOL_VERSION), true);
   assertEquals(isSupportedRunnerProtocol("0.9"), false);
+});
+
+Deno.test("runner provider helpers default to device and map sources", () => {
+  assertEquals(resolveRunnerProvider(undefined), "device");
+  assertEquals(resolveRunnerProvider("exe.dev"), "exe.dev");
+  assertEquals(isRunnerProviderId("github_actions"), true);
+  assertEquals(kickstartSourceFromProvider("exe.dev"), "exe_dev");
+  assertEquals(runnerProviderFromSource("cloud_vm"), "exe.dev");
+  assertEquals(runnerProviderFromSource("local"), null);
+  assertEquals(
+    githubActionsRunnerId("chesapeakedev", "dn"),
+    "github_actions:chesapeakedev/dn",
+  );
+  assertEquals(parseGithubActionsRunnerId("github_actions:chesapeakedev/dn"), {
+    owner: "chesapeakedev",
+    repo: "dn",
+  });
+  assertEquals(parseGithubActionsRunnerId("runner-1"), null);
 });
 
 Deno.test("parseRepositorySlug accepts owner/repo values", () => {

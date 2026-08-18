@@ -95,8 +95,9 @@ the same loop in the foreground for diagnostics.
 
 ## Dispatch kickstart
 
-In denoise, select the named device as the kickstart destination. The runtime
-choice contains both `source: "device_runner"` and the opaque runner ID.
+In denoise, select the named device as the kickstart destination. The catalog
+row has `provider: "device"`, `source: "device_runner"`, and the opaque
+`runner_id`. GitHub Actions and exe.dev are other providers in the same catalog.
 
 Agents and scripts can queue the same job from the device:
 

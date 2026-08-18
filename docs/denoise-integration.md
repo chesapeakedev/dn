@@ -165,8 +165,8 @@ appears, then print its URL. `--wait` requires `client_payload.dispatch_id`.
 
 ## Kickstart Progress Events
 
-Denoise’s primary web runners — **GitHub Actions**, **exe.dev (`cloud_vm`)**,
-and **Cursor Cloud** — share one HTTP progress bootstrap:
+Denoise’s hosted web runners — **GitHub Actions** and **exe.dev** — share one
+HTTP progress bootstrap (device runners use NDJSON instead):
 
 - `DN_DISPATCH_ID` — invocation / `dispatch_id` correlation
 - `DN_PROGRESS=http`
@@ -256,28 +256,30 @@ dn distinguishes its agent harness from its execution environment:
 | `--sandbox docker\|exe.dev`        | Docker or exe.dev                     | Isolates any supported local harness.                        |
 | Canonical GitHub Actions workflows | GitHub-hosted runner                  | Installs and runs the configured local harness.              |
 
-### Denoise kickstart runtimes
+### Denoise kickstart runners
 
-Denoise's task kickstart confirm dialog can select where a run executes. The
-client posts `source` on `POST /api/github/dispatch`:
+Denoise's task kickstart confirm dialog picks a **runner**. The client posts
+`runner_id` (and optional `source` derived from the runner provider) on
+`POST /api/github/dispatch`:
 
-| `source`         | Behavior                                                                 |
-| ---------------- | ------------------------------------------------------------------------ |
-| `github_actions` | Default. Existing `repository_dispatch` → `dn.kickstart_issue`.          |
-| `cursor_cloud`   | Managed runner runs `dn kickstart --cursor-cloud` with HTTP progress.    |
-| `cloud_vm`       | Managed runner runs `dn kickstart --sandbox exe.dev` with HTTP progress. |
-| `device_runner`  | Named developer device claims a typed kickstart job over outbound HTTPS. |
+| `source`         | Provider          | Behavior                                                                 |
+| ---------------- | ----------------- | ------------------------------------------------------------------------ |
+| `github_actions` | `github_actions`  | Synthetic runner `github_actions:{owner}/{repo}`. `repository_dispatch`. |
+| `device_runner`  | `device`          | Named developer device claims a typed kickstart job over outbound HTTPS. |
+| `exe_dev`        | `exe.dev`         | User-connected `EXE_TOKEN`. Boot `ghcr.io/chesapeakedev/dn:<harness>` VM. |
+| `cloud_vm`       | historical        | Legacy label for hosted exe.dev; new dispatches use `exe_dev`.           |
+| `cursor_cloud`   | not in public UI  | Managed `dn kickstart --cursor-cloud` if still dispatched.               |
 
 Preflight availability is exposed at `GET /api/kickstart/runtimes?owner=&repo=`.
-Hosted denoise keeps Docker unavailable (use `dn kickstart --sandbox docker`
-locally). Denoise does **not** run kickstart on the application host. Secrets
-for managed runners stay on the denoise server (`CURSOR_API_KEY`, `EXE_TOKEN`,
-`KICKSTART_PROGRESS_BASE_URL`, `KICKSTART_RUNNER_WORKSPACE_ROOT`).
+Each row includes `provider`, `source`, and `runner_id`. Hosted denoise keeps
+Docker unavailable (use `dn kickstart --sandbox docker` locally). Denoise does
+**not** run kickstart on the application host and does **not** use a
+`KICKSTART_RUNNER_WORKSPACE_ROOT` launcher checkout for exe.dev.
 
-`device_runner` is an instance runtime. Dispatch requests include `runner_id`
-alongside `source`; the server must verify that the signed-in owner owns the
-runner and has registered the target repository. Historical invocations may
-still show `source: "local"` in progress history; new dispatches reject it.
+`device_runner` and `exe_dev` require `runner_id`. The server must verify that
+the signed-in owner owns that runner. GitHub Actions uses the synthetic id
+`github_actions:{owner}/{repo}`. Historical invocations may still show
+`source: "local"` in progress history; new dispatches reject it.
 
 ### Device runner API contract
 

@@ -33,29 +33,52 @@ export const MINIMUM_RUNNER_PROTOCOL_VERSION = "1.0" as const;
 /** Version identifiers accepted by this release of dn. */
 export type RunnerProtocolVersion = typeof RUNNER_PROTOCOL_VERSION;
 
+/**
+ * How a denoise runner realizes “harness + dn against a repo somewhere.”
+ *
+ * Omitted `provider` on protocol 1.0 device registrations means {@link DEFAULT_RUNNER_PROVIDER}.
+ */
+export type RunnerProviderId = "device" | "github_actions" | "exe.dev";
+
+/** Device protocol default when `provider` is omitted. */
+export const DEFAULT_RUNNER_PROVIDER: RunnerProviderId = "device";
+
+const RUNNER_PROVIDER_IDS: readonly RunnerProviderId[] = [
+  "device",
+  "github_actions",
+  "exe.dev",
+];
+
 /** Sources from which Denoise can execute a Kickstart invocation. */
 export type KickstartInvocationSource =
   | "github_actions"
   | "cursor_cloud"
   | "cloud_vm"
   | "local"
-  | "device_runner";
+  | "device_runner"
+  | "exe_dev";
 
 /** A concrete runtime selected for a Kickstart invocation. */
 export interface KickstartRuntimeChoice {
   /** Execution environment selected for the invocation. */
   source: KickstartInvocationSource;
-  /** Required opaque device identifier when source is `device_runner`. */
+  /**
+   * Opaque runner identifier. Required for `device_runner` and `exe_dev`.
+   * GitHub Actions uses a synthetic id `github_actions:{owner}/{repo}`.
+   */
   runner_id?: string;
+  /** Runner provider when the client already resolved it from the catalog. */
+  provider?: RunnerProviderId;
 }
 
-/** State presented for an enrolled developer device. */
+/** State presented for an enrolled runner. */
 export type RunnerState =
   | "ready"
   | "busy"
   | "offline"
   | "paused"
-  | "unsupported";
+  | "unsupported"
+  | "needs_setup";
 
 /** Readiness reported for one explicitly registered repository. */
 export interface RunnerRepositoryReadiness {
@@ -99,6 +122,10 @@ export interface RunnerRegistration {
   id: string;
   /** Opaque identifier of the owning denoise user. */
   owner_id: string;
+  /**
+   * How this runner executes jobs. Omitted values mean {@link DEFAULT_RUNNER_PROVIDER}.
+   */
+  provider?: RunnerProviderId;
   /** Owner-selected device name. */
   display_name: string;
   /** Supported host operating system. */
@@ -613,6 +640,78 @@ export function isSupportedRunnerProtocol(
   value: string,
 ): value is RunnerProtocolVersion {
   return value === RUNNER_PROTOCOL_VERSION;
+}
+
+/** Returns true when a value is a known {@link RunnerProviderId}. */
+export function isRunnerProviderId(
+  value: string,
+): value is RunnerProviderId {
+  return (RUNNER_PROVIDER_IDS as readonly string[]).includes(value);
+}
+
+/**
+ * Resolves a runner provider, defaulting omitted or unknown values to
+ * {@link DEFAULT_RUNNER_PROVIDER}.
+ */
+export function resolveRunnerProvider(
+  value?: string | null,
+): RunnerProviderId {
+  if (value != null && isRunnerProviderId(value)) return value;
+  return DEFAULT_RUNNER_PROVIDER;
+}
+
+/**
+ * Maps a runner provider to the kickstart invocation source stored on progress
+ * records. `cloud_vm` remains a historical alias for exe.dev.
+ */
+export function kickstartSourceFromProvider(
+  provider: RunnerProviderId,
+): KickstartInvocationSource {
+  if (provider === "github_actions") return "github_actions";
+  if (provider === "exe.dev") return "exe_dev";
+  return "device_runner";
+}
+
+/**
+ * Maps a kickstart invocation source to a runner provider.
+ * Historical `cloud_vm` maps to exe.dev. `local` and `cursor_cloud` have no
+ * runner provider.
+ */
+export function runnerProviderFromSource(
+  source: KickstartInvocationSource,
+): RunnerProviderId | null {
+  if (source === "github_actions") return "github_actions";
+  if (source === "exe_dev" || source === "cloud_vm") return "exe.dev";
+  if (source === "device_runner") return "device";
+  return null;
+}
+
+/** Synthetic runner id for GitHub Actions on a planning repository. */
+export function githubActionsRunnerId(owner: string, repo: string): string {
+  return `github_actions:${owner}/${repo}`;
+}
+
+/**
+ * Parses a synthetic GitHub Actions runner id.
+ *
+ * @returns owner and repo when `runnerId` is `github_actions:{owner}/{repo}`
+ */
+export function parseGithubActionsRunnerId(
+  runnerId: string,
+): { owner: string; repo: string } | null {
+  const prefix = "github_actions:";
+  if (!runnerId.startsWith(prefix)) return null;
+  const slug = runnerId.slice(prefix.length);
+  try {
+    const normalized = parseRepositorySlug(slug);
+    const slash = normalized.indexOf("/");
+    return {
+      owner: normalized.slice(0, slash),
+      repo: normalized.slice(slash + 1),
+    };
+  } catch {
+    return null;
+  }
 }
 
 /** Parses and validates a GitHub `owner/repo` slug. */

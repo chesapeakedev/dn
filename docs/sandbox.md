@@ -1,7 +1,13 @@
 # Sandbox providers
 
-Sandbox providers define **where** kickstart and loop agent phases execute: on
-the host (default), in a local Docker container, or on an exe.dev VM.
+Sandbox providers define how a **local** `dn` process isolates agent phases: on
+the host (default), in a local Docker container, or — from a laptop checkout —
+on an exe.dev VM via git sync.
+
+Denoise Kickstart! does not use this axis. It assigns jobs to a **runner**
+(device, GitHub Actions, or exe.dev). See [Denoise integration](denoise-integration.md)
+and [Developer device runners](device-runners.md). CLI `--sandbox exe.dev` is
+not how denoise runs exe.dev jobs.
 
 ## Config (schema 1.1)
 
