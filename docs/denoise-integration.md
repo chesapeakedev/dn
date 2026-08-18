@@ -262,13 +262,13 @@ Denoise's task kickstart confirm dialog picks a **runner**. The client posts
 `runner_id` (and optional `source` derived from the runner provider) on
 `POST /api/github/dispatch`:
 
-| `source`         | Provider          | Behavior                                                                 |
-| ---------------- | ----------------- | ------------------------------------------------------------------------ |
-| `github_actions` | `github_actions`  | Synthetic runner `github_actions:{owner}/{repo}`. `repository_dispatch`. |
-| `device_runner`  | `device`          | Named developer device claims a typed kickstart job over outbound HTTPS. |
-| `exe_dev`        | `exe.dev`         | User-connected `EXE_TOKEN`. Boot `ghcr.io/chesapeakedev/dn:<harness>` VM. |
-| `cloud_vm`       | historical        | Legacy label for hosted exe.dev; new dispatches use `exe_dev`.           |
-| `cursor_cloud`   | not in public UI  | Managed `dn kickstart --cursor-cloud` if still dispatched.               |
+| `source`         | Provider         | Behavior                                                                  |
+| ---------------- | ---------------- | ------------------------------------------------------------------------- |
+| `github_actions` | `github_actions` | Synthetic runner `github_actions:{owner}/{repo}`. `repository_dispatch`.  |
+| `device_runner`  | `device`         | Named developer device claims a typed kickstart job over outbound HTTPS.  |
+| `exe_dev`        | `exe.dev`        | User-connected `EXE_TOKEN`. Boot `ghcr.io/chesapeakedev/dn:<harness>` VM. |
+| `cloud_vm`       | historical       | Legacy label for hosted exe.dev; new dispatches use `exe_dev`.            |
+| `cursor_cloud`   | not in public UI | Managed `dn kickstart --cursor-cloud` if still dispatched.                |
 
 Preflight availability is exposed at `GET /api/kickstart/runtimes?owner=&repo=`.
 Each row includes `provider`, `source`, and `runner_id`. Hosted denoise keeps

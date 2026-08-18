@@ -267,7 +267,7 @@ function parseBootstrapFlags(
  * Shows usage information
  */
 function showUsage(): void {
-  console.error("dn - A CLI for managing agentic workflows\n");
+  console.error("dn, a non-conversational harness \n");
   console.error("Usage:");
   console.error("  dn [global options] <subcommand> [options]\n");
   console.error("Global options:");

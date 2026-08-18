@@ -1,17 +1,17 @@
 ---
 name: denoise-docs-pr
 description: >-
-  Create pull requests in the collocated denoise-docs documentation site
+  Commit documentation on main in the collocated denoise-docs site
   (../denoise-docs). Use when the user asks to document dn/denoise in
-  denoise-docs, update Starlight pages, or open a PR at
-  chesapeakedev/denoise-docs from this repository.
+  denoise-docs or update Starlight pages. Do not open a pull request unless the
+  user explicitly asks.
 ---
 
-# denoise-docs pull requests
+# denoise-docs commits
 
-Create documentation changes in the **denoise-docs** sibling repository and open
-a pull request on GitHub. This skill assumes **denoise-docs is collocated** with
-this repo:
+Create documentation changes in the **denoise-docs** sibling repository and
+commit them on `main`. Do not open a pull request unless the user explicitly
+asks. This skill assumes **denoise-docs is collocated** with this repo:
 
 ```text
 parent/
@@ -26,7 +26,7 @@ Repository: https://github.com/chesapeakedev/denoise-docs
 
 ## Workflow
 
-Follow these steps in order. Do not skip the pull or the return-to-`main` steps.
+Follow these steps in order. Do not skip the pull.
 
 ### 1. Enter denoise-docs and refresh `main`
 
@@ -36,8 +36,7 @@ git checkout main
 git pull
 ```
 
-Run `git pull` **before** creating a feature branch so the branch starts from
-the latest remote `main`.
+Edit on `main`. Do not create a `docs/…` feature branch.
 
 ### 2. Inspect state (parallel)
 
@@ -49,16 +48,9 @@ git diff
 git log -5 --oneline
 ```
 
-### 3. Create a feature branch
+Confirm the checkout is `main` before editing.
 
-```bash
-git checkout -b docs/<short-topic>
-```
-
-Use a descriptive branch name (for example
-`docs/dn-github-actions-deepinfra-kimi`).
-
-### 4. Edit documentation
+### 3. Edit documentation
 
 | What           | Where                                                            |
 | -------------- | ---------------------------------------------------------------- |
@@ -81,10 +73,10 @@ npm install   # humans manage dependencies; run only if needed
 npm run dev
 ```
 
-### 5. Commit
+### 4. Commit on `main`
 
-Only commit when the user asked for a PR (creating a PR implies committing doc
-changes). Draft a message focused on **why** the docs changed.
+Commit on `main` with a message focused on **why** the docs changed. Do not
+push. Do not run `gh pr create`.
 
 ```bash
 git add <paths>
@@ -95,53 +87,20 @@ EOF
 )"
 ```
 
-### 6. Push and open the pull request
+Confirm `git status` shows a clean `main` ahead of origin (an unpushed commit is
+expected).
 
-```bash
-git push -u origin HEAD
-```
+## Opt-in pull request
 
-Then create the PR with `gh` (use a HEREDOC for the body):
+Only if the user explicitly asks for a PR:
 
-```bash
-gh pr create --title "..." --body "$(cat <<'EOF'
-## Summary
-- ...
+1. `git checkout main && git pull`
+2. `git checkout -b docs/<short-topic>`
+3. Cherry-pick or re-apply the work if it already landed on local `main`
+4. `git push -u origin HEAD`
+5. `gh pr create` with a summary and test plan
 
-## Test plan
-- [ ] ...
-
-EOF
-)"
-```
-
-Return the PR URL to the user.
-
-### 7. Return denoise-docs to `main`
-
-After the PR is created, check out `main` again so the local clone is not left
-on the feature branch:
-
-```bash
-git checkout main
-```
-
-Do this even if the user will keep editing; they can switch back to the branch
-manually.
-
-## PR body template
-
-```markdown
-## Summary
-
-- Bullet points describing new or updated pages
-
-## Test plan
-
-- [ ] Sidebar entry appears for new pages
-- [ ] Internal doc links resolve
-- [ ] (Optional) `npm run build` succeeds
-```
+Do not treat a docs edit as a PR request.
 
 ## Common doc tasks
 
@@ -159,13 +118,14 @@ manually.
 
 ## Pitfalls
 
-| Mistake                      | Fix                                                  |
-| ---------------------------- | ---------------------------------------------------- |
-| Branch from stale `main`     | Always `git checkout main && git pull` first         |
-| Leave repo on feature branch | Always `git checkout main` after `gh pr create`      |
-| Forgot sidebar entry         | New pages are unreachable without `astro.config.mjs` |
-| Edit wrong repo              | Confirm cwd is `../denoise-docs`, not `dn/`          |
-| Use `sl` in denoise-docs     | denoise-docs uses **git**, not Sapling               |
+| Mistake                    | Fix                                                  |
+| -------------------------- | ---------------------------------------------------- |
+| Edit on stale `main`       | Always `git checkout main && git pull` first         |
+| Commit while not on `main` | Confirm branch before `git commit`                   |
+| Open a PR by default       | Commit on `main`; PR only if the user asks           |
+| Forgot sidebar entry       | New pages are unreachable without `astro.config.mjs` |
+| Edit wrong repo            | Confirm cwd is `../denoise-docs`, not `dn/`          |
+| Use `sl` in denoise-docs   | denoise-docs uses **git**, not Sapling               |
 
 ## Example session
 
@@ -173,19 +133,8 @@ manually.
 cd ../denoise-docs
 git checkout main
 git pull
-git checkout -b docs/my-topic
-# ... edit src/content/docs/ and astro.config.mjs ...
+# ... edit src/content/docs/ and astro.config.mjs on main ...
 git add astro.config.mjs src/content/docs/kickstart/my-topic.md
 git commit -m "Add kickstart topic documentation."
-git push -u origin HEAD
-gh pr create --title "Add kickstart topic docs" --body "$(cat <<'EOF'
-## Summary
-- Add page for ...
-
-## Test plan
-- [ ] Page renders in Starlight dev server
-
-EOF
-)"
-git checkout main
+git status
 ```

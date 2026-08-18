@@ -5,9 +5,10 @@ the host (default), in a local Docker container, or â€” from a laptop checkout â
 on an exe.dev VM via git sync.
 
 Denoise Kickstart! does not use this axis. It assigns jobs to a **runner**
-(device, GitHub Actions, or exe.dev). See [Denoise integration](denoise-integration.md)
-and [Developer device runners](device-runners.md). CLI `--sandbox exe.dev` is
-not how denoise runs exe.dev jobs.
+(device, GitHub Actions, or exe.dev). See
+[Denoise integration](denoise-integration.md) and
+[Developer device runners](device-runners.md). CLI `--sandbox exe.dev` is not
+how denoise runs exe.dev jobs.
 
 ## Config (schema 1.1)
 
