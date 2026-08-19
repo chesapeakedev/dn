@@ -1,11 +1,13 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
+import { formatElapsedTime } from "../github/output.ts";
 import { formatAgentFailureOutput } from "../github/progress.ts";
 import { checkRunnerRepositories, detectRunnerCapabilities } from "./doctor.ts";
 import type { LocalRunnerConfig } from "./config.ts";
 import { loadRunnerConfig } from "./config.ts";
 import type {
+  RunnerCapabilities,
   RunnerHeartbeat,
   RunnerHeartbeatResponse,
   RunnerJob,
@@ -25,17 +27,29 @@ import { applyTaskSyncOp, listTasks } from "../tasks/tasks.ts";
 const DEFAULT_LEASE_RENEWAL_MS = 15_000;
 const DEFAULT_CANCELLATION_GRACE_MS = 10_000;
 const DEFAULT_IDLE_WAIT_MS = 2_500;
+const DEFAULT_IDLE_LOG_INTERVAL_MS = 5 * 60_000;
+const DEFAULT_API_RETRY_MS = 5_000;
+const MAX_API_RETRY_MS = 30_000;
 const MAX_PROGRESS_EVENTS = 10_000;
 const MAX_PROGRESS_LINE_LENGTH = 32 * 1024;
 const MAX_DIAGNOSTIC_STDERR_LINES = 20;
 
+const SCAN_PROGRESS_TYPES = new Set<RunnerProgressEvent["type"]>([
+  "phase.started",
+  "phase.completed",
+  "lint.completed",
+  "publish.completed",
+  "invocation.failed",
+]);
+
 /** Terminal outcome of {@link runRunnerJob} for serve-loop status logging. */
 export type RunnerJobRunResult =
-  | { kind: "succeeded"; prUrl?: string }
+  | { kind: "succeeded"; prUrl?: string; durationMs?: number }
   | {
     kind: "failed" | "cancelled" | "interrupted";
     message: string;
     exitCode?: number;
+    durationMs?: number;
   };
 
 /** Minimal API surface required by the local runner loop. */
@@ -96,6 +110,8 @@ export interface RunRunnerJobOptions {
   stdout?: (line: string) => void;
   /** Receives non-progress diagnostics. */
   stderr?: (line: string) => void;
+  /** Receives scan-layer status lines while the job runs. */
+  status?: (message: string) => void;
 }
 
 /** Options for the long-running outbound worker. */
@@ -118,6 +134,11 @@ export interface ServeRunnerOptions {
   now?: () => Date;
   /** Delay after an empty claim before polling again (defaults to 2.5s). */
   idleWaitMs?: number;
+  /** Minimum time between idle status lines (defaults to 5 minutes). */
+  idleLogIntervalMs?: number;
+  /** Initial delay before retrying a transient heartbeat or claim.
+   * Defaults to 5 seconds. */
+  apiRetryMs?: number;
 }
 
 function defaultSpawn(
@@ -352,9 +373,127 @@ export function formatRunnerServeLog(
   return `[${now.toISOString()}] ${message}`;
 }
 
+/**
+ * Formats the first ready line after a successful heartbeat.
+ *
+ * @param runnerId - Opaque paired runner identifier
+ * @param capabilities - Locally detected harnesses and Docker
+ * @param repositoryCount - Number of registered checkouts
+ */
+export function formatRunnerReadyLog(
+  runnerId: string,
+  capabilities: Pick<RunnerCapabilities, "harnesses" | "docker">,
+  repositoryCount: number,
+): string {
+  const harnesses = capabilities.harnesses.length > 0
+    ? capabilities.harnesses.join(", ")
+    : "no harnesses";
+  const docker = capabilities.docker ? "docker" : "no docker";
+  const repos = repositoryCount === 1 ? "1 repo" : `${repositoryCount} repos`;
+  return `Runner ready; accepting work as ${runnerId} (${harnesses}; ${docker}; ${repos})`;
+}
+
+function issueShorthand(issueUrl: string): string {
+  try {
+    const slug = repositoryFromIssueUrl(issueUrl);
+    const match = issueUrl.match(/\/issues\/(\d+)/);
+    return match ? `${slug}#${match[1]}` : slug;
+  } catch {
+    return issueUrl;
+  }
+}
+
+function formatRunnerJobTarget(job: RunnerJob): string {
+  const operation = job.operation;
+  if (operation.type === "kickstart") {
+    return issueShorthand(operation.issue_url);
+  }
+  if (operation.type === "denoise-task") {
+    return `${operation.task_document.id} "${operation.task_document.title}"`;
+  }
+  if (operation.type === "land") {
+    const issue = issueShorthand(operation.issue_url);
+    return operation.plan_file ? `${issue} ${operation.plan_file}` : issue;
+  }
+  return issueShorthand(operation.issue_url);
+}
+
+/**
+ * Formats the serve-loop claim line with operation, agent, publish, and target.
+ *
+ * @param job - Claimed runner job
+ */
+export function formatRunnerJobClaimLog(job: RunnerJob): string {
+  const operation = job.operation;
+  const details: string[] = [operation.type];
+  if (operation.type !== "sync") details.push(operation.agent);
+  if (operation.type === "kickstart" || operation.type === "denoise-task") {
+    details.push(`publish=${operation.publish}`);
+  }
+  return `Claimed job ${job.id} (${details.join(", ")}) ${
+    formatRunnerJobTarget(job)
+  }`;
+}
+
+function formatRunnerCommand(command: string[]): string {
+  if (command.length === 0) return "";
+  const bin = command[0].split(/[/\\]/).pop() ?? command[0];
+  return [bin, ...command.slice(1)].join(" ");
+}
+
+function formatRunnerSpawnLog(
+  jobId: string,
+  cwd: string,
+  command: string[],
+): string {
+  return `Starting job ${jobId} in ${cwd}: ${formatRunnerCommand(command)}`;
+}
+
+/**
+ * Formats a high-signal progress event for the serve-loop scan layer.
+ *
+ * Returns null for types that would duplicate child stdout or flood the
+ * terminal (`step.*`, `agent.line`, invocation queued/running/succeeded).
+ *
+ * @param jobId - Claimed job identifier
+ * @param event - Parsed kickstart progress event
+ */
+export function formatRunnerProgressLog(
+  jobId: string,
+  event: RunnerProgressEvent,
+): string | null {
+  if (!SCAN_PROGRESS_TYPES.has(event.type)) return null;
+  if (event.type === "phase.started" || event.type === "phase.completed") {
+    const label = event.phase ?? "phase";
+    const verb = event.type === "phase.started" ? "started" : "completed";
+    return `Job ${jobId} ${label} ${verb}: ${event.message}`;
+  }
+  if (event.type === "lint.completed") {
+    return `Job ${jobId} lint completed: ${event.message}`;
+  }
+  if (event.type === "publish.completed") {
+    const prUrl = typeof event.data?.pr_url === "string"
+      ? ` (${event.data.pr_url})`
+      : "";
+    return `Job ${jobId} publish completed: ${event.message}${prUrl}`;
+  }
+  return `Job ${jobId} invocation failed: ${event.message}`;
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
+}
+
+function isPermanentRunnerApiError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /invalid or expired runner credential/i.test(message) ||
+    message === "Runner is not paired.";
+}
+
 async function terminateChild(
   child: RunnerChildProcess,
   graceMs: number,
+  onKill?: (signal: Deno.Signal) => void,
 ): Promise<void> {
   try {
     child.kill("SIGTERM");
@@ -370,6 +509,7 @@ async function terminateChild(
   if (!stopped) {
     try {
       child.kill("SIGKILL");
+      onKill?.("SIGKILL");
     } catch {
       // The process may have exited between the grace timeout and this call.
     }
@@ -411,6 +551,7 @@ export async function runRunnerJob(
     job,
     options.commandPrefix,
   );
+  options.status?.(formatRunnerSpawnLog(job.id, registration.path, command));
   const child = (options.spawn ?? defaultSpawn)(
     command,
     registration.path,
@@ -425,9 +566,11 @@ export async function runRunnerJob(
   let cancellationRequested = job.lease.cancel_requested;
   let interrupted = false;
   let progressCount = 0;
+  let didLogProgressDeliveryFailure = false;
   let prUrl: string | undefined;
   let invocationFailedMessage: string | undefined;
   const diagnosticLines: string[] = [];
+  const graceMs = options.cancellationGraceMs ?? DEFAULT_CANCELLATION_GRACE_MS;
 
   const recordDiagnostic = (line: string): void => {
     diagnosticLines.push(line);
@@ -435,6 +578,27 @@ export async function runRunnerJob(
       diagnosticLines.shift();
     }
     options.stderr?.(line);
+  };
+
+  const requestStop = async (
+    reason: "cancelled" | "interrupted",
+  ): Promise<void> => {
+    if (reason === "cancelled") {
+      options.status?.(
+        `Job ${job.id} cancel requested; sending SIGTERM`,
+      );
+    } else {
+      options.status?.(
+        `Job ${job.id} lease lost; interrupting to prevent duplicate work`,
+      );
+    }
+    await terminateChild(child, graceMs, (signal) => {
+      if (signal === "SIGKILL") {
+        options.status?.(
+          `Job ${job.id} still running after SIGTERM; sending SIGKILL`,
+        );
+      }
+    });
   };
 
   const stdoutTask = consumeLines(
@@ -466,24 +630,26 @@ export async function runRunnerJob(
     if (progressEvent.type === "invocation.failed") {
       invocationFailedMessage = progressEvent.message;
     }
+    const scanLine = formatRunnerProgressLog(job.id, progressEvent);
+    if (scanLine) options.status?.(scanLine);
     if (progressCount >= MAX_PROGRESS_EVENTS) return;
     progressCount++;
     try {
       await options.client.sendProgress(job.id, progressEvent);
     } catch (error) {
-      recordDiagnostic(
-        `Progress delivery failed: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
+      const message = `Progress delivery failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`;
+      recordDiagnostic(message);
+      if (!didLogProgressDeliveryFailure) {
+        didLogProgressDeliveryFailure = true;
+        options.status?.(`Job ${job.id} ${message}`);
+      }
     }
   });
 
   if (cancellationRequested) {
-    await terminateChild(
-      child,
-      options.cancellationGraceMs ?? DEFAULT_CANCELLATION_GRACE_MS,
-    );
+    await requestStop("cancelled");
   }
 
   const leaseTask = (async (): Promise<void> => {
@@ -501,10 +667,7 @@ export async function runRunnerJob(
         job.lease = response.lease;
         if (response.lease.cancel_requested) {
           cancellationRequested = true;
-          await terminateChild(
-            child,
-            options.cancellationGraceMs ?? DEFAULT_CANCELLATION_GRACE_MS,
-          );
+          await requestStop("cancelled");
         }
       } catch (error) {
         interrupted = true;
@@ -513,10 +676,7 @@ export async function runRunnerJob(
             error instanceof Error ? error.message : String(error)
           }`,
         );
-        await terminateChild(
-          child,
-          options.cancellationGraceMs ?? DEFAULT_CANCELLATION_GRACE_MS,
-        );
+        await requestStop("interrupted");
       }
     }
   })();
@@ -525,6 +685,7 @@ export async function runRunnerJob(
     const status = await child.status;
     stopLeaseLoop.abort();
     await Promise.all([stdoutTask, stderrTask, leaseTask]);
+    const durationMs = Math.max(0, Date.now() - startedAt);
 
     if (cancellationRequested || interrupted || !status.success) {
       const reason = cancellationRequested
@@ -550,6 +711,7 @@ export async function runRunnerJob(
       return {
         kind: reason,
         message,
+        durationMs,
         ...(status.code === undefined ? {} : { exitCode: status.code }),
       };
     }
@@ -557,7 +719,9 @@ export async function runRunnerJob(
       job.id,
       completionFrom(startedAt, prUrl),
     );
-    return prUrl ? { kind: "succeeded", prUrl } : { kind: "succeeded" };
+    return prUrl
+      ? { kind: "succeeded", prUrl, durationMs }
+      : { kind: "succeeded", durationMs };
   } finally {
     await cleanup?.();
   }
@@ -568,12 +732,19 @@ export function formatRunnerJobOutcomeLog(
   jobId: string,
   outcome: RunnerJobRunResult,
 ): string {
+  const duration = outcome.durationMs === undefined
+    ? undefined
+    : formatElapsedTime(outcome.durationMs);
   if (outcome.kind === "succeeded") {
-    return outcome.prUrl
-      ? `Job ${jobId} succeeded (${outcome.prUrl})`
+    const extras = [duration, outcome.prUrl].filter((item): item is string =>
+      item !== undefined && item.length > 0
+    );
+    return extras.length > 0
+      ? `Job ${jobId} succeeded (${extras.join(", ")})`
       : `Job ${jobId} succeeded`;
   }
-  return `Job ${jobId} ${outcome.kind}: ${outcome.message}`;
+  const durationPart = duration === undefined ? "" : ` (${duration})`;
+  return `Job ${jobId} ${outcome.kind}${durationPart}: ${outcome.message}`;
 }
 
 /** Runs the authenticated heartbeat/claim loop with one-job concurrency. */
@@ -583,11 +754,41 @@ export async function serveRunner(
   const log = options.log ?? console.log;
   const now = options.now ?? (() => new Date());
   const idleWaitMs = options.idleWaitMs ?? DEFAULT_IDLE_WAIT_MS;
+  const idleLogIntervalMs = options.idleLogIntervalMs ??
+    DEFAULT_IDLE_LOG_INTERVAL_MS;
+  const apiRetryMs = options.apiRetryMs ?? DEFAULT_API_RETRY_MS;
   const status = (message: string): void => {
     log(formatRunnerServeLog(message, now()));
   };
+  const retryApi = async <T>(
+    label: string,
+    fn: () => Promise<T>,
+  ): Promise<T> => {
+    let delay = apiRetryMs;
+    while (true) {
+      if (options.signal?.aborted) {
+        throw new DOMException("The operation was aborted.", "AbortError");
+      }
+      try {
+        return await fn();
+      } catch (error) {
+        if (isAbortError(error) || options.signal?.aborted) throw error;
+        if (isPermanentRunnerApiError(error)) throw error;
+        const message = error instanceof Error ? error.message : String(error);
+        status(
+          `${label} failed: ${message}; retrying in ${
+            formatElapsedTime(delay)
+          }`,
+        );
+        await waitFor(delay, options.signal);
+        delay = Math.min(delay * 2, MAX_API_RETRY_MS);
+      }
+    }
+  };
   const capabilities = await detectRunnerCapabilities();
   let announcedReady = false;
+  let announcedIdle = false;
+  let lastIdleLogAt = 0;
   let pendingAcks: string[] = [];
   let pendingTaskList: RunnerHeartbeat["task_list"] | undefined;
   do {
@@ -603,7 +804,16 @@ export async function serveRunner(
       ...(pendingAcks.length > 0 ? { task_sync_acks: pendingAcks } : {}),
       ...(pendingTaskList ? { task_list: pendingTaskList } : {}),
     };
-    const heartbeatResponse = await options.client.heartbeat(heartbeat);
+    let heartbeatResponse: RunnerHeartbeatResponse;
+    try {
+      heartbeatResponse = await retryApi(
+        "Heartbeat",
+        () => options.client.heartbeat(heartbeat),
+      );
+    } catch (error) {
+      if (isAbortError(error) || options.signal?.aborted) return;
+      throw error;
+    }
     pendingAcks = [];
     pendingTaskList = undefined;
 
@@ -636,6 +846,7 @@ export async function serveRunner(
 
     if (config.paused) {
       announcedReady = false;
+      announcedIdle = false;
       status("Runner paused; not claiming jobs");
       if (options.once) return;
       await waitFor(15_000, options.signal);
@@ -643,21 +854,40 @@ export async function serveRunner(
     }
     if (!announcedReady) {
       status(
-        `Runner ready; accepting work as ${options.runnerId}`,
+        formatRunnerReadyLog(
+          options.runnerId,
+          capabilities,
+          repositories.length,
+        ),
       );
       announcedReady = true;
     }
-    const { job } = await options.client.claimJob(25, options.signal);
-    if (job) {
-      status(
-        `Claimed job ${job.id} (${job.operation.type}) for ${job.repository}`,
+    let job: RunnerJob | null;
+    try {
+      const claimed = await retryApi(
+        "Claim",
+        () => options.client.claimJob(25, options.signal),
       );
-      await options.client.heartbeat({
-        ...heartbeat,
-        state: "busy",
-        ...(pendingAcks.length > 0 ? { task_sync_acks: pendingAcks } : {}),
-        ...(pendingTaskList ? { task_list: pendingTaskList } : {}),
-      });
+      job = claimed.job;
+    } catch (error) {
+      if (isAbortError(error) || options.signal?.aborted) return;
+      throw error;
+    }
+    if (job) {
+      announcedIdle = false;
+      status(formatRunnerJobClaimLog(job));
+      try {
+        await retryApi("Heartbeat", () =>
+          options.client.heartbeat({
+            ...heartbeat,
+            state: "busy",
+            ...(pendingAcks.length > 0 ? { task_sync_acks: pendingAcks } : {}),
+            ...(pendingTaskList ? { task_list: pendingTaskList } : {}),
+          }));
+      } catch (error) {
+        if (isAbortError(error) || options.signal?.aborted) return;
+        throw error;
+      }
       pendingAcks = [];
       pendingTaskList = undefined;
       let outcome: RunnerJobRunResult;
@@ -669,6 +899,7 @@ export async function serveRunner(
           client: options.client,
           stdout: console.log,
           stderr: console.error,
+          status,
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -686,7 +917,15 @@ export async function serveRunner(
       status(formatRunnerJobOutcomeLog(job.id, outcome));
       announcedReady = false;
     } else {
-      status("No work available; waiting for jobs");
+      const idleAt = now().getTime();
+      if (!announcedIdle) {
+        status("No work available; waiting for jobs");
+        announcedIdle = true;
+        lastIdleLogAt = idleAt;
+      } else if (idleAt - lastIdleLogAt >= idleLogIntervalMs) {
+        status("Still waiting for jobs");
+        lastIdleLogAt = idleAt;
+      }
       if (options.once) return;
       await waitFor(idleWaitMs, options.signal);
       continue;
