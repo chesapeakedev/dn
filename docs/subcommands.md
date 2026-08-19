@@ -215,13 +215,21 @@ dn runner kickstart 213 --wait --json
 dn runner pause
 dn runner resume
 dn runner rotate
+dn runner start
+dn runner stop
 dn runner disconnect
 ```
 
 `connect` opens a browser for signed-in approval and stores an expiring,
 runner-scoped credential under `~/.dn/runner/` with user-only permissions.
-`--install` adds a launchd or systemd user service. Use `dn runner serve` for a
-foreground diagnostic loop.
+`--install` adds a launchd or systemd user service that runs `dn runner serve`
+in the background. Pairing without `--install` leaves the device offline until
+you run `dn runner install` or a foreground `dn runner serve`. `dn runner start`
+and `dn runner stop` load or unload that user service without revoking the
+credential. Use foreground `dn runner serve` only for diagnostics, and only
+after `dn runner stop` if the user service is already running. Serve prints a
+timestamped timeline (ready, claim, phase, cancel, duration, outcome) and only
+reprints idle status about every five minutes.
 
 `register [path]` detects the GitHub remote and asks for an explicit trust
 confirmation. Pass `--yes` only after reviewing the checkout. Repository paths
@@ -241,8 +249,10 @@ dn runner kickstart --denoise-task task.json --wait --json
 The task document is sent inline to the runner API and the target device
 materializes it into a plan-compatible markdown file.
 
-`status`, `jobs`, `doctor`, `pause`, `resume`, `rotate`, `unregister`, and
-`disconnect` support stable JSON output. See
+`status`, `jobs`, `doctor`, `pause`, `resume`, `rotate`, `unregister`,
+`install`, `start`, `stop`, and `disconnect` support stable JSON output.
+`status` JSON includes additive `local.service` (`installed`, `running`,
+`supervisor`, `path`, optional `pid`). See
 [Developer device runners](device-runners.md) for setup, service paths, security
 behavior, and troubleshooting.
 

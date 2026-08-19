@@ -9,5 +9,8 @@ Deno.test("runner CLI exposes the device command surface", async () => {
   assertStringIncludes(result.stdout, "dn runner connect");
   assertStringIncludes(result.stdout, "dn runner status");
   assertStringIncludes(result.stdout, "dn runner kickstart");
-  assertStringIncludes(result.stdout, "dn runner pause|resume|disconnect");
+  assertStringIncludes(result.stdout, "dn runner install");
+  assertStringIncludes(result.stdout, "dn runner start");
+  assertStringIncludes(result.stdout, "dn runner stop");
+  assertStringIncludes(result.stdout, "dn runner serve");
 });

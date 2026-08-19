@@ -654,6 +654,8 @@ export const DN_COMPLETION_ROOT: CompletionNode = {
         pause: { flags: jsonHelp },
         resume: { flags: jsonHelp },
         install: { flags: HELP_FLAGS },
+        start: { flags: jsonHelp },
+        stop: { flags: jsonHelp },
         serve: { flags: ["--once", ...HELP_FLAGS] },
         disconnect: { flags: jsonHelp },
         rotate: { flags: jsonHelp },

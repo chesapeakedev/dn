@@ -5,6 +5,12 @@ import { join, resolve } from "@std/path";
 import { AGENT_HARNESSES, type AgentHarness } from "../github/agentHarness.ts";
 import type { LocalRunnerConfig } from "./config.ts";
 import { loadRunnerConfig, loadRunnerCredential } from "./config.ts";
+import {
+  generateRunnerService,
+  inspectRunnerService,
+  runnerServiceCommandsEqual,
+  type RunnerServiceStatus,
+} from "./service.ts";
 import type { RunnerCapabilities, RunnerRepositoryReadiness } from "./types.ts";
 import { RUNNER_PROTOCOL_VERSION } from "./types.ts";
 
@@ -44,6 +50,18 @@ export interface RunnerDoctorCredential {
   api_url: string;
   /** ISO-8601 credential expiration. */
   expires_at: string;
+}
+
+/** Optional overrides for {@link doctorRunner}. */
+export interface DoctorRunnerOptions {
+  /** Command probe used to detect harnesses and repository remotes. */
+  probe?: RunnerCommandProbe;
+  /** Injected service inspection used by tests. */
+  inspectService?: () => Promise<RunnerServiceStatus>;
+  /** Current `dn runner serve` argv compared against the installed unit. */
+  expectedServiceCommand?: string[];
+  /** Home directory used to resolve the user-service unit path. */
+  homeDirectory?: string;
 }
 
 /** Injectable command probe used by readiness tests. */
@@ -211,16 +229,56 @@ export async function checkRunnerRepositories(
   );
 }
 
+function serviceDoctorCheck(
+  service: RunnerServiceStatus,
+  expectedServiceCommand?: string[],
+): RunnerDoctorCheck {
+  if (service.running) {
+    const supervisor = service.supervisor === "systemd"
+      ? "systemd user service"
+      : "LaunchAgent";
+    const pid = service.pid !== undefined ? ` (pid ${service.pid})` : "";
+    const stale = expectedServiceCommand && service.command &&
+        !runnerServiceCommandsEqual(service.command, expectedServiceCommand)
+      ? ". Installed argv differs from this dn; run dn runner install to refresh."
+      : "";
+    return {
+      name: "service",
+      ok: true,
+      message: `${supervisor} running${pid}${stale}`,
+    };
+  }
+  if (service.installed) {
+    const logHint = service.supervisor === "systemd"
+      ? "Check journalctl --user -u denoise-runner.service."
+      : "Check ~/.dn/runner/runner.error.log.";
+    return {
+      name: "service",
+      ok: false,
+      message:
+        `User service installed but not running; start it with dn runner start. ${logHint}`,
+    };
+  }
+  return {
+    name: "service",
+    ok: false,
+    message:
+      "No serve loop is running; denoise will show this device offline. Run dn runner install or dn runner serve.",
+  };
+}
+
 /** Runs actionable local readiness checks for the paired device runner. */
 export async function doctorRunner(
-  probe: RunnerCommandProbe = defaultCommandProbe,
+  probe?: RunnerCommandProbe,
+  options: DoctorRunnerOptions = {},
 ): Promise<RunnerDoctorResult> {
+  const commandProbe = options.probe ?? probe ?? defaultCommandProbe;
   const [credential, config, capabilities] = await Promise.all([
     loadRunnerCredential(),
     loadRunnerConfig(),
-    detectRunnerCapabilities(probe),
+    detectRunnerCapabilities(commandProbe),
   ]);
-  const repositories = await checkRunnerRepositories(config, probe);
+  const repositories = await checkRunnerRepositories(config, commandProbe);
   const safeCredential = credential
     ? {
       runner_id: credential.runner_id,
@@ -274,6 +332,26 @@ export async function doctorRunner(
         }/${repositories.length} registered repositories ready`,
     },
   ];
+  if (
+    safeCredential && (Deno.build.os === "darwin" || Deno.build.os === "linux")
+  ) {
+    const homeDirectory = options.homeDirectory ?? Deno.env.get("HOME")?.trim();
+    const service = options.inspectService
+      ? await options.inspectService()
+      : homeDirectory
+      ? await inspectRunnerService(
+        generateRunnerService(["dn", "runner", "serve"], homeDirectory),
+      )
+      : {
+        installed: false,
+        running: false,
+        supervisor: Deno.build.os === "darwin"
+          ? "launchd" as const
+          : "systemd" as const,
+        path: "",
+      };
+    checks.push(serviceDoctorCheck(service, options.expectedServiceCommand));
+  }
   return {
     ok: checks.every((check) => check.ok),
     protocol_version: RUNNER_PROTOCOL_VERSION,

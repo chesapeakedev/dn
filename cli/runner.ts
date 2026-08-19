@@ -24,7 +24,10 @@ import {
 } from "../sdk/runner/doctor.ts";
 import {
   generateRunnerService,
+  inspectRunnerService,
   installRunnerService,
+  RUNNER_SERVICE_LABEL,
+  startRunnerService,
   stopRunnerService,
   uninstallRunnerService,
 } from "../sdk/runner/service.ts";
@@ -66,6 +69,8 @@ function showRunnerHelp(): void {
   console.log("  dn runner pause|resume|disconnect [--json]");
   console.log("  dn runner rotate [--json]");
   console.log("  dn runner install");
+  console.log("  dn runner start");
+  console.log("  dn runner stop");
   console.log("  dn runner serve [--once]\n");
   console.log(
     "Device jobs use your registered checkout, local agent login, and hardware.",
@@ -270,6 +275,15 @@ async function handleConnect(args: string[]): Promise<void> {
       "Existing runner user service restarted with the new credential.",
     );
   }
+  if (!json && shouldInstall) {
+    console.log(
+      "The user service runs dn runner serve in the background. A foreground dn runner serve is not required.",
+    );
+  } else if (!json) {
+    console.log(
+      "This device is paired but offline until you run dn runner install or dn runner serve.",
+    );
+  }
 }
 
 async function registerCurrentRepository(
@@ -351,7 +365,9 @@ async function authenticatedClient(): Promise<{
 
 async function handleDoctor(args: string[]): Promise<void> {
   const { json } = parseCommonOptions(args);
-  const result = await doctorRunner();
+  const result = await doctorRunner(undefined, {
+    expectedServiceCommand: currentExpectedServiceCommand(),
+  });
   if (json) {
     console.log(JSON.stringify(result));
     return;
@@ -373,10 +389,13 @@ async function handleDoctor(args: string[]): Promise<void> {
 
 async function handleStatus(args: string[]): Promise<void> {
   const { json } = parseCommonOptions(args);
-  const [{ client }, local, doctor] = await Promise.all([
+  const [{ client }, local, doctor, service] = await Promise.all([
     authenticatedClient(),
     loadRunnerConfig(),
-    doctorRunner(),
+    doctorRunner(undefined, {
+      expectedServiceCommand: currentExpectedServiceCommand(),
+    }),
+    currentRunnerServiceStatus(),
   ]);
   const remote = await client.status();
   const result = {
@@ -387,6 +406,13 @@ async function handleStatus(args: string[]): Promise<void> {
       repositories: doctor.repositories,
       harnesses: doctor.capabilities.harnesses,
       docker: doctor.capabilities.docker,
+      service: {
+        installed: service.installed,
+        running: service.running,
+        supervisor: service.supervisor,
+        path: service.path,
+        ...(service.pid !== undefined ? { pid: service.pid } : {}),
+      },
     },
   };
   if (json) console.log(JSON.stringify(result));
@@ -401,6 +427,21 @@ async function handleStatus(args: string[]): Promise<void> {
         doctor.capabilities.harnesses.join(", ") || "none"
       }`,
     );
+    if (service.running) {
+      console.log(
+        service.pid !== undefined
+          ? `User service running (${service.supervisor}, pid ${service.pid}).`
+          : `User service running (${service.supervisor}).`,
+      );
+    } else if (service.installed) {
+      console.log(
+        "User service installed but not running; denoise will show this device offline.",
+      );
+    } else {
+      console.log(
+        "No user service; denoise will show this device offline until dn runner install or dn runner serve.",
+      );
+    }
     if (remote.active_job) {
       console.log(
         `Active: ${remote.active_job.repository} ${remote.active_job.operation.type} (${remote.active_job.state})`,
@@ -607,11 +648,27 @@ async function handlePauseState(
   else console.log(paused ? "Runner paused." : "Runner resumed.");
 }
 
+function currentExpectedServiceCommand(): string[] {
+  return [...currentDnCommand(), "runner", "serve"];
+}
+
 function currentRunnerServiceDefinition() {
   return generateRunnerService(
-    [...currentDnCommand(), "runner", "serve"],
+    currentExpectedServiceCommand(),
     homeDirectory(),
   );
+}
+
+async function currentRunnerServiceStatus() {
+  if (Deno.build.os !== "darwin" && Deno.build.os !== "linux") {
+    return {
+      installed: false,
+      running: false,
+      supervisor: "none" as const,
+      path: "",
+    };
+  }
+  return await inspectRunnerService(currentRunnerServiceDefinition());
 }
 
 async function runnerServiceUnitExists(): Promise<boolean> {
@@ -645,6 +702,28 @@ async function handleInstall(args: string[]): Promise<void> {
   else console.log("Denoise runner user service installed and started.");
 }
 
+async function handleStart(args: string[]): Promise<void> {
+  const { json } = parseCommonOptions(args);
+  if (Deno.uid() === 0) {
+    throw new Error("Device runners must run as a logged-in non-root user.");
+  }
+  await authenticatedClient();
+  if (await runnerServiceUnitExists()) {
+    await startRunnerService(currentRunnerServiceDefinition());
+  } else {
+    await installCurrentRunnerService();
+  }
+  if (json) console.log(JSON.stringify({ started: true }));
+  else console.log("Denoise runner user service started.");
+}
+
+async function handleStop(args: string[]): Promise<void> {
+  const { json } = parseCommonOptions(args);
+  await stopCurrentRunnerServiceBestEffort();
+  if (json) console.log(JSON.stringify({ stopped: true }));
+  else console.log("Denoise runner user service stopped.");
+}
+
 async function handleServe(args: string[]): Promise<void> {
   let once = false;
   for (const argument of args) {
@@ -656,6 +735,20 @@ async function handleServe(args: string[]): Promise<void> {
     Deno.uid() === 0
   ) {
     throw new Error("Device runners must run as a logged-in non-root user.");
+  }
+  const service = await currentRunnerServiceStatus();
+  if (service.running) {
+    const pid = service.pid !== undefined ? ` (pid ${service.pid})` : "";
+    const supervisor = service.supervisor === "systemd"
+      ? "systemd unit"
+      : `LaunchAgent ${RUNNER_SERVICE_LABEL}`;
+    const logs = service.supervisor === "systemd"
+      ? "journalctl --user -u denoise-runner.service -f"
+      : "tail -f ~/.dn/runner/runner.log";
+    throw new Error(
+      `${supervisor} is already running${pid}. That loop is what denoise uses. ` +
+        `Watch ${logs}, or run dn runner stop then dn runner serve for foreground diagnostics.`,
+    );
   }
   const { client, runnerId } = await authenticatedClient();
   try {
@@ -784,6 +877,12 @@ export async function handleRunner(args: string[]): Promise<void> {
       break;
     case "install":
       await handleInstall(rest);
+      break;
+    case "start":
+      await handleStart(rest);
+      break;
+    case "stop":
+      await handleStop(rest);
       break;
     case "serve":
       await handleServe(rest);

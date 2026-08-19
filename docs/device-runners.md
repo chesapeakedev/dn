@@ -90,8 +90,38 @@ Run the service as your normal login user. Do not install or run it as root.
 
 `--install` creates a user service. On macOS it installs
 `~/Library/LaunchAgents/cloud.denoise.runner.plist`. On Linux it installs
-`~/.config/systemd/user/denoise-runner.service`. Use `dn runner serve` to run
-the same loop in the foreground for diagnostics.
+`~/.config/systemd/user/denoise-runner.service`. Pairing stores a credential;
+denoise stays offline until a `dn runner serve` loop heartbeats. The user
+service is that same outbound loop. Denoise does not open an inbound port.
+
+### User service vs foreground serve
+
+Use the launchd or systemd user service for everyday pairing:
+
+- You ran `dn runner connect <code> --install` or later `dn runner install`
+- You are logged into a macOS GUI session (`gui/$UID`) or a Linux user session
+- `dn runner doctor` reports the service check OK and `dn runner status` shows
+  the device ready
+
+Run `dn runner serve` in a terminal only when:
+
+- You paired without `--install` and never installed the service
+- You want live stdout for diagnostics
+- The user service stopped (expired credential, bootstrap failure) and you are
+  debugging it
+
+Do not run both. `dn runner serve` refuses to start when the user service is
+already running. Stop it first:
+
+```bash
+dn runner stop
+dn runner serve
+```
+
+Bring the user service back with `dn runner start`. After upgrading `dn` or
+changing `PATH`, run `dn runner install` so the unit file picks up the current
+binary and environment. Credential rejection exits 0 so launchd/systemd do not
+tight-loop; re-pair and install to come back online.
 
 ## Dispatch kickstart
 
@@ -140,12 +170,19 @@ The command surface is stable for people and automation:
 dn runner status [--json]
 dn runner jobs [--json]
 dn runner doctor [--json]
+dn runner install
+dn runner start
+dn runner stop
 dn runner pause [--json]
 dn runner resume [--json]
 dn runner rotate [--json]
 dn runner unregister owner/repo [--json]
 dn runner disconnect [--json]
 ```
+
+`install` writes and starts the user service. `start` bootstraps an existing
+unit, or installs one if it is missing. `stop` unloads the service and leaves
+the unit file in place so you can run a foreground `dn runner serve`.
 
 Pause prevents new claims without revoking the device. Rotate replaces the
 runner-scoped credential and invalidates the old value. Disconnect revokes the
@@ -203,29 +240,38 @@ estimate dollar savings.
 ## Diagnose readiness
 
 `dn runner doctor` checks the platform, pairing expiration, installed harnesses,
-and every registered checkout. It reports repository slugs, not paths, in JSON
-output.
+every registered checkout, and whether a serve loop is running. It reports
+repository slugs, not paths, in JSON output. Doctor fails when no loop is
+running, which is the same condition that makes denoise show the device offline.
 
-For foreground logs:
+For foreground logs, stop the user service first so two loops do not race:
 
 ```bash
+dn runner stop
 dn runner serve
 ```
 
 The serve loop prints timestamped status lines on stdout when it is ready, when
-a long-poll returns no work, when it claims a job, when a job succeeds or fails,
+a long-poll returns no work, when it claims a job, when kickstart phases start
+or finish, when a job is cancelled or interrupted, when a job succeeds or fails,
 and when it is paused. After an empty claim it waits about 2.5 seconds before
-polling again. Example idle line:
+polling again, but it only reprints an idle line about every five minutes.
+Example ready and idle lines:
 
 ```text
+[2026-08-07T19:55:00.000Z] Runner ready; accepting work as runner-1 (codex, opencode; docker; 2 repos)
 [2026-08-07T19:55:00.000Z] No work available; waiting for jobs
 ```
 
-Job outcomes also appear on this stream (and therefore in `runner.log`):
+While a job runs, the same stream records identity, spawn, phase, and outcome
+(child `[dn]` / agent output still appears unprefixed on stdout):
 
 ```text
-[2026-08-07T19:55:00.000Z] Job job-1 succeeded
-[2026-08-07T19:55:00.000Z] Job job-2 failed: dn kickstart exited with code 1. …
+[2026-08-07T19:55:00.000Z] Claimed job job-1 (kickstart, codex, publish=pr) chesapeakedev/dn#213
+[2026-08-07T19:55:00.000Z] Starting job job-1 in /Users/you/src/dn: dn --unattended --agent codex kickstart --sandbox none --publish pr https://github.com/chesapeakedev/dn/issues/213
+[2026-08-07T19:55:01.000Z] Job job-1 plan started: Plan phase started
+[2026-08-07T19:58:00.000Z] Job job-1 succeeded (12m 4s, https://github.com/chesapeakedev/dn/pull/214)
+[2026-08-07T19:58:00.000Z] Job job-2 failed (5s): dn kickstart exited with code 1. …
 ```
 
 Device-runner jobs always invoke kickstart with `--sandbox none` so ticketless
