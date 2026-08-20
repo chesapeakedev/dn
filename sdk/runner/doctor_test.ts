@@ -96,6 +96,7 @@ async function saveTestCredential(directory: string): Promise<void> {
   await saveRunnerCredential({
     schema_version: RUNNER_CONFIG_SCHEMA_VERSION,
     runner_id: "runner-1",
+    owner_id: "owner-1",
     display_name: "Alex's MacBook",
     api_url: "https://denoise.example",
     credential: "runner-secret",

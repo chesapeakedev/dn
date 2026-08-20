@@ -122,6 +122,8 @@ ${argumentsXml}
     <dict>
       <key>HOME</key>
       <string>${xmlEscape(homeDirectory)}</string>
+      <key>DN_RUNNER_SERVICE</key>
+      <string>1</string>
       <key>PATH</key>
       <string>${xmlEscape(pathValue)}</string>
     </dict>
@@ -160,6 +162,7 @@ Wants=network-online.target
 Type=simple
 ExecStart=${command.map(systemdQuote).join(" ")}
 Environment=${systemdQuote(`HOME=${homeDirectory}`)}
+Environment="DN_RUNNER_SERVICE=1"
 Environment=${systemdQuote(`PATH=${pathValue}`)}
 Restart=on-failure
 RestartSec=5

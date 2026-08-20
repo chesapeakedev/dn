@@ -13,6 +13,8 @@ export interface StoredRunnerCredential {
   schema_version: typeof RUNNER_CONFIG_SCHEMA_VERSION;
   /** Opaque paired runner identifier. */
   runner_id: string;
+  /** Opaque identifier of the Denoise account that approved this runner. */
+  owner_id?: string;
   /** Owner-selected device name. */
   display_name: string;
   /** Denoise API origin used during pairing. */
@@ -135,6 +137,7 @@ export async function loadRunnerCredential(
     if (
       parsed.schema_version !== RUNNER_CONFIG_SCHEMA_VERSION ||
       typeof parsed.runner_id !== "string" ||
+      (parsed.owner_id !== undefined && typeof parsed.owner_id !== "string") ||
       typeof parsed.display_name !== "string" ||
       typeof parsed.api_url !== "string" ||
       typeof parsed.credential !== "string" ||

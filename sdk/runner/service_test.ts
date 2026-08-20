@@ -24,6 +24,7 @@ Deno.test("generateLaunchdService creates a user agent with escaped argv", () =>
     "/Users/alex/Library/LaunchAgents/cloud.denoise.runner.plist",
   );
   assertStringIncludes(service.content, "<string>runner</string>");
+  assertStringIncludes(service.content, "<key>DN_RUNNER_SERVICE</key>");
   assertStringIncludes(service.content, "<string>a&amp;b</string>");
   assertStringIncludes(service.content, "<key>SuccessfulExit</key>");
   assertStringIncludes(service.content, "<key>ThrottleInterval</key>");
@@ -45,6 +46,7 @@ Deno.test("generateSystemdService creates a non-root user service", () => {
     service.content,
     'ExecStart="/home/alex/bin/dn" "runner" "serve"',
   );
+  assertStringIncludes(service.content, 'Environment="DN_RUNNER_SERVICE=1"');
   assertStringIncludes(service.content, "NoNewPrivileges=true");
   assertStringIncludes(service.content, 'Environment="HOME=/home/alex"');
   assertStringIncludes(service.content, 'Environment="PATH=');

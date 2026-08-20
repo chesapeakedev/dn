@@ -57,8 +57,13 @@ TARGET_DIR=~/.local/bin
 compile: ; @bash ./compile_dn.sh
 install: compile
 	@mkdir -p $(TARGET_DIR)
-	@cp "./bin/dn" $(TARGET_DIR)/dn
-	@chmod +x $(TARGET_DIR)/dn
+	@tmp="$(TARGET_DIR)/.dn.new.$$$$"; \
+	  cp "./bin/dn" "$$tmp" && \
+	  chmod +x "$$tmp" && \
+	  if [ "$$(uname)" = Darwin ]; then \
+	    codesign --sign - --force --identifier cloud.denoise.dn "$$tmp"; \
+	  fi && \
+	  mv -f "$$tmp" "$(TARGET_DIR)/dn"
 	@echo "✅ Installed dn to $(TARGET_DIR)/dn"
 
 # Run kickstart using deno run (for GitHub Actions)

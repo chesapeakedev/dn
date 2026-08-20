@@ -44,6 +44,8 @@ export interface RunnerDoctorResult {
 export interface RunnerDoctorCredential {
   /** Opaque paired runner identifier. */
   runner_id: string;
+  /** Opaque Denoise account identifier, when recorded during pairing. */
+  owner_id?: string;
   /** Owner-facing device name. */
   display_name: string;
   /** Paired Denoise API origin. */
@@ -282,6 +284,9 @@ export async function doctorRunner(
   const safeCredential = credential
     ? {
       runner_id: credential.runner_id,
+      ...(credential.owner_id === undefined
+        ? {}
+        : { owner_id: credential.owner_id }),
       display_name: credential.display_name,
       api_url: credential.api_url,
       expires_at: credential.expires_at,
@@ -312,7 +317,9 @@ export async function doctorRunner(
       message: !safeCredential
         ? "Not paired; run dn runner connect <code>"
         : credentialCurrent
-        ? `Paired as ${safeCredential.display_name}`
+        ? safeCredential.owner_id
+          ? `Paired as ${safeCredential.display_name} (Denoise owner ${safeCredential.owner_id})`
+          : `Paired as ${safeCredential.display_name} (Denoise owner not recorded; re-pair to record it)`
         : "Runner credential expired; pair again or rotate it before expiration",
     },
     {

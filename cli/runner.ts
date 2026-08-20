@@ -246,6 +246,7 @@ async function handleConnect(args: string[]): Promise<void> {
   await saveRunnerCredential({
     schema_version: RUNNER_CONFIG_SCHEMA_VERSION,
     runner_id: exchange.runner.id,
+    owner_id: exchange.runner.owner_id,
     display_name: exchange.runner.display_name,
     api_url: apiUrl,
     credential: exchange.credential,
@@ -736,8 +737,14 @@ async function handleServe(args: string[]): Promise<void> {
   ) {
     throw new Error("Device runners must run as a logged-in non-root user.");
   }
-  const service = await currentRunnerServiceStatus();
-  if (service.running) {
+  // The service process sees its own LaunchAgent/systemd unit as running. The
+  // explicit marker prevents the duplicate-process guard from making the
+  // installed service exit immediately after launch.
+  const launchedByService = Deno.env.get("DN_RUNNER_SERVICE") === "1";
+  const service = launchedByService
+    ? undefined
+    : await currentRunnerServiceStatus();
+  if (service?.running) {
     const pid = service.pid !== undefined ? ` (pid ${service.pid})` : "";
     const supervisor = service.supervisor === "systemd"
       ? "systemd unit"
