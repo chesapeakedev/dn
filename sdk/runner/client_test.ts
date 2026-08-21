@@ -91,3 +91,24 @@ Deno.test("RunnerApiClient surfaces minimum protocol errors", async () => {
     "Unsupported runner protocol",
   );
 });
+
+Deno.test("RunnerApiClient times out a hung request instead of stalling", async () => {
+  const client = new RunnerApiClient({
+    apiUrl: "https://denoise.example",
+    credential: "runner-secret",
+    requestTimeoutMs: 30,
+    fetch: (input, init) => {
+      const request = new Request(input, init);
+      return new Promise((_, reject) => {
+        request.signal.addEventListener("abort", () => {
+          reject(request.signal.reason ?? new Error("aborted"));
+        });
+      });
+    },
+  });
+  await assertRejects(
+    () => client.status(),
+    Error,
+    "Denoise runner API request timed out",
+  );
+});

@@ -5,7 +5,7 @@ import { formatElapsedTime } from "../github/output.ts";
 import { formatAgentFailureOutput } from "../github/progress.ts";
 import { checkRunnerRepositories, detectRunnerCapabilities } from "./doctor.ts";
 import type { LocalRunnerConfig } from "./config.ts";
-import { loadRunnerConfig } from "./config.ts";
+import { loadRunnerConfig, recordRunnerLoopAlive } from "./config.ts";
 import type {
   RunnerCapabilities,
   RunnerHeartbeat,
@@ -490,6 +490,14 @@ function isPermanentRunnerApiError(error: unknown): boolean {
     message === "Runner is not paired.";
 }
 
+async function markRunnerLoopAlive(): Promise<void> {
+  try {
+    await recordRunnerLoopAlive();
+  } catch {
+    // Doctor uses this stamp; the serve loop must not die if it is unwritable.
+  }
+}
+
 async function terminateChild(
   child: RunnerChildProcess,
   graceMs: number,
@@ -665,6 +673,7 @@ export async function runRunnerJob(
           job.lease.id,
         );
         job.lease = response.lease;
+        await markRunnerLoopAlive();
         if (response.lease.cancel_requested) {
           cancellationRequested = true;
           await requestStop("cancelled");
@@ -814,6 +823,7 @@ export async function serveRunner(
       if (isAbortError(error) || options.signal?.aborted) return;
       throw error;
     }
+    await markRunnerLoopAlive();
     pendingAcks = [];
     pendingTaskList = undefined;
 
@@ -864,15 +874,19 @@ export async function serveRunner(
     }
     let job: RunnerJob | null;
     try {
-      const claimed = await retryApi(
-        "Claim",
-        () => options.client.claimJob(25, options.signal),
-      );
+      const claimed = await options.client.claimJob(25, options.signal);
       job = claimed.job;
     } catch (error) {
       if (isAbortError(error) || options.signal?.aborted) return;
-      throw error;
+      if (isPermanentRunnerApiError(error)) throw error;
+      const message = error instanceof Error ? error.message : String(error);
+      status(
+        `Claim failed: ${message}; retrying after the next heartbeat`,
+      );
+      await waitFor(apiRetryMs, options.signal);
+      continue;
     }
+    await markRunnerLoopAlive();
     if (job) {
       announcedIdle = false;
       status(formatRunnerJobClaimLog(job));
@@ -888,6 +902,7 @@ export async function serveRunner(
         if (isAbortError(error) || options.signal?.aborted) return;
         throw error;
       }
+      await markRunnerLoopAlive();
       pendingAcks = [];
       pendingTaskList = undefined;
       let outcome: RunnerJobRunResult;

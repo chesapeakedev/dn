@@ -35,17 +35,36 @@ export interface RunnerServiceStatus {
   command?: string[];
 }
 
+/** Result of one supervisor command invoked through a service probe. */
+export interface RunnerServiceCommandResult {
+  /** Whether the command exited 0. */
+  success: boolean;
+  /** Trimmed standard output. */
+  stdout: string;
+  /** Trimmed standard error. */
+  stderr: string;
+  /** Process exit code when the probe reports one. */
+  code?: number;
+}
+
 /** Injectable command and filesystem probe used by service inspection tests. */
 export interface RunnerServiceCommandProbe {
-  /** Runs one supervisor query command and captures its result. */
+  /** Runs one supervisor query or mutate command and captures its result. */
   run(
     command: string,
     args: string[],
-  ): Promise<{ success: boolean; stdout: string; stderr: string }>;
+  ): Promise<RunnerServiceCommandResult>;
   /** Returns whether a unit file exists at the given path. */
   exists(path: string): Promise<boolean>;
   /** Reads a unit file for argv comparison. */
   readText(path: string): Promise<string>;
+  /** Returns whether a leftover LaunchAgent pid is still alive. */
+  processExists?(pid: number): Promise<boolean>;
+  /** Sends SIGTERM or SIGKILL to a leftover LaunchAgent pid. */
+  killProcess?(
+    pid: number,
+    signal: "SIGTERM" | "SIGKILL",
+  ): Promise<void>;
 }
 
 /** Options for {@link inspectRunnerService}. */
@@ -56,11 +75,42 @@ export interface InspectRunnerServiceOptions {
   uid?: number | null;
 }
 
+/** Options for installing or replacing a device-runner user service. */
+export interface InstallRunnerServiceOptions {
+  /** Command, filesystem, and process probe; defaults to live supervisor tools. */
+  probe?: RunnerServiceCommandProbe;
+  /** User id for the launchd `gui/<uid>` domain. */
+  uid?: number | null;
+  /** Delay used by bootout retries and pid waits; injectable in tests. */
+  sleep?: (ms: number) => Promise<void>;
+}
+
 /** Launchd label for the device-runner user agent. */
 export const RUNNER_SERVICE_LABEL = "cloud.denoise.runner";
 
 /** systemd user unit name for the device-runner service. */
 export const RUNNER_SYSTEMD_UNIT = "denoise-runner.service";
+
+/**
+ * launchd service-target for this user's device-runner agent.
+ *
+ * Bootout must use this label form. `bootout gui/<uid> <plist-path>` can no-op
+ * while launchd still keeps the hung PID.
+ */
+export function launchdServiceTarget(uid: number): string {
+  return `gui/${uid}/${RUNNER_SERVICE_LABEL}`;
+}
+
+/** launchctl `bootout` exit status while unload is still in progress. */
+export const LAUNCHCTL_EINPROGRESS = 36;
+
+function requireUserId(): number {
+  const uid = Deno.uid();
+  if (uid === null) {
+    throw new Error("Device runners require a logged-in user id.");
+  }
+  return uid;
+}
 
 function xmlEscape(value: string): string {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(
@@ -196,6 +246,28 @@ function xmlUnescape(value: string): string {
   ).replaceAll("&apos;", "'").replaceAll("&amp;", "&");
 }
 
+async function defaultProcessExists(pid: number): Promise<boolean> {
+  try {
+    const output = await new Deno.Command("ps", {
+      args: ["-p", String(pid), "-o", "pid="],
+      stdout: "piped",
+      stderr: "piped",
+    }).output();
+    return output.success &&
+      new TextDecoder().decode(output.stdout).trim() !== "";
+  } catch {
+    return false;
+  }
+}
+
+function defaultKillProcess(
+  pid: number,
+  signal: "SIGTERM" | "SIGKILL",
+): Promise<void> {
+  Deno.kill(pid, signal);
+  return Promise.resolve();
+}
+
 const defaultServiceProbe: RunnerServiceCommandProbe = {
   async run(command, args) {
     try {
@@ -208,10 +280,16 @@ const defaultServiceProbe: RunnerServiceCommandProbe = {
         success: output.success,
         stdout: new TextDecoder().decode(output.stdout).trim(),
         stderr: new TextDecoder().decode(output.stderr).trim(),
+        code: output.code,
       };
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {
-        return { success: false, stdout: "", stderr: "command not found" };
+        return {
+          success: false,
+          stdout: "",
+          stderr: "command not found",
+          code: 127,
+        };
       }
       throw error;
     }
@@ -228,6 +306,8 @@ const defaultServiceProbe: RunnerServiceCommandProbe = {
   readText(path) {
     return Deno.readTextFile(path);
   },
+  processExists: defaultProcessExists,
+  killProcess: defaultKillProcess,
 };
 
 /** Parses `launchctl print` output for running state and pid. */
@@ -344,6 +424,147 @@ export async function inspectRunnerService(
   };
 }
 
+function resolveUid(uid?: number | null): number {
+  if (uid !== undefined && uid !== null) return uid;
+  return requireUserId();
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function runViaProbe(
+  probe: RunnerServiceCommandProbe,
+  command: string,
+  args: string[],
+  allowFailure = false,
+): Promise<RunnerServiceCommandResult> {
+  const result = await probe.run(command, args);
+  if (!result.success && !allowFailure) {
+    throw new Error(
+      `${command} ${args.join(" ")} failed: ${
+        result.stderr || result.code || "nonzero"
+      }`,
+    );
+  }
+  return result;
+}
+
+async function unloadLaunchdService(
+  uid: number,
+  probe: RunnerServiceCommandProbe = defaultServiceProbe,
+  sleepFn: (ms: number) => Promise<void> = sleep,
+): Promise<void> {
+  const target = launchdServiceTarget(uid);
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const result = await probe.run("launchctl", ["bootout", target]);
+    if (result.code === LAUNCHCTL_EINPROGRESS) {
+      await sleepFn(100);
+      continue;
+    }
+    return;
+  }
+}
+
+async function ensureProcessGone(
+  pid: number,
+  probe: RunnerServiceCommandProbe,
+  sleepFn: (ms: number) => Promise<void>,
+): Promise<void> {
+  const processExists = probe.processExists ?? defaultProcessExists;
+  const killProcess = probe.killProcess ?? defaultKillProcess;
+  if (!await processExists(pid)) return;
+  try {
+    await killProcess(pid, "SIGTERM");
+  } catch {
+    return;
+  }
+  for (let i = 0; i < 20; i++) {
+    await sleepFn(50);
+    if (!await processExists(pid)) return;
+  }
+  try {
+    await killProcess(pid, "SIGKILL");
+  } catch {
+    // Already gone.
+  }
+  await sleepFn(50);
+  if (await processExists(pid)) {
+    throw new Error(
+      `LaunchAgent pid ${pid} survived SIGKILL. Run dn runner install again.`,
+    );
+  }
+}
+
+async function waitForReplacedLaunchdService(
+  definition: RunnerServiceDefinition,
+  uid: number,
+  previousPid: number | undefined,
+  probe: RunnerServiceCommandProbe,
+  sleepFn: (ms: number) => Promise<void>,
+): Promise<RunnerServiceStatus> {
+  for (let i = 0; i < 30; i++) {
+    const status = await inspectRunnerService(definition, { probe, uid });
+    if (
+      status.running && status.pid !== undefined &&
+      status.pid !== previousPid
+    ) {
+      return status;
+    }
+    await sleepFn(100);
+  }
+  const last = await inspectRunnerService(definition, { probe, uid });
+  if (!last.running || last.pid === undefined) {
+    throw new Error("LaunchAgent did not start after dn runner install.");
+  }
+  if (previousPid !== undefined && last.pid === previousPid) {
+    throw new Error(
+      `dn runner install did not replace LaunchAgent pid ${previousPid}.`,
+    );
+  }
+  return last;
+}
+
+/**
+ * Unloads the current launchd job, kills a leftover PID, and bootstraps this
+ * plist. Retries `bootout` while launchd reports EINPROGRESS, enables the
+ * service-target, and `kickstart -k` if the PID did not change.
+ */
+export async function replaceLaunchdService(
+  definition: RunnerServiceDefinition,
+  options: InstallRunnerServiceOptions = {},
+): Promise<void> {
+  const probe = options.probe ?? defaultServiceProbe;
+  const uid = resolveUid(options.uid);
+  const sleepFn = options.sleep ?? sleep;
+  const previous = await inspectRunnerService(definition, { probe, uid });
+  await unloadLaunchdService(uid, probe, sleepFn);
+  if (previous.pid !== undefined) {
+    await ensureProcessGone(previous.pid, probe, sleepFn);
+  }
+  const target = launchdServiceTarget(uid);
+  await runViaProbe(probe, "launchctl", ["enable", target]);
+  await runViaProbe(probe, "launchctl", [
+    "bootstrap",
+    `gui/${uid}`,
+    definition.path,
+  ]);
+  const afterBootstrap = await inspectRunnerService(definition, { probe, uid });
+  if (
+    !afterBootstrap.running ||
+    (previous.pid !== undefined && afterBootstrap.pid === previous.pid)
+  ) {
+    await runViaProbe(probe, "launchctl", ["kickstart", "-k", target], true);
+  }
+  await waitForReplacedLaunchdService(
+    definition,
+    uid,
+    previous.pid,
+    probe,
+    sleepFn,
+  );
+}
+
 async function runServiceCommand(
   command: string,
   args: string[],
@@ -369,6 +590,7 @@ async function runServiceCommand(
  */
 export async function installRunnerService(
   definition: RunnerServiceDefinition,
+  options: InstallRunnerServiceOptions = {},
 ): Promise<void> {
   await Deno.mkdir(dirname(definition.path), { recursive: true });
   await Deno.writeTextFile(definition.path, definition.content, {
@@ -378,23 +600,36 @@ export async function installRunnerService(
     await Deno.chmod(definition.path, 0o600);
   }
   if (definition.platform === "darwin") {
-    const uid = Deno.uid();
-    await runServiceCommand(
-      "launchctl",
-      ["bootout", `gui/${uid}`, definition.path],
-      true,
-    );
-    await runServiceCommand(
-      "launchctl",
-      ["bootstrap", `gui/${uid}`, definition.path],
-    );
+    await replaceLaunchdService(definition, options);
     return;
   }
   await runServiceCommand("systemctl", ["--user", "daemon-reload"]);
   await runServiceCommand(
     "systemctl",
-    ["--user", "enable", "--now", RUNNER_SYSTEMD_UNIT],
+    ["--user", "enable", RUNNER_SYSTEMD_UNIT],
   );
+  await runServiceCommand(
+    "systemctl",
+    ["--user", "restart", RUNNER_SYSTEMD_UNIT],
+  );
+}
+
+/**
+ * Rewrites and replaces an already-installed user service.
+ *
+ * Returns `{ refreshed: false }` when the unit file is missing so package
+ * postinstall can no-op for CLI-only machines.
+ */
+export async function refreshRunnerServiceIfPresent(
+  definition: RunnerServiceDefinition,
+  options: InstallRunnerServiceOptions = {},
+): Promise<{ refreshed: boolean }> {
+  const probe = options.probe ?? defaultServiceProbe;
+  if (!(await probe.exists(definition.path))) {
+    return { refreshed: false };
+  }
+  await installRunnerService(definition, options);
+  return { refreshed: true };
 }
 
 /**
@@ -404,6 +639,7 @@ export async function installRunnerService(
  */
 export async function startRunnerService(
   definition: RunnerServiceDefinition,
+  options: InstallRunnerServiceOptions = {},
 ): Promise<void> {
   try {
     await Deno.stat(definition.path);
@@ -416,22 +652,13 @@ export async function startRunnerService(
     throw error;
   }
   if (definition.platform === "darwin") {
-    const uid = Deno.uid();
-    await runServiceCommand(
-      "launchctl",
-      ["bootout", `gui/${uid}`, definition.path],
-      true,
-    );
-    await runServiceCommand(
-      "launchctl",
-      ["bootstrap", `gui/${uid}`, definition.path],
-    );
+    await replaceLaunchdService(definition, options);
     return;
   }
   await runServiceCommand("systemctl", ["--user", "daemon-reload"]);
   await runServiceCommand(
     "systemctl",
-    ["--user", "start", RUNNER_SYSTEMD_UNIT],
+    ["--user", "restart", RUNNER_SYSTEMD_UNIT],
   );
 }
 
@@ -445,11 +672,7 @@ export async function stopRunnerService(
   definition: RunnerServiceDefinition,
 ): Promise<void> {
   if (definition.platform === "darwin") {
-    await runServiceCommand(
-      "launchctl",
-      ["bootout", `gui/${Deno.uid()}`, definition.path],
-      true,
-    );
+    await unloadLaunchdService(requireUserId());
     return;
   }
   await runServiceCommand(

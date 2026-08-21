@@ -566,6 +566,10 @@ Deno.test("serveRunner logs ready and idle status when no job is claimed", async
       ),
       formatRunnerServeLog("No work available; waiting for jobs", stamp),
     ]);
+    assertEquals(
+      (await Deno.stat(getRunnerConfigPaths(directory).alive)).isFile,
+      true,
+    );
   } finally {
     if (previousHome === undefined) Deno.env.delete("DN_RUNNER_HOME");
     else Deno.env.set("DN_RUNNER_HOME", previousHome);
@@ -891,6 +895,57 @@ Deno.test("serveRunner does not retry a rejected credential", async () => {
       "invalid or expired runner credential",
     );
     assertEquals(logs.length, 0);
+  } finally {
+    if (previousHome === undefined) Deno.env.delete("DN_RUNNER_HOME");
+    else Deno.env.set("DN_RUNNER_HOME", previousHome);
+    await Deno.remove(directory, { recursive: true });
+  }
+});
+
+Deno.test("serveRunner heartbeats again after a transient claim failure", async () => {
+  const directory = await Deno.makeTempDir({
+    prefix: "dn-runner-claim-retry-",
+  });
+  const previousHome = Deno.env.get("DN_RUNNER_HOME");
+  Deno.env.set("DN_RUNNER_HOME", directory);
+  const logs: string[] = [];
+  const client = new RecordingClient();
+  let heartbeats = 0;
+  let claims = 0;
+  const originalHeartbeat = client.heartbeat.bind(client);
+  client.heartbeat = async (heartbeat: RunnerHeartbeat) => {
+    heartbeats += 1;
+    return await originalHeartbeat(heartbeat);
+  };
+  client.claimJob = () => {
+    claims += 1;
+    if (claims === 1) return Promise.reject(new Error("connection reset"));
+    return Promise.resolve({ job: null });
+  };
+  try {
+    await saveRunnerConfig({
+      schema_version: RUNNER_CONFIG_SCHEMA_VERSION,
+      paused: false,
+      repositories: {},
+    }, getRunnerConfigPaths(directory));
+    await serveRunner({
+      runnerId: "runner-1",
+      dnVersion: "0.0.0-test",
+      commandPrefix: ["/usr/local/bin/dn"],
+      client,
+      once: true,
+      apiRetryMs: 20,
+      log: (line) => logs.push(line),
+    });
+    assertEquals(heartbeats, 2);
+    assert(
+      logs.some((line) =>
+        line.includes(
+          "Claim failed: connection reset; retrying after the next heartbeat",
+        )
+      ),
+      `expected claim retry log, got ${JSON.stringify(logs)}`,
+    );
   } finally {
     if (previousHome === undefined) Deno.env.delete("DN_RUNNER_HOME");
     else Deno.env.set("DN_RUNNER_HOME", previousHome);

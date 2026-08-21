@@ -226,10 +226,12 @@ runner-scoped credential under `~/.dn/runner/` with user-only permissions.
 in the background. Pairing without `--install` leaves the device offline until
 you run `dn runner install` or a foreground `dn runner serve`. `dn runner start`
 and `dn runner stop` load or unload that user service without revoking the
-credential. Use foreground `dn runner serve` only for diagnostics, and only
-after `dn runner stop` if the user service is already running. Serve prints a
-timestamped timeline (ready, claim, phase, cancel, duration, outcome) and only
-reprints idle status about every five minutes.
+credential. `make install` and `brew upgrade` refresh an already-installed
+service to the new binary; `dn runner install` is first-time setup and hung
+recovery, not a step after every upgrade. Use foreground `dn runner serve` only
+for diagnostics, and only after `dn runner stop` if the user service is already
+running. Serve prints a timestamped timeline (ready, claim, phase, cancel,
+duration, outcome) and only reprints idle status about every five minutes.
 
 `register [path]` detects the GitHub remote and asks for an explicit trust
 confirmation. Pass `--yes` only after reviewing the checkout. Repository paths

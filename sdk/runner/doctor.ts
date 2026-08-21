@@ -3,8 +3,13 @@
 
 import { join, resolve } from "@std/path";
 import { AGENT_HARNESSES, type AgentHarness } from "../github/agentHarness.ts";
+import { RunnerApiClient } from "./client.ts";
 import type { LocalRunnerConfig } from "./config.ts";
-import { loadRunnerConfig, loadRunnerCredential } from "./config.ts";
+import {
+  getRunnerConfigPaths,
+  loadRunnerConfig,
+  loadRunnerCredential,
+} from "./config.ts";
 import {
   generateRunnerService,
   inspectRunnerService,
@@ -54,6 +59,50 @@ export interface RunnerDoctorCredential {
   expires_at: string;
 }
 
+/** Result of asking Denoise whether this pairing still checks in. */
+export type RunnerRemoteProbeResult =
+  | {
+    /** Denoise accepted the runner credential. */
+    kind: "ok";
+    /** ISO-8601 time of the last accepted heartbeat. */
+    last_seen_at: string;
+    /** Owner-visible runner state from the status endpoint. */
+    state: string;
+  }
+  | {
+    /** Denoise returned invalid-or-expired for this credential. */
+    kind: "rejected";
+    /** Server or transport error text. */
+    error: string;
+  }
+  | {
+    /** The status request failed without a credential rejection. */
+    kind: "unreachable";
+    /** Server or transport error text. */
+    error: string;
+  };
+
+/** Local evidence that the serve loop is still making progress. */
+export interface RunnerServeLoopActivity {
+  /** mtime of `loop.alive` when the current dn build has been writing it. */
+  aliveAtMs?: number;
+  /** mtime of `runner.log` used for older LaunchAgent builds. */
+  lastLogAtMs?: number;
+  /** Last non-empty line of `runner.log`, when readable. */
+  lastLogLine?: string;
+  /** Elapsed process time from `ps`, when the PID is still alive. */
+  processAgeMs?: number;
+}
+
+/** Age after which `loop.alive` plus a running PID means the serve loop is hung. */
+export const STALE_RUNNER_LOOP_ALIVE_MS = 120_000;
+
+/** Age after which an idle `runner.log` plus a running PID means the loop is hung. */
+export const STALE_RUNNER_LOOP_LOG_MS = 10 * 60_000;
+
+/** Startup window where leftover stamps from a previous process are ignored. */
+export const RUNNER_LOOP_START_GRACE_MS = 90_000;
+
 /** Optional overrides for {@link doctorRunner}. */
 export interface DoctorRunnerOptions {
   /** Command probe used to detect harnesses and repository remotes. */
@@ -64,6 +113,12 @@ export interface DoctorRunnerOptions {
   expectedServiceCommand?: string[];
   /** Home directory used to resolve the user-service unit path. */
   homeDirectory?: string;
+  /** Injected Denoise status probe used by tests. */
+  probeRemote?: () => Promise<RunnerRemoteProbeResult>;
+  /** Injected serve-loop liveness probe used by tests. */
+  inspectServeLoop?: () => Promise<RunnerServeLoopActivity>;
+  /** Clock used to decide whether the last heartbeat or loop stamp is stale. */
+  nowMs?: number;
 }
 
 /** Injectable command probe used by readiness tests. */
@@ -234,8 +289,16 @@ export async function checkRunnerRepositories(
 function serviceDoctorCheck(
   service: RunnerServiceStatus,
   expectedServiceCommand?: string[],
+  hungReason?: string | null,
 ): RunnerDoctorCheck {
   if (service.running) {
+    if (hungReason) {
+      return {
+        name: "service",
+        ok: false,
+        message: hungReason,
+      };
+    }
     const supervisor = service.supervisor === "systemd"
       ? "systemd user service"
       : "LaunchAgent";
@@ -269,6 +332,249 @@ function serviceDoctorCheck(
   };
 }
 
+function formatCoarseAge(deltaMs: number): string {
+  if (deltaMs < 60_000) {
+    return `${String(Math.max(1, Math.floor(deltaMs / 1000)))}s`;
+  }
+  if (deltaMs < 3_600_000) {
+    return `${String(Math.floor(deltaMs / 60_000))}m`;
+  }
+  if (deltaMs < 86_400_000) {
+    return `${String(Math.floor(deltaMs / 3_600_000))}h`;
+  }
+  return `${String(Math.floor(deltaMs / 86_400_000))}d`;
+}
+
+function processLabel(
+  supervisor: RunnerServiceStatus["supervisor"],
+  pid?: number,
+): string {
+  const name = supervisor === "systemd"
+    ? "systemd user service"
+    : "LaunchAgent";
+  return pid === undefined ? name : `${name} pid ${String(pid)}`;
+}
+
+/**
+ * Last log line looks like an in-progress job rather than a stuck idle loop.
+ *
+ * @param line - Trailing `runner.log` line, if any
+ */
+export function serveLogShowsActiveJob(line: string | undefined): boolean {
+  if (!line) return false;
+  if (/\bJob \S+ (succeeded|failed|cancelled|interrupted)\b/i.test(line)) {
+    return false;
+  }
+  return /\b(Claimed job|Starting job|Job \S+ (plan|lint|publish|cancel)|lease lost)\b/i
+    .test(line);
+}
+
+/**
+ * Returns a doctor error when a still-running supervisor PID has a stale loop.
+ *
+ * `loop.alive` is written only after heartbeat, claim, or lease progress, so a
+ * hung HTTPS fetch does not refresh it even though the JS event loop still runs.
+ * Older builds fall back to `runner.log` with a longer idle-log threshold.
+ *
+ * @param input - Local liveness evidence for one running user service
+ */
+export function serveLoopHungReason(input: {
+  nowMs: number;
+  supervisor: RunnerServiceStatus["supervisor"];
+  pid?: number;
+  aliveAtMs?: number;
+  lastLogAtMs?: number;
+  lastLogLine?: string;
+  processAgeMs?: number;
+}): string | null {
+  const usingAlive = input.aliveAtMs !== undefined;
+  const lastProgressAtMs = input.aliveAtMs ?? input.lastLogAtMs;
+  if (lastProgressAtMs === undefined) return null;
+  if (!usingAlive && serveLogShowsActiveJob(input.lastLogLine)) return null;
+
+  const label = processLabel(input.supervisor, input.pid);
+  const processStartedAtMs = input.processAgeMs === undefined
+    ? undefined
+    : input.nowMs - input.processAgeMs;
+  const leftoverFromPreviousProcess = processStartedAtMs !== undefined &&
+    lastProgressAtMs + 2_000 < processStartedAtMs;
+  if (leftoverFromPreviousProcess) {
+    if (
+      input.processAgeMs !== undefined &&
+      input.processAgeMs < RUNNER_LOOP_START_GRACE_MS
+    ) {
+      return null;
+    }
+    return `${label} is running but has not recorded loop progress since it started. The process is hung. Run dn runner install.`;
+  }
+
+  const staleAfterMs = usingAlive
+    ? STALE_RUNNER_LOOP_ALIVE_MS
+    : STALE_RUNNER_LOOP_LOG_MS;
+  const ageMs = input.nowMs - lastProgressAtMs;
+  if (ageMs <= staleAfterMs) return null;
+  return `${label} is running but the serve loop has not progressed in ${
+    formatCoarseAge(ageMs)
+  }. The process is hung. Run dn runner install.`;
+}
+
+async function fileMtimeMs(path: string): Promise<number | undefined> {
+  try {
+    const mtime = (await Deno.stat(path)).mtime;
+    return mtime?.getTime();
+  } catch (error) {
+    if (error instanceof Deno.errors.NotFound) return undefined;
+    return undefined;
+  }
+}
+
+async function readLastNonEmptyLine(path: string): Promise<string | undefined> {
+  try {
+    const file = await Deno.open(path);
+    try {
+      const size = (await file.stat()).size;
+      if (size === 0) return undefined;
+      const readSize = Math.min(size, 8192);
+      const buf = new Uint8Array(readSize);
+      await file.seek(Math.max(0, size - readSize), Deno.SeekMode.Start);
+      const n = await file.read(buf);
+      const text = new TextDecoder().decode(buf.subarray(0, n ?? 0));
+      const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(
+        (line) => line.length > 0,
+      );
+      return lines.at(-1);
+    } finally {
+      file.close();
+    }
+  } catch (error) {
+    if (error instanceof Deno.errors.NotFound) return undefined;
+    return undefined;
+  }
+}
+
+/** Parses `ps -o etimes=` or `ps -o etime=` into milliseconds. */
+export function parsePsElapsedMs(stdout: string): number | undefined {
+  const trimmed = stdout.trim().split("\n").at(-1)?.trim() ?? "";
+  if (!trimmed) return undefined;
+  if (!trimmed.includes(":") && !trimmed.includes("-")) {
+    const seconds = Number.parseInt(trimmed, 10);
+    if (!Number.isFinite(seconds) || seconds < 0) return undefined;
+    return seconds * 1000;
+  }
+  const match = trimmed.match(/^(?:(\d+)-)?(?:(\d+):)?(\d+):(\d+)$/);
+  if (!match) return undefined;
+  const days = Number.parseInt(match[1] ?? "0", 10);
+  const hours = Number.parseInt(match[2] ?? "0", 10);
+  const minutes = Number.parseInt(match[3] ?? "0", 10);
+  const seconds = Number.parseInt(match[4] ?? "0", 10);
+  if (
+    [days, hours, minutes, seconds].some((value) => !Number.isFinite(value))
+  ) {
+    return undefined;
+  }
+  return (((days * 24 + hours) * 60 + minutes) * 60 + seconds) * 1000;
+}
+
+async function inspectRunnerServeLoopActivity(
+  pid: number | undefined,
+  probe: RunnerCommandProbe,
+): Promise<RunnerServeLoopActivity> {
+  const paths = getRunnerConfigPaths();
+  const logPath = join(paths.directory, "runner.log");
+  const [aliveAtMs, lastLogAtMs, lastLogLine] = await Promise.all([
+    fileMtimeMs(paths.alive),
+    fileMtimeMs(logPath),
+    readLastNonEmptyLine(logPath),
+  ]);
+  let processAgeMs: number | undefined;
+  if (pid !== undefined) {
+    const etimes = await probe.run("ps", ["-p", String(pid), "-o", "etimes="]);
+    processAgeMs = etimes.success ? parsePsElapsedMs(etimes.stdout) : undefined;
+    if (processAgeMs === undefined) {
+      const etime = await probe.run("ps", ["-p", String(pid), "-o", "etime="]);
+      if (etime.success) processAgeMs = parsePsElapsedMs(etime.stdout);
+    }
+  }
+  return {
+    ...(aliveAtMs === undefined ? {} : { aliveAtMs }),
+    ...(lastLogAtMs === undefined ? {} : { lastLogAtMs }),
+    ...(lastLogLine === undefined ? {} : { lastLogLine }),
+    ...(processAgeMs === undefined ? {} : { processAgeMs }),
+  };
+}
+
+/** Age after which a running LaunchAgent without a Denoise check-in is stuck. */
+const STALE_HEARTBEAT_MS = 120_000;
+
+async function probeDenoiseStatus(): Promise<RunnerRemoteProbeResult> {
+  const credential = await loadRunnerCredential();
+  if (!credential) {
+    return { kind: "unreachable", error: "Runner is not paired." };
+  }
+  try {
+    const client = new RunnerApiClient({
+      apiUrl: credential.api_url,
+      credential: credential.credential,
+      requestTimeoutMs: 8_000,
+    });
+    const remote = await client.status();
+    return {
+      kind: "ok",
+      last_seen_at: remote.runner.last_seen_at,
+      state: remote.runner.state,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/invalid or expired runner credential/i.test(message)) {
+      return { kind: "rejected", error: message };
+    }
+    return { kind: "unreachable", error: message };
+  }
+}
+
+function checkinDoctorCheck(
+  remote: RunnerRemoteProbeResult,
+  nowMs: number,
+): RunnerDoctorCheck {
+  if (remote.kind === "rejected") {
+    return {
+      name: "checkin",
+      ok: false,
+      message:
+        "Denoise rejected this credential; pair again with dn runner connect <code> --install",
+    };
+  }
+  if (remote.kind === "unreachable") {
+    return {
+      name: "checkin",
+      ok: false,
+      message:
+        `Could not reach Denoise to confirm a heartbeat (${remote.error})`,
+    };
+  }
+  if (remote.state === "busy" || remote.state === "paused") {
+    return {
+      name: "checkin",
+      ok: true,
+      message: `Denoise lists this device as ${remote.state}`,
+    };
+  }
+  const then = Date.parse(remote.last_seen_at);
+  if (!Number.isFinite(then) || nowMs - then > STALE_HEARTBEAT_MS) {
+    return {
+      name: "checkin",
+      ok: false,
+      message:
+        "LaunchAgent is running but Denoise has not accepted a heartbeat recently. The serve loop is likely stuck. Run dn runner install. Pair again only if Denoise rejected the credential.",
+    };
+  }
+  return {
+    name: "checkin",
+    ok: true,
+    message: "Denoise accepted a recent heartbeat",
+  };
+}
+
 /** Runs actionable local readiness checks for the paired device runner. */
 export async function doctorRunner(
   probe?: RunnerCommandProbe,
@@ -294,6 +600,20 @@ export async function doctorRunner(
     : null;
   const credentialCurrent = safeCredential !== null &&
     Date.parse(safeCredential.expires_at) > Date.now();
+  const remote = safeCredential && credentialCurrent
+    ? await (options.probeRemote ?? probeDenoiseStatus)()
+    : null;
+  const pairingRejected = remote?.kind === "rejected";
+  const pairingOk = credentialCurrent && !pairingRejected;
+  const pairingMessage = !safeCredential
+    ? "Not paired; run dn runner connect <code>"
+    : pairingRejected
+    ? "Denoise rejected this credential; pair again with dn runner connect <code> --install"
+    : credentialCurrent
+    ? safeCredential.owner_id
+      ? `Paired as ${safeCredential.display_name} (Denoise owner ${safeCredential.owner_id})`
+      : `Paired as ${safeCredential.display_name} (Denoise owner not recorded; re-pair to record it)`
+    : "Runner credential expired; pair again or rotate it before expiration";
   const checks: RunnerDoctorCheck[] = [
     {
       name: "platform",
@@ -313,14 +633,8 @@ export async function doctorRunner(
     },
     {
       name: "pairing",
-      ok: credentialCurrent,
-      message: !safeCredential
-        ? "Not paired; run dn runner connect <code>"
-        : credentialCurrent
-        ? safeCredential.owner_id
-          ? `Paired as ${safeCredential.display_name} (Denoise owner ${safeCredential.owner_id})`
-          : `Paired as ${safeCredential.display_name} (Denoise owner not recorded; re-pair to record it)`
-        : "Runner credential expired; pair again or rotate it before expiration",
+      ok: pairingOk,
+      message: pairingMessage,
     },
     {
       name: "agent",
@@ -357,7 +671,20 @@ export async function doctorRunner(
           : "systemd" as const,
         path: "",
       };
-    checks.push(serviceDoctorCheck(service, options.expectedServiceCommand));
+    const activity = await (options.inspectServeLoop ??
+      (() => inspectRunnerServeLoopActivity(service.pid, commandProbe)))();
+    const hungReason = serveLoopHungReason({
+      nowMs: options.nowMs ?? Date.now(),
+      supervisor: service.supervisor,
+      pid: service.pid,
+      ...activity,
+    });
+    checks.push(
+      serviceDoctorCheck(service, options.expectedServiceCommand, hungReason),
+    );
+    if (service.running && remote && remote.kind !== "rejected") {
+      checks.push(checkinDoctorCheck(remote, options.nowMs ?? Date.now()));
+    }
   }
   return {
     ok: checks.every((check) => check.ok),

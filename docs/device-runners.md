@@ -118,10 +118,53 @@ dn runner stop
 dn runner serve
 ```
 
-Bring the user service back with `dn runner start`. After upgrading `dn` or
-changing `PATH`, run `dn runner install` so the unit file picks up the current
-binary and environment. Credential rejection exits 0 so launchd/systemd do not
-tight-loop; re-pair and install to come back online.
+Bring the user service back with `dn runner start`. Upgrading `dn` with
+`make install` or `brew upgrade` refreshes an already-installed user service to
+this binary. You do not run `dn runner install` after every upgrade. Credential
+rejection exits 0 so launchd/systemd do not tight-loop; re-pair and install to
+come back online.
+
+`dn runner doctor` asks Denoise whether it has a recent heartbeat, and it also
+checks that the LaunchAgent is still making serve-loop progress. A running PID
+is not enough. If doctor reports a hung or stale agent, recover with:
+
+```bash
+dn runner install
+```
+
+That rewrites the LaunchAgent to this `dn`, unloads the old job, kills a
+leftover PID if launchd left it, and starts a new serve loop. Pairing is
+unchanged. Re-pair only when doctor reports that Denoise rejected the
+credential. Refresh status in the browser does not contact the laptop.
+
+```mermaid
+flowchart LR
+  pair["Pair once with --install"] --> agent["LaunchAgent KeepAlive"]
+  agent --> beat["Heartbeat while logged in"]
+  upgrade["make install or brew upgrade"] --> post["install --if-present"]
+  post --> agent
+  hung["Doctor says hung"] --> recover["dn runner install"]
+  recover --> agent
+```
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant CLI as dn runner install
+  participant LD as launchd
+  participant Serve as dn runner serve
+  participant API as denoise.cloud
+
+  User->>CLI: dn runner install
+  CLI->>LD: rewrite plist to this dn
+  CLI->>LD: bootout gui/UID/cloud.denoise.runner
+  CLI->>LD: kill leftover PID if still alive
+  CLI->>LD: bootstrap new plist
+  LD->>Serve: exec this dn runner serve
+  Serve->>API: POST /heartbeat
+  API-->>Serve: last_seen_at = now
+  Note over User,API: Users never run launchctl. install does.
+```
 
 ## Dispatch kickstart
 
@@ -180,9 +223,11 @@ dn runner unregister owner/repo [--json]
 dn runner disconnect [--json]
 ```
 
-`install` writes and starts the user service. `start` bootstraps an existing
-unit, or installs one if it is missing. `stop` unloads the service and leaves
-the unit file in place so you can run a foreground `dn runner serve`.
+`install` is the user command that replaces a running LaunchAgent with this
+`dn`. It rewrites the unit file, unloads the old job by service label, kills a
+leftover PID if launchd left one, and starts a new serve loop. `start` does the
+same replace without rewriting the file. `stop` only unloads, so you can run a
+foreground `dn runner serve`. Users should not run `launchctl` directly.
 
 Pause prevents new claims without revoking the device. Rotate replaces the
 runner-scoped credential and invalidates the old value. Disconnect revokes the
@@ -193,6 +238,9 @@ Local runner state lives under `~/.dn/runner/`:
 
 - `credential.json` contains the expiring runner credential.
 - `config.json` maps repository slugs to local checkout paths.
+- `loop.alive` is written after each successful heartbeat, claim, or lease
+  renewal. `dn runner doctor` treats a running LaunchAgent whose stamp is stale
+  as a hung serve loop.
 - `runner.log` and `runner.error.log` contain launchd service output on macOS.
 
 Local Void task documents (task-sync) live under `~/.dn/tasks/<id>.json`,
@@ -299,7 +347,8 @@ after unsuccessful exits (`KeepAlive.SuccessfulExit=false`), and applies a 10s
 supervisor does not tight-loop.
 
 Unsupported protocol responses include the server's minimum required version.
-Upgrade `dn`, run `dn runner doctor`, and restart the user service.
+Upgrade `dn` (`make install` or `brew upgrade` refreshes the user service). If
+the device stays offline, run `dn runner doctor` and `dn runner install`.
 
 ## Advanced GitHub Actions alternative
 

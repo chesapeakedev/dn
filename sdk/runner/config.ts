@@ -45,6 +45,9 @@ export interface LocalRunnerConfig {
   repositories: Record<string, LocalRunnerRepository>;
 }
 
+/** Stamp file written when the serve loop completes heartbeat, claim, or lease work. */
+export const RUNNER_LOOP_ALIVE_FILE = "loop.alive";
+
 /** Resolved filesystem locations used by device-runner storage. */
 export interface RunnerConfigPaths {
   /** Private runner state directory. */
@@ -53,6 +56,8 @@ export interface RunnerConfigPaths {
   credential: string;
   /** Repository registration and pause-state file. */
   config: string;
+  /** Serve-loop liveness stamp used by `dn runner doctor`. */
+  alive: string;
 }
 
 function defaultRunnerHome(): string {
@@ -88,7 +93,18 @@ export function getRunnerConfigPaths(
     directory,
     credential: join(directory, "credential.json"),
     config: join(directory, "config.json"),
+    alive: join(directory, RUNNER_LOOP_ALIVE_FILE),
   };
+}
+
+/**
+ * Records that the serve loop made progress. Doctor treats a stale stamp plus a
+ * still-running LaunchAgent/systemd PID as a hung process.
+ */
+export async function recordRunnerLoopAlive(
+  paths: RunnerConfigPaths = getRunnerConfigPaths(),
+): Promise<void> {
+  await writePrivateJson(paths.alive, { at: new Date().toISOString() });
 }
 
 async function ensurePrivateDirectory(directory: string): Promise<void> {

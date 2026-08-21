@@ -10,10 +10,111 @@ import {
 import {
   doctorRunner,
   inspectRunnerRepository,
+  parsePsElapsedMs,
   repositorySlugFromRemote,
   type RunnerCommandProbe,
+  type RunnerRemoteProbeResult,
+  serveLogShowsActiveJob,
+  serveLoopHungReason,
 } from "./doctor.ts";
 import type { RunnerServiceStatus } from "./service.ts";
+
+Deno.test("parsePsElapsedMs accepts etimes seconds and etime clocks", () => {
+  assertEquals(parsePsElapsedMs("  42\n"), 42_000);
+  assertEquals(parsePsElapsedMs("03:04"), 184_000);
+  assertEquals(parsePsElapsedMs("01:02:03"), 3_723_000);
+  assertEquals(parsePsElapsedMs("1-02:03:04"), 93_784_000);
+});
+
+Deno.test("serveLogShowsActiveJob ignores completed jobs and idle lines", () => {
+  assertEquals(
+    serveLogShowsActiveJob(
+      "[2026-08-19T22:36:11.104Z] Starting job 9803710f in /tmp: dn kickstart",
+    ),
+    true,
+  );
+  assertEquals(
+    serveLogShowsActiveJob(
+      "[2026-08-19T22:36:12.561Z] Job 9803710f failed (1s): dn kickstart exited with code 137.",
+    ),
+    false,
+  );
+  assertEquals(
+    serveLogShowsActiveJob(
+      "[2026-08-20T01:53:26.385Z] Still waiting for jobs",
+    ),
+    false,
+  );
+});
+
+Deno.test("serveLoopHungReason detects a running PID with a stale alive stamp", () => {
+  const nowMs = Date.parse("2026-08-20T22:00:00.000Z");
+  assertEquals(
+    serveLoopHungReason({
+      nowMs,
+      supervisor: "launchd",
+      pid: 66056,
+      aliveAtMs: Date.parse("2026-08-19T22:00:00.000Z"),
+      processAgeMs: 86_400_000,
+    })?.includes("hung"),
+    true,
+  );
+  assertEquals(
+    serveLoopHungReason({
+      nowMs,
+      supervisor: "launchd",
+      pid: 66056,
+      aliveAtMs: nowMs - 30_000,
+      processAgeMs: 86_400_000,
+    }),
+    null,
+  );
+});
+
+Deno.test("serveLoopHungReason ignores leftover stamps while a new process is starting", () => {
+  const nowMs = Date.parse("2026-08-20T22:00:00.000Z");
+  assertEquals(
+    serveLoopHungReason({
+      nowMs,
+      supervisor: "launchd",
+      pid: 66056,
+      aliveAtMs: Date.parse("2026-08-19T22:00:00.000Z"),
+      processAgeMs: 5_000,
+    }),
+    null,
+  );
+});
+
+Deno.test("serveLoopHungReason does not treat a quiet in-progress job log as hung", () => {
+  const nowMs = Date.parse("2026-08-20T22:00:00.000Z");
+  assertEquals(
+    serveLoopHungReason({
+      nowMs,
+      supervisor: "launchd",
+      pid: 66056,
+      lastLogAtMs: nowMs - 30 * 60_000,
+      lastLogLine:
+        "[2026-08-20T21:30:00.000Z] Starting job abc in /tmp: dn kickstart",
+      processAgeMs: 86_400_000,
+    }),
+    null,
+  );
+});
+
+Deno.test("serveLoopHungReason treats a stale idle runner.log as hung on older builds", () => {
+  const nowMs = Date.parse("2026-08-20T22:00:00.000Z");
+  assertEquals(
+    serveLoopHungReason({
+      nowMs,
+      supervisor: "launchd",
+      pid: 66056,
+      lastLogAtMs: Date.parse("2026-08-19T22:00:00.000Z"),
+      lastLogLine: "[2026-08-19T22:00:00.000Z] Still waiting for jobs",
+      processAgeMs: 86_400_000,
+    })?.includes("hung"),
+    true,
+  );
+});
 
 Deno.test("repositorySlugFromRemote supports GitHub HTTPS and SSH remotes", () => {
   assertEquals(
@@ -111,6 +212,38 @@ function serviceCheck(
   return result.checks.find((check) => check.name === "service");
 }
 
+function checkinCheck(
+  result: { checks: { name: string; ok: boolean; message: string }[] },
+) {
+  return result.checks.find((check) => check.name === "checkin");
+}
+
+function pairingCheck(
+  result: { checks: { name: string; ok: boolean; message: string }[] },
+) {
+  return result.checks.find((check) => check.name === "pairing");
+}
+
+function recentRemote(
+  extras: Partial<Extract<RunnerRemoteProbeResult, { kind: "ok" }>> = {},
+): () => Promise<RunnerRemoteProbeResult> {
+  return () =>
+    Promise.resolve({
+      kind: "ok",
+      last_seen_at: extras.last_seen_at ?? new Date().toISOString(),
+      state: extras.state ?? "ready",
+    });
+}
+
+const runningService = {
+  installed: true,
+  running: true,
+  supervisor: "launchd" as const,
+  path: "/Users/alex/Library/LaunchAgents/cloud.denoise.runner.plist",
+  pid: 4242,
+  command: ["/usr/local/bin/dn", "runner", "serve"],
+};
+
 Deno.test({
   name: "doctorRunner omits the service check before pairing",
   ignore: Deno.build.os !== "darwin" && Deno.build.os !== "linux",
@@ -144,8 +277,10 @@ Deno.test({
             supervisor: "launchd",
             path: "/tmp/missing.plist",
           }),
+        probeRemote: recentRemote(),
       });
       assertEquals(serviceCheck(result)?.ok, false);
+      assertEquals(checkinCheck(result), undefined);
       assertEquals(result.ok, false);
     });
   },
@@ -168,6 +303,7 @@ Deno.test({
                 "/Users/alex/Library/LaunchAgents/cloud.denoise.runner.plist",
             } satisfies RunnerServiceStatus,
           ),
+        probeRemote: recentRemote(),
       });
       assertEquals(serviceCheck(result)?.ok, false);
       assertEquals(
@@ -185,16 +321,9 @@ Deno.test({
     await withRunnerHome(async (directory) => {
       await saveTestCredential(directory);
       const result = await doctorRunner(harnessProbe, {
-        inspectService: () =>
-          Promise.resolve({
-            installed: true,
-            running: true,
-            supervisor: "launchd",
-            path: "/Users/alex/Library/LaunchAgents/cloud.denoise.runner.plist",
-            pid: 4242,
-            command: ["/usr/local/bin/dn", "runner", "serve"],
-          }),
+        inspectService: () => Promise.resolve(runningService),
         expectedServiceCommand: ["/opt/other/dn", "runner", "serve"],
+        probeRemote: recentRemote(),
       });
       assertEquals(serviceCheck(result)?.ok, true);
       assertEquals(
@@ -205,6 +334,82 @@ Deno.test({
         serviceCheck(result)?.message.includes("dn runner install to refresh"),
         true,
       );
+      assertEquals(checkinCheck(result)?.ok, true);
+    });
+  },
+});
+
+Deno.test({
+  name:
+    "doctorRunner fails the service check when the LaunchAgent process is hung",
+  ignore: Deno.build.os !== "darwin" && Deno.build.os !== "linux",
+  async fn() {
+    await withRunnerHome(async (directory) => {
+      await saveTestCredential(directory);
+      const result = await doctorRunner(harnessProbe, {
+        inspectService: () => Promise.resolve(runningService),
+        inspectServeLoop: () =>
+          Promise.resolve({
+            aliveAtMs: Date.parse("2026-08-19T22:00:00.000Z"),
+            processAgeMs: 86_400_000,
+          }),
+        probeRemote: recentRemote(),
+        nowMs: Date.parse("2026-08-20T22:00:00.000Z"),
+      });
+      assertEquals(serviceCheck(result)?.ok, false);
+      assertEquals(serviceCheck(result)?.message.includes("hung"), true);
+      assertEquals(result.ok, false);
+    });
+  },
+});
+
+Deno.test({
+  name:
+    "doctorRunner fails checkin when Denoise last heard from a running loop hours ago",
+  ignore: Deno.build.os !== "darwin" && Deno.build.os !== "linux",
+  async fn() {
+    await withRunnerHome(async (directory) => {
+      await saveTestCredential(directory);
+      const result = await doctorRunner(harnessProbe, {
+        inspectService: () => Promise.resolve(runningService),
+        probeRemote: recentRemote({
+          last_seen_at: "2026-08-19T22:00:00.000Z",
+          state: "offline",
+        }),
+        nowMs: Date.parse("2026-08-20T22:00:00.000Z"),
+      });
+      assertEquals(serviceCheck(result)?.ok, true);
+      assertEquals(checkinCheck(result)?.ok, false);
+      assertEquals(
+        checkinCheck(result)?.message.includes("dn runner install"),
+        true,
+      );
+      assertEquals(result.ok, false);
+    });
+  },
+});
+
+Deno.test({
+  name: "doctorRunner fails pairing when Denoise rejects the credential",
+  ignore: Deno.build.os !== "darwin" && Deno.build.os !== "linux",
+  async fn() {
+    await withRunnerHome(async (directory) => {
+      await saveTestCredential(directory);
+      const result = await doctorRunner(harnessProbe, {
+        inspectService: () => Promise.resolve(runningService),
+        probeRemote: () =>
+          Promise.resolve({
+            kind: "rejected",
+            error: "Invalid or expired runner credential",
+          }),
+      });
+      assertEquals(pairingCheck(result)?.ok, false);
+      assertEquals(
+        pairingCheck(result)?.message.includes("pair again"),
+        true,
+      );
+      assertEquals(checkinCheck(result), undefined);
+      assertEquals(result.ok, false);
     });
   },
 });

@@ -6,11 +6,16 @@ import {
   generateLaunchdService,
   generateSystemdService,
   inspectRunnerService,
+  LAUNCHCTL_EINPROGRESS,
+  launchdServiceTarget,
   parseLaunchctlPrint,
   parseLaunchdProgramArguments,
   parseSystemdExecStart,
   parseSystemdShow,
+  refreshRunnerServiceIfPresent,
+  replaceLaunchdService,
   type RunnerServiceCommandProbe,
+  type RunnerServiceCommandResult,
   runnerServiceCommandsEqual,
 } from "./service.ts";
 
@@ -51,6 +56,10 @@ Deno.test("generateSystemdService creates a non-root user service", () => {
   assertStringIncludes(service.content, 'Environment="HOME=/home/alex"');
   assertStringIncludes(service.content, 'Environment="PATH=');
   assertStringIncludes(service.content, "Restart=on-failure");
+});
+
+Deno.test("launchdServiceTarget is the bootout service-target", () => {
+  assertEquals(launchdServiceTarget(501), "gui/501/cloud.denoise.runner");
 });
 
 Deno.test("parseLaunchctlPrint reads running state and pid", () => {
@@ -213,5 +222,157 @@ Deno.test("parseLaunchdProgramArguments and systemd ExecStart round-trip generat
       ["/opt/dn", "runner", "serve"],
     ),
     false,
+  );
+});
+
+function launchdPrintResult(pid: number): RunnerServiceCommandResult {
+  return {
+    success: true,
+    stdout: `\tstate = running\n\tpid = ${pid}\n`,
+    stderr: "",
+    code: 0,
+  };
+}
+
+function launchctlOk(): RunnerServiceCommandResult {
+  return { success: true, stdout: "", stderr: "", code: 0 };
+}
+
+function recordingLaunchdProbe(options: {
+  definition: ReturnType<typeof generateLaunchdService>;
+  prints: number[];
+  bootoutCodes?: number[];
+}): { probe: RunnerServiceCommandProbe; calls: string[][] } {
+  const calls: string[][] = [];
+  let printIndex = 0;
+  let bootoutIndex = 0;
+  const bootoutCodes = options.bootoutCodes ?? [0];
+  const probe: RunnerServiceCommandProbe = {
+    run(command, args) {
+      assertEquals(command, "launchctl");
+      calls.push([...args]);
+      const [verb] = args;
+      if (verb === "print") {
+        const pid = options.prints[
+          Math.min(printIndex, options.prints.length - 1)
+        ];
+        printIndex += 1;
+        return Promise.resolve(launchdPrintResult(pid));
+      }
+      if (verb === "bootout") {
+        const code = bootoutCodes[
+          Math.min(bootoutIndex, bootoutCodes.length - 1)
+        ];
+        bootoutIndex += 1;
+        return Promise.resolve({
+          success: code === 0,
+          stdout: "",
+          stderr: code === LAUNCHCTL_EINPROGRESS ? "in progress" : "",
+          code,
+        });
+      }
+      if (verb === "enable" || verb === "bootstrap" || verb === "kickstart") {
+        return Promise.resolve(launchctlOk());
+      }
+      throw new Error(`unexpected launchctl ${args.join(" ")}`);
+    },
+    exists() {
+      return Promise.resolve(true);
+    },
+    readText() {
+      return Promise.resolve(options.definition.content);
+    },
+    processExists() {
+      return Promise.resolve(false);
+    },
+    killProcess() {
+      return Promise.resolve();
+    },
+  };
+  return { probe, calls };
+}
+
+Deno.test("refreshRunnerServiceIfPresent no-ops when the unit file is missing", async () => {
+  const definition = generateLaunchdService(
+    ["/usr/local/bin/dn", "runner", "serve"],
+    "/Users/alex",
+  );
+  let ran = false;
+  const probe: RunnerServiceCommandProbe = {
+    run() {
+      ran = true;
+      return Promise.resolve(launchctlOk());
+    },
+    exists() {
+      return Promise.resolve(false);
+    },
+    readText() {
+      return Promise.reject(new Deno.errors.NotFound("missing"));
+    },
+  };
+  assertEquals(
+    await refreshRunnerServiceIfPresent(definition, {
+      probe,
+      uid: 501,
+      sleep: () => Promise.resolve(),
+    }),
+    { refreshed: false },
+  );
+  assertEquals(ran, false);
+});
+
+Deno.test("replaceLaunchdService retries EINPROGRESS bootout then enable and bootstrap", async () => {
+  const definition = generateLaunchdService(
+    ["/usr/local/bin/dn", "runner", "serve"],
+    "/Users/alex",
+  );
+  const { probe, calls } = recordingLaunchdProbe({
+    definition,
+    prints: [111, 222],
+    bootoutCodes: [
+      LAUNCHCTL_EINPROGRESS,
+      LAUNCHCTL_EINPROGRESS,
+      0,
+    ],
+  });
+  await replaceLaunchdService(definition, {
+    probe,
+    uid: 501,
+    sleep: () => Promise.resolve(),
+  });
+  assertEquals(calls.filter((args) => args[0] === "bootout").length, 3);
+  const verbs = calls.map((args) => args[0]);
+  const enableAt = verbs.indexOf("enable");
+  const bootstrapAt = verbs.indexOf("bootstrap");
+  assertEquals(enableAt >= 0 && bootstrapAt > enableAt, true);
+  assertEquals(calls[enableAt], ["enable", "gui/501/cloud.denoise.runner"]);
+  assertEquals(calls[bootstrapAt], [
+    "bootstrap",
+    "gui/501",
+    definition.path,
+  ]);
+  assertEquals(verbs.includes("kickstart"), false);
+});
+
+Deno.test("replaceLaunchdService kickstarts when the PID does not change after bootstrap", async () => {
+  const definition = generateLaunchdService(
+    ["/usr/local/bin/dn", "runner", "serve"],
+    "/Users/alex",
+  );
+  const { probe, calls } = recordingLaunchdProbe({
+    definition,
+    prints: [111, 111, 222],
+  });
+  await replaceLaunchdService(definition, {
+    probe,
+    uid: 501,
+    sleep: () => Promise.resolve(),
+  });
+  assertEquals(
+    calls.some((args) =>
+      args[0] === "kickstart" && args[1] === "-k" &&
+      args[2] === "gui/501/cloud.denoise.runner"
+    ),
+    true,
   );
 });

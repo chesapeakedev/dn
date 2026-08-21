@@ -208,6 +208,10 @@ class Dn < Formula
     bin.install binary => "dn"
   end
 
+  def post_install
+    system "#{opt_bin}/dn", "runner", "install", "--if-present"
+  end
+
   test do
     assert_match version.to_s, shell_output("#{bin}/dn --version")
     assert_match "kickstart", shell_output("#{bin}/dn --help 2>&1")

@@ -53,7 +53,7 @@ sync:
 	deno run --allow-all $(CURDIR)/cli/main.ts sync
 
 # compile & install dn locally for the current user
-TARGET_DIR=~/.local/bin
+TARGET_DIR := $(HOME)/.local/bin
 compile: ; @bash ./compile_dn.sh
 install: compile
 	@mkdir -p $(TARGET_DIR)
@@ -64,6 +64,7 @@ install: compile
 	    codesign --sign - --force --identifier cloud.denoise.dn "$$tmp"; \
 	  fi && \
 	  mv -f "$$tmp" "$(TARGET_DIR)/dn"
+	@"$(TARGET_DIR)/dn" runner install --if-present
 	@echo "✅ Installed dn to $(TARGET_DIR)/dn"
 
 # Run kickstart using deno run (for GitHub Actions)

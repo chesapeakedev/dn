@@ -24,6 +24,9 @@ import type {
 /** Production Denoise API used unless `--api-url` overrides it. */
 export const DEFAULT_DENOISE_API_URL = "https://denoise.cloud";
 
+/** Default bound for one runner HTTPS call, including heartbeat and status. */
+export const DEFAULT_RUNNER_REQUEST_TIMEOUT_MS = 15_000;
+
 /** Device metadata submitted before a runner credential exists. */
 export interface RunnerPairingDevice {
   /** Owner-facing name suggested by the CLI. */
@@ -50,6 +53,11 @@ export interface RunnerApiClientOptions {
   credential?: string;
   /** Optional fetch implementation for embedding and tests. */
   fetch?: typeof fetch;
+  /**
+   * Bound for one HTTPS call. Claim waits `wait_seconds` plus this grace
+   * period so a hung Cloudflare/IPv6 reset cannot stall the serve loop.
+   */
+  requestTimeoutMs?: number;
 }
 
 interface ApiErrorBody {
@@ -68,6 +76,7 @@ export class RunnerApiClient {
   readonly #baseUrl: URL;
   readonly #credential?: string;
   readonly #fetch: typeof fetch;
+  readonly #requestTimeoutMs: number;
 
   /** Creates a client for one Denoise origin and optional paired runner. */
   constructor(options: RunnerApiClientOptions) {
@@ -90,13 +99,19 @@ export class RunnerApiClient {
     }
     this.#credential = options.credential;
     this.#fetch = options.fetch ?? fetch;
+    this.#requestTimeoutMs = options.requestTimeoutMs ??
+      DEFAULT_RUNNER_REQUEST_TIMEOUT_MS;
   }
 
   async #request<T>(
     method: string,
     path: string,
     body?: unknown,
-    options: { authenticated?: boolean; signal?: AbortSignal } = {},
+    options: {
+      authenticated?: boolean;
+      signal?: AbortSignal;
+      timeoutMs?: number;
+    } = {},
   ): Promise<T> {
     const authenticated = options.authenticated ?? true;
     if (authenticated && !this.#credential) {
@@ -107,12 +122,32 @@ export class RunnerApiClient {
     if (authenticated) {
       headers.set("Authorization", `Bearer ${this.#credential}`);
     }
-    const response = await this.#fetch(new URL(path, this.#baseUrl), {
-      method,
-      headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
-      signal: options.signal,
-    });
+    const timeoutMs = options.timeoutMs ?? this.#requestTimeoutMs;
+    const timeoutController = new AbortController();
+    const timer = setTimeout(() => timeoutController.abort(), timeoutMs);
+    try {
+      const signal = options.signal
+        ? AbortSignal.any([timeoutController.signal, options.signal])
+        : timeoutController.signal;
+      const response = await this.#fetch(new URL(path, this.#baseUrl), {
+        method,
+        headers,
+        body: body === undefined ? undefined : JSON.stringify(body),
+        signal,
+      });
+      return await this.#parseResponse<T>(response);
+    } catch (error) {
+      if (options.signal?.aborted) throw error;
+      if (timeoutController.signal.aborted) {
+        throw new Error("Denoise runner API request timed out");
+      }
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async #parseResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
       let details: ApiErrorBody = {};
       try {
@@ -184,7 +219,10 @@ export class RunnerApiClient {
       "POST",
       "/api/runners/jobs/claim",
       { wait_seconds: waitSeconds },
-      { signal },
+      {
+        signal,
+        timeoutMs: waitSeconds * 1000 + this.#requestTimeoutMs,
+      },
     );
   }
 

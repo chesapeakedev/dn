@@ -6,6 +6,7 @@ import {
   getRunnerConfigPaths,
   loadRunnerConfig,
   loadRunnerCredential,
+  recordRunnerLoopAlive,
   registerRunnerRepository,
   RUNNER_CONFIG_SCHEMA_VERSION,
   saveRunnerCredential,
@@ -39,6 +40,9 @@ Deno.test("runner credential and config files use user-only permissions", async 
       assertEquals((await Deno.stat(paths.credential)).mode! & 0o777, 0o600);
       assertEquals((await Deno.stat(paths.directory)).mode! & 0o777, 0o700);
     }
+    assertEquals(paths.alive.endsWith("loop.alive"), true);
+    await recordRunnerLoopAlive(paths);
+    assertEquals((await Deno.stat(paths.alive)).isFile, true);
 
     const checkout = await Deno.makeTempDir({ prefix: "dn-runner-repo-" });
     try {

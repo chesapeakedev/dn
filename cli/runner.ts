@@ -26,6 +26,7 @@ import {
   generateRunnerService,
   inspectRunnerService,
   installRunnerService,
+  refreshRunnerServiceIfPresent,
   RUNNER_SERVICE_LABEL,
   startRunnerService,
   stopRunnerService,
@@ -45,6 +46,10 @@ import { parsePublishMode } from "../sdk/github/publish.ts";
 
 interface CommonRunnerOptions {
   json: boolean;
+}
+
+interface InstallRunnerOptions extends CommonRunnerOptions {
+  ifPresent: boolean;
 }
 
 function showRunnerHelp(): void {
@@ -86,6 +91,19 @@ function parseCommonOptions(args: string[]): CommonRunnerOptions {
     throw new Error(`Unexpected argument: ${unknown[0]}`);
   }
   return { json: args.includes("--json") };
+}
+
+function parseInstallOptions(args: string[]): InstallRunnerOptions {
+  const unknown = args.filter((argument) =>
+    argument !== "--json" && argument !== "--if-present"
+  );
+  if (unknown.length > 0) {
+    throw new Error(`Unexpected argument: ${unknown[0]}`);
+  }
+  return {
+    json: args.includes("--json"),
+    ifPresent: args.includes("--if-present"),
+  };
 }
 
 function homeDirectory(): string {
@@ -692,15 +710,64 @@ async function stopCurrentRunnerServiceBestEffort(): Promise<void> {
   await stopRunnerService(currentRunnerServiceDefinition());
 }
 
+function printInstallResult(
+  json: boolean,
+  status: Awaited<ReturnType<typeof currentRunnerServiceStatus>>,
+): void {
+  if (json) {
+    console.log(JSON.stringify({
+      installed: true,
+      ...(status.pid !== undefined ? { pid: status.pid } : {}),
+    }));
+    return;
+  }
+  if (status.pid !== undefined) {
+    console.log(`Denoise runner user service installed (pid ${status.pid}).`);
+    return;
+  }
+  console.log("Denoise runner user service installed and started.");
+}
+
 async function handleInstall(args: string[]): Promise<void> {
-  const { json } = parseCommonOptions(args);
+  const { json, ifPresent } = parseInstallOptions(args);
   if (Deno.uid() === 0) {
     throw new Error("Device runners must run as a logged-in non-root user.");
   }
+  if (ifPresent) {
+    try {
+      const { refreshed } = await refreshRunnerServiceIfPresent(
+        currentRunnerServiceDefinition(),
+      );
+      if (!refreshed) {
+        if (json) {
+          console.log(JSON.stringify({ installed: false, skipped: true }));
+        }
+        return;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (json) {
+        console.log(JSON.stringify({
+          installed: false,
+          skipped: false,
+          warning: message,
+        }));
+        return;
+      }
+      console.error(
+        `Could not refresh the Denoise runner user service: ${message}`,
+      );
+      console.error(
+        "Run dn runner install from a logged-in session if this device is paired.",
+      );
+      return;
+    }
+    printInstallResult(json, await currentRunnerServiceStatus());
+    return;
+  }
   await authenticatedClient();
   await installCurrentRunnerService();
-  if (json) console.log(JSON.stringify({ installed: true }));
-  else console.log("Denoise runner user service installed and started.");
+  printInstallResult(json, await currentRunnerServiceStatus());
 }
 
 async function handleStart(args: string[]): Promise<void> {
