@@ -12,6 +12,7 @@ import {
   writeIssueContext,
 } from "../github/issue.ts";
 import { getCurrentRepoFromRemote, updateIssue } from "../github/github-gql.ts";
+import { reviewTextInEditor } from "../github/editor.ts";
 import type { AgentHarness } from "../github/agentHarness.ts";
 import { formatAgentHarnessName, getRunAgent } from "../github/agentHarness.ts";
 import { readIncludedSystemPrompt } from "../../kickstart/includedPrompt.ts";
@@ -206,8 +207,9 @@ export async function runIssueTestPlan(
     }
 
     const updatedBody = upsertTestPlanSection(sourceContent, section);
+    const reviewedBody = await reviewTextInEditor({ content: updatedBody });
     await updateIssue(issue.owner, issue.repo, issue.number, {
-      body: updatedBody,
+      body: reviewedBody,
     });
     return { section, issueUrl, updated: true };
   } finally {

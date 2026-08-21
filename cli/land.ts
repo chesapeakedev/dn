@@ -134,6 +134,9 @@ function showHelp(): void {
     "  --issue-testplan  Upsert ## Test Plan onto the linked GitHub issue before commit",
   );
   console.log(
+    "               Attended runs with EDITOR set review the upserted body before posting",
+  );
+  console.log(
     "  --test-plan <path>  Optional local test plan file for commit-agent context",
   );
   console.log(

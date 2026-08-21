@@ -139,7 +139,10 @@ export EDITOR=nvim
 dn kickstart 123
 ```
 
-Plan review is skipped for unattended, CI, and non-TTY runs.
+Plan review is skipped for unattended, CI, and non-TTY runs. The same `$EDITOR`
+gate reviews agent-generated GitHub bodies from `dn meld` (`github:issue:`,
+`github:comment:`, `--update-issue`) and `dn land --issue-testplan` before they
+are posted.
 
 See the
 [`dn kickstart` command reference](docs/subcommands.md#dn-kickstart--full-workflow)

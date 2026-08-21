@@ -37,6 +37,7 @@ import {
 } from "../sdk/github/progress.ts";
 import type { PublishMode } from "../sdk/github/publish.ts";
 import { isUnattended } from "../sdk/github/output.ts";
+import { reviewTextInEditor } from "../sdk/github/editor.ts";
 import { augmentOpenCodePlanEditPermission } from "../sdk/github/opencode.ts";
 import {
   confirmCreateFile,
@@ -1095,7 +1096,10 @@ export async function runMeldPhase(
     if (
       stagingRelGithub && parsedTarget.kind === "github-issue"
     ) {
-      const draftedBody = (await Deno.readTextFile(outputAbsolute)).trim();
+      const draftedBody = (await reviewTextInEditor({
+        content: await Deno.readTextFile(outputAbsolute),
+        path: outputAbsolute,
+      })).trim();
       assertNonEmptyGithubBody(parsedTarget.kind, draftedBody);
       if (!ghIssuePayload) {
         throw new Error(
@@ -1117,7 +1121,10 @@ export async function runMeldPhase(
     } else if (
       stagingRelGithub && parsedTarget.kind === "github-comment"
     ) {
-      const commentBody = (await Deno.readTextFile(outputAbsolute)).trim();
+      const commentBody = (await reviewTextInEditor({
+        content: await Deno.readTextFile(outputAbsolute),
+        path: outputAbsolute,
+      })).trim();
       assertNonEmptyGithubBody(parsedTarget.kind, commentBody);
       if (!ghIssuePayload) {
         throw new Error(
@@ -2126,9 +2133,11 @@ export async function fillEmptyIssueSections(
         };
       }
 
+      const reviewedBody = await reviewTextInEditor({ content: updatedBody });
+
       console.log(formatStep(5, "Updating issue on GitHub..."));
       await updateIssue(issueData.owner, issueData.repo, issueData.number, {
-        body: updatedBody,
+        body: reviewedBody,
       });
 
       console.log(
@@ -2139,7 +2148,7 @@ export async function fillEmptyIssueSections(
 
       return {
         updated: true,
-        body: updatedBody,
+        body: reviewedBody,
         filledSections,
         skippedSections: nonEmptySections.map((s) => s.header),
       };

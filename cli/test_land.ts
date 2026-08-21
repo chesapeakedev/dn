@@ -27,6 +27,7 @@ Deno.test("land command shows help", async () => {
     assert(result.stdout.includes("--single"));
     assert(result.stdout.includes("--dry-run"));
     assert(result.stdout.includes("--issue-testplan"));
+    assert(result.stdout.includes("EDITOR"));
     assert(result.stdout.includes("--test-plan"));
     assert(result.success);
   } finally {

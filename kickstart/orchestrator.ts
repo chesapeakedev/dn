@@ -34,7 +34,7 @@ import {
   type ProgressReporter,
 } from "../sdk/github/progress.ts";
 import { createCursorRule } from "./artifacts.ts";
-import { reviewPlanInEditor } from "./editor.ts";
+import { reviewInEditor as reviewPlanInEditor } from "../sdk/github/editor.ts";
 import { formatSummary } from "../sdk/archive/format.ts";
 import {
   checkAcceptanceCriteriaCompletion,

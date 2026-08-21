@@ -359,7 +359,7 @@ function showHelp(): void {
   );
   console.log("  SAVE_CTX                 Set to '1' to preserve debug files");
   console.log(
-    "  EDITOR                   Open the generated plan for review in attended runs (e.g. 'code --wait' or vim)",
+    "  EDITOR                   Open agent-generated drafts for review in attended runs (kickstart plans; e.g. 'code --wait' or vim)",
   );
   console.log(
     "  CURSOR_ENABLED           Set to '1' to use Cursor agent",

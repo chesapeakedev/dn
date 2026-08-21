@@ -219,6 +219,9 @@ function showHelp(): void {
     "  --update-issue           Fill empty issue-template sections",
   );
   console.log(
+    "               Attended runs with EDITOR set review the assembled body before posting",
+  );
+  console.log(
     "  --fill-template          Alias for --update-issue",
   );
   console.log("  --target <path-or-github> Output file or GitHub specifier");
@@ -227,6 +230,9 @@ function showHelp(): void {
   );
   console.log(
     "    plus `github:issue:<ref>` or `github:comment:<ref>` for the checked-out repo.",
+  );
+  console.log(
+    "               Attended runs with EDITOR set review agent GitHub drafts before posting.",
   );
   console.log(
     "  --overwrite             Replace targets instead of merge-style edits",

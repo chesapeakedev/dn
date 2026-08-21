@@ -31,6 +31,7 @@ Deno.test("meld command shows help", async () => {
     assert(result.stdout.includes("--dry-run"));
     assert(result.stdout.includes("--milestone"));
     assert(result.stdout.includes("--update-issue"));
+    assert(result.stdout.includes("EDITOR"));
     assert(result.stdout.includes("--copilot"));
     assert(result.success);
   } finally {

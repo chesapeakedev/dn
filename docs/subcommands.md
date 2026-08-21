@@ -398,7 +398,9 @@ implementation phase. The editor command may include arguments, such as
 `EDITOR="code --wait"`. Vim and Neovim wait by default; Hunk can be used for a
 read-only review with `EDITOR="hunk diff --"`. Plan review is skipped in
 unattended, CI, and non-TTY runs. If `EDITOR` is unset, kickstart continues
-directly to implementation.
+directly to implementation. The same `$EDITOR` gate reviews agent-generated
+GitHub bodies from `dn meld` (`github:issue:`, `github:comment:`,
+`--update-issue`) and `dn land --issue-testplan` before they are posted.
 
 On `--once` / `--complete` success, the stack item is marked done and the GitHub
 issue is closed (same automation path as before). `--complete` then advances to
@@ -1164,6 +1166,12 @@ paths, `github:issue:<ref>`, and `github:comment:<ref>`. Existing document
 targets use merge-style edits unless `--overwrite` is set. Use `--dry-run` to
 resolve context and output paths without invoking an agent or changing GitHub.
 
+When the target is a GitHub issue or comment, attended runs with `EDITOR` set
+open the agent draft for review before posting. Closing the editor with exit 0
+posts the (possibly edited) text; a non-zero exit aborts. Unattended, CI,
+non-TTY, and unset-`EDITOR` runs post the draft without opening an editor.
+Caller-supplied `--body-file` on `dn issue` is not part of this gate.
+
 ### Milestone descriptions
 
 Generate a user-value-focused description from all open issues in a GitHub
@@ -1187,7 +1195,9 @@ dn meld --update-issue 123
 dn meld --update-issue --dry-run 123
 ```
 
-`--fill-template` remains an alias for `--update-issue`.
+`--fill-template` remains an alias for `--update-issue`. Attended runs with
+`EDITOR` set open the assembled issue body for review before updating GitHub.
+`--dry-run` previews without opening the editor or posting.
 
 ### Migrating from `prep`
 
@@ -1322,7 +1332,9 @@ dn land --issue-testplan plans/issue-123.plan.md
 ```
 
 The generated checklist targets 5–10 bullets (capped at 12). It is not a second
-implementation plan.
+implementation plan. Attended runs with `EDITOR` set open the upserted issue
+body for review before updating GitHub. `--dry-run` generates the section
+without opening the editor or posting.
 
 Use `--single` for one deterministic commit (**no agent**). It derives the
 commit message from the plan and commits the whole workspace:
