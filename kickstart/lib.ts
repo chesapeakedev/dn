@@ -63,7 +63,6 @@ import {
   checkMeldMarkdownOutput,
   type MeldNonPlanMarkdownKind,
 } from "../sdk/meld/validate.ts";
-import { createCursorRule } from "./artifacts.ts";
 import {
   clearImplementResult,
   type ImplementPhaseResult,
@@ -1610,26 +1609,7 @@ export async function runLoopPhase(
       });
     }
 
-    // Step 6: Generate artifacts (only announce when there is work)
-    try {
-      if (config.agentHarness === "cursor") {
-        console.log(formatStep(6, "Generating workspace artifacts..."));
-        await createCursorRule(workspaceRoot);
-        console.log(
-          formatSuccess(
-            "Created .cursor/rules/kickstart.mdc for subagent integration",
-          ),
-        );
-      }
-    } catch (error) {
-      console.warn(
-        formatWarning(
-          `Artifact generation encountered an error (non-blocking): ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        ),
-      );
-    }
+    // Step 6: Workspace artifacts (Cursor uses `dn init agents --skill --agent cursor`)
 
     // Step 7: Validate changes
     console.log(formatStep(7, "Validating changes..."));

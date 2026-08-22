@@ -423,3 +423,88 @@ Deno.test("resolveDnConfig merges repository ensure over user ensure", async () 
     await Deno.remove(root, { recursive: true });
   }
 });
+
+Deno.test("parseDnConfig accepts harness_hints", () => {
+  const parsed = parseDnConfig(
+    JSON.stringify({
+      schema_version: "2.0",
+      harness_hints: {
+        vcs: "Sapling (`sl`).",
+        close_out: "Use dn land.",
+      },
+    }),
+    "test",
+  );
+  assertEquals(parsed.harness_hints, {
+    vcs: "Sapling (`sl`).",
+    close_out: "Use dn land.",
+  });
+});
+
+Deno.test("parseDnConfig rejects malformed harness_hints", () => {
+  assertThrows(
+    () => parseDnConfig('{"harness_hints":[]}', "test"),
+    Error,
+    "harness_hints must be an object",
+  );
+  assertThrows(
+    () => parseDnConfig('{"harness_hints":{"vcs":1}}', "test"),
+    Error,
+    'harness_hints["vcs"] must be a non-empty string',
+  );
+  assertThrows(
+    () => parseDnConfig('{"harness_hints":{"vcs":"   "}}', "test"),
+    Error,
+    'harness_hints["vcs"] must be a non-empty string',
+  );
+});
+
+Deno.test("resolveDnConfig merges repository harness_hints over user hints", async () => {
+  const root = await Deno.makeTempDir({ prefix: "dn-config-hints-" });
+  const user = `${root}/user.json`;
+  try {
+    await Deno.writeTextFile(
+      user,
+      JSON.stringify({
+        schema_version: "2.0",
+        harness_hints: {
+          vcs: "git",
+          extra: "user only",
+        },
+      }),
+    );
+    await Deno.writeTextFile(
+      `${root}/dn.json`,
+      JSON.stringify({
+        schema_version: "2.0",
+        harness_hints: {
+          vcs: "sapling",
+        },
+      }),
+    );
+    const config = await resolveDnConfig({
+      repoRoot: root,
+      userConfigPath: user,
+      repositorySlug: "test/repo",
+      env: {},
+    });
+    assertEquals(config.harness_hints, {
+      vcs: "sapling",
+      extra: "user only",
+    });
+    assertEquals(config.sources.harness_hints, "repository");
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("this repository dn.json parses harness_hints", async () => {
+  const parsed = parseDnConfig(
+    await Deno.readTextFile(
+      join(import.meta.dirname!, "../../dn.json"),
+    ),
+    "dn.json",
+  );
+  assertEquals(typeof parsed.harness_hints?.vcs, "string");
+  assertEquals(typeof parsed.harness_hints?.close_out, "string");
+});

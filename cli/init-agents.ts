@@ -22,7 +22,6 @@ interface InstallableSkill {
   name: SkillName;
   skillMarkdown: string;
   openAiMetadata: string;
-  cursorRule: string;
 }
 
 interface SkillTarget {
@@ -49,7 +48,7 @@ const YAML_MANAGED_MARKER = `# ${GENERATED_MARKER}.`;
 
 const DN_SKILL_CONTENT = `---
 name: dn
-description: Use when interacting with the dn CLI for GitHub issues, kickstart workflows, VCS sync, project velocity, and agent-backed plan execution.
+description: Use when interacting with the dn CLI for GitHub issues, kickstart, meld, loop, land, VCS sync, and plan-backed execution. Outer IDE harnesses implement with the CLI, then ask before committing.
 ---
 
 ${MARKDOWN_MANAGED_MARKER}
@@ -66,6 +65,79 @@ coordinating changes.
 \`\`\`bash
 dn                    # list subcommands
 dn <subcommand> -h    # help for a specific subcommand
+\`\`\`
+
+## Project config (\`dn.json\`)
+
+At the start of a session, read repository \`dn.json\` (workspace root, or walk
+up). If \`harness_hints\` is present, apply it: a map of string keys to string
+values with project-specific operator notes. Keys are freeform. Honor those
+notes for this checkout. Do not put secrets in \`harness_hints\`.
+
+## Repeatable flows
+
+Default publish mode is local (\`none\`). Do not use \`--awp\` / \`--publish pr\`
+unless the user asked for a pull request. Do not stack another kickstart on
+uncommitted kickstart work.
+
+When you are an **outer IDE harness**, implement with the CLI, then **ask**
+whether to commit. If the user says yes, you write the commit with the repo
+VCS and omit \`*.plan.md\`. Do not auto-run \`dn land\`.
+
+\`dn land\` is for attended CLI, CI, denoise/device-runners, \`--issue-testplan\`,
+RFC land, or when the user names \`dn land\`. \`dn sync\` publishes to trunk; it
+is not a commit step.
+
+### kickstart
+
+The common prompt is \`{github issue url} can you kickstart this?\` Resolve argv.
+Do not quiz the user for flags the CLI already defaults.
+
+1. Pass the **full issue URL** as the positional argument (not a bare number).
+2. Compare the URL's \`owner/repo\` to this workspace
+   (\`gh repo view --json nameWithOwner -q .nameWithOwner\`). If they differ,
+   pass \`--allow-cross-repo\` (\`-A\`). Do not ask. Mention it in the summary. If
+   you cannot detect the workspace repo, pass \`-A\` for a full URL anyway.
+3. Extra guidance in the user message besides the URL → \`--steer "…"\`.
+4. Named or attached files → \`--context-file\` (repeatable).
+5. Leave the rest at CLI defaults unless the user asked:
+   - publish \`none\` (no \`--awp\` / \`--publish pr\`)
+   - nested agent from project config / \`DN_AGENT\` (no \`--agent cursor\`)
+   - no \`--cursor-cloud\`, \`--sandbox\`, \`--milestone\`, \`--complete\`, \`--once\`,
+     \`--skip-plan\`, \`--verbosity\`, \`--workspace-root\`, \`--denoise-task\`
+6. \`/pull/\` URL → \`dn fixup\`, not kickstart. Local \`.md\` → kickstart that file.
+7. If \`plans/*.plan.md\` exists and the tree is dirty, stop and ask before
+   stacking another kickstart.
+
+\`\`\`bash
+dn kickstart https://github.com/owner/repo/issues/123
+dn kickstart --allow-cross-repo https://github.com/other/repo/issues/123
+dn kickstart --steer "Focus on the parser" https://github.com/owner/repo/issues/123
+# then ask: commit now?
+\`\`\`
+
+### meld → loop
+
+\`\`\`bash
+dn meld <issue-url-or-number>
+dn loop plans/task.plan.md
+# then ask: commit now?
+\`\`\`
+
+After \`dn fixup\`, ask before committing (same as kickstart).
+
+## Common commands
+
+\`\`\`bash
+dn kickstart <issue-url-or-number>         # Full plan + implement workflow
+dn meld <issue-url-or-number>              # Plan phase
+dn loop plans/task.plan.md                 # Implement from an existing plan
+dn land [plans/task.plan.md]               # Close out into VCS commits
+dn land --single plans/task.plan.md        # One deterministic commit, no agent
+dn fixup <pull-request-url>                # Address PR review feedback
+dn meld a.md b.md --plan-name merged       # Plan from combined sources
+dn init stack 42                           # Create a milestone task stack
+dn sync                                    # Rebase onto trunk and publish
 \`\`\`
 
 ## Global Flags
@@ -103,18 +175,6 @@ dn <subcommand> -h    # help for a specific subcommand
 - \`PR_URL\` - PR URL for \`fixup\`
 - \`PLAN\` - path to plan file for \`loop\`
 
-## Common workflows
-
-\`\`\`bash
-dn kickstart <issue-url-or-number>         # Full plan + implement workflow
-dn meld <issue-url-or-number>              # Plan phase
-dn loop plans/task.plan.md                 # Implement from an existing plan
-dn fixup <pull-request-url>                # Address PR review feedback
-dn meld a.md b.md --plan-name merged       # Plan from combined sources
-dn init stack 42                           # Create a milestone task stack
-dn sync                                    # Git/Sapling rebase onto trunk and publish
-\`\`\`
-
 ## RFCs and design context
 
 Before large design work or multi-issue architecture changes, check whether this
@@ -141,40 +201,29 @@ name: dn
 description: Use dn for GitHub issues, kickstart workflows, plan files, VCS sync, and project velocity workflows.
 `;
 
-const DN_CURSOR_RULE_CONTENT = `---
-description: Use dn for GitHub issues, kickstart workflows, plan files, VCS sync, and project velocity workflows.
-globs:
-  - "**/*"
-alwaysApply: false
----
+const CURSOR_IDE_SECTION = `
+## Cursor IDE
 
-${MARKDOWN_MANAGED_MARKER}
+You are the outer harness. Kickstart is a CLI command, not a Cursor
+Task/subagent.
 
-# dn
-
-Use \`dn\` as the primary interface for GitHub issue-driven workflows, plan
-files, and agent-backed implementation loops in this repository.
-
-Prefer these commands over ad-hoc GitHub scripts:
-
-\`\`\`bash
-dn issue show <ref>
-dn issue comment <ref> --body-file update.md
-dn meld <issue-url-or-number>
-dn loop plans/task.plan.md
-dn kickstart <issue-url-or-number>
-dn fixup <pull-request-url>
-dn sync
-\`\`\`
-
-Before large design or multi-issue work, run \`dn rfc list\` and read \`rfcs/\`
-when present. Prefer RFCs for durable why/how; use \`plans/\` for issue
-execution. Bootstrap a corpus with \`dn init agents --skill rfc --agent cursor\`.
-First-run setup: \`dn init wizard --project\`.
-
-Follow the canonical dn skill behavior from \`.agents/skills/dn/SKILL.md\` when
-that file is present.
+- When the user names an issue, a plan file, or \`kickstart\` / \`meld\` /
+  \`loop\` / \`land\`: orchestrate the CLI. Do not reimplement the ticket in-chat.
+- A pasted GitHub issue URL plus kickstart: resolve argv (full URL,
+  \`--allow-cross-repo\` on repo mismatch, \`--steer\` / \`--context-file\` from the
+  message). Do not quiz for other flags.
+- When they iterate on code in this session: implement here.
+- After implement, ask whether to commit. If yes, you write the commit. Do not
+  auto-run \`dn land\`.
+- Do not pass \`--agent cursor\` unless asked. Let project config / \`DN_AGENT\`
+  pick the nested harness.
+- Plan mode maps to \`dn meld\` (do not implement). After the plan is accepted,
+  \`dn loop\`, then ask before committing.
 `;
+
+function withCursorIdeSection(skillMarkdown: string): string {
+  return `${skillMarkdown.trimEnd()}\n${CURSOR_IDE_SECTION}`;
+}
 
 const BASE_IMAGE_SKILL_CONTENT = `---
 name: base-image
@@ -273,26 +322,6 @@ name: base-image
 description: Configure dn Docker sandbox golden images, Dockerfiles, and sandbox.docker image settings.
 `;
 
-const BASE_IMAGE_CURSOR_RULE_CONTENT = `---
-description: Configure dn Docker sandbox golden images and Dockerfiles.
-globs:
-  - "**/Dockerfile*"
-  - "**/.github/dn/config.json"
-  - "**/docker/**"
-alwaysApply: false
----
-
-${MARKDOWN_MANAGED_MARKER}
-
-# Project base image
-
-Use the base-image skill when changing \`sandbox.docker.image\`,
-\`sandbox.docker.dockerfile\`, or project Dockerfiles for dn sandboxes.
-
-Follow \`.agents/skills/base-image/SKILL.md\` when that file is present. Never
-bake secrets into images; prefer digest or \`:sha-*\` tags in config.
-`;
-
 const RFC_SKILL_CONTENT = `---
 name: rfc
 description: Use when turning a greenfield idea into an initial RFC set, writing RFCs, or designing a system. Guides interview → overview → ordered RFC proposals → dn rfc writes. Do NOT implement product code.
@@ -368,44 +397,21 @@ name: rfc
 description: Bootstrap a durable RFC corpus with dn rfc for greenfield design work.
 `;
 
-const RFC_CURSOR_RULE_CONTENT = `---
-description: Turn greenfield ideas into an RFC corpus with dn rfc. Do not implement product code.
-globs:
-  - "**/rfcs/**"
-  - "**/rfcs/*.md"
-alwaysApply: false
----
-
-${MARKDOWN_MANAGED_MARKER}
-
-# RFC authoring
-
-Use the rfc skill when the user wants to design a system or bootstrap RFCs.
-Interview for goals and boundaries, propose 5–15 ordered RFCs, then write via
-\`dn rfc create\`. Leave statuses at \`draft\` or \`review\` for human review.
-
-Follow \`.agents/skills/rfc/SKILL.md\` when that file is present. **STOP:**
-do not implement product code or invent a parallel design tracker.
-`;
-
 const INSTALLABLE_SKILLS: Record<SkillName, InstallableSkill> = {
   dn: {
     name: "dn",
     skillMarkdown: DN_SKILL_CONTENT,
     openAiMetadata: DN_OPENAI_METADATA_CONTENT,
-    cursorRule: DN_CURSOR_RULE_CONTENT,
   },
   "base-image": {
     name: "base-image",
     skillMarkdown: BASE_IMAGE_SKILL_CONTENT,
     openAiMetadata: BASE_IMAGE_OPENAI_METADATA_CONTENT,
-    cursorRule: BASE_IMAGE_CURSOR_RULE_CONTENT,
   },
   rfc: {
     name: "rfc",
     skillMarkdown: RFC_SKILL_CONTENT,
     openAiMetadata: RFC_OPENAI_METADATA_CONTENT,
-    cursorRule: RFC_CURSOR_RULE_CONTENT,
   },
 };
 
@@ -558,6 +564,9 @@ Use \`dn\` as the primary interface for this repo's GitHub workflows and plan
 artifacts. Prefer it over ad-hoc scripts or direct API calls when reading
 issues, updating GitHub state, preparing plans, or processing review feedback.
 
+Read repository \`dn.json\` at the start of a session. If \`harness_hints\` is
+present, honor those string notes for this checkout.
+
 ### GitHub access
 
 Use \`dn issue\` for authenticated access to repository issues, including private
@@ -604,22 +613,35 @@ When writing issue content, prefer concise structured Markdown:
 - ...
 \`\`\`
 
-### Workflow commands
+### Repeatable flows
 
-Use the command that matches the stage of work:
+Issue-driven work follows one of two close-out paths. Default publish mode is
+local (\`none\`): implement, then \`dn land\`. Do not use \`--awp\` / \`--publish pr\`
+unless the user asked for a pull request. Do not stack another kickstart on
+uncommitted kickstart work.
+
+When this AGENTS.md is used from an **IDE chat**, implement with the CLI, then
+ask whether to commit. If the user says yes, the IDE agent writes the commit
+and omits \`*.plan.md\`. Do not auto-run \`dn land\`.
+
+\`dn land\` is for attended CLI, CI, and denoise. \`dn sync\` publishes to trunk.
 
 \`\`\`bash
-dn kickstart <issue-url-or-number>         # Full plan + implement workflow
+dn kickstart <issue-url-or-number>         # Full plan + implement
 dn meld <issue-url-or-number>              # Plan phase
 dn loop plans/task.plan.md                 # Implement from an existing plan
+dn land plans/task.plan.md                 # CLI/CI close-out into VCS commits
+dn land --single plans/task.plan.md        # One deterministic commit, no agent
 dn fixup <pull-request-url>                # Address PR review feedback
 dn meld a.md b.md --plan-name merged       # Plan from combined sources
 \`\`\`
 
-Use \`dn kickstart\` when the user wants the whole issue implemented. Use
-\`dn meld\` and \`dn loop\` separately when planning and implementation need to be
-split across steps or reviewed between phases. Use \`dn fixup\` when the task is
-to address existing PR comments rather than re-implement from scratch.
+Use \`dn kickstart\` when the user wants the whole issue implemented. A pasted
+GitHub issue URL: pass the full URL; add \`--allow-cross-repo\` when
+\`owner/repo\` is not this workspace; put extra chat guidance in \`--steer\`.
+Use \`dn meld\` → \`dn loop\` when planning and implementation should be reviewed
+between phases. Use \`dn fixup\` when the task is to address existing PR comments
+rather than re-implement from scratch.
 
 ### Milestones, queues, and context
 
@@ -673,7 +695,7 @@ function mergeAgentsMd(baseContent: string): string {
         const beforeRule = lines.slice(0, insertLine).join("\n");
         const afterRule = lines.slice(insertLine).join("\n");
         const kickstartRule =
-          "- If \`.cursor/rules/kickstart.mdc\` exists, follow kickstart subagent guidelines.";
+          "- If `.cursor/skills/dn/SKILL.md` exists, follow the dn skill for kickstart / meld / loop; ask before committing.";
         result = beforeRule + "\n" + kickstartRule + "\n" + afterRule;
       }
     }
@@ -848,7 +870,7 @@ function skillBaseDirectory(
       return join(workspaceRoot, ".claude", "skills", skillName);
     }
     if (agent === "cursor") {
-      return join(workspaceRoot, ".cursor", "rules");
+      return join(workspaceRoot, ".cursor", "skills", "dn");
     }
     return join(workspaceRoot, ".agents", "skills", skillName);
   }
@@ -856,6 +878,9 @@ function skillBaseDirectory(
   const home = getHomeDirectory();
   if (agent === "claude") {
     return join(home, ".claude", "skills", skillName);
+  }
+  if (agent === "cursor") {
+    return join(home, ".cursor", "skills", "dn");
   }
   return join(home, ".agents", "skills", skillName);
 }
@@ -866,12 +891,6 @@ function buildSkillTargets(
   scope: SkillScope,
   skillName: SkillName,
 ): SkillTarget[] {
-  if (scope === "user" && agent === "cursor") {
-    fail(
-      "Cursor skill installation is repo-scoped. Use: dn init agents --skill --agent cursor --scope repo",
-    );
-  }
-
   const skill = INSTALLABLE_SKILLS[skillName];
   const baseDirectory = skillBaseDirectory(
     workspaceRoot,
@@ -882,8 +901,8 @@ function buildSkillTargets(
 
   if (agent === "cursor") {
     return [{
-      path: join(baseDirectory, `${skillName}.mdc`),
-      content: skill.cursorRule,
+      path: join(baseDirectory, "SKILL.md"),
+      content: withCursorIdeSection(skill.skillMarkdown),
     }];
   }
 
@@ -1023,6 +1042,14 @@ async function handleInitAgentsSkill(
     );
   }
 
+  if (options.agent === "cursor" && options.skillName !== "dn") {
+    fail(
+      `Cursor skill installation only supports the dn harness skill.\n` +
+        `It writes .cursor/skills/dn/SKILL.md (or ~/.cursor/skills/dn/ with --scope user).\n` +
+        `Install ${options.skillName} with: dn init agents --skill ${options.skillName} --agent opencode`,
+    );
+  }
+
   const targets = buildSkillTargets(
     workspaceRoot,
     options.agent,
@@ -1058,6 +1085,9 @@ export async function handleInitAgents(args: string[]): Promise<void> {
       "  With --skill, installs a named skill for one selected agent.",
     );
     console.log(
+      "  Cursor only installs the dn skill (harness plug-in).",
+    );
+    console.log(
       `  Skill names: ${SUPPORTED_SKILL_NAMES.join(", ")} (default: dn).\n`,
     );
     console.log("Options:");
@@ -1079,6 +1109,8 @@ export async function handleInitAgents(args: string[]): Promise<void> {
     console.log("  dn init agents --skill --agent codex");
     console.log("  dn init agents --skill base-image --agent opencode");
     console.log("  dn init agents --skill rfc --agent opencode");
+    console.log("  dn init agents --skill --agent cursor");
+    console.log("  dn init agents --skill --agent cursor --scope user");
     console.log("  dn init agents --skill --agent claude --dry-run --json");
     Deno.exit(0);
   }

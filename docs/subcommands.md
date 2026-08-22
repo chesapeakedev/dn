@@ -347,6 +347,10 @@ Cross-repo workflows are useful when you write tickets in a private repository
 but implement the functionality in a public repository. The changes are applied
 to your current workspace, not the target repository.
 
+IDE outer harnesses should pass `--allow-cross-repo` automatically when the user
+pastes an issue URL whose `owner/repo` is not the current workspace. Do not
+prompt for the flag.
+
 See `dn kickstart --help` for all options.
 
 ### Continuation flow (queues and batch modes)
@@ -412,8 +416,10 @@ the next unchecked item until the stack is empty.
 #### Land interaction
 
 When publish mode is `none` (default, local-only) the CLI suggests `dn land`
-after the run. Do not run another kickstart on top of unlanded work without
-publishing — land one plan first, or use `--publish`.
+after the run. IDE outer harnesses should ask whether to commit, then write the
+commit themselves rather than running `dn land`. Do not run another kickstart on
+top of uncommitted kickstart work — commit or land one plan first, or use
+`--publish`.
 
 #### Exit conditions
 
@@ -638,6 +644,7 @@ dn init agents --skill --agent codex
 dn init agents --skill --agent claude
 dn init agents --skill --agent opencode
 dn init agents --skill --agent cursor
+dn init agents --skill --agent cursor --scope user
 dn init agents --skill base-image --agent opencode
 dn init agents --skill rfc --agent opencode
 dn init agents --skill --agent codex --scope user
@@ -653,17 +660,24 @@ Repo-scope installs write (replace `dn` with the skill name when set):
 - `codex`, `opencode`: `.agents/skills/<name>/SKILL.md` and
   `.agents/skills/<name>/agents/openai.yaml`
 - `claude`: `.claude/skills/<name>/SKILL.md`
-- `cursor`: `.cursor/rules/<name>.mdc`
+- `cursor`: `.cursor/skills/dn/SKILL.md` (dn skill only)
 
 User-scope installs write:
 
 - `codex`, `opencode`: `~/.agents/skills/<name>/SKILL.md` and
   `~/.agents/skills/<name>/agents/openai.yaml`
 - `claude`: `~/.claude/skills/<name>/SKILL.md`
+- `cursor`: `~/.cursor/skills/dn/SKILL.md` (dn skill only)
 
-Cursor skill installation is repo-scoped. Managed files are idempotent; existing
-unmanaged files are left untouched unless `--force` is passed. Use `--dry-run`
-to inspect planned writes, skips, and conflicts without changing files.
+`--agent cursor` only installs the dn harness skill. `base-image` and `rfc` live
+under `.agents/skills/` — install them with `--agent opencode` or
+`--agent codex`. The Cursor skill tells the IDE agent to implement with
+`kickstart` / `meld` / `loop`, then ask before committing rather than
+auto-running `dn land`.
+
+Managed skill files are idempotent; existing unmanaged files are left untouched
+unless `--force` is passed. Use `--dry-run` to inspect planned writes, skips,
+and conflicts without changing files.
 
 The `base-image` skill documents golden-image hygiene and `sandbox.docker.image`
 / `sandbox.docker.dockerfile` configuration. See [sandbox.md](sandbox.md).
@@ -1288,9 +1302,12 @@ re-running `dn loop` by hand.
 Use `dn land` after a plan-backed task is complete and the workspace contains
 the changes you want to commit. **`dn land` closes out local agentic work into
 durable VCS state** — it is not trunk publish (`dn sync`) and not PR creation.
-After land, `dn sync` is the trunk gate (lint + tests, then rebase/push). These
-verbs match the denoise task dialog; see denoise-docs **Kickstart, land, sync,
-and done**.
+It is the close-out for attended CLI, CI, and denoise. Cursor (and other IDE)
+chats that already implemented with `dn kickstart` / `dn loop` should ask the
+user, then commit with the repo VCS instead of nesting another land agent. After
+land, `dn sync` is the trunk gate (lint + tests, then rebase/push). These verbs
+match the denoise task dialog; see denoise-docs **Kickstart, land, sync, and
+done**.
 
 **Execution plans** (`plans/*.plan.md`) and **RFCs** (`rfcs/*.md`) use different
 land modes. Plan land uses an agent (or `--single`) to commit workspace changes

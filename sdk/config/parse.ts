@@ -10,6 +10,7 @@ import type {
   DnConfigLayer,
   DnEnsureConfig,
   DnEnsureRecipe,
+  DnHarnessHints,
   DnRfcConfig,
   DnStrictConfig,
   DnSyncConfig,
@@ -223,6 +224,31 @@ function parseEnsureConfig(value: unknown, source: string): DnEnsureConfig {
   return recipes;
 }
 
+function parseHarnessHints(value: unknown, source: string): DnHarnessHints {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(
+      `Invalid dn config at ${source}: harness_hints must be an object`,
+    );
+  }
+  const hints: DnHarnessHints = {};
+  for (
+    const [key, entry] of Object.entries(value as Record<string, unknown>)
+  ) {
+    if (key.length === 0) {
+      throw new Error(
+        `Invalid dn config at ${source}: harness_hints keys must be non-empty strings`,
+      );
+    }
+    if (typeof entry !== "string" || entry.trim().length === 0) {
+      throw new Error(
+        `Invalid dn config at ${source}: harness_hints["${key}"] must be a non-empty string`,
+      );
+    }
+    hints[key] = entry;
+  }
+  return hints;
+}
+
 function parseSyncConfig(value: unknown, source: string): DnSyncConfig {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new Error(`Invalid dn config at ${source}: sync must be an object`);
@@ -305,6 +331,9 @@ export function parseDnConfig(content: string, source: string): DnConfigLayer {
       : {}),
     ...(value.ensure !== undefined
       ? { ensure: parseEnsureConfig(value.ensure, source) }
+      : {}),
+    ...(value.harness_hints !== undefined
+      ? { harness_hints: parseHarnessHints(value.harness_hints, source) }
       : {}),
   };
 }

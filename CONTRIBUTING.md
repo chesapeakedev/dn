@@ -146,8 +146,8 @@ binary:
 
 - **Runtime:** Deno 2.x
 - **Build command:** `./compile_dn.sh --target <triple> -o <binary>`
-- **Included files:** Kickstart system prompts, `kickstart.mdc`, and workflow
-  templates under `templates/workflows/` (see `compile_dn.sh`)
+- **Included files:** Kickstart system prompts and workflow templates under
+  `templates/workflows/` (see `compile_dn.sh`)
 
 Checksums generated via `sha256sum`:
 

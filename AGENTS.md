@@ -183,7 +183,44 @@ direct API calls when preparing workspaces, iterating on plans, or coordinating
 changes.
 
 Run `dn` with no arguments to discover available subcommands. For detailed
-behavior and flags, see `docs/subcommands.md`.
+behavior and flags, see `docs/subcommands.md`. Follow
+`.cursor/skills/dn/SKILL.md` when this session is Cursor. Read repository
+`dn.json` `harness_hints` at the start of a session and honor those notes.
+
+### Repeatable flows
+
+Default publish is local (`none`). Do not use `--awp` / `--publish pr` unless
+the user asked for a pull request. Do not stack another kickstart on uncommitted
+kickstart work.
+
+When this session is an **IDE chat**, implement with the CLI, then **ask**
+whether to commit. If the user says yes, write the commit with the repo VCS and
+omit `*.plan.md`. Do not auto-run `dn land`.
+
+`dn land` is for attended CLI, CI, denoise, `--issue-testplan`, RFC land, or
+when the user names `dn land`. `dn sync` publishes to trunk; it is not a commit
+step.
+
+```
+# End-to-end issue without a planning checkpoint
+$ dn kickstart https://github.com/owner/repo/issues/123
+$ dn kickstart --allow-cross-repo https://github.com/other/repo/issues/123
+# then ask: commit now?
+
+# Reviewable plan, then implement
+$ dn meld 123
+$ dn loop plans/issue-123.plan.md
+# then ask: commit now?
+
+# CLI/CI close-out (not the IDE default)
+$ dn land plans/issue-123.plan.md
+```
+
+When the user pastes a GitHub issue URL and asks to kickstart: pass the full
+URL; add `--allow-cross-repo` when the URL's `owner/repo` is not this workspace;
+put extra chat guidance in `--steer`; leave other flags at CLI defaults unless
+asked. When they iterate on code in conversation, implement in-session and still
+ask before committing.
 
 ### Few-shot examples
 
@@ -204,7 +241,7 @@ $ dn --context-file notes.md kickstart 123
 # Implement or refine an existing plan
 $ dn loop plans/issue-123.plan.md
 
-# Close out completed work into VCS commits
+# Close out completed work into VCS commits (CLI/CI; not the IDE default)
 $ dn land
 $ dn land --issue-testplan
 

@@ -36,7 +36,6 @@ import {
   createProgressReporter,
   type ProgressReporter,
 } from "../sdk/github/progress.ts";
-import { createCursorRule } from "./artifacts.ts";
 import { reviewInEditor as reviewPlanInEditor } from "../sdk/github/editor.ts";
 import { formatSummary } from "../sdk/archive/format.ts";
 import {
@@ -134,7 +133,7 @@ async function readIncludedPrompt(filename: string): Promise<string> {
 export interface OrchestratorConfig {
   /** How changes are published to the remote repository */
   publish: PublishMode;
-  /** Agent harness; Cursor also enables `.cursor/rules/kickstart.mdc` artifact */
+  /** Agent harness used for plan and implement phases */
   agentHarness: AgentHarness;
   /** Optional `--agent` model override forwarded to the harness CLI. */
   agentModel?: string;
@@ -1371,27 +1370,8 @@ export async function runOrchestrator(
       await report("step.completed", "Lint step completed", { step: 5 });
     }
 
-    // Step 6: Generate artifacts (only announce when there is work)
+    // Step 6: Workspace artifacts (Cursor uses `dn init agents --skill --agent cursor`)
     await report("step.started", "Generating workspace artifacts", { step: 6 });
-    try {
-      if (config.agentHarness === "cursor") {
-        console.log(formatStep(6, "Generating workspace artifacts..."));
-        await createCursorRule(WORKSPACE_ROOT);
-        console.log(
-          formatSuccess(
-            "Created .cursor/rules/kickstart.mdc for subagent integration",
-          ),
-        );
-      }
-    } catch (error) {
-      console.warn(
-        formatWarning(
-          `Artifact generation encountered an error (non-blocking): ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        ),
-      );
-    }
     await report("step.completed", "Generated workspace artifacts", {
       step: 6,
     });

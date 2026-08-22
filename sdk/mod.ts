@@ -50,6 +50,7 @@ export type {
   DnConfigSource,
   DnEnsureConfig,
   DnEnsureRecipe,
+  DnHarnessHints,
   DnRfcConfig,
   DnRuntimeOverrides,
   DnStrictConfig,

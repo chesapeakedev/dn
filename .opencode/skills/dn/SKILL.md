@@ -21,6 +21,13 @@ dn                    # list subcommands
 dn <subcommand> -h    # help for a specific subcommand
 ```
 
+## Project config (`dn.json`)
+
+At the start of a session, read repository `dn.json` (workspace root, or walk
+up). If `harness_hints` is present, apply it: a map of string keys to string
+values with project-specific operator notes. Keys are freeform. Honor those
+notes for this checkout. Do not put secrets in `harness_hints`.
+
 ## Global Flags
 
 | Flag                    | Effect                                                           |
@@ -51,35 +58,61 @@ dn <subcommand> -h    # help for a specific subcommand
 
 ## Common env vars
 
-- `ISSUE` — fallback issue URL/number for `kickstart` and `prep`
+- `ISSUE` — fallback issue URL/number for `kickstart` and `meld`
 - `WORKSPACE_ROOT` — project root directory
 - `GITHUB_TOKEN` — GitHub personal access token
 - `PR_URL` — PR URL for `fixup`
 - `PLAN` — path to plan file for `loop`
 
+## Repeatable flows
+
+Default publish mode is local (`none`). Do not use `--awp` / `--publish pr`
+unless the user asked for a pull request. Do not stack another kickstart on
+uncommitted kickstart work.
+
+When you are an **outer IDE harness**, implement with the CLI, then **ask**
+whether to commit. If the user says yes, you write the commit with the repo
+VCS and omit `*.plan.md`. Do not auto-run `dn land`.
+
+`dn land` is for attended CLI, CI, denoise/device-runners, `--issue-testplan`,
+RFC land, or when the user names `dn land`. `dn sync` publishes to trunk; it
+is not a commit step.
+
+| Flow | When | Commands |
+| --- | --- | --- |
+| kickstart | Whole issue, no planning checkpoint | `dn kickstart <issue>`, then ask to commit |
+| meld → loop | Review plan between phases | `dn meld` → `dn loop`, then ask to commit |
+| land | CLI, CI, denoise, or user named it | `dn land` / `dn land --single <plan>` |
+
+`meld` is **not** a post-loop step. After `fixup`, ask before committing (same
+as kickstart).
+
+### From an issue URL
+
+The common prompt is `{github issue url} can you kickstart this?` Resolve argv.
+Do not quiz the user for flags the CLI already defaults.
+
+1. Pass the **full issue URL** as the positional argument (not a bare number).
+2. Compare the URL's `owner/repo` to this workspace
+   (`gh repo view --json nameWithOwner -q .nameWithOwner`). If they differ,
+   pass `--allow-cross-repo` (`-A`). Do not ask. Mention it in the summary. If
+   you cannot detect the workspace repo, pass `-A` for a full URL anyway.
+3. Extra guidance in the user message besides the URL → `--steer "…"`.
+4. Named or attached files → `--context-file` (repeatable).
+5. Leave the rest at CLI defaults unless the user asked (`--publish`/`--awp`,
+   `--agent`, `--cursor-cloud`, `--sandbox`, `--milestone`, `--skip-plan`).
+6. `/pull/` URL → `dn fixup`. Local `.md` → kickstart that file.
+7. If `plans/*.plan.md` exists and the tree is dirty, stop and ask before
+   stacking another kickstart.
+
 ## Subcommands
-
-### Workflow lifecycle
-
-Issue-driven work uses these phases (not a rigid single pipeline):
-
-| Phase | Commands |
-| --- | --- |
-| Plan | `prep` *or* `meld` (meld is many-to-one and can replace prep); `kickstart` includes plan |
-| Implement | `loop` / `kickstart` / `fixup` |
-| Close out | `land` (optional `--issue-testplan` upserts `## Test Plan` on the linked GitHub issue) |
-| Publish trunk | `sync` (optional; distinct from `dn land`) |
-
-`meld` is **not** a post-loop step. After `fixup`, run `dn land` separately to
-commit.
 
 | Subcommand     | Description                                                                                                                                                       |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dn kickstart` | Full workflow: plan + implement. Takes a GitHub issue URL/ number, or local `.md` file. Supports AWP mode (branches, commits, PRs), milestone stacks, cross-repo. |
-| `dn prep`      | Plan phase only (steps 1-3). Resolves issue, VCS prep, creates a `.plan.md`. `--update-issue` fills empty template sections.                                      |
-| `dn loop`      | Loop phase (steps 4-7). Implement, completion, lint, artifacts, validate. Requires a plan file.                                                                   |
-| `dn fixup`     | Address PR feedback. Fetches PR description + review comments, creates plan, implements fixes locally.                                                            |
-| `dn meld`      | Merge markdown sources + plan into DRY input (many-to-one plan phase). Supports `--target` (README.md, AGENTS.md, plans/, github:).                               |
+| `dn kickstart` | Full workflow: plan + implement. Takes a GitHub issue URL/number, or local `.md` file. Supports AWP mode (branches, commits, PRs), milestone stacks, cross-repo. |
+| `dn meld`      | Plan phase. One issue, local Markdown, or combined sources. Supports `--target` (README.md, AGENTS.md, plans/, github:). |
+| `dn loop`      | Loop phase (steps 4-7). Implement, completion, lint, artifacts, validate. Requires a plan file. |
+| `dn fixup`     | Address PR feedback. Fetches PR description + review comments, creates plan, implements fixes locally. |
 | `dn land`      | Close out work into VCS commits. `--issue-testplan` updates the linked GitHub issue; `--single` derives one commit message from the plan title + truncated overview/body (no agent). |
 
 ### GitHub issue management
@@ -142,16 +175,15 @@ description.
 # print help
 dn
 
-# Prepare a repository or workspace before making changes
-dn prep
+# End-to-end issue (IDE: then ask before committing)
+dn kickstart 123
 
-# Iterate on an existing plan or task until convergence
-dn loop
+# Reviewable plan, then implement
+dn meld 123
+dn loop plans/issue-123.plan.md
 
-# Combine or reconcile outputs from multiple iterations
-dn meld
-
-# Land completed work from a plan
+# CLI/CI close-out
+dn land plans/issue-123.plan.md
 dn land --single plans/my-feature.plan.md
 
 # Create a new GitHub issue from a conversation

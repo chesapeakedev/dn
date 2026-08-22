@@ -3,7 +3,7 @@
 
 /**
  * Artifact generation for kickstart.
- * Creates workspace artifacts like AGENTS.md and Cursor IDE integration files.
+ * Creates workspace artifacts like AGENTS.md.
  */
 
 /**
@@ -45,55 +45,6 @@ export async function generateAgentsMd(
 
   // Merge kickstart content into base
   return mergeAgentsMd(baseContent, relativeKickstartPath);
-}
-
-/**
- * Creates a Cursor IDE rule file for kickstart subagent integration.
- *
- * @param workspaceRoot - Root directory of the workspace
- */
-export async function createCursorRule(
-  workspaceRoot: string,
-): Promise<void> {
-  const cursorDir = `${workspaceRoot}/.cursor`;
-  const rulesDir = `${cursorDir}/rules`;
-  const rulePath = `${rulesDir}/kickstart.mdc`;
-
-  // Create .cursor directory if it doesn't exist
-  try {
-    await Deno.stat(cursorDir);
-  } catch {
-    await Deno.mkdir(cursorDir, { recursive: true });
-  }
-
-  // Create .cursor/rules directory if it doesn't exist
-  try {
-    await Deno.stat(rulesDir);
-  } catch {
-    await Deno.mkdir(rulesDir, { recursive: true });
-  }
-
-  // Determine the source path for the bundled kickstart.mdc template.
-  // In compiled binaries, import.meta.dirname points to the directory
-  // containing the executable; in development mode we fall back to the
-  // workspace kickstart directory.
-  let sourcePath: string | null = null;
-  if (typeof import.meta.dirname !== "undefined") {
-    sourcePath = `${import.meta.dirname}/kickstart.mdc`;
-  } else {
-    sourcePath = `${workspaceRoot}/kickstart/kickstart.mdc`;
-  }
-
-  let ruleContent: string;
-  try {
-    ruleContent = await Deno.readTextFile(sourcePath);
-  } catch {
-    // If reading the template fails for any reason, do not crash the run;
-    // just skip creating the rule file.
-    return;
-  }
-
-  await Deno.writeTextFile(rulePath, ruleContent);
 }
 
 /**
@@ -555,7 +506,7 @@ function mergeAgentsMd(
         const beforeRule = lines.slice(0, insertLine).join("\n");
         const afterRule = lines.slice(insertLine).join("\n");
         const kickstartRule =
-          "- If `.cursor/rules/kickstart.mdc` exists, follow kickstart subagent guidelines.";
+          "- If `.cursor/skills/dn/SKILL.md` exists, follow the dn skill for kickstart / meld / loop; ask before committing.";
         result = beforeRule + "\n" + kickstartRule + "\n" + afterRule;
       }
     }

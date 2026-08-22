@@ -85,6 +85,14 @@ export interface DnEnsureRecipe {
  */
 export type DnEnsureConfig = Record<string, DnEnsureRecipe>;
 
+/**
+ * Project-specific operator notes for an IDE or CLI harness.
+ *
+ * Keys are freeform. Values are short strings. Read by agents from `dn.json`;
+ * unused by GitHub Actions templates. Do not store secrets here.
+ */
+export type DnHarnessHints = Record<string, string>;
+
 /** Configuration values supported by repository and user configuration files. */
 export interface DnConfigLayer {
   /** Version of the configuration document. */
@@ -110,6 +118,8 @@ export interface DnConfigLayer {
   sync?: DnSyncConfig;
   /** Named ensure recipes (project config). */
   ensure?: DnEnsureConfig;
+  /** Operator notes for a harness session (project config). */
+  harness_hints?: DnHarnessHints;
 }
 
 /** Runtime values which take precedence over file-based configuration. */
@@ -133,7 +143,13 @@ export interface ResolvedDnConfig extends DnConfigLayer {
   schema_version: "2.0";
   sources: Partial<
     Record<
-      "agent" | "sandbox" | "rfc" | "strict" | "sync" | "ensure",
+      | "agent"
+      | "sandbox"
+      | "rfc"
+      | "strict"
+      | "sync"
+      | "ensure"
+      | "harness_hints",
       DnConfigSource
     >
   >;

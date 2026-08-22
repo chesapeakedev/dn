@@ -13,6 +13,7 @@ import type {
   DnConfigLayer,
   DnConfigSource,
   DnEnsureConfig,
+  DnHarnessHints,
   DnRfcConfig,
   DnStrictConfig,
   DnSyncConfig,
@@ -78,6 +79,7 @@ function mergeRfcStrictSyncEnsure(
     strict?: DnStrictConfig;
     sync?: DnSyncConfig;
     ensure?: DnEnsureConfig;
+    harness_hints?: DnHarnessHints;
   },
   source: DnConfigSource,
 ): void {
@@ -97,9 +99,16 @@ function mergeRfcStrictSyncEnsure(
     result.ensure = { ...(result.ensure ?? {}), ...layer.ensure };
     result.sources.ensure = source;
   }
+  if (layer.harness_hints !== undefined) {
+    result.harness_hints = {
+      ...(result.harness_hints ?? {}),
+      ...layer.harness_hints,
+    };
+    result.sources.harness_hints = source;
+  }
 }
 
-/** Applies a file layer's top-level agent/sandbox/rfc/strict/sync/ensure fields. */
+/** Applies a file layer's top-level agent/sandbox/rfc/strict/sync/ensure/harness_hints fields. */
 function mergeLayer(
   result: ResolvedDnConfig,
   layer: DnConfigLayer,
@@ -126,7 +135,7 @@ function mergeUserLayer(
   if (repositorySlug && user.repos?.[repositorySlug]) {
     mergeAgentSandbox(result, user.repos[repositorySlug], "user");
   }
-  // User files may carry rfc/strict/sync/ensure only if present; project layer still wins later.
+  // User files may carry rfc/strict/sync/ensure/harness_hints only if present; project layer still wins later.
   mergeRfcStrictSyncEnsure(result, user, "user");
 }
 
