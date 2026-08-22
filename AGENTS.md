@@ -184,8 +184,10 @@ changes.
 
 Run `dn` with no arguments to discover available subcommands. For detailed
 behavior and flags, see `docs/subcommands.md`. Follow
-`.cursor/skills/dn/SKILL.md` when this session is Cursor. Read repository
-`dn.json` `harness_hints` at the start of a session and honor those notes.
+`.cursor/skills/dn/SKILL.md` when this session is Cursor, or
+`.agents/skills/dn/SKILL.md` when this session is Codex. The shared
+outer-harness contract is `docs/outer-harness.md`. Read repository `dn.json`
+`harness_hints` at the start of a session and honor those notes.
 
 ### Repeatable flows
 

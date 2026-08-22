@@ -283,8 +283,9 @@ dn init agents --skill --agent codex
 ```
 
 Use `--scope user` for a user-level Codex, OpenCode, or Claude installation. See
-the [agent integration guides](docs/README.md#agent-integration) for setup and
-troubleshooting.
+[Outer harness](docs/outer-harness.md) for the shared IDE/TUI contract, and the
+[agent integration guides](docs/README.md#agent-integration) for nested CLI
+setup.
 
 ## Connect GitHub
 

@@ -6,34 +6,17 @@ CLI, durable Cursor Cloud Agents, and Cursor IDE as an outer harness.
 ## Cursor IDE as outer harness
 
 When you chat in Cursor with `dn` on `PATH`, Cursor is the **outer** harness.
-Install the repo skill so the agent implements with the CLI, then asks before
-committing:
+The shared contract (kickstart argv, publish phrasing, ask-before-commit, nested
+`--agent`) lives in [Outer harness](outer-harness.md).
 
 ```bash
 dn init agents --skill --agent cursor
 dn init agents --skill --agent cursor --scope user   # ~/.cursor/skills/dn/
 ```
 
-That writes `.cursor/skills/dn/SKILL.md` (never `~/.cursor/skills-cursor/`).
-Hybrid behavior:
-
-- User names an issue, a plan, or a dn verb → orchestrate the CLI
-- A pasted GitHub issue URL plus kickstart → pass the full URL; add
-  `--allow-cross-repo` when `owner/repo` is not this workspace; put extra
-  guidance in `--steer`; leave other flags at CLI defaults
-- After a **local** (`--publish none`) kickstart or loop, summarize and **ask**
-  whether to commit
-- If yes, this chat writes the commit (omit `*.plan.md`)
-- "open a PR" / `--publish pr` → `dn kickstart --publish pr <url>` (report the
-  PR; do not also commit here)
-- "publish direct" / `--publish direct` → `dn kickstart --publish direct <url>`
-  (push to the default branch; do not also commit here)
-- Ad-hoc edits in chat → implement in-session; same ask-before-commit step
-- Do not pass `--agent cursor` unless asked (avoids Cursor-in-Cursor)
-- Plan mode maps to `dn meld`; after the plan is accepted, `dn loop`, then ask
-
-`dn land` is for attended CLI, CI, denoise, `--issue-testplan`, RFC land, or
-when you name `dn land`. `dn sync` publishes to trunk after a local commit.
+That writes `.cursor/skills/dn/SKILL.md` (never `~/.cursor/skills-cursor/`). Do
+not pass `--agent cursor` unless asked. Nested Cursor CLI, Cloud Agents, and
+GitHub Actions are the rest of this page.
 
 ## Execution Targets
 

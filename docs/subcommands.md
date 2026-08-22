@@ -671,9 +671,8 @@ User-scope installs write:
 
 `--agent cursor` only installs the dn harness skill. `base-image` and `rfc` live
 under `.agents/skills/` — install them with `--agent opencode` or
-`--agent codex`. The Cursor skill tells the IDE agent to implement with
-`kickstart` / `meld` / `loop`, then ask before committing rather than
-auto-running `dn land`.
+`--agent codex`. Outer-harness UX (kickstart argv, ask-before-commit, publish
+phrasing, nested `--agent`) is documented in [Outer harness](outer-harness.md).
 
 Managed skill files are idempotent; existing unmanaged files are left untouched
 unless `--force` is passed. Use `--dry-run` to inspect planned writes, skips,

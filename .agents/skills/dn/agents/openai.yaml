@@ -1,0 +1,4 @@
+interface:
+  display_name: "dn"
+  short_description: "Orchestrate dn CLI issue workflows; ask before committing"
+  default_prompt: "Use $dn to implement GitHub issues with kickstart, meld, and loop. Ask before committing after a local run."

@@ -12,7 +12,8 @@ coordinating changes.
 
 For the installable skill roster and specialized workflows, see
 `.agents/skills/README.md`. In particular, use `milestone-plan` for epics,
-roadmap slices, and other multi-issue planning work.
+roadmap slices, and other multi-issue planning work. The shared outer-harness
+contract is `docs/outer-harness.md`.
 
 ## Quickstart
 

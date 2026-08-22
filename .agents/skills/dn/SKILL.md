@@ -6,7 +6,7 @@ description: >-
   plans/*.plan.md file. Implement with the CLI; ask before committing.
 ---
 
-# dn (Cursor)
+# dn (Codex)
 
 `dn` is the primary interface for GitHub issue-driven **implementation** in this
 repo. Prefer it over ad-hoc GitHub scripts or `gh` when the work is issue- or
@@ -65,12 +65,11 @@ Do not quiz the user for flags the CLI already defaults.
 3. Extra guidance in the user message besides the URL → `--steer "…"`.
 4. Named or attached files → `--context-file` (repeatable).
 5. Leave the rest at CLI defaults unless the user asked:
-
-- publish `none` unless they asked for a PR or `--publish direct` (see Publish)
-- nested agent from project config / `DN_AGENT` (no `--agent cursor`)
-- no `--cursor-cloud`, `--sandbox`, `--milestone`, `--complete`, `--once`,
-  `--skip-plan`, `--verbosity`, `--workspace-root`, `--denoise-task`
-
+   - publish `none` unless they asked for a PR or `--publish direct` (see
+     Publish)
+   - nested agent from project config / `DN_AGENT` (no `--agent codex`)
+   - no `--cursor-cloud`, `--sandbox`, `--milestone`, `--complete`, `--once`,
+     `--skip-plan`, `--verbosity`, `--workspace-root`, `--denoise-task`
 6. `/pull/` URL → `dn fixup`, not kickstart. Local `.md` → kickstart that file.
 7. If `plans/*.plan.md` exists and the tree is dirty, stop and ask before
    stacking another kickstart.
@@ -112,10 +111,10 @@ dn loop plans/issue-123.plan.md
 # then ask: commit now?
 ```
 
-## Cursor notes
+## Codex notes
 
-- Kickstart is a **CLI command**, not a Cursor Task/subagent.
-- Do **not** pass `--agent cursor` unless asked (avoids Cursor-in-Cursor). Let
+- Kickstart is a **CLI command**, not a Codex subagent.
+- Do **not** pass `--agent codex` unless asked (avoids Codex-in-Codex). Let
   project config or `DN_AGENT` pick the nested harness.
 - Plan mode maps to `dn meld` (do not implement). After the plan is accepted,
   `dn loop`, then ask before committing.
@@ -137,6 +136,5 @@ asks to replace it. Use `--repo owner/repo` for another repository.
   `publish`)
 - Outer harness contract:
   [docs/outer-harness.md](../../../docs/outer-harness.md)
-- Codex twin:
-  [`.agents/skills/dn/SKILL.md`](../../../.agents/skills/dn/SKILL.md)
-- Nested Cursor CLI / Cloud Agents: [docs/cursor.md](../../../docs/cursor.md)
+- Cursor twin:
+  [`.cursor/skills/dn/SKILL.md`](../../../.cursor/skills/dn/SKILL.md)

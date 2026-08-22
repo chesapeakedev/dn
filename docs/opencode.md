@@ -3,6 +3,10 @@
 This guide explains how to integrate `dn` with OpenCode's TUI for a seamless
 conversational development workflow.
 
+When OpenCode is the **outer** chat with `dn` on `PATH`, follow
+[Outer harness](outer-harness.md). Install the generated skill with
+`dn init agents --skill --agent opencode`. This page covers OpenCode TUI tools.
+
 ## Overview
 
 OpenCode provides custom tools that let you run `dn` commands directly within

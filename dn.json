@@ -5,7 +5,7 @@
     "vcs": "Sapling (`sl`). Never run git commands in this repo.",
     "close_out": "After kickstart/loop, ask before committing. If yes, this chat writes the commit with the repo VCS and omits `*.plan.md`. Do not auto-run `dn land`. Use `dn land` in CLI, CI, denoise, `--issue-testplan`, or when the user names it.",
     "trunk": "`make sync` / `dn sync` publishes to trunk after a local commit. Distinct from land.",
-    "nested_agent": "Do not pass `--agent cursor` unless asked."
+    "nested_agent": "Do not pass `--agent` for this outer harness unless asked (no Cursor-in-Cursor, no Codex-in-Codex)."
   },
   "sync": {
     "preflight": [["make", "lint"], ["make", "tests"]],

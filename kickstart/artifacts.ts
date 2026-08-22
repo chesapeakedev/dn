@@ -506,7 +506,7 @@ function mergeAgentsMd(
         const beforeRule = lines.slice(0, insertLine).join("\n");
         const afterRule = lines.slice(insertLine).join("\n");
         const kickstartRule =
-          "- If `.cursor/skills/dn/SKILL.md` exists, follow the dn skill for kickstart / meld / loop; ask before committing.";
+          "- If a dn skill exists (`.cursor/skills/dn/SKILL.md` or `.agents/skills/dn/SKILL.md`), follow it for kickstart / meld / loop; ask before committing.";
         result = beforeRule + "\n" + kickstartRule + "\n" + afterRule;
       }
     }

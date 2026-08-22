@@ -74,6 +74,15 @@ up). If \`harness_hints\` is present, apply it: a map of string keys to string
 values with project-specific operator notes. Keys are freeform. Honor those
 notes for this checkout. Do not put secrets in \`harness_hints\`.
 
+## Hybrid
+
+- User names an **issue**, a **plan file**, or \`kickstart\` / \`meld\` / \`loop\` /
+  \`land\` → **orchestrate the CLI**. Do not reimplement the ticket in-chat.
+- User iterates on code in this session (ad-hoc edits) → **implement here**.
+- After a **local** (\`--publish none\`) run, **ask before committing**. You write
+  the commit if they say yes. Do not auto-run \`dn land\`. After \`--publish pr\`
+  or \`--publish direct\`, kickstart already published — report the PR or branch.
+
 ## Repeatable flows
 
 Default publish mode is local (\`none\`). Do not stack another kickstart on
@@ -104,7 +113,8 @@ Do not quiz the user for flags the CLI already defaults.
 5. Leave the rest at CLI defaults unless the user asked:
    - publish \`none\` unless they asked for a PR or \`--publish direct\` (see
      Publish)
-   - nested agent from project config / \`DN_AGENT\` (no \`--agent cursor\`)
+   - nested agent from project config / \`DN_AGENT\` (do not pass \`--agent\`
+     for this outer harness unless asked)
    - no \`--cursor-cloud\`, \`--sandbox\`, \`--milestone\`, \`--complete\`, \`--once\`,
      \`--skip-plan\`, \`--verbosity\`, \`--workspace-root\`, \`--denoise-task\`
 6. \`/pull/\` URL → \`dn fixup\`, not kickstart. Local \`.md\` → kickstart that file.
@@ -225,11 +235,12 @@ name: dn
 description: Use dn for GitHub issues, kickstart workflows, plan files, VCS sync, and project velocity workflows.
 `;
 
-const CURSOR_IDE_SECTION = `
-## Cursor IDE
+function outerHarnessSection(agent: SkillAgent): string {
+  return `
+## Outer harness
 
-You are the outer harness. Kickstart is a CLI command, not a Cursor
-Task/subagent.
+You are the outer harness. Kickstart is a CLI command, not a nested
+Task/subagent of this chat.
 
 - When the user names an issue, a plan file, or \`kickstart\` / \`meld\` /
   \`loop\` / \`land\`: orchestrate the CLI. Do not reimplement the ticket in-chat.
@@ -240,14 +251,21 @@ Task/subagent.
 - After a local (\`none\`) run, ask whether to commit. If yes, you write the
   commit. Do not auto-run \`dn land\`. After \`--publish pr\` or
   \`--publish direct\`, report the PR or branch instead.
-- Do not pass \`--agent cursor\` unless asked. Let project config / \`DN_AGENT\`
+- Do not pass \`--agent ${agent}\` unless asked. Let project config / \`DN_AGENT\`
   pick the nested harness.
 - Plan mode maps to \`dn meld\` (do not implement). After the plan is accepted,
   \`dn loop\`, then ask before committing.
-`;
 
-function withCursorIdeSection(skillMarkdown: string): string {
-  return `${skillMarkdown.trimEnd()}\n${CURSOR_IDE_SECTION}`;
+See \`docs/outer-harness.md\` for the shared contract and per-harness install
+paths.
+`;
+}
+
+function withOuterHarnessSection(
+  skillMarkdown: string,
+  agent: SkillAgent,
+): string {
+  return `${skillMarkdown.trimEnd()}\n${outerHarnessSection(agent)}`;
 }
 
 const BASE_IMAGE_SKILL_CONTENT = `---
@@ -590,7 +608,10 @@ artifacts. Prefer it over ad-hoc scripts or direct API calls when reading
 issues, updating GitHub state, preparing plans, or processing review feedback.
 
 Read repository \`dn.json\` at the start of a session. If \`harness_hints\` is
-present, honor those string notes for this checkout.
+present, honor those string notes for this checkout. Follow
+\`.cursor/skills/dn/SKILL.md\` in Cursor or \`.agents/skills/dn/SKILL.md\` in
+Codex when that skill is installed. The shared outer-harness contract is
+\`docs/outer-harness.md\`.
 
 ### GitHub access
 
@@ -726,7 +747,7 @@ function mergeAgentsMd(baseContent: string): string {
         const beforeRule = lines.slice(0, insertLine).join("\n");
         const afterRule = lines.slice(insertLine).join("\n");
         const kickstartRule =
-          "- If `.cursor/skills/dn/SKILL.md` exists, follow the dn skill for kickstart / meld / loop; ask before committing.";
+          "- If a dn skill exists (`.cursor/skills/dn/SKILL.md` or `.agents/skills/dn/SKILL.md`), follow it for kickstart / meld / loop; ask before committing.";
         result = beforeRule + "\n" + kickstartRule + "\n" + afterRule;
       }
     }
@@ -930,16 +951,13 @@ function buildSkillTargets(
     skillName,
   );
 
-  if (agent === "cursor") {
-    return [{
-      path: join(baseDirectory, "SKILL.md"),
-      content: withCursorIdeSection(skill.skillMarkdown),
-    }];
-  }
+  const markdown = skillName === "dn"
+    ? withOuterHarnessSection(skill.skillMarkdown, agent)
+    : skill.skillMarkdown;
 
   const targets: SkillTarget[] = [{
     path: join(baseDirectory, "SKILL.md"),
-    content: skill.skillMarkdown,
+    content: markdown,
   }];
 
   if (agent === "codex" || agent === "opencode") {
