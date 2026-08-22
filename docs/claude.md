@@ -24,9 +24,8 @@ dn --agent claude fixup https://github.com/owner/repo/pull/123
 dn --agent claude meld a.md b.md
 ```
 
-Legacy command-level `--claude` flags still work. Or set `CLAUDE_ENABLED=1`
-instead of passing `--agent claude`. Do not set another agent env toggle at the
-same time.
+Or set `CLAUDE_ENABLED=1` instead of passing `--agent claude`. Do not set
+another agent env toggle at the same time.
 
 `dn` invokes `claude -p` **without** `--bare` by default, like Cursor’s headless
 `agent` flow: your normal CLI auth and project `CLAUDE.md` apply. Set

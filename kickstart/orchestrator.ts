@@ -25,7 +25,10 @@ import {
   writeGithubActionVcsOutputs,
 } from "../sdk/github/publish.ts";
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
-import { formatAgentHarnessName } from "../sdk/github/agentHarness.ts";
+import {
+  formatAgentHarnessName,
+  toAgentRunOptions,
+} from "../sdk/github/agentHarness.ts";
 import { assembleCombinedPrompt } from "../sdk/github/prompt.ts";
 import { createPR } from "../sdk/github/github.ts";
 import type { PRPlanSummary } from "../sdk/github/github.ts";
@@ -133,6 +136,10 @@ export interface OrchestratorConfig {
   publish: PublishMode;
   /** Agent harness; Cursor also enables `.cursor/rules/kickstart.mdc` artifact */
   agentHarness: AgentHarness;
+  /** Optional `--agent` model override forwarded to the harness CLI. */
+  agentModel?: string;
+  /** Optional `--agent` thinking/effort/variant override. */
+  agentThinking?: string;
   /** Issue URL to fetch (mutually exclusive with contextMarkdownPath) */
   issueUrl: string | null;
   /** Path to markdown file to use as issue context (e.g. from CLI); skips fetch */
@@ -149,6 +156,8 @@ export interface OrchestratorConfig {
   verbosity: "low" | "medium" | "high";
   /** Skip plan generation and proceed directly to implementation. */
   skipPlan: boolean;
+  /** Workspace root for workflow filesystem operations. */
+  workspaceRoot?: string;
 }
 
 /**
@@ -632,7 +641,11 @@ export async function runOrchestrator(
   ): Promise<void> => await reporter.report({ type, message, ...options });
 
   // Normalize path to avoid double slashes
-  const normalizedWorkspaceRoot = WORKSPACE_ROOT.replace(/\/+$/, "");
+  const normalizedWorkspaceRoot = (config.workspaceRoot ?? WORKSPACE_ROOT)
+    .replace(
+      /\/+$/,
+      "",
+    );
 
   // Ensure plans directory exists
   await ensurePlansDirectory(normalizedWorkspaceRoot);
@@ -872,6 +885,10 @@ export async function runOrchestrator(
         true, // useReadonlyConfig
         config.agentHarness,
         reporter,
+        toAgentRunOptions({
+          model: config.agentModel,
+          thinking: config.agentThinking,
+        }),
       );
 
       // Save plan output
@@ -986,6 +1003,10 @@ export async function runOrchestrator(
       false, // useReadonlyConfig
       config.agentHarness,
       reporter,
+      toAgentRunOptions({
+        model: config.agentModel,
+        thinking: config.agentThinking,
+      }),
     );
 
     // Save implement output
@@ -1116,6 +1137,10 @@ export async function runOrchestrator(
           false,
           config.agentHarness,
           reporter,
+          toAgentRunOptions({
+            model: config.agentModel,
+            thinking: config.agentThinking,
+          }),
         );
         await Deno.writeTextFile(
           implementStdoutPath,

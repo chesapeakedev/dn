@@ -14,6 +14,7 @@ import {
   isUnattended,
   Spinner,
 } from "./output.ts";
+import type { AgentRunOptions } from "./agentHarness.ts";
 import type { ProgressReporter } from "./progress.ts";
 
 /**
@@ -21,21 +22,32 @@ import type { ProgressReporter } from "./progress.ts";
  *
  * @param workspaceRoot - Root directory of the workspace Codex should operate in
  * @param promptInstruction - Initial Codex prompt or instruction text
+ * @param options - Optional model and reasoning-effort overrides
  * @returns Arguments to pass after the `codex` executable
  */
 export function buildCodexExecArgs(
   workspaceRoot: string,
   promptInstruction: string,
+  options?: AgentRunOptions,
 ): string[] {
-  return [
+  const args = [
     "exec",
     "--sandbox",
     "workspace-write",
     "--skip-git-repo-check",
     "-C",
     workspaceRoot,
-    promptInstruction,
   ];
+  const model = options?.model?.trim();
+  if (model) {
+    args.push("--model", model);
+  }
+  const thinking = options?.thinking?.trim();
+  if (thinking) {
+    args.push("-c", `model_reasoning_effort=${thinking}`);
+  }
+  args.push(promptInstruction);
+  return args;
 }
 
 /**
@@ -62,6 +74,7 @@ export async function runCodexAgent(
   workspaceRoot: string,
   _useReadonlyConfig?: boolean,
   reporter?: ProgressReporter,
+  options?: AgentRunOptions,
 ): Promise<OpenCodeResult> {
   try {
     await $`which codex`.quiet();
@@ -139,7 +152,11 @@ export async function runCodexAgent(
 
   const promptInstruction =
     `Read and execute the instructions in this file: ${absolutePromptPath}`;
-  const codexArgs = buildCodexExecArgs(workspaceRoot, promptInstruction);
+  const codexArgs = buildCodexExecArgs(
+    workspaceRoot,
+    promptInstruction,
+    options,
+  );
   const result = await runAgentCommand(
     "codex",
     codexArgs,

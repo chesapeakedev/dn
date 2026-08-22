@@ -14,6 +14,7 @@ import {
   isUnattended,
   Spinner,
 } from "./output.ts";
+import type { AgentRunOptions } from "./agentHarness.ts";
 import type { ProgressReporter } from "./progress.ts";
 const DEFAULT_ALLOWED_TOOLS =
   "write, shell(deno:*), shell(make:*), shell(sl:*)";
@@ -85,6 +86,7 @@ export async function runCopilotAgent(
   workspaceRoot: string,
   _useReadonlyConfig?: boolean,
   reporter?: ProgressReporter,
+  options?: AgentRunOptions,
 ): Promise<OpenCodeResult> {
   try {
     await $`which copilot`.quiet();
@@ -164,7 +166,7 @@ export async function runCopilotAgent(
     `Read and execute the instructions in this file: ${absolutePromptPath}`;
   const copilotArgs = buildCopilotExecArgs(promptInstruction, {
     allowedTools: Deno.env.get("COPILOT_ALLOWED_TOOLS"),
-    model: Deno.env.get("COPILOT_MODEL"),
+    model: options?.model?.trim() || Deno.env.get("COPILOT_MODEL"),
   });
 
   const result = await runAgentCommand(

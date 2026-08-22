@@ -4,8 +4,16 @@
 /** Goal-driven generator/verifier workflows (`dn until`). */
 
 import { dirname, resolve } from "@std/path";
-import type { AgentHarness } from "../sdk/github/agentHarness.ts";
-import { parseAgentHarnessFlagsFromArgs } from "../sdk/github/agentHarness.ts";
+import type {
+  AgentHarness,
+  AgentSelection,
+} from "../sdk/github/agentHarness.ts";
+import {
+  asAgentSelection,
+  extractAgentSelectionFromArgs,
+  mergeAgentSelections,
+  toAgentRunOptions,
+} from "../sdk/github/agentHarness.ts";
 import { resolveLocalAgentHarness } from "../sdk/config/localAgent.ts";
 import { runAgentPhaseInSandbox } from "../sdk/sandbox/agentPhase.ts";
 import {
@@ -595,7 +603,7 @@ async function ensureVerdictDir(
 async function runAction(
   action: UntilAction,
   workspaceRoot: string,
-  agent: AgentHarness,
+  agent: AgentSelection,
   metadata: Record<string, string>,
   verifierExtras?: Pick<VerifierConfig, "verdict_path">,
 ): Promise<ExecResult> {
@@ -618,7 +626,9 @@ async function runAction(
       promptPath,
       workspaceRoot,
       false,
-      agent,
+      agent.harness,
+      undefined,
+      toAgentRunOptions(agent),
     );
   } finally {
     await Deno.remove(promptPath).catch(() => undefined);
@@ -644,7 +654,7 @@ async function runGambitTick(
   gambit: GambitConfig,
   label: string,
   workspaceRoot: string,
-  agent: AgentHarness,
+  agent: AgentSelection,
   strictVerdict: boolean,
   options: { softVerifier: boolean },
 ): Promise<boolean> {
@@ -704,13 +714,14 @@ async function runGambitTick(
 export async function runUntil(
   config: UntilConfig,
   workspaceRoot: string,
-  agent: AgentHarness,
+  agent: AgentHarness | AgentSelection,
   options: RunUntilOptions,
 ): Promise<void> {
   const [primary, ...rest] = config.gambits;
   if (!primary) {
     throw new Error("gambits must be a non-empty array");
   }
+  const selection = asAgentSelection(agent);
   const intervalGambits = rest.filter((gambit) => !gambit.one_shot);
   const tailGambits = rest.filter((gambit) => gambit.one_shot);
   const limit = options.once ? 1 : config.iterations;
@@ -745,7 +756,7 @@ export async function runUntil(
         gambit,
         label,
         workspaceRoot,
-        agent,
+        selection,
         strictVerdict,
         { softVerifier: true },
       );
@@ -755,7 +766,7 @@ export async function runUntil(
       primary,
       primaryLabel,
       workspaceRoot,
-      agent,
+      selection,
       strictVerdict,
       { softVerifier: false },
     );
@@ -770,7 +781,7 @@ export async function runUntil(
         gambit,
         label,
         workspaceRoot,
-        agent,
+        selection,
         strictVerdict,
         { softVerifier: true },
       );
@@ -784,7 +795,7 @@ export async function runUntil(
           gambit,
           label,
           workspaceRoot,
-          agent,
+          selection,
           strictVerdict,
           { softVerifier: false },
         );
@@ -808,7 +819,7 @@ function showHelp(): void {
 
 Usage:
   dn until validate <gambit.json>
-  dn until run <gambit.json> [--once] [--strict-verdict] [--workspace-root <path>]
+  dn until run <gambit.json> [--once] [--strict-verdict] [--workspace-root <path>] [--agent <agent>]
 
 One primary tick is loop-like (see dn loop). dn until repeats that tick up to
 top-level iterations until the primary verifier reports done, and schedules
@@ -826,7 +837,7 @@ verifier.done_when.stdout_contains. Interval gambit verifier failures are soft
 /** Handles the `dn until` command. */
 export async function handleUntil(
   args: string[],
-  globalAgent: AgentHarness | null = null,
+  globalAgent: AgentSelection | null = null,
   globalSandbox: SandboxFlagValue | null = null,
 ): Promise<void> {
   const { rest: argsAfterContext } = extractContextFiles(args);
@@ -841,20 +852,16 @@ export async function handleUntil(
   let once = false;
   let strictVerdict = false;
   let workspaceRoot = Deno.cwd();
-  const agentFlags = parseAgentHarnessFlagsFromArgs(options);
-  for (let index = 0; index < options.length; index++) {
-    if (options[index] === "--once") once = true;
-    else if (options[index] === "--strict-verdict") strictVerdict = true;
-    else if (options[index] === "--workspace-root" && options[index + 1]) {
-      workspaceRoot = resolve(options[++index]);
-    } else if (
-      ["--cursor", "-c", "--claude", "--codex", "--copilot", "--opencode"]
-        .includes(
-          options[index],
-        )
+  const { selection: localAgent, rest: optionRest } =
+    extractAgentSelectionFromArgs(options);
+  for (let index = 0; index < optionRest.length; index++) {
+    if (optionRest[index] === "--once") once = true;
+    else if (optionRest[index] === "--strict-verdict") strictVerdict = true;
+    else if (
+      optionRest[index] === "--workspace-root" && optionRest[index + 1]
     ) {
-      continue;
-    } else throw new Error(`Unknown until option: ${options[index]}`);
+      workspaceRoot = resolve(optionRest[++index]);
+    } else throw new Error(`Unknown until option: ${optionRest[index]}`);
   }
   const parsed = parseUntilConfig(
     JSON.parse(await Deno.readTextFile(resolve(configPath))),
@@ -865,8 +872,7 @@ export async function handleUntil(
   }
   const agent = await resolveLocalAgentHarness({
     repoRoot: workspaceRoot,
-    agent: globalAgent,
-    ...agentFlags,
+    agent: mergeAgentSelections(globalAgent, localAgent),
   });
   const sandboxFlag = resolveSandboxFlagValue(globalSandbox, localSandbox);
   const resolvedSandbox = parsed.sandbox

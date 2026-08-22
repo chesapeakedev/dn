@@ -14,7 +14,11 @@ import {
 import { getCurrentRepoFromRemote, updateIssue } from "../github/github-gql.ts";
 import { reviewTextInEditor } from "../github/editor.ts";
 import type { AgentHarness } from "../github/agentHarness.ts";
-import { formatAgentHarnessName, getRunAgent } from "../github/agentHarness.ts";
+import {
+  formatAgentHarnessName,
+  getRunAgent,
+  toAgentRunOptions,
+} from "../github/agentHarness.ts";
 import { readIncludedSystemPrompt } from "../../kickstart/includedPrompt.ts";
 import { normalizeTestPlanSection, upsertTestPlanSection } from "./section.ts";
 import { resolveIssueRefFromPlan } from "./resolveIssue.ts";
@@ -29,6 +33,10 @@ export interface RunIssueTestPlanOptions {
   workspaceRoot: string;
   /** Agent harness used to generate the checklist */
   agentHarness: AgentHarness;
+  /** Optional `--agent` model override. */
+  agentModel?: string;
+  /** Optional `--agent` thinking/effort override. */
+  agentThinking?: string;
   /** When true, return the section without mutating the issue */
   dryRun: boolean;
   /** Allow issue URLs from a repository other than the current workspace remote */
@@ -61,6 +69,10 @@ export interface RunIssueTestPlanFromPlanOptions {
   workspaceRoot: string;
   /** Agent harness used to generate the checklist */
   agentHarness: AgentHarness;
+  /** Optional `--agent` model override. */
+  agentModel?: string;
+  /** Optional `--agent` thinking/effort override. */
+  agentThinking?: string;
   /** When true, return the section without mutating the issue */
   dryRun: boolean;
   /** Allow issue URLs from a repository other than the current workspace remote */
@@ -88,6 +100,8 @@ async function generateTestPlanSection(options: {
   issueContextPath: string | undefined;
   workspaceRoot: string;
   agentHarness: AgentHarness;
+  agentModel?: string;
+  agentThinking?: string;
   tmpDir: string;
   contextFiles?: readonly string[];
 }): Promise<string> {
@@ -97,6 +111,8 @@ async function generateTestPlanSection(options: {
     issueContextPath,
     workspaceRoot,
     agentHarness,
+    agentModel,
+    agentThinking,
     tmpDir,
     contextFiles,
   } = options;
@@ -133,7 +149,10 @@ async function generateTestPlanSection(options: {
     `Running ${formatAgentHarnessName(agentHarness)} to generate test plan...`,
   );
 
-  const runAgent = getRunAgent(agentHarness);
+  const runAgent = getRunAgent(
+    agentHarness,
+    toAgentRunOptions({ model: agentModel, thinking: agentThinking }),
+  );
   const result = await runAgent(
     "plan",
     combinedPromptPath,
@@ -198,6 +217,8 @@ export async function runIssueTestPlan(
       issueContextPath,
       workspaceRoot: options.workspaceRoot,
       agentHarness: options.agentHarness,
+      agentModel: options.agentModel,
+      agentThinking: options.agentThinking,
       tmpDir,
       contextFiles: options.contextFiles,
     });
@@ -238,6 +259,8 @@ export async function runIssueTestPlanFromPlan(
     issueRef,
     workspaceRoot: options.workspaceRoot,
     agentHarness: options.agentHarness,
+    agentModel: options.agentModel,
+    agentThinking: options.agentThinking,
     dryRun: options.dryRun,
     allowCrossRepo: options.allowCrossRepo,
     contextFiles: options.contextFiles,

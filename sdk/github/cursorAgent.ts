@@ -14,7 +14,28 @@ import {
   isUnattended,
   Spinner,
 } from "./output.ts";
+import type { AgentRunOptions } from "./agentHarness.ts";
 import type { ProgressReporter } from "./progress.ts";
+
+/**
+ * Builds the Cursor headless CLI arguments for non-interactive agent execution.
+ *
+ * @param promptInstruction - Initial agent prompt or instruction text
+ * @param options - Optional model override (`--model`)
+ * @returns Arguments to pass after the `agent` executable
+ */
+export function buildCursorAgentArgs(
+  promptInstruction: string,
+  options?: AgentRunOptions,
+): string[] {
+  const args = ["-p", "--force"];
+  const model = options?.model?.trim();
+  if (model) {
+    args.push("--model", model);
+  }
+  args.push(promptInstruction);
+  return args;
+}
 
 /**
  * Executes the Cursor headless CLI (agent) with the specified phase and prompt file.
@@ -35,6 +56,7 @@ export async function runCursorAgent(
   workspaceRoot: string,
   _useReadonlyConfig?: boolean,
   reporter?: ProgressReporter,
+  options?: AgentRunOptions,
 ): Promise<OpenCodeResult> {
   try {
     await $`which agent`.quiet();
@@ -116,7 +138,7 @@ export async function runCursorAgent(
 
   const result = await runAgentCommand(
     "agent",
-    ["-p", "--force", promptInstruction],
+    buildCursorAgentArgs(promptInstruction, options),
     workspaceRoot,
     phase,
     reporter,

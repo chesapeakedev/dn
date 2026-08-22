@@ -8,8 +8,11 @@ import {
   type Milestone,
 } from "../sdk/github/milestone.ts";
 import { runScoring } from "../kickstart/score.ts";
-import { parseAgentHarnessFlagsFromArgs } from "../sdk/github/agentHarness.ts";
-import type { AgentHarness } from "../sdk/github/agentHarness.ts";
+import type { AgentSelection } from "../sdk/github/agentHarness.ts";
+import {
+  extractAgentSelectionFromArgs,
+  mergeAgentSelections,
+} from "../sdk/github/agentHarness.ts";
 import { resolveLocalAgentHarness } from "../sdk/config/localAgent.ts";
 import { stringifyFrontmatter } from "../sdk/todo/frontmatter.ts";
 import {
@@ -73,22 +76,10 @@ function showHelp(): void {
   console.log(
     "  --yes                         Approve destructive overwrite without prompting",
   );
-  console.log("  --help, -h                    Show this help message");
   console.log(
-    "  --cursor, -c                  Use Cursor headless agent for issue scoring",
+    "  --agent <agent>              <harness>:<model> (harness-only or optional :<thinking>)",
   );
-  console.log(
-    "  --claude                      Use Claude Code CLI for issue scoring",
-  );
-  console.log(
-    "  --codex                       Use Codex CLI for issue scoring",
-  );
-  console.log(
-    "  --copilot                     Use GitHub Copilot CLI for issue scoring",
-  );
-  console.log(
-    "  --opencode                    Use OpenCode CLI for issue scoring (default)\n",
-  );
+  console.log("  --help, -h                    Show this help message\n");
   console.log("Examples:");
   console.log("  dn init stack 42");
   console.log(
@@ -392,9 +383,11 @@ async function writeStackIndex(
  */
 export async function handleInitStack(
   args: string[],
-  globalAgent: AgentHarness | null = null,
+  globalAgent: AgentSelection | null = null,
 ): Promise<void> {
-  const config = parseArgs(args);
+  const { selection: localAgent, rest: restArgs } =
+    extractAgentSelectionFromArgs(args);
+  const config = parseArgs(restArgs);
 
   if (config.help) {
     showHelp();
@@ -488,10 +481,9 @@ export async function handleInitStack(
     url: i.url,
   }));
 
-  const agentHarness = await resolveLocalAgentHarness({
+  const agentSelection = await resolveLocalAgentHarness({
     repoRoot,
-    agent: globalAgent,
-    ...parseAgentHarnessFlagsFromArgs(args),
+    agent: mergeAgentSelections(globalAgent, localAgent),
   });
 
   console.log("Scoring issues for kickstart readiness...");
@@ -499,7 +491,7 @@ export async function handleInitStack(
     repoRoot,
     withBodies,
     [],
-    agentHarness,
+    agentSelection,
   );
 
   const scored = scoring.scored

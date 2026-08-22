@@ -9,9 +9,17 @@
 import { dirname, join, resolve } from "@std/path";
 import { resolveDnConfig } from "../sdk/config/resolve.ts";
 import type { DnEnsureConfig, DnEnsureRecipe } from "../sdk/config/types.ts";
+import type {
+  AgentHarness,
+  AgentSelection,
+} from "../sdk/github/agentHarness.ts";
+import {
+  asAgentSelection,
+  extractAgentSelectionFromArgs,
+  mergeAgentSelections,
+  toAgentRunOptions,
+} from "../sdk/github/agentHarness.ts";
 import { resolveLocalAgentHarness } from "../sdk/config/localAgent.ts";
-import type { AgentHarness } from "../sdk/github/agentHarness.ts";
-import { parseAgentHarnessFlagsFromArgs } from "../sdk/github/agentHarness.ts";
 import { runAgentPhaseInSandbox } from "../sdk/sandbox/agentPhase.ts";
 import {
   extractSandboxFlag,
@@ -73,6 +81,9 @@ function showHelp(): void {
     "  --no-fix                 Fail after one exec (no fixer agent)",
   );
   console.log("  --workspace-root <path>  Directory to search for dn.json");
+  console.log(
+    "  --agent <agent>          <harness>:<model> (harness-only or optional :<thinking>)",
+  );
   console.log("  --help, -h               Show this help\n");
   console.log("Examples:");
   console.log("  dn ensure");
@@ -100,11 +111,6 @@ export function parseEnsureArgs(args: string[]): EnsureCliOptions {
       }
       workspaceRoot = resolve(value);
       i++;
-    } else if (
-      arg === "--cursor" || arg === "-c" || arg === "--claude" ||
-      arg === "--codex" || arg === "--copilot" || arg === "--opencode"
-    ) {
-      continue;
     } else if (arg.startsWith("-")) {
       throw new Error(`Unknown ensure option: ${arg}`);
     } else {
@@ -319,7 +325,7 @@ export interface RunEnsureRecipeOptions {
   workspaceRoot: string;
   noFix: boolean;
   nested: boolean;
-  agent: AgentHarness;
+  agent: AgentHarness | AgentSelection;
   exec?: (
     argv: string[],
     cwd: string,
@@ -329,7 +335,7 @@ export interface RunEnsureRecipeOptions {
     recipe: DnEnsureRecipe,
     capture: EnsureCapture,
     workspaceRoot: string,
-    agent: AgentHarness,
+    agent: AgentHarness | AgentSelection,
   ) => Promise<ExecResult>;
 }
 
@@ -338,8 +344,9 @@ async function defaultRunFixer(
   recipe: DnEnsureRecipe,
   capture: EnsureCapture,
   workspaceRoot: string,
-  agent: AgentHarness,
+  agent: AgentHarness | AgentSelection,
 ): Promise<ExecResult> {
+  const selection = asAgentSelection(agent);
   const promptPath = await Deno.makeTempFile({
     dir: workspaceRoot,
     prefix: ".dn-ensure-",
@@ -357,7 +364,9 @@ async function defaultRunFixer(
       promptPath,
       workspaceRoot,
       false,
-      agent,
+      selection.harness,
+      undefined,
+      toAgentRunOptions(selection),
     );
   } finally {
     if (previous === undefined) {
@@ -425,13 +434,15 @@ function resolveEnsureRepoRoot(start: string): string {
 /** Handles the `dn ensure` command. */
 export async function handleEnsure(
   args: string[],
-  globalAgent: AgentHarness | null = null,
+  globalAgent: AgentSelection | null = null,
   globalSandbox: SandboxFlagValue | null = null,
 ): Promise<void> {
   const { sandbox: localSandbox, rest: afterSandbox } = extractSandboxFlag(
     args,
   );
-  const parsed = parseEnsureArgs(afterSandbox);
+  const { selection: localAgent, rest: afterAgent } =
+    extractAgentSelectionFromArgs(afterSandbox);
+  const parsed = parseEnsureArgs(afterAgent);
   if (parsed.help || parsed.name === "help") {
     showHelp();
     return;
@@ -458,11 +469,9 @@ export async function handleEnsure(
     throw unknownRecipeError(name, recipes);
   }
 
-  const agentFlags = parseAgentHarnessFlagsFromArgs(afterSandbox);
   const agent = await resolveLocalAgentHarness({
     repoRoot,
-    agent: globalAgent,
-    ...agentFlags,
+    agent: mergeAgentSelections(globalAgent, localAgent),
   });
   const sandboxFlag = resolveSandboxFlagValue(globalSandbox, localSandbox);
   const resolvedSandbox = await resolveSandboxConfig(repoRoot, sandboxFlag);

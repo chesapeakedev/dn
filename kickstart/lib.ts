@@ -29,8 +29,14 @@ import {
   detectVcs,
   prepareVcsForKickstart,
 } from "../sdk/github/vcs.ts";
-import type { AgentHarness } from "../sdk/github/agentHarness.ts";
-import { formatAgentHarnessName } from "../sdk/github/agentHarness.ts";
+import type {
+  AgentHarness,
+  AgentRunOptions,
+} from "../sdk/github/agentHarness.ts";
+import {
+  formatAgentHarnessName,
+  toAgentRunOptions,
+} from "../sdk/github/agentHarness.ts";
 import {
   createProgressReporter,
   type ProgressReporter,
@@ -300,6 +306,10 @@ export interface KickstartConfig {
   publish: PublishMode;
   /** Which agent harness runs plan/implement phases (OpenCode, Cursor, or Claude Code) */
   agentHarness: AgentHarness;
+  /** Optional `--agent` model override forwarded to the harness CLI. */
+  agentModel?: string;
+  /** Optional `--agent` thinking/effort/variant override. */
+  agentThinking?: string;
   /** Whether to allow cross-repository operations */
   allowCrossRepo: boolean;
   /** Issue URL to fetch (mutually exclusive with contextMarkdownPath) */
@@ -1076,6 +1086,11 @@ export async function runMeldPhase(
       workspaceRoot,
       true,
       config.agentHarness,
+      undefined,
+      toAgentRunOptions({
+        model: config.agentModel,
+        thinking: config.agentThinking,
+      }),
     );
 
     await Deno.writeTextFile(planOutputPath, planResult.stdout);
@@ -1298,6 +1313,11 @@ export async function runLoopPhase(
       workspaceRoot,
       false, // useReadonlyConfig
       config.agentHarness,
+      undefined,
+      toAgentRunOptions({
+        model: config.agentModel,
+        thinking: config.agentThinking,
+      }),
     );
 
     if (implementResult.code !== 0) {
@@ -1407,6 +1427,11 @@ export async function runLoopPhase(
         workspaceRoot,
         false,
         config.agentHarness,
+        undefined,
+        toAgentRunOptions({
+          model: config.agentModel,
+          thinking: config.agentThinking,
+        }),
       );
       if (continuationResult.code !== 0) {
         console.error("\n=== Tests-only continuation STDERR ===");
@@ -1754,10 +1779,14 @@ export async function runFullKickstart(
   // Import type separately - OrchestratorConfig is already re-exported at top of file
   type OrchestratorConfig = import("./orchestrator.ts").OrchestratorConfig;
 
-  // Convert KickstartConfig to OrchestratorConfig (they're compatible, just drop workspaceRoot)
+  const workspaceRoot = getWorkspaceRoot(config);
+
+  // Convert KickstartConfig to OrchestratorConfig.
   const orchestratorConfig: OrchestratorConfig = {
     publish: config.publish,
     agentHarness: config.agentHarness,
+    agentModel: config.agentModel,
+    agentThinking: config.agentThinking,
     issueUrl: config.issueUrl,
     contextMarkdownPath: config.contextMarkdownPath,
     saveCtx: config.saveCtx,
@@ -1766,12 +1795,8 @@ export async function runFullKickstart(
     contextFiles: config.contextFiles,
     verbosity: config.verbosity,
     skipPlan: config.skipPlan,
+    workspaceRoot,
   };
-
-  // Set workspace root via environment if provided
-  if (config.workspaceRoot) {
-    Deno.env.set("WORKSPACE_ROOT", config.workspaceRoot);
-  }
 
   return await runOrchestrator(orchestratorConfig);
 }
@@ -1848,6 +1873,7 @@ export async function fillEmptyIssueSections(
   dryRun: boolean = false,
   agentHarness: AgentHarness = "opencode",
   contextFiles?: readonly string[],
+  runOptions?: AgentRunOptions,
 ): Promise<FillEmptyIssueSectionsResult> {
   try {
     // Step 1: Resolve and fetch issue
@@ -1996,6 +2022,8 @@ export async function fillEmptyIssueSections(
         workspaceRoot,
         true, // Use readonly config
         agentHarness,
+        undefined,
+        runOptions,
       );
 
       if (result.code !== 0) {
@@ -2327,6 +2355,7 @@ export async function generateMilestoneDescription(
   workspaceRoot: string,
   agentHarness: AgentHarness = "opencode",
   contextFiles?: readonly string[],
+  runOptions?: AgentRunOptions,
 ): Promise<MilestonePrepResult> {
   const normalizedWorkspaceRoot = workspaceRoot.replace(/\/+$/, "");
 
@@ -2396,6 +2425,8 @@ export async function generateMilestoneDescription(
           normalizedWorkspaceRoot,
           true,
           agentHarness,
+          undefined,
+          runOptions,
         )
         : { code: 0, stdout: fakeOutput, stderr: "" };
 

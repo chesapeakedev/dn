@@ -251,7 +251,7 @@ dn distinguishes its agent harness from its execution environment:
 
 | Mechanism                          | Execution location                    | Notes                                                        |
 | ---------------------------------- | ------------------------------------- | ------------------------------------------------------------ |
-| `--cursor`                         | Current host or GitHub Actions runner | Invokes Cursor's local `agent` CLI.                          |
+| `--agent cursor`                   | Current host or GitHub Actions runner | Invokes Cursor's local `agent` CLI.                          |
 | `--cursor-cloud`                   | Cursor-managed VM                     | Durable SDK run using `CURSOR_API_KEY`; it is not a sandbox. |
 | `--sandbox docker\|exe.dev`        | Docker or exe.dev                     | Isolates any supported local harness.                        |
 | Canonical GitHub Actions workflows | GitHub-hosted runner                  | Installs and runs the configured local harness.              |

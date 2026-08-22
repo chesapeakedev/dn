@@ -24,8 +24,11 @@ import { handleInitWizard } from "./init-wizard.ts";
 import { handleIssue } from "./issue.ts";
 import { handleInitWorkflows, handleWorkflows } from "./workflows.ts";
 import {
-  type AgentHarness,
-  parseAgentHarness,
+  type AgentSelection,
+  agentSelectionsEqual,
+  assertNotLegacyAgentAlias,
+  formatAgentSelection,
+  parseAgentSelection,
 } from "../sdk/github/agentHarness.ts";
 import type { SandboxFlagValue } from "../sdk/sandbox/resolve.ts";
 import { parseSandboxProvider } from "../sdk/sandbox/config.ts";
@@ -33,7 +36,7 @@ import denoConfig from "../deno.json" with { type: "json" };
 
 async function handleInit(
   args: string[],
-  globalAgent: AgentHarness | null,
+  globalAgent: AgentSelection | null,
 ): Promise<void> {
   const subcommand = args[0];
 
@@ -118,7 +121,7 @@ function parseGlobalFlags(
   forceColor: boolean;
   agentTrace: boolean | undefined;
   showVersion: boolean;
-  agent: AgentHarness | null;
+  agent: AgentSelection | null;
   sandbox: SandboxFlagValue | null;
   contextFiles: string[];
   rest: string[];
@@ -128,7 +131,7 @@ function parseGlobalFlags(
   let forceColor = false;
   let agentTrace: boolean | undefined;
   let showVersion = false;
-  let agent: AgentHarness | null = null;
+  let agent: AgentSelection | null = null;
   let sandbox: SandboxFlagValue | null = null;
   const contextFiles: string[] = [];
   const rest: string[] = [];
@@ -164,48 +167,15 @@ function parseGlobalFlags(
       if (i + 1 >= args.length) {
         throw new Error("Missing value for --agent");
       }
-      const parsed = parseAgentHarness(args[++i]);
-      if (agent && agent !== parsed) {
+      const parsed = parseAgentSelection(args[++i]);
+      if (agent && !agentSelectionsEqual(agent, parsed)) {
         throw new Error(
-          `Conflicting agent selections: ${agent} and ${parsed}. Select only one agent.`,
+          `Conflicting agent selections: ${formatAgentSelection(agent)} and ${
+            formatAgentSelection(parsed)
+          }. Select only one agent.`,
         );
       }
       agent = parsed;
-    } else if (a === "--opencode") {
-      if (agent && agent !== "opencode") {
-        throw new Error(
-          `Conflicting agent selections: ${agent} and opencode. Select only one agent.`,
-        );
-      }
-      agent = "opencode";
-    } else if (a === "--cursor") {
-      if (agent && agent !== "cursor") {
-        throw new Error(
-          `Conflicting agent selections: ${agent} and cursor. Select only one agent.`,
-        );
-      }
-      agent = "cursor";
-    } else if (a === "--claude") {
-      if (agent && agent !== "claude") {
-        throw new Error(
-          `Conflicting agent selections: ${agent} and claude. Select only one agent.`,
-        );
-      }
-      agent = "claude";
-    } else if (a === "--codex") {
-      if (agent && agent !== "codex") {
-        throw new Error(
-          `Conflicting agent selections: ${agent} and codex. Select only one agent.`,
-        );
-      }
-      agent = "codex";
-    } else if (a === "--copilot") {
-      if (agent && agent !== "copilot") {
-        throw new Error(
-          `Conflicting agent selections: ${agent} and copilot. Select only one agent.`,
-        );
-      }
-      agent = "copilot";
     } else if (a === "--context-file") {
       const value = args[i + 1];
       if (!value || value.startsWith("-")) {
@@ -214,6 +184,7 @@ function parseGlobalFlags(
       contextFiles.push(resolve(value));
       i++;
     } else {
+      assertNotLegacyAgentAlias(a);
       rest.push(...args.slice(i));
       break;
     }
@@ -272,13 +243,11 @@ function showUsage(): void {
   console.error("  dn [global options] <subcommand> [options]\n");
   console.error("Global options:");
   console.error(
-    "  --agent <agent>   Agent to use for agent-backed workflows (opencode, cursor, claude, codex, copilot)",
+    "  --agent <agent>   Agent: <harness>:<model> (harness-only or optional :<thinking>)",
   );
-  console.error("  --opencode        Alias for --agent opencode");
-  console.error("  --cursor          Alias for --agent cursor");
-  console.error("  --claude          Alias for --agent claude");
-  console.error("  --codex           Alias for --agent codex");
-  console.error("  --copilot         Alias for --agent copilot");
+  console.error(
+    "                    Examples: opencode, codex:gpt-5.4. Harnesses: opencode, cursor, claude, codex, copilot",
+  );
   console.error(
     "  --sandbox <none|docker|exe.dev>  Sandbox provider (omit value to read config)",
   );
@@ -390,7 +359,7 @@ function showUsage(): void {
  */
 async function main(): Promise<void> {
   let args: string[];
-  let globalAgent: AgentHarness | null;
+  let globalAgent: AgentSelection | null;
   let globalSandbox: SandboxFlagValue | null;
   let globalContextFiles: string[];
   let unattended: boolean;

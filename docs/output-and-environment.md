@@ -135,27 +135,26 @@ Subcommands that run an LLM agent (`kickstart`, `meld`, `loop`, `fixup`, `land`
 (default and `--issue-testplan`), `init stack`, and scoring inside `tidy` /
 no-ticket `kickstart`) pick a **harness**:
 
-| Mechanism           | Effect                       |
-| ------------------- | ---------------------------- |
-| (default)           | OpenCode                     |
-| `--agent opencode`  | OpenCode                     |
-| `--agent cursor`    | Cursor headless `agent` CLI  |
-| `--agent claude`    | Claude Code `claude -p`      |
-| `--agent codex`     | Codex CLI `codex exec`       |
-| `--agent copilot`   | GitHub Copilot CLI `copilot` |
-| `--cursor` / `-c`   | Legacy alias for Cursor      |
-| `--claude`          | Legacy alias for Claude Code |
-| `--codex`           | Legacy alias for Codex CLI   |
-| `--copilot`         | Legacy alias for Copilot CLI |
-| `CURSOR_ENABLED=1`  | Same as `--agent cursor`     |
-| `CLAUDE_ENABLED=1`  | Same as `--agent claude`     |
-| `CODEX_ENABLED=1`   | Same as `--agent codex`      |
-| `COPILOT_ENABLED=1` | Same as `--agent copilot`    |
+| Mechanism               | Effect                           |
+| ----------------------- | -------------------------------- |
+| (default)               | OpenCode                         |
+| `--agent opencode`      | OpenCode (harness default model) |
+| `--agent cursor`        | Cursor headless `agent` CLI      |
+| `--agent claude`        | Claude Code `claude -p`          |
+| `--agent codex:gpt-5.4` | Codex CLI with a model override  |
+| `--agent copilot`       | GitHub Copilot CLI `copilot`     |
+| `CURSOR_ENABLED=1`      | Same as `--agent cursor`         |
+| `CLAUDE_ENABLED=1`      | Same as `--agent claude`         |
+| `CODEX_ENABLED=1`       | Same as `--agent codex`          |
+| `COPILOT_ENABLED=1`     | Same as `--agent copilot`        |
 
-Top-level agent options apply to each supported subcommand, for example
-`dn --agent codex meld <issue-url>`. Explicit command-level aliases cannot be
-combined with a conflicting top-level `--agent`; environment toggles are used
-only when no explicit CLI selection was provided.
+`--agent` accepts `<harness>:<model>` (common) and an optional `:<thinking>`
+segment for OpenCode, Codex, and Claude. Pass it globally
+(`dn --agent codex:gpt-5.4 meld <issue-url>`) or on the subcommand
+(`dn kickstart --agent cursor …`). Global and subcommand values must agree when
+both are set. `DN_AGENT` uses the same parser. Environment toggles apply only
+when no explicit `--agent` or `DN_AGENT` selection was provided. Project
+`dn.json` / `.github/dn/config.json` `agent` stays a harness name.
 
 ### Claude-specific variables
 

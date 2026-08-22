@@ -1,7 +1,7 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
-import type { AgentHarness } from "./agentHarness.ts";
+import type { AgentHarness, AgentRunOptions } from "./agentHarness.ts";
 import { formatDetail } from "./output.ts";
 
 /**
@@ -9,17 +9,24 @@ import { formatDetail } from "./output.ts";
  *
  * @param harness - Selected agent backend
  * @param model - Resolved model id when known; omitted when unset
+ * @param thinking - Explicit thinking/effort/variant when provided
  * @returns Detail line such as `agent=opencode model=…` (branded when mixed logs)
  */
 export function formatAgentPhaseIntentLog(
   harness: AgentHarness,
   model?: string | null,
+  thinking?: string | null,
 ): string {
-  const trimmed = model?.trim();
-  const body = trimmed
-    ? `agent=${harness} model=${trimmed}`
-    : `agent=${harness}`;
-  return formatDetail(body);
+  const trimmedModel = model?.trim();
+  const trimmedThinking = thinking?.trim();
+  const parts = [`agent=${harness}`];
+  if (trimmedModel) {
+    parts.push(`model=${trimmedModel}`);
+  }
+  if (trimmedThinking) {
+    parts.push(`thinking=${trimmedThinking}`);
+  }
+  return formatDetail(parts.join(" "));
 }
 
 /**
@@ -52,18 +59,22 @@ export async function resolveConfiguredAgentModel(
 
 /**
  * Logs the resolved agent/model intent once at phase start.
+ *
+ * CLI `--agent` model and thinking override configured defaults.
  */
 export async function logAgentPhaseIntent(
   harness: AgentHarness,
   workspaceRoot: string,
   useReadonlyConfig = false,
+  options?: AgentRunOptions,
 ): Promise<void> {
-  const model = await resolveConfiguredAgentModel(
+  const configured = await resolveConfiguredAgentModel(
     harness,
     workspaceRoot,
     useReadonlyConfig,
   );
-  console.log(formatAgentPhaseIntentLog(harness, model));
+  const model = options?.model?.trim() || configured;
+  console.log(formatAgentPhaseIntentLog(harness, model, options?.thinking));
 }
 
 async function readOpenCodeModel(

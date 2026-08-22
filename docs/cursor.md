@@ -7,15 +7,15 @@ CLI and durable Cursor Cloud Agents.
 
 | Target             | Command                                            | Where work runs                          | Result                                                     |
 | ------------------ | -------------------------------------------------- | ---------------------------------------- | ---------------------------------------------------------- |
-| Cursor CLI         | `dn kickstart --cursor <issue>`                    | Current machine or GitHub Actions runner | dn's normal local plan and implementation workflow         |
+| Cursor CLI         | `dn kickstart --agent cursor <issue>`              | Current machine or GitHub Actions runner | dn's normal local plan and implementation workflow         |
 | Cursor Cloud Agent | `dn kickstart --cursor-cloud --publish pr <issue>` | Cursor-managed VM                        | A durable remote run; Cursor creates the PR when requested |
 | Sandbox            | `--sandbox docker\|exe.dev`                        | Docker or exe.dev around a local harness | Isolation layer, not a Cursor agent runtime                |
 | GitHub Actions     | `dn.kickstart_issue` workflow                      | GitHub-hosted runner                     | Runs the configured local harness in CI                    |
 
 `--cursor-cloud` requires `CURSOR_API_KEY` and is intentionally separate from
-`--cursor` and `--sandbox`. By default it queues the run and exits after Cursor
-returns its durable run and agent IDs; the cloud VM owns its repository clone,
-so it does not update local plan files or the current workspace. Use
+`--agent cursor` and `--sandbox`. By default it queues the run and exits after
+Cursor returns its durable run and agent IDs; the cloud VM owns its repository
+clone, so it does not update local plan files or the current workspace. Use
 `--publish pr` when the completed remote work should open a pull request.
 
 When denoise (or another orchestrator) sets `DN_DISPATCH_ID` plus
@@ -128,7 +128,7 @@ jobs:
 1. **Trigger**: Workflow runs on `workflow_dispatch` (manual) or when an issue
    is labeled with `cursor awp`
 2. **Setup**: Installs Deno and Cursor CLI on the runner
-3. **Execution**: Runs kickstart with `--awp --cursor` flags, which:
+3. **Execution**: Runs kickstart with `--awp --agent cursor` flags, which:
    - Creates an implementation plan
    - Uses Cursor's agent to implement the changes
    - Creates a branch and opens a PR

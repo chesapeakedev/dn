@@ -80,6 +80,49 @@ Deno.test("runAgentPhaseInSandbox delegates to runner.exec when sandbox active",
   }
 });
 
+Deno.test("runAgentPhaseInSandbox forwards OpenCode --model and --variant", async () => {
+  const runner = new StubRunner();
+  const handle: SandboxHandle = {
+    provider: "docker",
+    id: "container-1",
+    workspace: "/workspace",
+  };
+  setCurrentSandboxContext({
+    runner,
+    handle,
+    provider: "docker",
+    repoRoot: "/Users/me/repo",
+  });
+  try {
+    await runAgentPhaseInSandbox(
+      "plan",
+      "/Users/me/repo/.dn/tmp/combined_prompt_plan.txt",
+      "/Users/me/repo",
+      true,
+      "opencode",
+      undefined,
+      {
+        model: "openrouter/openai/gpt-5.6-luna",
+        thinking: "high",
+      },
+    );
+    assertEquals(runner.lastExec?.cmd, [
+      "opencode",
+      "run",
+      "plan",
+      "-f",
+      "/workspace/.dn/tmp/combined_prompt_plan.txt",
+      "--log-level=DEBUG",
+      "--model",
+      "openrouter/openai/gpt-5.6-luna",
+      "--variant",
+      "high",
+    ]);
+  } finally {
+    setCurrentSandboxContext(null);
+  }
+});
+
 Deno.test({
   name: "runAgentPhaseInSandbox checkpoints exe.dev around execution",
   permissions: { env: true, read: true, write: true },

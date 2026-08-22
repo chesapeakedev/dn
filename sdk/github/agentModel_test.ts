@@ -31,6 +31,14 @@ Deno.test("formatAgentPhaseIntentLog omits model when unset", () => {
       formatAgentPhaseIntentLog("cursor", "  "),
       "[dn] agent=cursor",
     );
+    assertEquals(
+      formatAgentPhaseIntentLog("codex", "gpt-5.4"),
+      "[dn] agent=codex model=gpt-5.4",
+    );
+    assertEquals(
+      formatAgentPhaseIntentLog("codex", "gpt-5.4", "high"),
+      "[dn] agent=codex model=gpt-5.4 thinking=high",
+    );
   } finally {
     setUnattended(false);
   }

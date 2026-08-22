@@ -78,11 +78,21 @@ Deno.test("completeWords offers --agent= values", () => {
   );
 });
 
+Deno.test("completeWords offers --agent after a subcommand", () => {
+  assertEquals(
+    completeWords(["dn", "kickstart", "--agent", ""]),
+    ["claude", "codex", "copilot", "cursor", "opencode"],
+  );
+});
+
 Deno.test("completeWords offers flags after a subcommand", () => {
   const matches = completeWords(["dn", "kickstart", "--"]);
   assert(matches.includes("--awp"));
   assert(matches.includes("--help"));
   assert(matches.includes("--unattended"));
+  assert(matches.includes("--agent"));
+  assert(!matches.includes("--codex"));
+  assert(!matches.includes("--cursor"));
 });
 
 Deno.test("completeWords offers rfc --status values", () => {

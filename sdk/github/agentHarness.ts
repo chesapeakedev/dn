@@ -36,6 +36,31 @@ export const AGENT_HARNESSES: readonly AgentHarness[] = [
 ];
 
 /**
+ * Parsed `--agent` value: a harness, optional model, and optional thinking
+ * segment.
+ *
+ * Common form is `harness:model`. A third `thinking` segment is optional.
+ */
+export interface AgentSelection {
+  /** Selected agent backend. */
+  harness: AgentHarness;
+  /** Model id forwarded to the harness CLI when set. */
+  model?: string;
+  /** Thinking / effort / variant forwarded when the harness supports it. */
+  thinking?: string;
+}
+
+/**
+ * Optional model and thinking overrides passed through to a harness invocation.
+ */
+export interface AgentRunOptions {
+  /** Model id forwarded to the harness CLI when set. */
+  model?: string;
+  /** Thinking / effort / variant forwarded when the harness supports it. */
+  thinking?: string;
+}
+
+/**
  * Returns the human-readable CLI or product name for an agent harness.
  *
  * @param harness - Selected agent backend
@@ -57,53 +82,58 @@ export function formatAgentHarnessName(harness: AgentHarness): string {
   return "OpenCode";
 }
 
-/** Individual harness flag toggles parsed from CLI arguments. */
-export interface AgentHarnessFlagSet {
-  cursorFlag: boolean;
-  claudeFlag: boolean;
-  codexFlag: boolean;
-  copilotFlag: boolean;
-  opencodeFlag: boolean;
-}
-
 /**
- * Returns an empty agent flag set (all flags false).
- */
-export function emptyAgentHarnessFlags(): AgentHarnessFlagSet {
-  return {
-    cursorFlag: false,
-    claudeFlag: false,
-    codexFlag: false,
-    copilotFlag: false,
-    opencodeFlag: false,
-  };
-}
-
-/**
- * Detects legacy per-command agent flags in a CLI argument list.
+ * Formats a selection as the `--agent` value users type.
  *
- * Scans every token; flags may appear anywhere among subcommand arguments.
- *
- * @param args - Subcommand arguments (not including the subcommand name)
+ * @param selection - Parsed harness, model, and optional thinking
  */
-export function parseAgentHarnessFlagsFromArgs(
-  args: readonly string[],
-): AgentHarnessFlagSet {
-  const flags = emptyAgentHarnessFlags();
-  for (const arg of args) {
-    if (arg === "--cursor" || arg === "-c") {
-      flags.cursorFlag = true;
-    } else if (arg === "--claude") {
-      flags.claudeFlag = true;
-    } else if (arg === "--codex") {
-      flags.codexFlag = true;
-    } else if (arg === "--copilot") {
-      flags.copilotFlag = true;
-    } else if (arg === "--opencode") {
-      flags.opencodeFlag = true;
-    }
+export function formatAgentSelection(selection: AgentSelection): string {
+  if (selection.model && selection.thinking) {
+    return `${selection.harness}:${selection.model}:${selection.thinking}`;
   }
-  return flags;
+  if (selection.model) {
+    return `${selection.harness}:${selection.model}`;
+  }
+  return selection.harness;
+}
+
+/**
+ * Returns true when two selections name the same harness, model, and thinking.
+ */
+export function agentSelectionsEqual(
+  left: AgentSelection,
+  right: AgentSelection,
+): boolean {
+  return left.harness === right.harness && left.model === right.model &&
+    left.thinking === right.thinking;
+}
+
+/**
+ * Normalizes a bare harness name or a full selection to {@link AgentSelection}.
+ */
+export function asAgentSelection(
+  value: AgentHarness | AgentSelection,
+): AgentSelection {
+  return typeof value === "string" ? { harness: value } : value;
+}
+
+/**
+ * Converts a selection into run options for harness argv builders.
+ *
+ * @returns `undefined` when neither model nor thinking is set
+ */
+export function toAgentRunOptions(
+  selection: { model?: string; thinking?: string },
+): AgentRunOptions | undefined {
+  const model = selection.model?.trim();
+  const thinking = selection.thinking?.trim();
+  if (!model && !thinking) {
+    return undefined;
+  }
+  return {
+    ...(model ? { model } : {}),
+    ...(thinking ? { thinking } : {}),
+  };
 }
 
 /**
@@ -124,10 +154,14 @@ export type RunAgentFn = (
  * intent line (`agent=… model=…`) before execution.
  *
  * @param harness - Selected agent backend
+ * @param options - Optional model and thinking forwarded to the harness CLI
  * @returns The runner for the selected agent backend
  */
-export function getRunAgent(harness: AgentHarness): RunAgentFn {
-  const run: RunAgentFn = harness === "cursor"
+export function getRunAgent(
+  harness: AgentHarness,
+  options?: AgentRunOptions,
+): RunAgentFn {
+  const run = harness === "cursor"
     ? runCursorAgent
     : harness === "claude"
     ? runClaudeAgent
@@ -148,6 +182,7 @@ export function getRunAgent(harness: AgentHarness): RunAgentFn {
       harness,
       workspaceRoot,
       useReadonlyConfig === true,
+      options,
     );
     return await run(
       phase,
@@ -155,6 +190,7 @@ export function getRunAgent(harness: AgentHarness): RunAgentFn {
       workspaceRoot,
       useReadonlyConfig,
       reporter,
+      options,
     );
   };
 }
@@ -176,73 +212,155 @@ export function parseAgentHarness(value: string): AgentHarness {
 }
 
 /**
- * Parses CLI flags and environment into a single {@link AgentHarness}.
+ * Parses `--agent` values: `harness`, `harness:model`, or
+ * `harness:model:thinking`.
  *
- * Explicit agent selection is mutually exclusive with legacy agent flags for a
- * different harness. Environment toggles are used only when no explicit CLI
- * selection was provided.
+ * Cursor and Copilot reject a thinking segment because those CLIs do not take a
+ * separate thinking flag; put the variant in the model id instead.
  *
- * @param options.agent - Explicit `--agent <name>` value, usually from global CLI flags
- * @param options.cursorFlag - True if `--cursor` or `-c` was passed
- * @param options.claudeFlag - True if `--claude` was passed
- * @param options.codexFlag - True if `--codex` was passed
- * @param options.copilotFlag - True if `--copilot` was passed
- * @param options.opencodeFlag - True if `--opencode` was passed
- * @param options.fallbackAgent - Config-derived agent used after flags/env
- * @returns Resolved harness (default `opencode`)
- * @throws Error if conflicting flags or env vars are set
+ * @param value - Raw CLI or `DN_AGENT` value
+ * @throws Error if the value is empty, has empty segments, names an unknown
+ * harness, or asks Cursor/Copilot for thinking
  */
-export function resolveAgentHarnessFromFlagsAndEnv(options: {
-  agent?: AgentHarness | null;
-  cursorFlag: boolean;
-  claudeFlag: boolean;
-  codexFlag?: boolean;
-  copilotFlag?: boolean;
-  opencodeFlag?: boolean;
-  fallbackAgent?: AgentHarness | null;
-}): AgentHarness {
-  const flagSelections: AgentHarness[] = [];
-  if (options.opencodeFlag) {
-    flagSelections.push("opencode");
-  }
-  if (options.cursorFlag) {
-    flagSelections.push("cursor");
-  }
-  if (options.claudeFlag) {
-    flagSelections.push("claude");
-  }
-  if (options.codexFlag) {
-    flagSelections.push("codex");
-  }
-  if (options.copilotFlag) {
-    flagSelections.push("copilot");
-  }
-
-  const uniqueFlagSelections = [...new Set(flagSelections)];
-  if (uniqueFlagSelections.length > 1) {
+export function parseAgentSelection(value: string): AgentSelection {
+  const trimmed = value.trim();
+  if (!trimmed) {
     throw new Error(
-      `Conflicting agent flags: ${
-        uniqueFlagSelections.join(", ")
+      `Invalid agent: ${value}. Expected <harness>, <harness>:<model>, or <harness>:<model>:<thinking>.`,
+    );
+  }
+  const parts = trimmed.split(":");
+  if (parts.some((part) => part.length === 0)) {
+    throw new Error(
+      `Invalid agent: ${value}. Expected <harness>, <harness>:<model>, or <harness>:<model>:<thinking>.`,
+    );
+  }
+  const harness = parseAgentHarness(parts[0]);
+  if (parts.length === 1) {
+    return { harness };
+  }
+  if (parts.length === 2) {
+    return { harness, model: parts[1] };
+  }
+  const thinking = parts[parts.length - 1];
+  const model = parts.slice(1, -1).join(":");
+  if (harness === "cursor" || harness === "copilot") {
+    throw new Error(
+      `--agent ${harness} does not accept a thinking segment; include the variant in the model id (for example --agent ${harness}:<model>).`,
+    );
+  }
+  return { harness, model, thinking };
+}
+
+const LEGACY_AGENT_ALIAS_FLAGS: Record<string, AgentHarness> = {
+  "--opencode": "opencode",
+  "--cursor": "cursor",
+  "-c": "cursor",
+  "--claude": "claude",
+  "--codex": "codex",
+  "--copilot": "copilot",
+};
+
+/**
+ * Throws when `flag` is a removed harness alias such as `--codex` or `--cursor`.
+ *
+ * @param flag - A CLI token that might be a legacy agent alias
+ */
+export function assertNotLegacyAgentAlias(flag: string): void {
+  const harness = LEGACY_AGENT_ALIAS_FLAGS[flag];
+  if (!harness) return;
+  throw new Error(
+    `Unknown option: ${flag}. Use --agent ${harness} or --agent ${harness}:<model>.`,
+  );
+}
+
+/**
+ * Pulls `--agent` / `--agent=` tokens out of a CLI argument list.
+ *
+ * @param args - Subcommand arguments (not including the subcommand name)
+ * @returns Remaining args plus the last parsed selection when `--agent` appears
+ * @throws Error if `--agent` is missing a value or values conflict
+ */
+export function extractAgentSelectionFromArgs(
+  args: readonly string[],
+): { selection: AgentSelection | null; rest: string[] } {
+  const rest: string[] = [];
+  let selection: AgentSelection | null = null;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    let raw: string | undefined;
+    if (arg === "--agent") {
+      raw = args[i + 1];
+      if (raw === undefined || raw.startsWith("-")) {
+        throw new Error("Missing value for --agent");
+      }
+      i++;
+    } else if (arg.startsWith("--agent=")) {
+      raw = arg.slice("--agent=".length);
+      if (!raw) {
+        throw new Error("Missing value for --agent");
+      }
+    } else {
+      assertNotLegacyAgentAlias(arg);
+      rest.push(arg);
+      continue;
+    }
+    const parsed = parseAgentSelection(raw);
+    if (selection && !agentSelectionsEqual(selection, parsed)) {
+      throw new Error(
+        `Conflicting agent selections: ${formatAgentSelection(selection)} and ${
+          formatAgentSelection(parsed)
+        }. Select only one agent.`,
+      );
+    }
+    selection = parsed;
+  }
+  return { selection, rest };
+}
+
+/**
+ * Returns the non-null selection, or throws when both are set and disagree.
+ */
+export function mergeAgentSelections(
+  globalAgent: AgentSelection | null | undefined,
+  localAgent: AgentSelection | null | undefined,
+): AgentSelection | null {
+  if (
+    globalAgent && localAgent &&
+    !agentSelectionsEqual(globalAgent, localAgent)
+  ) {
+    throw new Error(
+      `Conflicting agent selections: ${formatAgentSelection(globalAgent)} and ${
+        formatAgentSelection(localAgent)
       }. Select only one agent.`,
     );
   }
+  return localAgent ?? globalAgent ?? null;
+}
 
-  const flagAgent = uniqueFlagSelections[0];
-  if (options.agent && flagAgent && options.agent !== flagAgent) {
-    throw new Error(
-      `Conflicting agent selections: --agent ${options.agent} and --${flagAgent}. Select only one agent.`,
-    );
-  }
-  if (flagAgent) {
-    return flagAgent;
-  }
+/**
+ * Parses CLI flags and environment into a single {@link AgentSelection}.
+ *
+ * Environment toggles (`DN_AGENT`, `*_ENABLED`) are used only when no explicit
+ * `--agent` selection was provided. File config supplies a harness-only
+ * fallback after that.
+ *
+ * @param options.agent - Explicit `--agent` selection from CLI flags
+ * @param options.fallbackAgent - Config-derived harness used after flags/env
+ * @returns Resolved selection (default harness `opencode`)
+ * @throws Error if conflicting env vars are set
+ */
+export function resolveAgentHarnessFromFlagsAndEnv(options: {
+  agent?: AgentSelection | null;
+  fallbackAgent?: AgentHarness | null;
+} = {}): AgentSelection {
   if (options.agent) {
     return options.agent;
   }
 
   const dnAgent = Deno.env.get("DN_AGENT");
   if (dnAgent) {
-    return parseAgentHarness(dnAgent);
+    return parseAgentSelection(dnAgent);
   }
 
   const envSelections: AgentHarness[] = [];
@@ -271,10 +389,10 @@ export function resolveAgentHarnessFromFlagsAndEnv(options: {
     );
   }
   if (uniqueEnvSelections[0]) {
-    return uniqueEnvSelections[0];
+    return { harness: uniqueEnvSelections[0] };
   }
   if (options.fallbackAgent) {
-    return options.fallbackAgent;
+    return { harness: options.fallbackAgent };
   }
-  return "opencode";
+  return { harness: "opencode" };
 }

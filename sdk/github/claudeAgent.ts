@@ -14,6 +14,7 @@ import {
   isUnattended,
   Spinner,
 } from "./output.ts";
+import type { AgentRunOptions } from "./agentHarness.ts";
 import type { ProgressReporter } from "./progress.ts";
 
 const DEFAULT_ALLOWED_TOOLS = "Bash,Read,Edit";
@@ -50,6 +51,44 @@ export function resolveClaudePermissionModeFromEnv(): string {
 }
 
 /**
+ * Builds the Claude Code CLI arguments for non-interactive agent execution.
+ *
+ * @param promptInstruction - Initial Claude prompt or instruction text
+ * @param options - Optional model and effort overrides
+ * @returns Arguments to pass after the `claude` executable
+ */
+export function buildClaudeExecArgs(
+  promptInstruction: string,
+  options?: AgentRunOptions,
+): string[] {
+  const allowedTools = Deno.env.get("CLAUDE_ALLOWED_TOOLS")?.trim() ||
+    DEFAULT_ALLOWED_TOOLS;
+  const permissionMode = resolveClaudePermissionModeFromEnv();
+  const dangerouslySkipPermissions =
+    Deno.env.get("CLAUDE_DANGEROUSLY_SKIP_PERMISSIONS") === "1";
+  const useBare = Deno.env.get("CLAUDE_CODE_BARE") === "1";
+  const args = [
+    ...(useBare ? ["--bare"] : []),
+    "-p",
+    promptInstruction,
+    "--permission-mode",
+    permissionMode,
+    ...(dangerouslySkipPermissions ? ["--dangerously-skip-permissions"] : []),
+    "--allowedTools",
+    allowedTools,
+  ];
+  const model = options?.model?.trim();
+  if (model) {
+    args.push("--model", model);
+  }
+  const thinking = options?.thinking?.trim();
+  if (thinking) {
+    args.push("--effort", thinking);
+  }
+  return args;
+}
+
+/**
  * Executes the Claude Code CLI in print mode (`claude -p`) with the combined prompt file.
  * Uses the same result shape as {@link runOpenCode} and {@link runCursorAgent} for drop-in use.
  *
@@ -82,6 +121,7 @@ export async function runClaudeAgent(
   workspaceRoot: string,
   _useReadonlyConfig?: boolean,
   reporter?: ProgressReporter,
+  options?: AgentRunOptions,
 ): Promise<OpenCodeResult> {
   try {
     await $`which claude`.quiet();
@@ -159,23 +199,7 @@ export async function runClaudeAgent(
 
   const promptInstruction =
     `Read and execute the instructions in this file: ${absolutePromptPath}`;
-  const allowedTools = Deno.env.get("CLAUDE_ALLOWED_TOOLS")?.trim() ||
-    DEFAULT_ALLOWED_TOOLS;
-  const permissionMode = resolveClaudePermissionModeFromEnv();
-  const dangerouslySkipPermissions =
-    Deno.env.get("CLAUDE_DANGEROUSLY_SKIP_PERMISSIONS") === "1";
-  const useBare = Deno.env.get("CLAUDE_CODE_BARE") === "1";
-
-  const claudeArgs = [
-    ...(useBare ? ["--bare"] : []),
-    "-p",
-    promptInstruction,
-    "--permission-mode",
-    permissionMode,
-    ...(dangerouslySkipPermissions ? ["--dangerously-skip-permissions"] : []),
-    "--allowedTools",
-    allowedTools,
-  ];
+  const claudeArgs = buildClaudeExecArgs(promptInstruction, options);
   const result = await runAgentCommand(
     "claude",
     claudeArgs,

@@ -96,6 +96,54 @@ Deno.test("CLI accepts top-level --agent before subcommand", async () => {
   }
 });
 
+Deno.test("CLI accepts --agent after the subcommand", async () => {
+  const testRepo = await createTestRepo();
+  try {
+    const result = await runDnCommand(
+      ["kickstart", "--agent", "codex:gpt-5.4", "--help"],
+      { cwd: testRepo.path },
+    );
+
+    assert(result.success);
+    assert(result.stdout.includes("dn kickstart"));
+  } finally {
+    await cleanupTestRepo(testRepo);
+  }
+});
+
+Deno.test("CLI rejects conflicting global and subcommand --agent", async () => {
+  const testRepo = await createTestRepo();
+  try {
+    const result = await runDnCommand(
+      ["--agent", "cursor", "kickstart", "--agent", "codex", "123"],
+      { cwd: testRepo.path, expectFailure: true },
+    );
+
+    assert(result.stderr.includes("Conflicting agent selections"));
+  } finally {
+    await cleanupTestRepo(testRepo);
+  }
+});
+
+Deno.test("CLI rejects removed --codex and --cursor aliases", async () => {
+  const testRepo = await createTestRepo();
+  try {
+    const globalAlias = await runDnCommand(["--codex", "kickstart", "--help"], {
+      cwd: testRepo.path,
+      expectFailure: true,
+    });
+    const subcommandAlias = await runDnCommand(
+      ["kickstart", "--cursor", "123"],
+      { cwd: testRepo.path, expectFailure: true },
+    );
+
+    assert(globalAlias.stderr.includes("Unknown option: --codex"));
+    assert(subcommandAlias.stderr.includes("Unknown option: --cursor"));
+  } finally {
+    await cleanupTestRepo(testRepo);
+  }
+});
+
 Deno.test("CLI accepts --context-file before and after the subcommand", async () => {
   const testRepo = await createTestRepo();
   try {

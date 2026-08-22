@@ -13,6 +13,7 @@ import {
   isUnattended,
   Spinner,
 } from "./output.ts";
+import type { AgentRunOptions } from "./agentHarness.ts";
 import type { ProgressReporter } from "./progress.ts";
 
 /**
@@ -101,6 +102,31 @@ export interface OpenCodeResult {
 }
 
 /**
+ * Builds the OpenCode CLI arguments for a plan or implement run.
+ *
+ * @param phase - The phase to run ("plan" or "implement")
+ * @param combinedPromptPath - Path to the combined prompt file
+ * @param options - Optional model (`--model`) and variant (`--variant`) overrides
+ * @returns Arguments to pass after the `opencode` executable
+ */
+export function buildOpenCodeRunArgs(
+  phase: "plan" | "implement",
+  combinedPromptPath: string,
+  options?: AgentRunOptions,
+): string[] {
+  const args = ["run", phase, "-f", combinedPromptPath, "--log-level=DEBUG"];
+  const model = options?.model?.trim();
+  if (model) {
+    args.push("--model", model);
+  }
+  const thinking = options?.thinking?.trim();
+  if (thinking) {
+    args.push("--variant", thinking);
+  }
+  return args;
+}
+
+/**
  * Executes opencode with the specified phase and prompt file.
  * Captures both stdout and stderr.
  *
@@ -121,6 +147,7 @@ export async function runOpenCode(
   workspaceRoot: string,
   useReadonlyConfig: boolean = false,
   reporter?: ProgressReporter,
+  options?: AgentRunOptions,
 ): Promise<OpenCodeResult> {
   // Check if opencode is available
   try {
@@ -334,7 +361,7 @@ export async function runOpenCode(
     // Using stdin("null") prevents opencode from waiting for user input
     const result = await runAgentCommand(
       "opencode",
-      ["run", phase, "-f", combinedPromptPath, "--log-level=DEBUG"],
+      buildOpenCodeRunArgs(phase, combinedPromptPath, options),
       workspaceRoot,
       phase,
       reporter,

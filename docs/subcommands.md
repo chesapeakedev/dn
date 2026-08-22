@@ -283,11 +283,14 @@ dn kickstart --awp https://github.com/owner/repo/issues/123
 # Cross-repository workflow (implement issue from different repo)
 dn kickstart --allow-cross-repo https://github.com/private-org/backend-api/issues/123
 
-# With Cursor integration
-dn kickstart --cursor https://github.com/owner/repo/issues/123
+# With Cursor
+dn kickstart --agent cursor https://github.com/owner/repo/issues/123
 
 # With Claude Code
-dn kickstart --claude https://github.com/owner/repo/issues/123
+dn kickstart --agent claude https://github.com/owner/repo/issues/123
+
+# With a model override
+dn kickstart --agent codex:gpt-5.4 https://github.com/owner/repo/issues/123
 
 # Docker sandbox (agent harness runs inside container; workspace bind-mounted)
 dn kickstart --sandbox docker https://github.com/owner/repo/issues/123

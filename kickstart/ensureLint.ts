@@ -17,6 +17,7 @@ import {
 import { resolveDnConfig } from "../sdk/config/resolve.ts";
 import type { DnEnsureConfig, DnEnsureRecipe } from "../sdk/config/types.ts";
 import type { AgentHarness } from "../sdk/github/agentHarness.ts";
+import { asAgentSelection } from "../sdk/github/agentHarness.ts";
 import {
   getCurrentSandboxContext,
   isSandboxActive,
@@ -101,7 +102,7 @@ export async function runKickstartEnsureLint(
     workspaceRoot: options.workspaceRoot,
     noFix: false,
     nested,
-    agent: options.agent,
+    agent: asAgentSelection(options.agent),
     exec: options.exec ?? sandboxAwareEnsureExec,
   });
   if (result.code === 0) {

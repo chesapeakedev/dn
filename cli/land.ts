@@ -8,7 +8,14 @@
  * test-plan upsert, then logical commits from plan context (or --single).
  */
 
-import type { AgentHarness } from "../sdk/github/agentHarness.ts";
+import type {
+  AgentHarness,
+  AgentSelection,
+} from "../sdk/github/agentHarness.ts";
+import {
+  extractAgentSelectionFromArgs,
+  mergeAgentSelections,
+} from "../sdk/github/agentHarness.ts";
 import { resolveLocalAgentHarness } from "../sdk/config/localAgent.ts";
 import {
   discoverPlanFile,
@@ -29,12 +36,14 @@ interface LandArgs {
   dryRun: boolean;
   workspaceRoot?: string;
   agentHarness: AgentHarness;
+  agentModel?: string;
+  agentThinking?: string;
   contextFiles: string[];
 }
 
 async function parseArgs(
   args: string[],
-  globalAgent: AgentHarness | null,
+  globalAgent: AgentSelection | null,
   globalContextFiles: readonly string[] = [],
 ): Promise<LandArgs> {
   let planFilePath: string | undefined;
@@ -43,16 +52,13 @@ async function parseArgs(
   let single = false;
   let dryRun = false;
   let workspaceRoot: string | undefined;
-  let cursorFlag = false;
-  let claudeFlag = false;
-  let codexFlag = false;
-  let copilotFlag = false;
-  let opencodeFlag = false;
 
-  const { contextFiles, rest: flagArgs } = resolveContextFileArgs(
+  const { contextFiles, rest: argsAfterContext } = resolveContextFileArgs(
     args,
     globalContextFiles,
   );
+  const { selection: localAgent, rest: flagArgs } =
+    extractAgentSelectionFromArgs(argsAfterContext);
 
   for (let i = 0; i < flagArgs.length; i++) {
     const arg = flagArgs[i];
@@ -66,16 +72,6 @@ async function parseArgs(
       testPlanPath = flagArgs[++i];
     } else if (arg === "--workspace-root") {
       workspaceRoot = flagArgs[++i];
-    } else if (arg === "--cursor" || arg === "-c") {
-      cursorFlag = true;
-    } else if (arg === "--claude") {
-      claudeFlag = true;
-    } else if (arg === "--codex") {
-      codexFlag = true;
-    } else if (arg === "--copilot") {
-      copilotFlag = true;
-    } else if (arg === "--opencode") {
-      opencodeFlag = true;
     } else if (arg === "--help" || arg === "-h") {
       showHelp();
       Deno.exit(0);
@@ -86,14 +82,9 @@ async function parseArgs(
     }
   }
 
-  const agentHarness = await resolveLocalAgentHarness({
+  const agentSelection = await resolveLocalAgentHarness({
     repoRoot: workspaceRoot ?? Deno.cwd(),
-    agent: globalAgent,
-    cursorFlag,
-    claudeFlag,
-    codexFlag,
-    copilotFlag,
-    opencodeFlag,
+    agent: mergeAgentSelections(globalAgent, localAgent),
   });
 
   return {
@@ -103,7 +94,11 @@ async function parseArgs(
     single,
     dryRun,
     workspaceRoot,
-    agentHarness,
+    agentHarness: agentSelection.harness,
+    ...(agentSelection.model ? { agentModel: agentSelection.model } : {}),
+    ...(agentSelection.thinking
+      ? { agentThinking: agentSelection.thinking }
+      : {}),
     contextFiles,
   };
 }
@@ -145,6 +140,9 @@ function showHelp(): void {
   console.log(
     "  --context-file <path>  Include a file in test-plan agent context (repeatable; also a global flag)",
   );
+  console.log(
+    "  --agent <agent>  <harness>:<model> (harness-only or optional :<thinking>)",
+  );
   console.log("  --help, -h   Show this help\n");
   console.log("Examples:");
   console.log("  dn land");
@@ -172,6 +170,8 @@ async function maybeRunIssueTestPlan(
   agentHarness: AgentHarness,
   dryRun: boolean,
   contextFiles: readonly string[] = [],
+  agentModel?: string,
+  agentThinking?: string,
 ): Promise<void> {
   const planContent = await Deno.readTextFile(planFilePath);
   const result = await runIssueTestPlanFromPlan({
@@ -179,6 +179,8 @@ async function maybeRunIssueTestPlan(
     planFilePath,
     workspaceRoot,
     agentHarness,
+    agentModel,
+    agentThinking,
     dryRun,
     contextFiles,
   });
@@ -194,7 +196,7 @@ async function maybeRunIssueTestPlan(
 
 export async function handleLand(
   args: string[],
-  globalAgent: AgentHarness | null = null,
+  globalAgent: AgentSelection | null = null,
   globalContextFiles: readonly string[] = [],
 ): Promise<void> {
   let config: LandArgs;
@@ -250,6 +252,8 @@ export async function handleLand(
           config.agentHarness,
           config.dryRun,
           config.contextFiles,
+          config.agentModel,
+          config.agentThinking,
         );
       }
       await runLandSingle(config.planFilePath, config.dryRun);
@@ -264,6 +268,8 @@ export async function handleLand(
         config.agentHarness,
         config.dryRun,
         config.contextFiles,
+        config.agentModel,
+        config.agentThinking,
       );
     }
 
@@ -277,6 +283,8 @@ export async function handleLand(
       testPlanPath,
       workspaceRoot,
       agentHarness: config.agentHarness,
+      agentModel: config.agentModel,
+      agentThinking: config.agentThinking,
       dryRun: config.dryRun,
     });
     Deno.exit(0);

@@ -22,8 +22,11 @@ import {
   type TodoItem,
   writeTodoList,
 } from "../sdk/todo/todo.ts";
-import { parseAgentHarnessFlagsFromArgs } from "../sdk/github/agentHarness.ts";
-import type { AgentHarness } from "../sdk/github/agentHarness.ts";
+import type { AgentSelection } from "../sdk/github/agentHarness.ts";
+import {
+  extractAgentSelectionFromArgs,
+  mergeAgentSelections,
+} from "../sdk/github/agentHarness.ts";
 import { resolveLocalAgentHarness } from "../sdk/config/localAgent.ts";
 
 function promptYesNo(message: string): boolean {
@@ -33,7 +36,7 @@ function promptYesNo(message: string): boolean {
 
 export async function handleTidy(
   args: string[],
-  globalAgent: AgentHarness | null = null,
+  globalAgent: AgentSelection | null = null,
 ): Promise<void> {
   if (args.includes("--help") || args.includes("-h")) {
     console.log("dn tidy - Groom the prioritized todo list\n");
@@ -49,11 +52,9 @@ export async function handleTidy(
     );
     console.log("Options:");
     console.log("  --limit <n>   Max issues to fetch (default: 5)");
-    console.log("  --cursor, -c  Use Cursor headless agent for issue scoring");
-    console.log("  --claude      Use Claude Code CLI for issue scoring");
-    console.log("  --codex       Use Codex CLI for issue scoring");
-    console.log("  --copilot     Use GitHub Copilot CLI for issue scoring");
-    console.log("  --opencode    Use OpenCode CLI for issue scoring (default)");
+    console.log(
+      "  --agent <agent>  <harness>:<model> (harness-only or optional :<thinking>)",
+    );
     console.log("  --help, -h    Show this help");
     return;
   }
@@ -94,16 +95,16 @@ export async function handleTidy(
     // no plans dir
   }
 
-  const agentHarness = await resolveLocalAgentHarness({
+  const { selection: localAgent } = extractAgentSelectionFromArgs(args);
+  const agentSelection = await resolveLocalAgentHarness({
     repoRoot: workspaceRoot,
-    agent: globalAgent,
-    ...parseAgentHarnessFlagsFromArgs(args),
+    agent: mergeAgentSelections(globalAgent, localAgent),
   });
   const scoring = await runScoring(
     workspaceRoot,
     withBodies,
     planPaths,
-    agentHarness,
+    agentSelection,
   );
 
   const scoredItems: TodoItem[] = scoring.scored

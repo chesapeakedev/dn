@@ -26,8 +26,8 @@ Deno.test("kickstart command shows help", async () => {
     });
 
     assert(result.stdout.includes("dn kickstart"));
-    assert(result.stdout.includes("--plan-name"));
-    assert(result.stdout.includes("--iterations"));
+    assert(result.stdout.includes("--agent"));
+    assert(result.stdout.includes("--cursor-cloud"));
     assert(result.success);
   } finally {
     await cleanupTestRepo(testRepo);
@@ -662,32 +662,34 @@ Deno.test(
   },
 );
 
-Deno.test("kickstart --copilot flag appears in help output", async () => {
+Deno.test("kickstart --agent flag appears in help output", async () => {
   const testRepo = await createTestRepo();
 
   try {
     const result = await runDnCommand(["kickstart", "--help"], {
       cwd: testRepo.path,
     });
-    assert(result.stdout.includes("--copilot"));
-    assert(result.stdout.includes("copilot"));
+    assert(result.stdout.includes("--agent"));
+    assert(result.stdout.includes("codex:gpt-5.4"));
+    assert(!result.stdout.includes("--copilot"));
     assert(result.success);
   } finally {
     await cleanupTestRepo(testRepo);
   }
 });
 
-Deno.test("kickstart --copilot conflicts with other agent flags", async () => {
+Deno.test("kickstart --agent values conflict when they disagree", async () => {
   const testRepo = await createTestRepo();
 
   try {
     const result = await runDnCommand(
       [
         "kickstart",
-        "--copilot",
-        "--cursor",
+        "--agent",
+        "copilot",
+        "--agent",
+        "cursor",
         "https://github.com/owner/repo/issues/1",
-        "--dry-run",
       ],
       {
         cwd: testRepo.path,
@@ -695,7 +697,7 @@ Deno.test("kickstart --copilot conflicts with other agent flags", async () => {
       },
     );
 
-    assert(result.stderr.includes("Conflicting agent flags"));
+    assert(result.stderr.includes("Conflicting agent selections"));
   } finally {
     await cleanupTestRepo(testRepo);
   }

@@ -13,8 +13,15 @@ import {
   generateMilestoneDescription,
   runMeldPhase,
 } from "../kickstart/lib.ts";
-import type { AgentHarness } from "../sdk/github/agentHarness.ts";
-import { parseAgentHarnessFlagsFromArgs } from "../sdk/github/agentHarness.ts";
+import type {
+  AgentHarness,
+  AgentSelection,
+} from "../sdk/github/agentHarness.ts";
+import {
+  extractAgentSelectionFromArgs,
+  mergeAgentSelections,
+  toAgentRunOptions,
+} from "../sdk/github/agentHarness.ts";
 import { resolveLocalAgentHarness } from "../sdk/config/localAgent.ts";
 import { enforceStrictRfcCorpus } from "../sdk/config/strict.ts";
 import { getCurrentRepoFromRemote } from "../sdk/github/github-gql.ts";
@@ -60,6 +67,8 @@ interface MeldArgs {
   outputPath: string | null;
   mode: MeldMode;
   agentHarness: AgentHarness;
+  agentModel?: string;
+  agentThinking?: string;
   planName: string | null;
   workspaceRoot: string | undefined;
   target: string | null;
@@ -74,7 +83,7 @@ interface MeldArgs {
 
 async function parseArgs(
   args: string[],
-  globalAgent: AgentHarness | null = null,
+  globalAgent: AgentSelection | null = null,
   globalSandbox: SandboxFlagValue | null = null,
   globalContextFiles: readonly string[] = [],
 ): Promise<MeldArgs & { sandboxFlag: SandboxFlagValue | null }> {
@@ -96,9 +105,11 @@ async function parseArgs(
     args,
     globalContextFiles,
   );
-  const { sandbox: localSandbox, rest: flagArgs } = extractSandboxFlag(
+  const { sandbox: localSandbox, rest: argsAfterSandbox } = extractSandboxFlag(
     argsAfterContext,
   );
+  const { selection: localAgent, rest: flagArgs } =
+    extractAgentSelectionFromArgs(argsAfterSandbox);
   const sandboxFlag = resolveSandboxFlagValue(globalSandbox, localSandbox);
 
   for (let i = 0; i < flagArgs.length; i++) {
@@ -138,11 +149,6 @@ async function parseArgs(
       autoYes = true;
     } else if (arg === "--allow-cross-repo" || arg === "-A") {
       allowCrossRepo = true;
-    } else if (
-      arg === "--cursor" || arg === "-c" || arg === "--claude" ||
-      arg === "--opencode" || arg === "--codex" || arg === "--copilot"
-    ) {
-      // Agent flags are resolved after the loop via parseAgentHarnessFlagsFromArgs.
     } else if (arg === "--help" || arg === "-h") {
       showHelp();
       Deno.exit(0);
@@ -171,11 +177,11 @@ async function parseArgs(
     }
   }
 
-  const agentHarness = await resolveLocalAgentHarness({
+  const agentSelection = await resolveLocalAgentHarness({
     repoRoot: Deno.cwd(),
-    agent: globalAgent,
-    ...parseAgentHarnessFlagsFromArgs(args),
+    agent: mergeAgentSelections(globalAgent, localAgent),
   });
+  const agentHarness = agentSelection.harness;
   const mode = agentHarnessToMeldMode(agentHarness);
 
   return {
@@ -183,6 +189,10 @@ async function parseArgs(
     outputPath,
     mode,
     agentHarness,
+    ...(agentSelection.model ? { agentModel: agentSelection.model } : {}),
+    ...(agentSelection.thinking
+      ? { agentThinking: agentSelection.thinking }
+      : {}),
     planName,
     workspaceRoot,
     target,
@@ -260,17 +270,7 @@ function showHelp(): void {
     "  --workspace-root <path> Workspace root (default cwd / WORKSPACE_ROOT)",
   );
   console.log(
-    "  --cursor, -c            Cursor planner harness",
-  );
-  console.log("  --claude                  Claude planner harness");
-  console.log(
-    "  --codex                   Codex planner harness",
-  );
-  console.log(
-    "  --copilot                 GitHub Copilot CLI (`copilot -p`)",
-  );
-  console.log(
-    "  --opencode                Opencode planner harness (default)",
+    "  --agent <agent>         <harness>:<model> (harness-only or optional :<thinking>)",
   );
   console.log("  --help, -h                Print help\n");
   console.log(
@@ -292,7 +292,7 @@ function showHelp(): void {
 
 export async function handleMeld(
   args: string[],
-  globalAgent: AgentHarness | null = null,
+  globalAgent: AgentSelection | null = null,
   globalSandbox: SandboxFlagValue | null = null,
   globalContextFiles: readonly string[] = [],
 ): Promise<void> {
@@ -301,6 +301,8 @@ export async function handleMeld(
     outputPath,
     mode,
     agentHarness,
+    agentModel,
+    agentThinking,
     planName,
     workspaceRoot,
     target,
@@ -353,6 +355,7 @@ export async function handleMeld(
         resolvedWorkspaceRoot,
         agentHarness,
         contextFiles,
+        toAgentRunOptions({ model: agentModel, thinking: agentThinking }),
       );
       if (result.error || !result.success) {
         throw new Error(result.error ?? "Milestone planning failed");
@@ -382,6 +385,7 @@ export async function handleMeld(
         dryRun,
         agentHarness,
         contextFiles,
+        toAgentRunOptions({ model: agentModel, thinking: agentThinking }),
       );
       if (result.error) {
         throw new Error(result.error);
@@ -454,6 +458,8 @@ export async function handleMeld(
     const ks: KickstartConfig = {
       publish: "none" as const,
       agentHarness,
+      ...(agentModel ? { agentModel } : {}),
+      ...(agentThinking ? { agentThinking } : {}),
       allowCrossRepo,
       issueUrl: directIssueSource,
       contextMarkdownPath: contextPath,

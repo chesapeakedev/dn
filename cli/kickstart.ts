@@ -9,6 +9,7 @@
 
 import type { KickstartConfig } from "../kickstart/lib.ts";
 import { runFullKickstart } from "../kickstart/lib.ts";
+import { resolve } from "@std/path";
 import { runScoring } from "../kickstart/score.ts";
 import { isGitHubIssueUrl } from "../sdk/meld/mod.ts";
 import {
@@ -24,7 +25,11 @@ import {
   getCurrentRepoFromRemote,
   listIssues,
 } from "../sdk/github/github-gql.ts";
-import type { AgentHarness } from "../sdk/github/agentHarness.ts";
+import type { AgentSelection } from "../sdk/github/agentHarness.ts";
+import {
+  extractAgentSelectionFromArgs,
+  mergeAgentSelections,
+} from "../sdk/github/agentHarness.ts";
 import { resolveLocalAgentHarness } from "../sdk/config/localAgent.ts";
 import { enforceStrictRfcCorpus } from "../sdk/config/strict.ts";
 import { parseMilestoneUrl } from "../sdk/github/milestone.ts";
@@ -110,18 +115,13 @@ function classifyInput(input: string): {
  */
 export async function parseKickstartArgs(
   args: string[],
-  globalAgent: AgentHarness | null = null,
+  globalAgent: AgentSelection | null = null,
   globalSandbox: SandboxFlagValue | null = null,
   globalContextFiles: readonly string[] = [],
 ): Promise<KickstartCliConfig> {
   let input: string | null = null;
   let publish: PublishMode = "none";
   let publishSpecified = false;
-  let cursorFlag = false;
-  let claudeFlag = false;
-  let codexFlag = false;
-  let copilotFlag = false;
-  let opencodeFlag = false;
   let cursorCloud = false;
   let cursorCloudRef = DEFAULT_CURSOR_CLOUD_REF;
   let cursorCloudRefSpecified = false;
@@ -140,9 +140,11 @@ export async function parseKickstartArgs(
     args,
     globalContextFiles,
   );
-  const { sandbox: localSandbox, rest: flagArgs } = extractSandboxFlag(
+  const { sandbox: localSandbox, rest: argsAfterSandbox } = extractSandboxFlag(
     argsAfterContext,
   );
+  const { selection: localAgent, rest: flagArgs } =
+    extractAgentSelectionFromArgs(argsAfterSandbox);
   const sandboxFlag = resolveSandboxFlagValue(globalSandbox, localSandbox);
 
   for (let i = 0; i < flagArgs.length; i++) {
@@ -153,21 +155,11 @@ export async function parseKickstartArgs(
     } else if (arg === "--publish" && i + 1 < flagArgs.length) {
       publish = parsePublishMode(flagArgs[++i]);
       publishSpecified = true;
-    } else if (arg === "--cursor" || arg === "-c") {
-      cursorFlag = true;
     } else if (arg === "--cursor-cloud") {
       cursorCloud = true;
     } else if (arg === "--ref") {
       cursorCloudRef = parseCursorCloudRef(flagArgs[++i]);
       cursorCloudRefSpecified = true;
-    } else if (arg === "--claude") {
-      claudeFlag = true;
-    } else if (arg === "--codex") {
-      codexFlag = true;
-    } else if (arg === "--copilot") {
-      copilotFlag = true;
-    } else if (arg === "--opencode") {
-      opencodeFlag = true;
     } else if (arg === "--allow-cross-repo" || arg === "-A") {
       allowCrossRepo = true;
     } else if (arg === "--complete") {
@@ -228,23 +220,42 @@ export async function parseKickstartArgs(
     ? classifyInput(input)
     : { issueUrl: null as string | null, contextMarkdownPath: undefined };
 
-  const agentHarness = await resolveLocalAgentHarness({
-    repoRoot: workspaceRoot ?? Deno.cwd(),
-    agent: globalAgent,
-    cursorFlag,
-    claudeFlag,
-    codexFlag,
-    copilotFlag,
-    opencodeFlag,
-  });
-
-  if (
-    cursorCloud &&
-    (globalAgent !== null || cursorFlag || claudeFlag || codexFlag ||
-      copilotFlag || opencodeFlag)
-  ) {
+  const environmentWorkspaceRoot = Deno.env.get("WORKSPACE_ROOT");
+  const resolvedWorkspaceRoot = workspaceRoot
+    ? resolve(workspaceRoot)
+    : environmentWorkspaceRoot
+    ? resolve(environmentWorkspaceRoot)
+    : Deno.cwd();
+  try {
+    const stat = await Deno.stat(resolvedWorkspaceRoot);
+    if (!stat.isDirectory) {
+      throw new Error(
+        `Workspace root is not a directory: ${resolvedWorkspaceRoot}`,
+      );
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("Workspace root")) {
+      throw error;
+    }
+    if (error instanceof Deno.errors.NotFound) {
+      throw new Error(`Workspace root not found: ${resolvedWorkspaceRoot}`);
+    }
     throw new Error(
-      "--cursor-cloud cannot be combined with --agent or local agent flags.",
+      `Unable to use workspace root ${resolvedWorkspaceRoot}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+
+  const agentSelection = await resolveLocalAgentHarness({
+    repoRoot: resolvedWorkspaceRoot,
+    agent: mergeAgentSelections(globalAgent, localAgent),
+  });
+  const agentHarness = agentSelection.harness;
+
+  if (cursorCloud && (globalAgent !== null || localAgent !== null)) {
+    throw new Error(
+      "--cursor-cloud cannot be combined with --agent.",
     );
   }
   if (cursorCloudRefSpecified && !cursorCloud) {
@@ -264,12 +275,16 @@ export async function parseKickstartArgs(
   return {
     publish,
     agentHarness,
+    ...(agentSelection.model ? { agentModel: agentSelection.model } : {}),
+    ...(agentSelection.thinking
+      ? { agentThinking: agentSelection.thinking }
+      : {}),
     allowCrossRepo,
     issueUrl,
     contextMarkdownPath,
     saveCtx,
     savedPlanName,
-    workspaceRoot,
+    workspaceRoot: resolvedWorkspaceRoot,
     milestone,
     ...(milestoneAutoAdvance ? { milestoneAutoAdvance: true } : {}),
     ...(milestoneRunOnce ? { milestoneRunOnce: true } : {}),
@@ -321,19 +336,15 @@ function showHelp(): void {
   console.log(
     "  --skip-plan              Skip plan generation and run the implementation phase",
   );
-  console.log("  --cursor, -c              Use Cursor headless agent");
+  console.log(
+    "  --agent <agent>          <harness>:<model> (harness-only or optional :<thinking>)",
+  );
   console.log(
     "  --cursor-cloud            Queue a durable Cursor Cloud Agent run (requires CURSOR_API_KEY)",
   );
   console.log(
     "  --ref <git-ref>           Cloud repository starting ref (default: main; requires --cursor-cloud)",
   );
-  console.log("  --claude                  Use Claude Code CLI (`claude -p`)");
-  console.log("  --codex                   Use Codex CLI (`codex exec`)");
-  console.log(
-    "  --copilot                 Use GitHub Copilot CLI (`copilot -p`)",
-  );
-  console.log("  --opencode                Use OpenCode CLI (default)");
   console.log(
     "  --sandbox <none|docker|exe.dev>  Sandbox provider (global --sandbox also supported)",
   );
@@ -382,12 +393,14 @@ function showHelp(): void {
   console.log(
     "  dn kickstart --awp --milestone 42 --once # one queued issue for CI",
   );
-  console.log("  dn kickstart --awp --cursor <issue_url_or_number>");
+  console.log("  dn --agent cursor kickstart --awp <issue_url_or_number>");
   console.log(
     "  dn kickstart --cursor-cloud --publish pr <issue_url_or_number>",
   );
-  console.log("  dn kickstart --awp --claude <issue_url_or_number>");
-  console.log("  dn kickstart --awp --codex <issue_url_or_number>");
+  console.log("  dn --agent claude kickstart --awp <issue_url_or_number>");
+  console.log(
+    "  dn kickstart --agent codex:gpt-5.4 --awp <issue_url_or_number>",
+  );
   console.log(
     "  dn kickstart --denoise-task task.json               # ticketless from JSON",
   );
@@ -683,7 +696,7 @@ async function warnStackedUnlandedWork(repoRoot: string): Promise<void> {
  */
 export async function handleKickstart(
   args: string[],
-  globalAgent: AgentHarness | null = null,
+  globalAgent: AgentSelection | null = null,
   globalSandbox: SandboxFlagValue | null = null,
   globalContextFiles: readonly string[] = [],
 ): Promise<void> {
@@ -767,6 +780,21 @@ export async function handleKickstart(
   }
 
   const repoRoot = config.workspaceRoot ?? Deno.cwd();
+  try {
+    const stat = await Deno.stat(repoRoot);
+    if (!stat.isDirectory) {
+      throw new Error(`Workspace root is not a directory: ${repoRoot}`);
+    }
+  } catch (error) {
+    console.error(
+      error instanceof Deno.errors.NotFound
+        ? `Workspace root not found: ${repoRoot}`
+        : error instanceof Error
+        ? error.message
+        : String(error),
+    );
+    Deno.exit(1);
+  }
   try {
     await enforceStrictRfcCorpus(repoRoot);
   } catch (error) {

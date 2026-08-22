@@ -253,12 +253,13 @@ and [GitHub Actions](docs/github-actions.md).
 
 ## Choose an agent
 
-OpenCode is the default. Select another supported agent globally with `--agent`:
+OpenCode is the default. Select another supported agent with `--agent`. The
+common form is `<harness>:<model>`; omit the model to use the harness default:
 
 ```bash
 dn --agent claude meld <issue_url>
 dn --agent cursor loop --plan-file plans/issue-123.plan.md
-dn --agent codex kickstart --awp <issue_url>
+dn kickstart --agent codex:gpt-5.4 --awp <issue_url>
 ```
 
 Pass extra files into agent prompt context with `--context-file` (repeatable):

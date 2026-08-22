@@ -72,11 +72,7 @@ dn <subcommand> -h    # help for a specific subcommand
 
 | Flag                    | Effect                                                           |
 | ----------------------- | ---------------------------------------------------------------- |
-| \`--agent <name>\`        | Agent harness: \`opencode\` (default), \`cursor\`, \`claude\`, \`codex\` |
-| \`--opencode\`            | Alias for \`--agent opencode\`                                     |
-| \`--cursor\` / \`-c\`       | Alias for \`--agent cursor\`                                       |
-| \`--claude\`              | Alias for \`--agent claude\`                                       |
-| \`--codex\`               | Alias for \`--agent codex\`                                        |
+| \`--agent <agent>\`       | \`<harness>:<model>\` (harness-only or optional \`:<thinking>\`)     |
 | \`--context-file <path>\` | Include a file in agent prompt context (repeatable)                |
 | \`--unattended\` / \`--ci\` | Non-interactive output                                             |
 | \`--trace\`               | Live-stream agent harness output (default in CI)                   |
@@ -87,10 +83,11 @@ dn <subcommand> -h    # help for a specific subcommand
 
 ### Agent harness selection priority
 
-1. Explicit \`--agent <name>\` global flag
-2. Legacy per-command flag: \`--cursor\`, \`--claude\`, \`--codex\`, or \`--opencode\`
-3. Environment toggle: \`CURSOR_ENABLED=1\`, \`CLAUDE_ENABLED=1\`, or \`CODEX_ENABLED=1\`
-4. Default: OpenCode
+1. Explicit \`--agent <harness>:<model>\` (global or on the subcommand)
+2. \`DN_AGENT\` using the same value form
+3. Environment toggle: \`CURSOR_ENABLED=1\`, \`CLAUDE_ENABLED=1\`, \`CODEX_ENABLED=1\`, or \`COPILOT_ENABLED=1\`
+4. Project \`dn.json\` / \`.github/dn/config.json\` harness name
+5. Default: OpenCode
 
 ## Token resolution order
 

@@ -23,29 +23,31 @@
  *   SAVE_CTX: set to "1" to preserve debug files on success
  */
 
-import type { AgentHarness } from "../sdk/github/agentHarness.ts";
+import type { AgentSelection } from "../sdk/github/agentHarness.ts";
+import { extractAgentSelectionFromArgs } from "../sdk/github/agentHarness.ts";
 import { resolveLocalAgentHarness } from "../sdk/config/localAgent.ts";
 import type { PublishMode } from "../sdk/github/publish.ts";
 import { parsePublishMode } from "../sdk/github/publish.ts";
 import { type OrchestratorConfig, runOrchestrator } from "./orchestrator.ts";
+import { resolve } from "@std/path";
 
 /**
  * Parses command-line arguments to extract flags and issue source.
  */
 async function parseArgs(): Promise<{
   publish: PublishMode;
-  agentHarness: AgentHarness;
+  agent: AgentSelection;
   issueUrl: string | null;
   savedPlanName: string | null;
+  workspaceRoot: string;
 }> {
-  const args = Deno.args;
+  const { selection: localAgent, rest: args } = extractAgentSelectionFromArgs(
+    Deno.args,
+  );
   let publish: PublishMode = "none";
-  let cursorFlag = false;
-  let claudeFlag = false;
-  let codexFlag = false;
-  let opencodeFlag = false;
   let issueUrl: string | null = null;
   let savedPlanName: string | null = null;
+  let workspaceRoot: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -53,36 +55,35 @@ async function parseArgs(): Promise<{
       publish = "pr";
     } else if (arg === "--publish" && i + 1 < args.length) {
       publish = parsePublishMode(args[++i]);
-    } else if (arg === "--cursor" || arg === "-c") {
-      cursorFlag = true;
-    } else if (arg === "--claude") {
-      claudeFlag = true;
-    } else if (arg === "--codex") {
-      codexFlag = true;
-    } else if (arg === "--opencode") {
-      opencodeFlag = true;
     } else if (arg === "--saved-plan" && i + 1 < args.length) {
       savedPlanName = args[++i];
+    } else if (arg === "--workspace-root" && i + 1 < args.length) {
+      workspaceRoot = resolve(args[++i]);
     } else if (!arg.startsWith("--") && !issueUrl) {
-      // First non-flag argument is treated as issue URL
       issueUrl = arg;
     }
   }
 
-  // Fallback to environment variable for issue URL
   if (!issueUrl) {
     issueUrl = Deno.env.get("ISSUE") || null;
   }
 
-  const agentHarness = await resolveLocalAgentHarness({
-    repoRoot: Deno.cwd(),
-    cursorFlag,
-    claudeFlag,
-    codexFlag,
-    opencodeFlag,
+  const resolvedWorkspaceRoot = workspaceRoot ??
+    Deno.env.get("WORKSPACE_ROOT") ??
+    Deno.cwd();
+
+  const agent = await resolveLocalAgentHarness({
+    repoRoot: resolvedWorkspaceRoot,
+    agent: localAgent,
   });
 
-  return { publish, agentHarness, issueUrl, savedPlanName };
+  return {
+    publish,
+    agent,
+    issueUrl,
+    savedPlanName,
+    workspaceRoot: resolvedWorkspaceRoot,
+  };
 }
 
 /**
@@ -115,11 +116,13 @@ async function parseArgs(): Promise<{
  */
 async function main() {
   let publish: PublishMode;
-  let agentHarness: AgentHarness;
+  let agent: AgentSelection;
   let issueUrl: string | null;
   let savedPlanName: string | null;
+  let workspaceRoot: string;
   try {
-    ({ publish, agentHarness, issueUrl, savedPlanName } = await parseArgs());
+    ({ publish, agent, issueUrl, savedPlanName, workspaceRoot } =
+      await parseArgs());
   } catch (e) {
     console.error(e instanceof Error ? e.message : String(e));
     Deno.exit(1);
@@ -134,13 +137,13 @@ async function main() {
     console.error("  # Default mode: Apply changes locally");
     console.error("  ./kickstart <issue_url>");
     console.error(
-      "  ./kickstart --cursor <issue_url>  # Cursor headless agent instead of opencode",
+      "  ./kickstart --agent cursor <issue_url>  # Cursor headless agent instead of opencode",
     );
     console.error(
-      "  ./kickstart --claude <issue_url>   # Claude Code CLI instead of opencode",
+      "  ./kickstart --agent claude <issue_url>   # Claude Code CLI instead of opencode",
     );
     console.error(
-      "  ./kickstart --codex <issue_url>    # Codex CLI instead of opencode",
+      "  ./kickstart --agent codex:gpt-5.4 <issue_url>  # Codex CLI with a model",
     );
     console.error("\n  # AWP mode: Full workflow with branches and PR");
     console.error("  ./kickstart --awp <issue_url>");
@@ -173,15 +176,26 @@ async function main() {
 
   const config: OrchestratorConfig = {
     publish,
-    agentHarness,
+    agentHarness: agent.harness,
+    agentModel: agent.model,
+    agentThinking: agent.thinking,
     issueUrl,
     saveCtx,
     savedPlanName,
     verbosity: "medium",
     skipPlan: false,
+    workspaceRoot,
   };
 
   try {
+    const workspaceRoot = config.workspaceRoot;
+    if (!workspaceRoot) {
+      throw new Error("Workspace root could not be resolved.");
+    }
+    const stat = await Deno.stat(workspaceRoot);
+    if (!stat.isDirectory) {
+      throw new Error(`Workspace root is not a directory: ${workspaceRoot}`);
+    }
     await runOrchestrator(config);
     // Force exit to prevent hanging on pending async operations
     Deno.exit(0);

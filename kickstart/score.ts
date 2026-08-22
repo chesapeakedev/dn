@@ -6,10 +6,14 @@
  * Output: sorted list with Fibonacci scores (1, 2, 3, 5, 8); disqualified items excluded.
  */
 
-import type { AgentHarness } from "../sdk/github/agentHarness.ts";
+import type {
+  AgentHarness,
+  AgentSelection,
+} from "../sdk/github/agentHarness.ts";
 import {
   getRunAgent,
   resolveAgentHarnessFromFlagsAndEnv,
+  toAgentRunOptions,
 } from "../sdk/github/agentHarness.ts";
 
 const VALID_SCORES = new Set([1, 2, 3, 5, 8]);
@@ -101,13 +105,13 @@ function extractJson(stdout: string): unknown {
  * @param workspaceRoot - Workspace root (for agent cwd and prompt resolution)
  * @param issues - List of issues with ref, title, body
  * @param planPaths - Optional plan file paths to include as virtual issues
- * @param agentHarness - Harness for the scoring LLM; when omitted, uses agent env toggles
+ * @param agent - Harness or full `--agent` selection; when omitted, uses env toggles
  */
 export async function runScoring(
   workspaceRoot: string,
   issues: { ref: string; title: string; body: string }[],
   planPaths: { ref: string; title: string }[] = [],
-  agentHarness?: AgentHarness,
+  agent?: AgentHarness | AgentSelection,
 ): Promise<ScoringResult> {
   const systemPrompt = await readScoreSystemPrompt(workspaceRoot);
   const lines: string[] = ["# Issues to score\n"];
@@ -129,12 +133,12 @@ export async function runScoring(
   const promptPath = `${tmpDir}/score.prompt.md`;
   await Deno.writeTextFile(promptPath, combined);
 
-  const harness = agentHarness ??
-    resolveAgentHarnessFromFlagsAndEnv({
-      cursorFlag: false,
-      claudeFlag: false,
-    });
-  const run = getRunAgent(harness);
+  const selection = typeof agent === "string" ? { harness: agent } : agent ??
+    resolveAgentHarnessFromFlagsAndEnv();
+  const run = getRunAgent(
+    selection.harness,
+    toAgentRunOptions(selection),
+  );
   const result = await run(
     "plan",
     promptPath,

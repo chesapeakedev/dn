@@ -18,7 +18,11 @@ import {
 import type { IssueData } from "../sdk/github/issue.ts";
 import { promptAndAddToTodoList } from "../sdk/todo/todo.ts";
 import { resolveLocalAgentHarness } from "../sdk/config/localAgent.ts";
-import type { AgentHarness } from "../sdk/github/agentHarness.ts";
+import type { AgentSelection } from "../sdk/github/agentHarness.ts";
+import {
+  extractAgentSelectionFromArgs,
+  mergeAgentSelections,
+} from "../sdk/github/agentHarness.ts";
 import {
   denoiseTaskToMarkdown,
   validateDenoiseTaskDocument,
@@ -304,17 +308,12 @@ export async function resolveLoopTarget(
  */
 export async function parseLoopArgs(
   args: string[],
-  globalAgent: AgentHarness | null = null,
+  globalAgent: AgentSelection | null = null,
   globalSandbox: SandboxFlagValue | null = null,
   globalContextFiles: readonly string[] = [],
 ): Promise<LoopCliConfig> {
   let planFilePath: string | null = null;
   let targetInput: string | null = null;
-  let cursorFlag = false;
-  let claudeFlag = false;
-  let codexFlag = false;
-  let copilotFlag = false;
-  let opencodeFlag = false;
   let cursorCloud = false;
   let cursorCloudRef = DEFAULT_CURSOR_CLOUD_REF;
   let cursorCloudRefSpecified = false;
@@ -326,9 +325,11 @@ export async function parseLoopArgs(
     args,
     globalContextFiles,
   );
-  const { sandbox: localSandbox, rest: flagArgs } = extractSandboxFlag(
+  const { sandbox: localSandbox, rest: argsAfterSandbox } = extractSandboxFlag(
     argsAfterContext,
   );
+  const { selection: localAgent, rest: flagArgs } =
+    extractAgentSelectionFromArgs(argsAfterSandbox);
   const sandboxFlag = resolveSandboxFlagValue(globalSandbox, localSandbox);
 
   for (let i = 0; i < flagArgs.length; i++) {
@@ -337,21 +338,11 @@ export async function parseLoopArgs(
       planFilePath = flagArgs[++i];
     } else if (arg === "--allow-cross-repo" || arg === "-A") {
       allowCrossRepo = true;
-    } else if (arg === "--cursor" || arg === "-c") {
-      cursorFlag = true;
     } else if (arg === "--cursor-cloud") {
       cursorCloud = true;
     } else if (arg === "--ref") {
       cursorCloudRef = parseCursorCloudRef(flagArgs[++i]);
       cursorCloudRefSpecified = true;
-    } else if (arg === "--claude") {
-      claudeFlag = true;
-    } else if (arg === "--codex") {
-      codexFlag = true;
-    } else if (arg === "--copilot") {
-      copilotFlag = true;
-    } else if (arg === "--opencode") {
-      opencodeFlag = true;
     } else if (arg === "--workspace-root" && i + 1 < flagArgs.length) {
       workspaceRoot = flagArgs[++i];
     } else if (arg === "--steer") {
@@ -378,22 +369,14 @@ export async function parseLoopArgs(
 
   const target = classifyLoopTarget(planFilePath ?? targetInput);
 
-  const agentHarness = await resolveLocalAgentHarness({
+  const agentSelection = await resolveLocalAgentHarness({
     repoRoot: workspaceRoot ?? Deno.cwd(),
-    agent: globalAgent,
-    cursorFlag,
-    claudeFlag,
-    codexFlag,
-    copilotFlag,
-    opencodeFlag,
+    agent: mergeAgentSelections(globalAgent, localAgent),
   });
-  if (
-    cursorCloud &&
-    (globalAgent !== null || cursorFlag || claudeFlag || codexFlag ||
-      copilotFlag || opencodeFlag)
-  ) {
+  const agentHarness = agentSelection.harness;
+  if (cursorCloud && (globalAgent !== null || localAgent !== null)) {
     throw new Error(
-      "--cursor-cloud cannot be combined with --agent or local agent flags.",
+      "--cursor-cloud cannot be combined with --agent.",
     );
   }
   if (cursorCloudRefSpecified && !cursorCloud) {
@@ -403,6 +386,10 @@ export async function parseLoopArgs(
   return {
     publish: "none" as const,
     agentHarness,
+    ...(agentSelection.model ? { agentModel: agentSelection.model } : {}),
+    ...(agentSelection.thinking
+      ? { agentThinking: agentSelection.thinking }
+      : {}),
     allowCrossRepo,
     issueUrl: null,
     saveCtx: false,
@@ -446,19 +433,15 @@ function showHelp(): void {
   console.log(
     "  --context-file <path>    Include a file in agent prompt context (repeatable; also a global flag)",
   );
-  console.log("  --cursor, -c             Use Cursor headless agent");
+  console.log(
+    "  --agent <agent>          <harness>:<model> (harness-only or optional :<thinking>)",
+  );
   console.log(
     "  --cursor-cloud            Queue a durable Cursor Cloud Agent run (requires CURSOR_API_KEY)",
   );
   console.log(
     "  --ref <git-ref>           Cloud repository starting ref (default: main; requires --cursor-cloud)",
   );
-  console.log("  --claude                 Use Claude Code CLI");
-  console.log("  --codex                  Use Codex CLI");
-  console.log(
-    "  --copilot                Use GitHub Copilot CLI (`copilot -p`)",
-  );
-  console.log("  --opencode               Use OpenCode CLI (default)");
   console.log("  --workspace-root <path>  Workspace root directory");
   console.log("  --help, -h               Show this help message\n");
   console.log("Environment variables:");
@@ -592,7 +575,7 @@ async function materializeIssuePlanFile(
  */
 export async function handleLoop(
   args: string[],
-  globalAgent: AgentHarness | null = null,
+  globalAgent: AgentSelection | null = null,
   globalSandbox: SandboxFlagValue | null = null,
   globalContextFiles: readonly string[] = [],
 ): Promise<void> {

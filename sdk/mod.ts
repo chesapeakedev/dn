@@ -274,7 +274,7 @@ export function createAuthHandler(
 
 // Shared types
 export type { Commit, Issue } from "./github/types.ts";
-export type { AgentHarness } from "./github/agentHarness.ts";
+export type { AgentHarness, AgentSelection } from "./github/agentHarness.ts";
 
 // Issue CRUD types
 export type {

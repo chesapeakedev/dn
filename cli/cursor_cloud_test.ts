@@ -4,6 +4,7 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import { parseKickstartArgs } from "./kickstart.ts";
 import { parseLoopArgs } from "./loop.ts";
+import { basename, dirname, join } from "@std/path";
 
 Deno.test("kickstart parses an explicit Cursor cloud starting ref", async () => {
   const config = await parseKickstartArgs([
@@ -38,6 +39,45 @@ Deno.test("kickstart parses verbosity and skip-plan options", async () => {
     () => parseKickstartArgs(["--verbosity", "verbose", "123"]),
     Error,
     "low, medium, high",
+  );
+});
+
+Deno.test("kickstart resolves workspace root independently of cwd", async () => {
+  const root = await Deno.makeTempDir({ prefix: "dn-kickstart-root-" });
+  try {
+    const config = await parseKickstartArgs([
+      "--workspace-root",
+      join(dirname(root), basename(root)),
+      "123",
+    ]);
+    assertEquals(config.workspaceRoot, root);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("kickstart defaults workspace root to cwd", async () => {
+  const previous = Deno.env.get("WORKSPACE_ROOT");
+  Deno.env.delete("WORKSPACE_ROOT");
+  try {
+    const config = await parseKickstartArgs(["123"]);
+    assertEquals(config.workspaceRoot, Deno.cwd());
+  } finally {
+    if (previous === undefined) Deno.env.delete("WORKSPACE_ROOT");
+    else Deno.env.set("WORKSPACE_ROOT", previous);
+  }
+});
+
+Deno.test("kickstart rejects an invalid workspace root", async () => {
+  await assertRejects(
+    () =>
+      parseKickstartArgs([
+        "--workspace-root",
+        "/path/that/does/not/exist",
+        "123",
+      ]),
+    Error,
+    "Workspace root not found",
   );
 });
 
@@ -130,16 +170,17 @@ for (const publish of ["none", "direct"]) {
   });
 }
 
-Deno.test("Cursor cloud mode rejects a simultaneous local Cursor agent", async () => {
+Deno.test("Cursor cloud mode rejects a simultaneous local --agent", async () => {
   await assertRejects(
     () =>
       parseKickstartArgs([
         "--cursor-cloud",
-        "--cursor",
+        "--agent",
+        "cursor",
         "task.md",
       ]),
     Error,
-    "cannot be combined",
+    "cannot be combined with --agent",
   );
 });
 
@@ -168,3 +209,27 @@ for (const parseArgs of [parseKickstartArgs, parseLoopArgs]) {
     );
   });
 }
+
+Deno.test("kickstart --agent after the subcommand sets harness and model", async () => {
+  const config = await parseKickstartArgs(["--agent", "codex:gpt-5.4", "123"]);
+  assertEquals(config.agentHarness, "codex");
+  assertEquals(config.agentModel, "gpt-5.4");
+  assertEquals(config.agentThinking, undefined);
+});
+
+Deno.test("kickstart rejects conflicting global and subcommand --agent", async () => {
+  await assertRejects(
+    () =>
+      parseKickstartArgs(["--agent", "codex", "123"], { harness: "cursor" }),
+    Error,
+    "Conflicting agent selections",
+  );
+});
+
+Deno.test("kickstart rejects removed --codex alias", async () => {
+  await assertRejects(
+    () => parseKickstartArgs(["--codex", "123"]),
+    Error,
+    "Unknown option: --codex",
+  );
+});

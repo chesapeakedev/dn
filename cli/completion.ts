@@ -34,14 +34,6 @@ const BOOTSTRAP_FLAGS = [
   "--trace",
   "--no-trace",
 ];
-const AGENT_ALIAS_FLAGS = [
-  "--opencode",
-  "--cursor",
-  "-c",
-  "--claude",
-  "--codex",
-  "--copilot",
-];
 const SANDBOX_PROVIDERS = ["none", "docker", "exe.dev"];
 const PUBLISH_MODES = ["none", "pr", "direct"];
 const SKILL_NAMES = ["dn", "base-image", "rfc"];
@@ -56,7 +48,7 @@ const FILE_VALUE: string[] = [];
 
 function agentWorkflowFlags(): string[] {
   return [
-    ...AGENT_ALIAS_FLAGS,
+    "--agent",
     "--sandbox",
     "--workspace-root",
     "--steer",
@@ -68,6 +60,7 @@ function agentWorkflowFlags(): string[] {
 
 function agentWorkflowFlagValues(): Record<string, string[]> {
   return {
+    "--agent": [...AGENT_HARNESSES],
     "--sandbox": SANDBOX_PROVIDERS,
     "--workspace-root": FILE_VALUE,
     "--steer": FILE_VALUE,
@@ -311,7 +304,6 @@ export const DN_COMPLETION_ROOT: CompletionNode = {
     "--context-file",
     "--version",
     "-V",
-    ...AGENT_ALIAS_FLAGS,
     ...BOOTSTRAP_FLAGS,
     ...HELP_FLAGS,
   ],
@@ -357,9 +349,13 @@ export const DN_COMPLETION_ROOT: CompletionNode = {
             "--yes",
             "-y",
             "--publish",
+            "--agent",
             ...HELP_FLAGS,
           ],
-          flagValues: { "--publish": PUBLISH_MODES },
+          flagValues: {
+            "--publish": PUBLISH_MODES,
+            "--agent": [...AGENT_HARNESSES],
+          },
         },
         build: {
           flags: ["--agent", "--dry-run", ...jsonHelp],
@@ -503,12 +499,13 @@ export const DN_COMPLETION_ROOT: CompletionNode = {
     },
     fixup: {
       flags: [
-        ...AGENT_ALIAS_FLAGS,
+        "--agent",
         "--workspace-root",
         "--context-file",
         ...HELP_FLAGS,
       ],
       flagValues: {
+        "--agent": [...AGENT_HARNESSES],
         "--workspace-root": FILE_VALUE,
         "--context-file": FILE_VALUE,
       },
@@ -554,13 +551,14 @@ export const DN_COMPLETION_ROOT: CompletionNode = {
         "--test-plan",
         "--workspace-root",
         "--context-file",
-        ...AGENT_ALIAS_FLAGS,
+        "--agent",
         ...HELP_FLAGS,
       ],
       flagValues: {
         "--test-plan": FILE_VALUE,
         "--workspace-root": FILE_VALUE,
         "--context-file": FILE_VALUE,
+        "--agent": [...AGENT_HARNESSES],
       },
     },
     peek: {
@@ -613,8 +611,11 @@ export const DN_COMPLETION_ROOT: CompletionNode = {
       },
     },
     tidy: {
-      flags: ["--limit", ...AGENT_ALIAS_FLAGS, ...HELP_FLAGS],
-      flagValues: { "--limit": FILE_VALUE },
+      flags: ["--limit", "--agent", ...HELP_FLAGS],
+      flagValues: {
+        "--limit": FILE_VALUE,
+        "--agent": [...AGENT_HARNESSES],
+      },
     },
     sync: {
       flags: ["--workspace-root", "--skip-preflight", ...HELP_FLAGS],

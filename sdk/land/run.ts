@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { AgentHarness } from "../github/agentHarness.ts";
-import { getRunAgent } from "../github/agentHarness.ts";
+import { getRunAgent, toAgentRunOptions } from "../github/agentHarness.ts";
 import { formatAgentFailureOutput } from "../github/progress.ts";
 import { detectVcs, getChangedFiles, showChanges } from "../github/vcs.ts";
 import { deriveCommitMessage } from "../archive/derive.ts";
@@ -74,6 +74,10 @@ export interface RunLandPhaseOptions {
   testPlanPath?: string;
   workspaceRoot: string;
   agentHarness: AgentHarness;
+  /** Optional `--agent` model override. */
+  agentModel?: string;
+  /** Optional `--agent` thinking/effort override. */
+  agentThinking?: string;
   dryRun: boolean;
 }
 
@@ -91,6 +95,8 @@ export async function runLandPhase(
     testPlanPath,
     workspaceRoot,
     agentHarness,
+    agentModel,
+    agentThinking,
     dryRun,
   } = options;
 
@@ -165,7 +171,10 @@ export async function runLandPhase(
     const promptPath = `${tmpDir}/land.prompt.md`;
     await Deno.writeTextFile(promptPath, lines.join("\n"));
 
-    const run = getRunAgent(agentHarness);
+    const run = getRunAgent(
+      agentHarness,
+      toAgentRunOptions({ model: agentModel, thinking: agentThinking }),
+    );
     const result = await run(
       "plan",
       promptPath,

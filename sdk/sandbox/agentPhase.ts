@@ -2,9 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { dirname } from "@std/path";
-import type { AgentHarness } from "../github/agentHarness.ts";
+import type { AgentHarness, AgentRunOptions } from "../github/agentHarness.ts";
 import { getRunAgent } from "../github/agentHarness.ts";
+import { buildClaudeExecArgs } from "../github/claudeAgent.ts";
+import { buildCodexExecArgs } from "../github/codexAgent.ts";
+import { buildCopilotExecArgs } from "../github/copilotAgent.ts";
+import { buildCursorAgentArgs } from "../github/cursorAgent.ts";
 import { logAgentPhaseIntent } from "../github/agentModel.ts";
+import { buildOpenCodeRunArgs } from "../github/opencode.ts";
 import {
   createProgressReporter,
   type ProgressReporter,
@@ -25,34 +30,41 @@ function getDefaultReporter(): ProgressReporter {
   return defaultReporter;
 }
 
+function promptInstructionFor(combinedPromptPath: string): string {
+  return `Read and execute the instructions in this file: ${combinedPromptPath}`;
+}
+
 function buildSandboxAgentCommand(
   harness: AgentHarness,
   phase: "plan" | "implement",
   combinedPromptPath: string,
+  workspaceRoot: string,
+  options?: AgentRunOptions,
 ): string[] {
+  const promptInstruction = promptInstructionFor(combinedPromptPath);
   switch (harness) {
     case "opencode":
       return [
         "opencode",
-        "run",
-        phase,
-        "-f",
-        combinedPromptPath,
-        "--log-level=DEBUG",
+        ...buildOpenCodeRunArgs(phase, combinedPromptPath, options),
       ];
     case "cursor":
-      return [
-        "agent",
-        "-p",
-        "--force",
-        `Read and execute the instructions in this file: ${combinedPromptPath}`,
-      ];
+      return ["agent", ...buildCursorAgentArgs(promptInstruction, options)];
     case "claude":
-      return ["claude", "-p", "-f", combinedPromptPath];
+      return ["claude", ...buildClaudeExecArgs(promptInstruction, options)];
     case "codex":
-      return ["codex", "exec", "-f", combinedPromptPath];
+      return [
+        "codex",
+        ...buildCodexExecArgs(workspaceRoot, promptInstruction, options),
+      ];
     case "copilot":
-      return ["copilot", "-p", combinedPromptPath];
+      return [
+        "copilot",
+        ...buildCopilotExecArgs(promptInstruction, {
+          allowedTools: Deno.env.get("COPILOT_ALLOWED_TOOLS"),
+          model: options?.model?.trim() || Deno.env.get("COPILOT_MODEL"),
+        }),
+      ];
   }
 }
 
@@ -63,10 +75,11 @@ export async function runAgentPhaseInSandbox(
   useReadonlyConfig: boolean,
   harness: AgentHarness,
   reporter?: ProgressReporter,
+  options?: AgentRunOptions,
 ): Promise<ExecResult> {
   const activeReporter = reporter ?? getDefaultReporter();
   if (!isSandboxActive()) {
-    const runner = getRunAgent(harness);
+    const runner = getRunAgent(harness, options);
     return await runner(
       phase,
       combinedPromptPath,
@@ -77,7 +90,12 @@ export async function runAgentPhaseInSandbox(
   }
 
   const ctx = getCurrentSandboxContext()!;
-  await logAgentPhaseIntent(harness, workspaceRoot, useReadonlyConfig);
+  await logAgentPhaseIntent(
+    harness,
+    workspaceRoot,
+    useReadonlyConfig,
+    options,
+  );
   const sandboxWorkspace = ctx.handle.workspace;
   const sandboxPromptPath = translateHostPathToSandbox(
     combinedPromptPath,
@@ -104,6 +122,8 @@ export async function runAgentPhaseInSandbox(
     harness,
     phase,
     sandboxPromptPath,
+    sandboxCwd,
+    options,
   );
 
   if (ctx.provider === "exe.dev") {

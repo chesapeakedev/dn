@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
-  type AgentHarness,
+  type AgentSelection,
   resolveAgentHarnessFromFlagsAndEnv,
 } from "../github/agentHarness.ts";
 import { resolveDnConfig } from "./resolve.ts";
@@ -11,29 +11,22 @@ import { resolveDnConfig } from "./resolve.ts";
 export interface ResolveLocalAgentHarnessOptions {
   /** Repository root used to load `dn.json` / user config. */
   repoRoot: string;
-  /** Explicit `--agent <name>` value, usually from global CLI flags. */
-  agent?: AgentHarness | null;
-  /** True if `--cursor` or `-c` was passed. */
-  cursorFlag: boolean;
-  /** True if `--claude` was passed. */
-  claudeFlag: boolean;
-  /** True if `--codex` was passed. */
-  codexFlag?: boolean;
-  /** True if `--copilot` was passed. */
-  copilotFlag?: boolean;
-  /** True if `--opencode` was passed. */
-  opencodeFlag?: boolean;
+  /** Explicit `--agent` selection, usually from global and subcommand CLI flags. */
+  agent?: AgentSelection | null;
 }
 
 /**
  * Resolves the local CLI agent with tiered config fallback.
  *
- * Precedence: CLI flags → `DN_AGENT` → `*_ENABLED` env → project `dn.json` /
+ * Precedence: CLI `--agent` → `DN_AGENT` → `*_ENABLED` env → project `dn.json` /
  * user config (via {@link resolveDnConfig}) → built-in `opencode`.
+ *
+ * File config supplies a harness name only. Model and thinking come from CLI
+ * or `DN_AGENT`.
  */
 export async function resolveLocalAgentHarness(
   options: ResolveLocalAgentHarnessOptions,
-): Promise<AgentHarness> {
+): Promise<AgentSelection> {
   const config = await resolveDnConfig({
     repoRoot: options.repoRoot,
     // File layers only; DN_AGENT and *_ENABLED are handled in the harness helper.
@@ -42,11 +35,6 @@ export async function resolveLocalAgentHarness(
   });
   return resolveAgentHarnessFromFlagsAndEnv({
     agent: options.agent,
-    cursorFlag: options.cursorFlag,
-    claudeFlag: options.claudeFlag,
-    codexFlag: options.codexFlag,
-    copilotFlag: options.copilotFlag,
-    opencodeFlag: options.opencodeFlag,
     fallbackAgent: config.agent,
   });
 }

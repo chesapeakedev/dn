@@ -16,10 +16,13 @@ import {
 } from "../sdk/github/github-gql.ts";
 import type { PRReview, PullRequestData } from "../sdk/github/github-gql.ts";
 import { resolveLocalAgentHarness } from "../sdk/config/localAgent.ts";
-import type { AgentHarness } from "../sdk/github/agentHarness.ts";
+import type { AgentSelection } from "../sdk/github/agentHarness.ts";
 import {
+  extractAgentSelectionFromArgs,
   formatAgentHarnessName,
   getRunAgent,
+  mergeAgentSelections,
+  toAgentRunOptions,
 } from "../sdk/github/agentHarness.ts";
 import { detectVcs } from "../sdk/github/vcs.ts";
 import { assembleCombinedPrompt } from "../sdk/github/prompt.ts";
@@ -45,35 +48,22 @@ interface FixupConfig extends KickstartConfig {
  */
 async function parseArgs(
   args: string[],
-  globalAgent: AgentHarness | null = null,
+  globalAgent: AgentSelection | null = null,
   globalContextFiles: readonly string[] = [],
 ): Promise<FixupConfig> {
   let prUrl: string | null = null;
-  let cursorFlag = false;
-  let claudeFlag = false;
-  let codexFlag = false;
-  let copilotFlag = false;
-  let opencodeFlag = false;
   let workspaceRoot: string | undefined = undefined;
 
-  const { contextFiles, rest: flagArgs } = resolveContextFileArgs(
+  const { contextFiles, rest: argsAfterContext } = resolveContextFileArgs(
     args,
     globalContextFiles,
   );
+  const { selection: localAgent, rest: flagArgs } =
+    extractAgentSelectionFromArgs(argsAfterContext);
 
   for (let i = 0; i < flagArgs.length; i++) {
     const arg = flagArgs[i];
-    if (arg === "--cursor" || arg === "-c") {
-      cursorFlag = true;
-    } else if (arg === "--claude") {
-      claudeFlag = true;
-    } else if (arg === "--codex") {
-      codexFlag = true;
-    } else if (arg === "--copilot") {
-      copilotFlag = true;
-    } else if (arg === "--opencode") {
-      opencodeFlag = true;
-    } else if (arg === "--workspace-root" && i + 1 < flagArgs.length) {
+    if (arg === "--workspace-root" && i + 1 < flagArgs.length) {
       workspaceRoot = flagArgs[++i];
     } else if (arg === "--help" || arg === "-h") {
       showHelp();
@@ -88,19 +78,18 @@ async function parseArgs(
     prUrl = Deno.env.get("PR_URL") || null;
   }
 
-  const agentHarness = await resolveLocalAgentHarness({
+  const agentSelection = await resolveLocalAgentHarness({
     repoRoot: workspaceRoot ?? Deno.cwd(),
-    agent: globalAgent,
-    cursorFlag,
-    claudeFlag,
-    codexFlag,
-    copilotFlag,
-    opencodeFlag,
+    agent: mergeAgentSelections(globalAgent, localAgent),
   });
 
   return {
     publish: "none" as const,
-    agentHarness,
+    agentHarness: agentSelection.harness,
+    ...(agentSelection.model ? { agentModel: agentSelection.model } : {}),
+    ...(agentSelection.thinking
+      ? { agentThinking: agentSelection.thinking }
+      : {}),
     allowCrossRepo: false,
     issueUrl: null,
     saveCtx: false,
@@ -124,13 +113,9 @@ function showHelp(): void {
   console.log(
     "  --context-file <path>    Include a file in agent prompt context (repeatable; also a global flag)",
   );
-  console.log("  --cursor, -c             Use Cursor headless agent");
-  console.log("  --claude                 Use Claude Code CLI (`claude -p`)");
-  console.log("  --codex                  Use Codex CLI (`codex exec`)");
   console.log(
-    "  --copilot                Use GitHub Copilot CLI (`copilot -p`)",
+    "  --agent <agent>          <harness>:<model> (harness-only or optional :<thinking>)",
   );
-  console.log("  --opencode               Use OpenCode CLI (default)");
   console.log("  --workspace-root <path>  Workspace root directory");
   console.log("  --help, -h               Show this help message\n");
   console.log("Environment variables:");
@@ -147,7 +132,9 @@ function showHelp(): void {
   console.log("  CODEX_ENABLED            Set to '1' to use Codex CLI\n");
   console.log("Examples:");
   console.log("  dn fixup https://github.com/owner/repo/pull/123");
-  console.log("  dn fixup --cursor https://github.com/owner/repo/pull/123\n");
+  console.log(
+    "  dn fixup --agent cursor https://github.com/owner/repo/pull/123\n",
+  );
   console.log("Notes:");
   console.log(
     "  - If already on the correct branch, no git/sl commands are executed",
@@ -390,7 +377,7 @@ function createFixupPlan(prData: PullRequestData): string {
  */
 export async function handleFixup(
   args: string[],
-  globalAgent: AgentHarness | null = null,
+  globalAgent: AgentSelection | null = null,
   globalContextFiles: readonly string[] = [],
 ): Promise<void> {
   let config: FixupConfig;
@@ -552,7 +539,13 @@ export async function handleFixup(
     );
 
     // Run the implement phase
-    const runImplement = getRunAgent(config.agentHarness);
+    const runImplement = getRunAgent(
+      config.agentHarness,
+      toAgentRunOptions({
+        model: config.agentModel,
+        thinking: config.agentThinking,
+      }),
+    );
     const implementResult = await runImplement(
       "implement",
       combinedPromptPath,
