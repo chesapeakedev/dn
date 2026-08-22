@@ -25,27 +25,29 @@ notes for this checkout. Do not put secrets in `harness_hints`.
 ## Hybrid
 
 - User names an **issue**, a **plan file**, or `kickstart` / `meld` / `loop` /
-  `land` → **orchestrate the CLI**. Do not reimplement the ticket in-chat.
+`land` → **orchestrate the CLI**. Do not reimplement the ticket in-chat.
 - User iterates on code in this session (ad-hoc edits) → **implement here**.
-- After implement, **ask before committing**. You write the commit if they say
-  yes. Do not auto-run `dn land`.
+- After a **local** (`--publish none`) run, **ask before committing**. You write
+the commit if they say yes. Do not auto-run `dn land`. After `--publish pr`
+or `--publish direct`, kickstart already published — report the PR or branch.
 
 ## After implement
 
-Default publish is local (`none`). Do not pass `--awp` / `--publish pr` unless
-the user asked for a pull request. Do not stack another kickstart on uncommitted
-kickstart work.
+Default publish is local (`none`). Do not stack another kickstart on
+uncommitted kickstart work.
 
 When you are the outer IDE harness (this chat):
 
 1. Run `dn kickstart` or `dn meld` → `dn loop` to implement.
 2. Summarize the plan path and what changed.
-3. **Ask** whether to commit. Do not commit, and do not run `dn land`, unless
-   the user says yes or already asked to commit.
+3. If publish was `none`: **ask** whether to commit. Do not commit, and do not
+  run `dn land`, unless the user says yes or already asked to commit.
 4. If yes: write the commit with the repo VCS. Omit `*.plan.md` (delete it or
-   leave it untracked).
-5. Use `dn land` only for CLI/CI/denoise, `--issue-testplan`, RFC land, or when
-   the user names `dn land`.
+  leave it untracked).
+5. If publish was `pr` or `direct`: report the PR URL or branch. Do not also
+  commit here.
+6. Use `dn land` only for CLI/CI/denoise, `--issue-testplan`, RFC land, or when
+  the user names `dn land`.
 
 `dn sync` publishes to trunk. It is not a commit step.
 
@@ -56,25 +58,50 @@ Do not quiz the user for flags the CLI already defaults.
 
 1. Pass the **full issue URL** as the positional argument (not a bare number).
 2. Compare the URL's `owner/repo` to this workspace
-   (`gh repo view --json nameWithOwner -q .nameWithOwner`). If they differ, pass
+  (`gh repo view --json nameWithOwner -q .nameWithOwner`). If they differ, pass
    `--allow-cross-repo` (`-A`). Do not ask. Mention it in the summary. If you
    cannot detect the workspace repo, pass `-A` for a full URL anyway.
 3. Extra guidance in the user message besides the URL → `--steer "…"`.
 4. Named or attached files → `--context-file` (repeatable).
 5. Leave the rest at CLI defaults unless the user asked:
-   - publish `none` (no `--awp` / `--publish pr`)
-   - nested agent from project config / `DN_AGENT` (no `--agent cursor`)
-   - no `--cursor-cloud`, `--sandbox`, `--milestone`, `--complete`, `--once`,
-     `--skip-plan`, `--verbosity`, `--workspace-root`, `--denoise-task`
+  - publish `none` unless they asked for a PR or `--publish direct` (see
+   Publish)
+  - nested agent from project config / `DN_AGENT` (no `--agent cursor`)
+  - no `--cursor-cloud`, `--sandbox`, `--milestone`, `--complete`, `--once`,
+  `--skip-plan`, `--verbosity`, `--workspace-root`, `--denoise-task`
 6. `/pull/` URL → `dn fixup`, not kickstart. Local `.md` → kickstart that file.
 7. If `plans/*.plan.md` exists and the tree is dirty, stop and ask before
-   stacking another kickstart.
+  stacking another kickstart.
 
 ```bash
 dn kickstart https://github.com/owner/repo/issues/123
 dn kickstart --allow-cross-repo https://github.com/other/repo/issues/123
 dn kickstart --steer "Focus on the parser" https://github.com/owner/repo/issues/123
 # then ask: commit now?
+```
+
+### Publish
+
+An issue URL alone is `--publish none`. Map explicit user intent:
+
+
+| User says                                                                       | Argv               | After success                                                                          |
+| ------------------------------------------------------------------------------- | ------------------ | -------------------------------------------------------------------------------------- |
+| "open/create a PR", "as a PR", `--awp`, `--publish pr`                          | `--publish pr`     | Report the PR URL. Do not also commit in this chat.                                    |
+| "publish direct", `--publish direct`, "push to trunk/main as part of kickstart" | `--publish direct` | Report the default branch. Do not also commit here or run `dn sync` unless they asked. |
+| "publish" with no PR vs direct                                                  | Ask which          | —                                                                                      |
+
+
+`--awp` is an alias for `--publish pr`. Prefer `--publish pr` when constructing
+argv. Direct commits and pushes to the default branch inside kickstart (lint
+only). It is not `dn sync`.
+
+```bash
+# "kickstart this and open a PR"
+dn kickstart --publish pr https://github.com/owner/repo/issues/123
+
+# "kickstart this with --publish direct"
+dn kickstart --publish direct https://github.com/owner/repo/issues/123
 ```
 
 ### meld → loop
@@ -89,9 +116,9 @@ dn loop plans/issue-123.plan.md
 
 - Kickstart is a **CLI command**, not a Cursor Task/subagent.
 - Do **not** pass `--agent cursor` unless asked (avoids Cursor-in-Cursor). Let
-  project config or `DN_AGENT` pick the nested harness.
+project config or `DN_AGENT` pick the nested harness.
 - Plan mode maps to `dn meld` (do not implement). After the plan is accepted,
-  `dn loop`, then ask before committing.
+`dn loop`, then ask before committing.
 
 ## Issues
 
@@ -106,6 +133,6 @@ asks to replace it. Use `--repo owner/repo` for another repository.
 
 ## Related
 
-- Specialized skills: `.agents/skills/README.md` (`milestone-plan`, `rfc`,
-  `publish`)
+- Specialized skills: `.agents/skills/README.md` (`milestone-plan`, `rfc`, `publish`)
 - Nested Cursor CLI / Cloud Agents: [docs/cursor.md](../../../docs/cursor.md)
+

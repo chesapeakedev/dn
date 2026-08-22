@@ -66,13 +66,14 @@ notes for this checkout. Do not put secrets in `harness_hints`.
 
 ## Repeatable flows
 
-Default publish mode is local (`none`). Do not use `--awp` / `--publish pr`
-unless the user asked for a pull request. Do not stack another kickstart on
+Default publish mode is local (`none`). Do not stack another kickstart on
 uncommitted kickstart work.
 
 When you are an **outer IDE harness**, implement with the CLI, then **ask**
-whether to commit. If the user says yes, you write the commit with the repo
-VCS and omit `*.plan.md`. Do not auto-run `dn land`.
+whether to commit after a local (`none`) run. If the user says yes, you write
+the commit with the repo VCS and omit `*.plan.md`. Do not auto-run `dn land`.
+After `--publish pr` or `--publish direct`, kickstart already published —
+report the PR URL or branch instead of committing here.
 
 `dn land` is for attended CLI, CI, denoise/device-runners, `--issue-testplan`,
 RFC land, or when the user names `dn land`. `dn sync` publishes to trunk; it
@@ -104,6 +105,28 @@ Do not quiz the user for flags the CLI already defaults.
 6. `/pull/` URL → `dn fixup`. Local `.md` → kickstart that file.
 7. If `plans/*.plan.md` exists and the tree is dirty, stop and ask before
    stacking another kickstart.
+
+### Publish
+
+An issue URL alone is `--publish none`. Map explicit user intent:
+
+| User says | Argv | After success |
+| --- | --- | --- |
+| "open/create a PR", "as a PR", `--awp`, `--publish pr` | `--publish pr` | Report the PR URL. Do not also commit in this chat. |
+| "publish direct", `--publish direct`, "push to trunk/main as part of kickstart" | `--publish direct` | Report the default branch. Do not also commit here or run `dn sync` unless they asked. |
+| "publish" with no PR vs direct | Ask which | — |
+
+`--awp` is an alias for `--publish pr`. Prefer `--publish pr` when constructing
+argv. Direct commits and pushes to the default branch inside kickstart (lint
+only). It is not `dn sync`.
+
+```bash
+# "kickstart this and open a PR"
+dn kickstart --publish pr https://github.com/owner/repo/issues/123
+
+# "kickstart this with --publish direct"
+dn kickstart --publish direct https://github.com/owner/repo/issues/123
+```
 
 ## Subcommands
 

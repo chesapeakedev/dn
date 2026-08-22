@@ -76,13 +76,14 @@ notes for this checkout. Do not put secrets in \`harness_hints\`.
 
 ## Repeatable flows
 
-Default publish mode is local (\`none\`). Do not use \`--awp\` / \`--publish pr\`
-unless the user asked for a pull request. Do not stack another kickstart on
+Default publish mode is local (\`none\`). Do not stack another kickstart on
 uncommitted kickstart work.
 
 When you are an **outer IDE harness**, implement with the CLI, then **ask**
-whether to commit. If the user says yes, you write the commit with the repo
-VCS and omit \`*.plan.md\`. Do not auto-run \`dn land\`.
+whether to commit after a local (\`none\`) run. If the user says yes, you write
+the commit with the repo VCS and omit \`*.plan.md\`. Do not auto-run \`dn land\`.
+After \`--publish pr\` or \`--publish direct\`, kickstart already published —
+report the PR URL or branch instead of committing here.
 
 \`dn land\` is for attended CLI, CI, denoise/device-runners, \`--issue-testplan\`,
 RFC land, or when the user names \`dn land\`. \`dn sync\` publishes to trunk; it
@@ -101,7 +102,8 @@ Do not quiz the user for flags the CLI already defaults.
 3. Extra guidance in the user message besides the URL → \`--steer "…"\`.
 4. Named or attached files → \`--context-file\` (repeatable).
 5. Leave the rest at CLI defaults unless the user asked:
-   - publish \`none\` (no \`--awp\` / \`--publish pr\`)
+   - publish \`none\` unless they asked for a PR or \`--publish direct\` (see
+     Publish)
    - nested agent from project config / \`DN_AGENT\` (no \`--agent cursor\`)
    - no \`--cursor-cloud\`, \`--sandbox\`, \`--milestone\`, \`--complete\`, \`--once\`,
      \`--skip-plan\`, \`--verbosity\`, \`--workspace-root\`, \`--denoise-task\`
@@ -114,6 +116,28 @@ dn kickstart https://github.com/owner/repo/issues/123
 dn kickstart --allow-cross-repo https://github.com/other/repo/issues/123
 dn kickstart --steer "Focus on the parser" https://github.com/owner/repo/issues/123
 # then ask: commit now?
+\`\`\`
+
+### Publish
+
+An issue URL alone is \`--publish none\`. Map explicit user intent:
+
+| User says | Argv | After success |
+| --- | --- | --- |
+| "open/create a PR", "as a PR", \`--awp\`, \`--publish pr\` | \`--publish pr\` | Report the PR URL. Do not also commit in this chat. |
+| "publish direct", \`--publish direct\`, "push to trunk/main as part of kickstart" | \`--publish direct\` | Report the default branch. Do not also commit here or run \`dn sync\` unless they asked. |
+| "publish" with no PR vs direct | Ask which | — |
+
+\`--awp\` is an alias for \`--publish pr\`. Prefer \`--publish pr\` when constructing
+argv. Direct commits and pushes to the default branch inside kickstart (lint
+only). It is not \`dn sync\`.
+
+\`\`\`bash
+# "kickstart this and open a PR"
+dn kickstart --publish pr https://github.com/owner/repo/issues/123
+
+# "kickstart this with --publish direct"
+dn kickstart --publish direct https://github.com/owner/repo/issues/123
 \`\`\`
 
 ### meld → loop
@@ -213,8 +237,9 @@ Task/subagent.
   \`--allow-cross-repo\` on repo mismatch, \`--steer\` / \`--context-file\` from the
   message). Do not quiz for other flags.
 - When they iterate on code in this session: implement here.
-- After implement, ask whether to commit. If yes, you write the commit. Do not
-  auto-run \`dn land\`.
+- After a local (\`none\`) run, ask whether to commit. If yes, you write the
+  commit. Do not auto-run \`dn land\`. After \`--publish pr\` or
+  \`--publish direct\`, report the PR or branch instead.
 - Do not pass \`--agent cursor\` unless asked. Let project config / \`DN_AGENT\`
   pick the nested harness.
 - Plan mode maps to \`dn meld\` (do not implement). After the plan is accepted,
@@ -615,19 +640,25 @@ When writing issue content, prefer concise structured Markdown:
 
 ### Repeatable flows
 
-Issue-driven work follows one of two close-out paths. Default publish mode is
-local (\`none\`): implement, then \`dn land\`. Do not use \`--awp\` / \`--publish pr\`
-unless the user asked for a pull request. Do not stack another kickstart on
+Default publish mode is local (\`none\`). Do not stack another kickstart on
 uncommitted kickstart work.
 
 When this AGENTS.md is used from an **IDE chat**, implement with the CLI, then
-ask whether to commit. If the user says yes, the IDE agent writes the commit
-and omits \`*.plan.md\`. Do not auto-run \`dn land\`.
+ask whether to commit after a local (\`none\`) run. If the user says yes, the IDE
+agent writes the commit and omits \`*.plan.md\`. Do not auto-run \`dn land\`.
+
+If the user asks to open/create a PR (or says \`--awp\` / \`--publish pr\`), pass
+\`--publish pr\` and report the PR URL. If they ask for \`--publish direct\` (or
+push to trunk as part of kickstart), pass \`--publish direct\` and report the
+branch. Do not also commit in the IDE after those modes. If they say "publish"
+with no PR vs direct, ask which.
 
 \`dn land\` is for attended CLI, CI, and denoise. \`dn sync\` publishes to trunk.
 
 \`\`\`bash
 dn kickstart <issue-url-or-number>         # Full plan + implement
+dn kickstart --publish pr <issue-url>      # Branch, commit, open a PR
+dn kickstart --publish direct <issue-url>  # Commit and push to default branch
 dn meld <issue-url-or-number>              # Plan phase
 dn loop plans/task.plan.md                 # Implement from an existing plan
 dn land plans/task.plan.md                 # CLI/CI close-out into VCS commits

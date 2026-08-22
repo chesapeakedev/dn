@@ -21,8 +21,13 @@ Hybrid behavior:
 - A pasted GitHub issue URL plus kickstart → pass the full URL; add
   `--allow-cross-repo` when `owner/repo` is not this workspace; put extra
   guidance in `--steer`; leave other flags at CLI defaults
-- After kickstart or loop, summarize and **ask** whether to commit
+- After a **local** (`--publish none`) kickstart or loop, summarize and **ask**
+  whether to commit
 - If yes, this chat writes the commit (omit `*.plan.md`)
+- "open a PR" / `--publish pr` → `dn kickstart --publish pr <url>` (report the
+  PR; do not also commit here)
+- "publish direct" / `--publish direct` → `dn kickstart --publish direct <url>`
+  (push to the default branch; do not also commit here)
 - Ad-hoc edits in chat → implement in-session; same ask-before-commit step
 - Do not pass `--agent cursor` unless asked (avoids Cursor-in-Cursor)
 - Plan mode maps to `dn meld`; after the plan is accepted, `dn loop`, then ask

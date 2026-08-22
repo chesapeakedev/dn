@@ -189,13 +189,18 @@ behavior and flags, see `docs/subcommands.md`. Follow
 
 ### Repeatable flows
 
-Default publish is local (`none`). Do not use `--awp` / `--publish pr` unless
-the user asked for a pull request. Do not stack another kickstart on uncommitted
+Default publish is local (`none`). Do not stack another kickstart on uncommitted
 kickstart work.
 
 When this session is an **IDE chat**, implement with the CLI, then **ask**
-whether to commit. If the user says yes, write the commit with the repo VCS and
-omit `*.plan.md`. Do not auto-run `dn land`.
+whether to commit after a local (`none`) run. If the user says yes, write the
+commit with the repo VCS and omit `*.plan.md`. Do not auto-run `dn land`.
+
+If the user asks to open/create a PR (or says `--awp` / `--publish pr`), pass
+`--publish pr` and report the PR URL. If they ask for `--publish direct` (or
+push to trunk as part of kickstart), pass `--publish direct` and report the
+branch. Do not also commit here after those modes. If they say "publish" with no
+PR vs direct, ask which.
 
 `dn land` is for attended CLI, CI, denoise, `--issue-testplan`, RFC land, or
 when the user names `dn land`. `dn sync` publishes to trunk; it is not a commit
@@ -206,6 +211,12 @@ step.
 $ dn kickstart https://github.com/owner/repo/issues/123
 $ dn kickstart --allow-cross-repo https://github.com/other/repo/issues/123
 # then ask: commit now?
+
+# Kickstart and open a PR
+$ dn kickstart --publish pr https://github.com/owner/repo/issues/123
+
+# Kickstart and push to the default branch
+$ dn kickstart --publish direct https://github.com/owner/repo/issues/123
 
 # Reviewable plan, then implement
 $ dn meld 123
@@ -218,9 +229,10 @@ $ dn land plans/issue-123.plan.md
 
 When the user pastes a GitHub issue URL and asks to kickstart: pass the full
 URL; add `--allow-cross-repo` when the URL's `owner/repo` is not this workspace;
-put extra chat guidance in `--steer`; leave other flags at CLI defaults unless
-asked. When they iterate on code in conversation, implement in-session and still
-ask before committing.
+put extra chat guidance in `--steer`; pass `--publish pr` or `--publish direct`
+when they ask for a PR or direct publish. When they iterate on code in
+conversation, implement in-session and still ask before committing after a local
+run.
 
 ### Few-shot examples
 

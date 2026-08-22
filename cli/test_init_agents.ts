@@ -60,6 +60,7 @@ Deno.test("init agents is idempotent for an existing non-minimal AGENTS.md", asy
     assert(firstContent.includes("dn land"));
     assert(firstContent.includes("Do not auto-run `dn land`"));
     assert(firstContent.includes("--allow-cross-repo"));
+    assert(firstContent.includes("--publish pr"));
     assert(firstContent.includes("kickstart"));
     assert(firstContent.includes("meld"));
   } finally {
@@ -127,6 +128,8 @@ Deno.test("repo cursor skill install writes Cursor skill only", async () => {
     assert(cursorSkill.includes("dn land"));
     assert(cursorSkill.includes("Do not auto-run `dn land`"));
     assert(cursorSkill.includes("--allow-cross-repo"));
+    assert(cursorSkill.includes("--publish pr"));
+    assert(cursorSkill.includes("--publish direct"));
     assert(cursorSkill.includes("## Cursor IDE"));
     assert(cursorSkill.includes("Do not pass `--agent cursor`"));
     assert(cursorSkill.includes("harness_hints"));
@@ -375,6 +378,8 @@ Deno.test("repo dn skill includes RFC context section", async () => {
     assert(skillContent.includes("dn land"));
     assert(skillContent.includes("Do not auto-run `dn land`"));
     assert(skillContent.includes("--allow-cross-repo"));
+    assert(skillContent.includes("--publish pr"));
+    assert(skillContent.includes("--publish direct"));
     assert(skillContent.includes("harness_hints"));
   } finally {
     await cleanupTestRepo(testRepo);
