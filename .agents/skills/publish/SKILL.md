@@ -19,7 +19,8 @@ make release VERSION=<version>
 
 Do not reproduce individual release steps. `scripts/release.ts` validates the
 working copy, runs `deno publish --dry-run` so JSR graph errors fail before a
-GitHub tag exists, updates `deno.json`, runs precommit checks, commits and syncs
+GitHub tag exists, runs `make skill_goldens` and fails if that rewrites
+checked-in skills, updates `deno.json`, runs precommit checks, commits and syncs
 with Sapling, and creates the GitHub release. The GitHub release triggers the
 binary release workflow.
 

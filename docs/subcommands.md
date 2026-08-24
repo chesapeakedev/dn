@@ -657,22 +657,27 @@ Supported skill names: `dn` (default), `base-image`, `rfc`.
 
 Repo-scope installs write (replace `dn` with the skill name when set):
 
-- `codex`, `opencode`: `.agents/skills/<name>/SKILL.md` and
+- `codex`: `.agents/skills/<name>/SKILL.md` and
   `.agents/skills/<name>/agents/openai.yaml`
+- `opencode`: `.opencode/skills/<name>/SKILL.md` and
+  `.opencode/skills/<name>/agents/openai.yaml`
 - `claude`: `.claude/skills/<name>/SKILL.md`
 - `cursor`: `.cursor/skills/dn/SKILL.md` (dn skill only)
 
 User-scope installs write:
 
-- `codex`, `opencode`: `~/.agents/skills/<name>/SKILL.md` and
+- `codex`: `~/.agents/skills/<name>/SKILL.md` and
   `~/.agents/skills/<name>/agents/openai.yaml`
+- `opencode`: `~/.opencode/skills/<name>/SKILL.md` and
+  `~/.opencode/skills/<name>/agents/openai.yaml`
 - `claude`: `~/.claude/skills/<name>/SKILL.md`
 - `cursor`: `~/.cursor/skills/dn/SKILL.md` (dn skill only)
 
-`--agent cursor` only installs the dn harness skill. `base-image` and `rfc` live
-under `.agents/skills/` — install them with `--agent opencode` or
-`--agent codex`. Outer-harness UX (kickstart argv, ask-before-commit, publish
-phrasing, nested `--agent`) is documented in [Outer harness](outer-harness.md).
+`--agent cursor` only installs the dn harness skill. `base-image` and `rfc`
+follow the selected agent's native skill tree (`--agent opencode` →
+`.opencode/skills/`, `--agent codex` → `.agents/skills/`). Outer-harness UX
+(kickstart argv, ask-before-commit, publish phrasing, nested `--agent`) is
+documented in [Outer harness](outer-harness.md).
 
 Managed skill files are idempotent; existing unmanaged files are left untouched
 unless `--force` is passed. Use `--dry-run` to inspect planned writes, skips,

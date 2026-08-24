@@ -8,9 +8,11 @@ import {
   formatCommitMessage,
   formatJsrPublishDryRunError,
   formatReleaseNotes,
+  formatSkillGoldensDriftError,
   JSR_PUBLISH_DRY_RUN_ARGS,
   parseSaplingLog,
   repositoryFromRemoteUrl,
+  SKILL_GOLDENS_ARGS,
   validateReleaseVersion,
   validateSemanticVersion,
 } from "./release.ts";
@@ -164,6 +166,27 @@ Deno.test("formatJsrPublishDryRunError tells operators to fix JSR before GitHub"
 
 Deno.test("formatJsrPublishDryRunError handles empty command output", () => {
   assertStringIncludes(formatJsrPublishDryRunError("  \n"), "(no output)");
+});
+
+Deno.test("skill goldens args invoke the Makefile regen target", () => {
+  assertEquals([...SKILL_GOLDENS_ARGS], ["make", "skill_goldens"]);
+});
+
+Deno.test("formatSkillGoldensDriftError tells operators to commit regen output", () => {
+  const message = formatSkillGoldensDriftError(
+    "M .cursor/skills/dn/SKILL.md\n",
+  );
+  assertStringIncludes(message, "skill goldens drifted");
+  assertStringIncludes(message, "make skill_goldens");
+  assertStringIncludes(message, "before release or sync");
+  assertStringIncludes(message, ".cursor/skills/dn/SKILL.md");
+});
+
+Deno.test("formatSkillGoldensDriftError handles empty status output", () => {
+  assertStringIncludes(
+    formatSkillGoldensDriftError("  \n"),
+    "(no status output)",
+  );
 });
 
 Deno.test("deno publish --dry-run succeeds for the current package graph", async () => {

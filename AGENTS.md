@@ -183,9 +183,15 @@ direct API calls when preparing workspaces, iterating on plans, or coordinating
 changes.
 
 Run `dn` with no arguments to discover available subcommands. For detailed
-behavior and flags, see `docs/subcommands.md`. Follow
-`.cursor/skills/dn/SKILL.md` when this session is Cursor, or
-`.agents/skills/dn/SKILL.md` when this session is Codex. The shared
+behavior and flags, see `docs/subcommands.md`. Follow the generated `dn` skill
+for this harness:
+
+- Cursor: `.cursor/skills/dn/SKILL.md`
+- Codex: `.agents/skills/dn/SKILL.md`
+- Claude Code: `.claude/skills/dn/SKILL.md`
+- OpenCode: `.opencode/skills/dn/SKILL.md`
+
+Those files are produced by `dn init agents --skill` and checked in. The shared
 outer-harness contract is `docs/outer-harness.md`. Read repository `dn.json`
 `harness_hints` at the start of a session and honor those notes.
 

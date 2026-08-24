@@ -5,7 +5,9 @@ conversational development workflow.
 
 When OpenCode is the **outer** chat with `dn` on `PATH`, follow
 [Outer harness](outer-harness.md). Install the generated skill with
-`dn init agents --skill --agent opencode`. This page covers OpenCode TUI tools.
+`dn init agents --skill --agent opencode` (writes `.opencode/skills/dn/`, or
+`~/.opencode/skills/dn/` with `--scope user`). This repository checks in that
+output. This page covers OpenCode TUI tools.
 
 ## Overview
 

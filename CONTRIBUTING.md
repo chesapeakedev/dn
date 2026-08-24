@@ -97,14 +97,15 @@ make release
 This will:
 
 1. Run `deno publish --dry-run` so JSR package-graph errors fail before GitHub
-2. Read the current version from `deno.json`
-3. Find the previous release commit whose subject starts with that version
-4. Summarize commits since that release
-5. Bump the patch version in `deno.json`
-6. Run `make precommit`
-7. Commit the version bump with `sl commit`
-8. Run `make sync` (same as **`dn sync`**)
-9. Create the GitHub release with `dn release create`
+2. Run `make skill_goldens` and fail if the working copy is dirty
+3. Read the current version from `deno.json`
+4. Find the previous release commit whose subject starts with that version
+5. Summarize commits since that release
+6. Bump the patch version in `deno.json`
+7. Run `make precommit`
+8. Commit the version bump with `sl commit`
+9. Run `make sync` (same as **`dn sync`**)
+10. Create the GitHub release with `dn release create`
 
 Use a dry run to preview the detected version and generated notes without
 changing files:

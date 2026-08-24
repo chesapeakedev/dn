@@ -31,6 +31,7 @@ endif
 	publish \
 	test_subcommands \
 	exe_dev_token \
+	skill_goldens \
 	bump_patch bump_minor bump_major release
 
 fmt: ; deno fmt
@@ -111,6 +112,15 @@ tokei: ; hash tokei || cargo install tokei
 # They are useful for manual testing but should not be run in CI pipelines.
 test_subcommands: ; deno test cli/test_*.ts --allow-all
 
+# Rewrite checked-in dn harness skills from cli/init-agents.ts templates.
+# Run after editing DN_SKILL_CONTENT / outerHarnessSection, then commit both.
+# `make release` runs this after the JSR dry-run and fails if it rewrites files.
+SKILL_GOLDEN_AGENTS := cursor codex claude opencode
+skill_goldens:
+	@for agent in $(SKILL_GOLDEN_AGENTS); do \
+		deno run --allow-all $(CURDIR)/cli/main.ts init agents --skill --agent $$agent --force; \
+	done
+
 # Generate EXE_TOKEN for dn exe.dev sandbox (lobby API cmds: new, ssh, rm).
 # Requires: ssh exe.dev access. Optional: EXE_TOKEN_LABEL, EXE_TOKEN_EXP.
 exe_dev_token: ; @bash ./scripts/exe_dev_token.sh
@@ -140,7 +150,7 @@ bump_major:
 	$(SED_INPLACE) "s/\"version\": \"$$current\"/\"version\": \"$$new_version\"/" deno.json; \
 	echo "Bumped version from $$current to $$new_version"
 
-# Bump, validate (including JSR publish dry-run), commit, push, and create the GitHub release.
+# Bump, validate (JSR publish dry-run and skill goldens), commit, push, and create the GitHub release.
 # Pass VERSION=x.y.z for an explicit version; the default is the next patch.
 # Pass PREVIOUS_RELEASE_VERSION=x.y.z to recover from a prior bad release label.
 release:

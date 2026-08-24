@@ -4,8 +4,9 @@ This guide explains how to run `dn` with Anthropic’s Claude Code CLI (`claude`
 in print mode (`claude -p`), including GitHub Actions patterns.
 
 When Claude Code is the **outer** chat (IDE or TUI) with `dn` on `PATH`, follow
-[Outer harness](outer-harness.md). Install the skill with
-`dn init agents --skill --agent claude`. The rest of this page is the **nested**
+[Outer harness](outer-harness.md). Install the generated skill with
+`dn init agents --skill --agent claude` (writes `.claude/skills/dn/SKILL.md`).
+This repository checks in that output. The rest of this page is the **nested**
 `claude -p` harness `dn` invokes during plan and implement.
 
 ## Prerequisites

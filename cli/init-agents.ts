@@ -917,24 +917,17 @@ function skillBaseDirectory(
   scope: SkillScope,
   skillName: SkillName,
 ): string {
-  if (scope === "repo") {
-    if (agent === "claude") {
-      return join(workspaceRoot, ".claude", "skills", skillName);
-    }
-    if (agent === "cursor") {
-      return join(workspaceRoot, ".cursor", "skills", "dn");
-    }
-    return join(workspaceRoot, ".agents", "skills", skillName);
-  }
-
-  const home = getHomeDirectory();
+  const root = scope === "repo" ? workspaceRoot : getHomeDirectory();
   if (agent === "claude") {
-    return join(home, ".claude", "skills", skillName);
+    return join(root, ".claude", "skills", skillName);
   }
   if (agent === "cursor") {
-    return join(home, ".cursor", "skills", "dn");
+    return join(root, ".cursor", "skills", "dn");
   }
-  return join(home, ".agents", "skills", skillName);
+  if (agent === "opencode") {
+    return join(root, ".opencode", "skills", skillName);
+  }
+  return join(root, ".agents", "skills", skillName);
 }
 
 function buildSkillTargets(

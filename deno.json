@@ -8,6 +8,13 @@
     "./runner/types": "./sdk/runner/types.ts"
   },
   "exclude": [".opencode/", ".sl/"],
+  "fmt": {
+    "exclude": [
+      ".cursor/skills/dn/",
+      ".agents/skills/dn/",
+      ".claude/skills/dn/"
+    ]
+  },
   "publish": {
     "include": [
       "LICENSE",

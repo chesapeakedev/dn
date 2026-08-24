@@ -78,7 +78,7 @@ function showHelp(): void {
     "  --dry-run            Preview notes without changing files; still runs",
   );
   console.log(
-    "                       `deno publish --dry-run` to catch JSR graph errors",
+    "                       `deno publish --dry-run` and `make skill_goldens`",
   );
 }
 
@@ -277,6 +277,9 @@ export const JSR_PUBLISH_DRY_RUN_ARGS = [
   "--dry-run",
 ] as const;
 
+/** Regenerates checked-in dn harness skills; release fails if this rewrites files. */
+export const SKILL_GOLDENS_ARGS = ["make", "skill_goldens"] as const;
+
 /**
  * Formats a failed `deno publish --dry-run` so the operator knows to fix the
  * JSR graph before creating a GitHub release for the same version.
@@ -290,6 +293,19 @@ export function formatJsrPublishDryRunError(output: string): string {
   ].join("\n");
 }
 
+/**
+ * Formats a dirty tree after `make skill_goldens` so the operator commits the
+ * regenerated files before `make sync` can publish trunk.
+ */
+export function formatSkillGoldensDriftError(status: string): string {
+  const details = status.trim() || "(no status output)";
+  return [
+    "Checked-in skill goldens drifted from cli/init-agents.ts.",
+    "Commit the `make skill_goldens` output before release or sync.",
+    details,
+  ].join("\n");
+}
+
 async function assertJsrPublishReady(): Promise<void> {
   console.log("Checking JSR package graph (deno publish --dry-run)...");
   const result = await runCommand([...JSR_PUBLISH_DRY_RUN_ARGS]);
@@ -299,6 +315,16 @@ async function assertJsrPublishReady(): Promise<void> {
     throw new Error(formatJsrPublishDryRunError(output));
   }
   console.log("JSR publish dry-run succeeded.");
+}
+
+async function assertSkillGoldensCurrent(): Promise<void> {
+  console.log("Checking skill goldens (make skill_goldens)...");
+  await runInteractive([...SKILL_GOLDENS_ARGS]);
+  const status = await runChecked(["sl", "status"]);
+  if (status.trim()) {
+    throw new Error(formatSkillGoldensDriftError(status));
+  }
+  console.log("Skill goldens are current.");
 }
 
 export function repositoryFromRemoteUrl(remote: string): string | undefined {
@@ -485,6 +511,7 @@ async function writeTempFile(prefix: string, content: string): Promise<string> {
 async function runRelease(options: ReleaseOptions): Promise<void> {
   await assertCleanWorkingCopy();
   await assertJsrPublishReady();
+  await assertSkillGoldensCurrent();
 
   const previousVersion = await readCurrentVersion();
   const newVersion = options.version

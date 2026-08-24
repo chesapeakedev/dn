@@ -195,7 +195,7 @@ Task/subagent of this chat.
 - After a local (`none`) run, ask whether to commit. If yes, you write the
   commit. Do not auto-run `dn land`. After `--publish pr` or
   `--publish direct`, report the PR or branch instead.
-- Do not pass `--agent cursor` unless asked. Let project config / `DN_AGENT`
+- Do not pass `--agent claude` unless asked. Let project config / `DN_AGENT`
   pick the nested harness.
 - Plan mode maps to `dn meld` (do not implement). After the plan is accepted,
   `dn loop`, then ask before committing.

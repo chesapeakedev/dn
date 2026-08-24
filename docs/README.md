@@ -27,12 +27,12 @@ include “more not shown” lines when totals exceed what was loaded.
 
 ## Agent integration
 
-| Document                          | Description                                              |
-| --------------------------------- | -------------------------------------------------------- |
-| [Outer harness](outer-harness.md) | Shared IDE/TUI contract: kickstart argv, commit, publish |
-| [OpenCode](opencode.md)           | Using `dn` tools inside the OpenCode TUI                 |
-| [Cursor](cursor.md)               | Nested Cursor CLI, Cloud Agents, and GitHub Actions      |
-| [Claude](claude.md)               | Nested Claude Code CLI (`claude -p`) and GitHub Actions  |
+| Document                          | Description                                             |
+| --------------------------------- | ------------------------------------------------------- |
+| [Outer harness](outer-harness.md) | Shared IDE/TUI contract and generated+checked-in skills |
+| [OpenCode](opencode.md)           | Using `dn` tools inside the OpenCode TUI                |
+| [Cursor](cursor.md)               | Nested Cursor CLI, Cloud Agents, and GitHub Actions     |
+| [Claude](claude.md)               | Nested Claude Code CLI (`claude -p`) and GitHub Actions |
 
 ## Infrastructure
 

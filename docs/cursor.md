@@ -14,9 +14,10 @@ dn init agents --skill --agent cursor
 dn init agents --skill --agent cursor --scope user   # ~/.cursor/skills/dn/
 ```
 
-That writes `.cursor/skills/dn/SKILL.md` (never `~/.cursor/skills-cursor/`). Do
-not pass `--agent cursor` unless asked. Nested Cursor CLI, Cloud Agents, and
-GitHub Actions are the rest of this page.
+That writes `.cursor/skills/dn/SKILL.md` (never `~/.cursor/skills-cursor/`).
+This repository checks in that generated file. Do not pass `--agent cursor`
+unless asked. Nested Cursor CLI, Cloud Agents, and GitHub Actions are the rest
+of this page.
 
 ## Execution Targets
 
