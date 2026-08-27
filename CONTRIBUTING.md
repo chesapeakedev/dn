@@ -107,6 +107,18 @@ This will:
 9. Run `make sync` (same as **`dn sync`**)
 10. Create the GitHub release with `dn release create`
 
+Release-note selection excludes commits marked with the `Release-Notes: skip`
+trailer. Use that trailer for internal-only work, for example:
+
+```
+Release-Notes: skip
+```
+
+Commits that only change repository-local OpenCode harness configuration are
+also excluded automatically. The release script supplies commit bodies and
+changed paths to its model-assisted selector, but the trailer is the explicit
+way to prevent an internal commit from appearing in release notes.
+
 Use a dry run to preview the detected version and generated notes without
 changing files:
 

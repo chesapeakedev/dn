@@ -10,6 +10,8 @@ interface CommandResult {
 export interface CommitEntry {
   node: string;
   subject: string;
+  body?: string;
+  files?: string[];
 }
 
 interface GitHubRef {
@@ -127,8 +129,22 @@ export function parseSaplingLog(output: string): CommitEntry[] {
     .filter(Boolean)
     .filter((line) => !line.startsWith("watchman sockpath is set as "))
     .map((line) => {
-      const [node, ...subjectParts] = line.split("\t");
-      return { node, subject: subjectParts.join("\t") };
+      const [node, description, ...fileParts] = line.split("\t");
+      try {
+        const parsed: unknown = JSON.parse(description);
+        if (typeof parsed === "string") {
+          const [subject, ...bodyLines] = parsed.split("\n");
+          return {
+            node,
+            subject,
+            body: bodyLines.join("\n").trim(),
+            files: fileParts.flatMap((part) => part.split(" ")).filter(Boolean),
+          };
+        }
+      } catch {
+        // Support the subject-only format used by older callers and tests.
+      }
+      return { node, subject: [description, ...fileParts].join("\t") };
     })
     .filter((entry) => entry.node && entry.subject);
 }
@@ -253,7 +269,7 @@ async function listAncestorCommits(): Promise<CommitEntry[]> {
     "-r",
     "sort(ancestors(.), -rev)",
     "-T",
-    "{node|short}\t{desc|firstline}\\n",
+    "{node|short}\t{desc|json}\t{files}\\n",
   ]);
   return parseSaplingLog(output);
 }
@@ -265,7 +281,7 @@ async function listCommitsSince(previousNode: string): Promise<CommitEntry[]> {
     "-r",
     `descendants(${previousNode}) & ancestors(.) - ${previousNode}`,
     "-T",
-    "{node|short}\t{desc|firstline}\\n",
+    "{node|short}\t{desc|json}\t{files}\\n",
   ]);
   return parseSaplingLog(output);
 }
@@ -428,10 +444,30 @@ async function resolveReleaseCommit(version: string): Promise<CommitEntry> {
   return commit;
 }
 
+const INTERNAL_ONLY_FILE = /^(?:opencode(?:\..*)?\.json)$/;
+
+function hasReleaseNotesSkipTrailer(commit: CommitEntry): boolean {
+  return /^Release-Notes:\s*(?:skip|none|internal)\s*$/im.test(
+    commit.body ?? "",
+  );
+}
+
+function isHarnessConfigurationOnly(commit: CommitEntry): boolean {
+  return commit.files !== undefined && commit.files.length > 0 &&
+    commit.files.every((file) => INTERNAL_ONLY_FILE.test(file));
+}
+
+/** Returns whether a commit is explicitly or structurally internal-only. */
+export function isInternalOnlyCommit(commit: CommitEntry): boolean {
+  return hasReleaseNotesSkipTrailer(commit) ||
+    isHarnessConfigurationOnly(commit);
+}
+
 function fallbackUserFacingCommits(commits: CommitEntry[]): CommitEntry[] {
   const internalSubject =
     /^(?:merge |release\b|chore(?:\([^)]*\))?:|test(?:\([^)]*\))?:)/i;
   return commits.filter((commit) =>
+    !isInternalOnlyCommit(commit) &&
     !internalSubject.test(commit.subject.trim())
   );
 }
@@ -457,16 +493,26 @@ function parseSelectedCommitNodes(output: string): Set<string> | null {
 async function filterUserFacingCommits(
   commits: CommitEntry[],
 ): Promise<CommitEntry[]> {
+  const candidates = commits.filter((commit) => !isInternalOnlyCommit(commit));
+  if (candidates.length === 0) return [];
+
   const model = Deno.env.get("RELEASE_NOTES_MODEL")?.trim() ||
     "opencode/ling-3.0-flash-free";
-  if (model.toLowerCase() === "none") return fallbackUserFacingCommits(commits);
+  if (model.toLowerCase() === "none") {
+    return fallbackUserFacingCommits(candidates);
+  }
 
   const prompt = [
     "Select the commits that describe user-visible changes for release notes.",
     "Exclude merges, release/version bumps, tests, CI, refactors, and internal maintenance.",
+    "A commit that only changes harness configuration is internal, even if its subject describes the configuration.",
     "Return ONLY a JSON array containing the commit IDs you selected.",
     "Commits:",
-    ...commits.map((commit) => `${commit.node}\t${commit.subject}`),
+    ...candidates.map((commit) =>
+      `${commit.node}\t${commit.subject}\t${
+        commit.files?.join(", ") ?? "(paths unavailable)"
+      }\n${commit.body ?? ""}`
+    ),
   ].join("\n");
   let result: CommandResult;
   try {
@@ -483,13 +529,13 @@ async function filterUserFacingCommits(
     console.warn(
       "Release notes model unavailable; using commit subjects instead.",
     );
-    return fallbackUserFacingCommits(commits);
+    return fallbackUserFacingCommits(candidates);
   }
   if (result.code !== 0) {
     console.warn(
       "Release notes model unavailable; using commit subjects instead.",
     );
-    return fallbackUserFacingCommits(commits);
+    return fallbackUserFacingCommits(candidates);
   }
 
   const selected = parseSelectedCommitNodes(result.stdout);
@@ -497,9 +543,9 @@ async function filterUserFacingCommits(
     console.warn(
       "Release notes model returned invalid output; using commit subjects instead.",
     );
-    return fallbackUserFacingCommits(commits);
+    return fallbackUserFacingCommits(candidates);
   }
-  return commits.filter((commit) => selected.has(commit.node));
+  return candidates.filter((commit) => selected.has(commit.node));
 }
 
 async function writeTempFile(prefix: string, content: string): Promise<string> {

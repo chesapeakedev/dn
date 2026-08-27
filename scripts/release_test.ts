@@ -9,6 +9,7 @@ import {
   formatJsrPublishDryRunError,
   formatReleaseNotes,
   formatSkillGoldensDriftError,
+  isInternalOnlyCommit,
   JSR_PUBLISH_DRY_RUN_ARGS,
   parseSaplingLog,
   repositoryFromRemoteUrl,
@@ -37,6 +38,52 @@ Deno.test("parseSaplingLog ignores watchman noise", () => {
       subject: "fix idempotency for dn init agents",
     },
   ]);
+});
+
+Deno.test("parseSaplingLog preserves commit bodies and changed files", () => {
+  const description = JSON.stringify(
+    "Pin OpenCode\n\nInternal harness configuration.",
+  );
+  const commits = parseSaplingLog(
+    `274a0e9a1ac9\t${description}\topencode.json opencode.plan.json\n`,
+  );
+
+  assertEquals(commits, [{
+    node: "274a0e9a1ac9",
+    subject: "Pin OpenCode",
+    body: "Internal harness configuration.",
+    files: ["opencode.json", "opencode.plan.json"],
+  }]);
+});
+
+Deno.test("isInternalOnlyCommit recognizes release-note trailers", () => {
+  assertEquals(
+    isInternalOnlyCommit({
+      node: "internal",
+      subject: "Tune CI defaults",
+      body: "Details.\n\nRelease-Notes: skip",
+    }),
+    true,
+  );
+});
+
+Deno.test("isInternalOnlyCommit recognizes harness-only configuration", () => {
+  assertEquals(
+    isInternalOnlyCommit({
+      node: "internal",
+      subject: "Pin OpenCode",
+      files: ["opencode.json", "opencode.plan.json"],
+    }),
+    true,
+  );
+  assertEquals(
+    isInternalOnlyCommit({
+      node: "feature",
+      subject: "Add runner support",
+      files: ["cli/runner.ts", "opencode.json"],
+    }),
+    false,
+  );
 });
 
 Deno.test("findPreviousReleaseCommit matches current version prefix", () => {
