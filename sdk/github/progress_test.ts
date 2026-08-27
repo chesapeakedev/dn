@@ -9,6 +9,8 @@ import {
   HttpReporter,
   NdjsonReporter,
   NullReporter,
+  processDurationData,
+  processDurationMs,
   redactAgentOutput,
   streamAgentOutput,
   uploadPlanArtifact,
@@ -23,6 +25,35 @@ class RecordingReporter implements ProgressReporter {
     return Promise.resolve();
   }
 }
+
+Deno.test("processDurationMs is a non-negative elapsed integer on one clock", () => {
+  assertEquals(processDurationMs(1_000, 1_250), 250);
+  assertEquals(processDurationMs(1_000, 500), 0);
+  assertEquals(processDurationData(1_000, 4_000), { duration_ms: 3_000 });
+});
+
+Deno.test("NdjsonReporter includes duration_ms on terminal events", async () => {
+  const lines: string[] = [];
+  const originalError = console.error;
+  console.error = (value: unknown) => lines.push(String(value));
+  try {
+    const reporter = new NdjsonReporter("dispatch-duration");
+    await reporter.report({
+      type: "invocation.succeeded",
+      message: "Kickstart invocation succeeded",
+      data: processDurationData(1_000, 6_000),
+    });
+  } finally {
+    console.error = originalError;
+  }
+
+  const event = JSON.parse(lines[0]) as {
+    type: string;
+    data?: { duration_ms?: number };
+  };
+  assertEquals(event.type, "invocation.succeeded");
+  assertEquals(event.data?.duration_ms, 5_000);
+});
 
 Deno.test("NdjsonReporter emits versioned events with increasing sequence", async () => {
   const lines: string[] = [];

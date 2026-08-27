@@ -42,6 +42,35 @@ export interface ProgressEventInput {
   data?: Record<string, unknown>;
 }
 
+/**
+ * Process wall-clock milliseconds from a local start time.
+ *
+ * The value is an elapsed duration on one clock. Callers must send this integer
+ * to denoise rather than comparing start/end timestamps across machines.
+ */
+export function processDurationMs(startedAt: number, now = Date.now()): number {
+  return Math.max(0, now - startedAt);
+}
+
+/**
+ * Progress `data` payload carrying kickstart process duration for denoise.
+ *
+ * @example
+ * ```ts
+ * await reporter.report({
+ *   type: "invocation.succeeded",
+ *   message: "Kickstart invocation succeeded",
+ *   data: processDurationData(startedAt),
+ * });
+ * ```
+ */
+export function processDurationData(
+  startedAt: number,
+  now = Date.now(),
+): { duration_ms: number } {
+  return { duration_ms: processDurationMs(startedAt, now) };
+}
+
 /** Delivers progress events without affecting the workflow result. */
 export interface ProgressReporter {
   /** Emits one event. Implementations must not throw for delivery failures. */

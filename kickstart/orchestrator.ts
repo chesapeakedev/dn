@@ -34,6 +34,7 @@ import { createPR } from "../sdk/github/github.ts";
 import type { PRPlanSummary } from "../sdk/github/github.ts";
 import {
   createProgressReporter,
+  processDurationData,
   type ProgressReporter,
   uploadPlanArtifact,
 } from "../sdk/github/progress.ts";
@@ -636,6 +637,7 @@ export async function runOrchestrator(
   assertPublishAllowedInCi(publish);
   const publishesChanges = publish !== "none";
   const reporter = createProgressReporter();
+  const processStartedAt = Date.now();
 
   const report = async (
     type:
@@ -654,7 +656,23 @@ export async function runOrchestrator(
       Parameters<ProgressReporter["report"]>[0],
       "type" | "message"
     > = {},
-  ): Promise<void> => await reporter.report({ type, message, ...options });
+  ): Promise<void> => {
+    const terminal = type === "invocation.succeeded" ||
+      type === "invocation.failed";
+    await reporter.report({
+      type,
+      message,
+      ...options,
+      ...(terminal
+        ? {
+          data: {
+            ...options.data,
+            ...processDurationData(processStartedAt),
+          },
+        }
+        : {}),
+    });
+  };
 
   // Normalize path to avoid double slashes
   const normalizedWorkspaceRoot = (config.workspaceRoot ?? WORKSPACE_ROOT)
