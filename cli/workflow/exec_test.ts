@@ -6,6 +6,7 @@ import { join } from "@std/path";
 import {
   applyProgressEnvFromClientPayload,
   evaluateDailyKickstartReadiness,
+  materializeKickstartPlanArtifact,
   openAutomationPullRequestUrl,
   openKickstartPullRequestUrl,
   renderWorkflowSummary,
@@ -120,6 +121,103 @@ Deno.test("resolveWorkflowArguments preserves issue URL as one argument", () => 
     ),
     ["--agent", "cursor", "kickstart", "--publish", "pr", issue],
   );
+});
+
+Deno.test("resolveWorkflowArguments adds --plan-only for pause_after plan", () => {
+  const issue = "https://github.com/acme/widgets/issues/42";
+  assertEquals(
+    resolveWorkflowArguments(
+      "dn.kickstart_issue",
+      "repository_dispatch",
+      {
+        action: "dn.kickstart_issue",
+        client_payload: {
+          schema_version: "1.0",
+          dispatch_id: "dispatch-plan",
+          issue_url: issue,
+          awp: true,
+          pause_after: "plan",
+        },
+      },
+      "cursor",
+    ),
+    [
+      "--agent",
+      "cursor",
+      "kickstart",
+      "--publish",
+      "pr",
+      "--plan-only",
+      issue,
+    ],
+  );
+});
+
+Deno.test("resolveWorkflowArguments adds --skip-plan for implement beat", () => {
+  const issue = "https://github.com/acme/widgets/issues/42";
+  assertEquals(
+    resolveWorkflowArguments(
+      "dn.kickstart_issue",
+      "repository_dispatch",
+      {
+        action: "dn.kickstart_issue",
+        client_payload: {
+          schema_version: "1.0",
+          dispatch_id: "dispatch-impl",
+          issue_url: issue,
+          awp: true,
+          skip_plan: true,
+          plan_file: "plans/issue-42.plan.md",
+        },
+      },
+      "cursor",
+    ),
+    [
+      "--agent",
+      "cursor",
+      "kickstart",
+      "--publish",
+      "pr",
+      "--skip-plan",
+      "--saved-plan",
+      "issue-42",
+      issue,
+    ],
+  );
+});
+
+Deno.test("materializeKickstartPlanArtifact writes reviewed markdown", async () => {
+  const tmp = await Deno.makeTempDir();
+  const previous = Deno.cwd();
+  Deno.chdir(tmp);
+  try {
+    const path = await materializeKickstartPlanArtifact(
+      { plan_file: "plans/issue-42.plan.md" },
+      {
+        DN_PROGRESS_URL:
+          "https://denoise.example/api/kickstart/invocations/id/events",
+        DN_PROGRESS_TOKEN: "secret",
+      },
+      () =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              path: "plans/issue-42.plan.md",
+              markdown: "# Plan\n\n## Overview\n\nDo it.\n",
+            }),
+            { status: 200 },
+          ),
+        ),
+    );
+    assertEquals(path, "plans/issue-42.plan.md");
+    assertEquals(
+      await Deno.readTextFile("plans/issue-42.plan.md"),
+      "# Plan\n\n## Overview\n\nDo it.\n",
+    );
+  } finally {
+    Deno.chdir(previous);
+    await Deno.remove(tmp, { recursive: true });
+  }
 });
 
 Deno.test("resolveWorkflowArguments maps meld planning payload", () => {

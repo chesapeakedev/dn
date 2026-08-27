@@ -97,6 +97,7 @@ async function parseArgs(
     workspaceRoot,
     verbosity: "medium",
     skipPlan: false,
+    planOnly: false,
     ...(contextFiles.length > 0 ? { contextFiles } : {}),
     prUrl,
   };

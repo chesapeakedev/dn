@@ -34,11 +34,23 @@ Deno.test("kickstart parses verbosity and skip-plan options", async () => {
   ]);
   assertEquals(config.verbosity, "low");
   assertEquals(config.skipPlan, true);
+  assertEquals(config.planOnly, false);
   assertEquals((await parseKickstartArgs(["123"])).verbosity, "medium");
   await assertRejects(
     () => parseKickstartArgs(["--verbosity", "verbose", "123"]),
     Error,
     "low, medium, high",
+  );
+});
+
+Deno.test("kickstart parses --plan-only and rejects combining it with --skip-plan", async () => {
+  const config = await parseKickstartArgs(["--plan-only", "123"]);
+  assertEquals(config.planOnly, true);
+  assertEquals(config.skipPlan, false);
+  await assertRejects(
+    () => parseKickstartArgs(["--skip-plan", "--plan-only", "123"]),
+    Error,
+    "--skip-plan and --plan-only cannot be combined",
   );
 });
 
@@ -79,6 +91,15 @@ Deno.test("kickstart rejects an invalid workspace root", async () => {
     Error,
     "Workspace root not found",
   );
+});
+
+Deno.test("loop parses --publish pr", async () => {
+  const config = await parseLoopArgs([
+    "--publish",
+    "pr",
+    "plans/work.plan.md",
+  ]);
+  assertEquals(config.publish, "pr");
 });
 
 Deno.test("loop parses an explicit Cursor cloud starting ref", async () => {

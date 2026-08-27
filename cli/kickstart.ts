@@ -135,6 +135,7 @@ export async function parseKickstartArgs(
   let steeringPrompt: string | undefined = undefined;
   let verbosity: "low" | "medium" | "high" = "medium";
   let skipPlan = false;
+  let planOnly = false;
 
   const { contextFiles, rest: argsAfterContext } = resolveContextFileArgs(
     args,
@@ -183,6 +184,8 @@ export async function parseKickstartArgs(
       verbosity = parseVerbosity(flagArgs[++i]);
     } else if (arg === "--skip-plan") {
       skipPlan = true;
+    } else if (arg === "--plan-only") {
+      planOnly = true;
     } else if (arg === "--help" || arg === "-h") {
       showHelp();
       Deno.exit(0);
@@ -270,6 +273,10 @@ export async function parseKickstartArgs(
     publish = "pr";
   }
 
+  if (skipPlan && planOnly) {
+    throw new Error("--skip-plan and --plan-only cannot be combined.");
+  }
+
   const saveCtx = Deno.env.get("SAVE_CTX") === "1";
 
   return {
@@ -296,6 +303,7 @@ export async function parseKickstartArgs(
     ...(contextFiles.length > 0 ? { contextFiles } : {}),
     verbosity,
     skipPlan,
+    planOnly,
   };
 }
 
@@ -335,6 +343,9 @@ function showHelp(): void {
   );
   console.log(
     "  --skip-plan              Skip plan generation and run the implementation phase",
+  );
+  console.log(
+    "  --plan-only              Stop after the plan phase for remote review",
   );
   console.log(
     "  --agent <agent>          <harness>:<model> (harness-only or optional :<thinking>)",

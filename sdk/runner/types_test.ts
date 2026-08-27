@@ -323,3 +323,48 @@ function syncJob(): RunnerJob {
 Deno.test("validateRunnerJob accepts a sync job", () => {
   assertEquals(validateRunnerJob(syncJob(), "runner-1"), syncJob());
 });
+
+function loopJob(planFile?: string): RunnerJob {
+  return {
+    protocol_version: "1.0",
+    id: "job-loop-1",
+    invocation_id: "invocation-loop-1",
+    runner_id: "runner-1",
+    repository: "chesapeakedev/dn",
+    operation: {
+      type: "loop",
+      issue_url: "https://github.com/chesapeakedev/dn/issues/12",
+      agent: "codex",
+      publish: "pr",
+      ...(planFile != null ? { plan_file: planFile } : {}),
+    },
+    created_at: "2026-07-23T12:00:00.000Z",
+    queued_until: "2026-07-24T12:00:00.000Z",
+    lease: {
+      id: "lease-loop-1",
+      expires_at: "2026-07-23T12:01:00.000Z",
+      cancel_requested: false,
+    },
+  };
+}
+
+Deno.test("validateRunnerJob accepts a loop job", () => {
+  assertEquals(validateRunnerJob(loopJob(), "runner-1"), loopJob());
+});
+
+Deno.test("validateRunnerJob accepts a loop job with a repo-relative plan file", () => {
+  const job = loopJob("plans/foo.plan.md");
+  assertEquals(validateRunnerJob(job, "runner-1"), job);
+});
+
+Deno.test("validateRunnerJob accepts kickstart pause_after plan", () => {
+  const job = validJob();
+  job.operation = {
+    type: "kickstart",
+    issue_url: "https://github.com/chesapeakedev/dn/issues/12",
+    publish: "pr",
+    agent: "codex",
+    pause_after: "plan",
+  };
+  assertEquals(validateRunnerJob(job, "runner-1").operation, job.operation);
+});

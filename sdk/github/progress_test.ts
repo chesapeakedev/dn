@@ -11,6 +11,7 @@ import {
   NullReporter,
   redactAgentOutput,
   streamAgentOutput,
+  uploadPlanArtifact,
 } from "./progress.ts";
 import type { ProgressEventInput, ProgressReporter } from "./progress.ts";
 
@@ -101,6 +102,50 @@ Deno.test("createProgressReporter requires dispatch id and complete HTTP configu
     }),
     NullReporter,
   );
+});
+
+Deno.test("uploadPlanArtifact posts markdown to the plan URL", async () => {
+  const calls: Array<{ url: string; body: string }> = [];
+  await uploadPlanArtifact(
+    { planPath: "plans/issue-1.plan.md", markdown: "# Plan\n" },
+    {
+      DN_DISPATCH_ID: "dispatch-1",
+      DN_PROGRESS: "http",
+      DN_PROGRESS_URL:
+        "https://denoise.example/api/kickstart/invocations/dispatch-1/events",
+      DN_PROGRESS_TOKEN: "token",
+    },
+    (input, init) => {
+      const body = init && "body" in init ? init.body : undefined;
+      calls.push({
+        url: String(input),
+        body: typeof body === "string" ? body : "",
+      });
+      return Promise.resolve(new Response(null, { status: 204 }));
+    },
+  );
+  assertEquals(calls.length, 1);
+  assertEquals(
+    calls[0].url,
+    "https://denoise.example/api/kickstart/invocations/dispatch-1/plan",
+  );
+  assertEquals(
+    JSON.parse(calls[0].body),
+    { path: "plans/issue-1.plan.md", markdown: "# Plan\n" },
+  );
+});
+
+Deno.test("uploadPlanArtifact is a no-op without HTTP progress", async () => {
+  let called = false;
+  await uploadPlanArtifact(
+    { planPath: "plans/issue-1.plan.md", markdown: "# Plan\n" },
+    { DN_PROGRESS: "ndjson", DN_DISPATCH_ID: "dispatch-1" },
+    () => {
+      called = true;
+      return Promise.resolve(new Response(null, { status: 204 }));
+    },
+  );
+  assertEquals(called, false);
 });
 
 Deno.test("streamAgentOutput preserves output and reports redacted complete lines", async () => {

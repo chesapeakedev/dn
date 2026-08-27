@@ -251,3 +251,45 @@ export function createProgressReporter(
   }
   return new NullReporter();
 }
+
+/**
+ * Uploads plan markdown to Denoise when HTTP progress is configured.
+ *
+ * Device runners upload via the job protocol instead. Failures are logged
+ * and do not fail the kickstart process.
+ */
+export async function uploadPlanArtifact(
+  input: { planPath: string; markdown: string },
+  env: Record<string, string | undefined> = Deno.env.toObject(),
+  fetchFn: typeof fetch = fetch,
+): Promise<void> {
+  const invocationId = env.DN_DISPATCH_ID?.trim();
+  const url = env.DN_PROGRESS_URL?.trim();
+  const token = env.DN_PROGRESS_TOKEN?.trim();
+  if (
+    !invocationId || env.DN_PROGRESS !== "http" || !url || !token
+  ) {
+    return;
+  }
+  const planUrl = url.replace(/\/events\/?$/, "/plan");
+  try {
+    const response = await fetchFn(planUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        path: input.planPath,
+        markdown: input.markdown,
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+  } catch {
+    console.error(
+      "[dn] Plan artifact upload failed; continuing. Review may be unavailable until retry.",
+    );
+  }
+}

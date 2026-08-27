@@ -443,6 +443,7 @@ export const DN_COMPLETION_ROOT: CompletionNode = {
         "--denoise-task",
         "--verbosity",
         "--skip-plan",
+        "--plan-only",
         ...agentWorkflowFlags(),
         ...HELP_FLAGS,
       ],
@@ -459,6 +460,7 @@ export const DN_COMPLETION_ROOT: CompletionNode = {
     loop: {
       flags: [
         "--plan-file",
+        "--publish",
         "--cursor-cloud",
         "--ref",
         ...agentWorkflowFlags(),
@@ -466,6 +468,7 @@ export const DN_COMPLETION_ROOT: CompletionNode = {
       ],
       flagValues: {
         "--plan-file": FILE_VALUE,
+        "--publish": PUBLISH_MODES,
         "--ref": FILE_VALUE,
         ...agentWorkflowFlagValues(),
       },

@@ -508,6 +508,21 @@ export function resolveWorkflowArguments(
       );
     }
     const args = [...prefix, "kickstart", "--publish", "pr"];
+    if (payload.pause_after === "plan") {
+      if (payload.skip_plan === true) {
+        throw new WorkflowExecError(
+          "invalid_payload",
+          "client_payload.pause_after and skip_plan cannot be combined",
+        );
+      }
+      args.push("--plan-only");
+    } else if (payload.skip_plan === true) {
+      args.push("--skip-plan");
+      if (typeof payload.plan_file === "string") {
+        const saved = payload.plan_file.match(/^plans\/([^/]+)\.plan\.md$/);
+        if (saved) args.push("--saved-plan", saved[1]);
+      }
+    }
     args.push(resolveIssue(payload));
     return args;
   }
@@ -516,6 +531,48 @@ export function resolveWorkflowArguments(
     "unsupported_workflow",
     `Workflow ${workflowId} has no execution mapping`,
   );
+}
+
+const PLAN_FILE_PATTERN = /^plans\/[^/]+\.plan\.md$/;
+
+/** Writes a reviewed plan from Denoise progress HTTP so --skip-plan can find it. */
+export async function materializeKickstartPlanArtifact(
+  payload: Record<string, unknown>,
+  env: Record<string, string | undefined> = Deno.env.toObject(),
+  fetchFn: typeof fetch = fetch,
+): Promise<string | null> {
+  const url = env.DN_PROGRESS_URL?.trim().replace(/\/events\/?$/, "/plan");
+  const token = env.DN_PROGRESS_TOKEN?.trim();
+  if (!url || !token) return null;
+  try {
+    const response = await fetchFn(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+    });
+    if (!response.ok) return null;
+    const body = await response.json() as {
+      path?: unknown;
+      markdown?: unknown;
+    };
+    if (typeof body.markdown !== "string" || body.markdown.trim() === "") {
+      return null;
+    }
+    const fromPayload = typeof payload.plan_file === "string"
+      ? payload.plan_file
+      : undefined;
+    const fromBody = typeof body.path === "string" ? body.path : undefined;
+    const path = [fromPayload, fromBody, "plans/kickstart.plan.md"].find((
+      candidate,
+    ) => candidate != null && PLAN_FILE_PATTERN.test(candidate)) ??
+      "plans/kickstart.plan.md";
+    await Deno.mkdir("plans", { recursive: true });
+    await Deno.writeTextFile(path, body.markdown);
+    return path;
+  } catch {
+    return null;
+  }
 }
 
 function annotationValue(value: string): string {
@@ -903,6 +960,14 @@ export async function handleWorkflowExec(args: string[]): Promise<void> {
     phase = "agent-install";
     await installAgent(agent);
     phase = "execution";
+    if (executionArgs.includes("--skip-plan")) {
+      const payload = typeof event.client_payload === "object" &&
+          event.client_payload != null &&
+          !Array.isArray(event.client_payload)
+        ? event.client_payload as Record<string, unknown>
+        : {};
+      await materializeKickstartPlanArtifact(payload);
+    }
     await executeDn(executionArgs);
     await writeSummary(renderWorkflowSummary({
       workflowId,

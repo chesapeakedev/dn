@@ -35,6 +35,7 @@ import type { PRPlanSummary } from "../sdk/github/github.ts";
 import {
   createProgressReporter,
   type ProgressReporter,
+  uploadPlanArtifact,
 } from "../sdk/github/progress.ts";
 import { reviewInEditor as reviewPlanInEditor } from "../sdk/github/editor.ts";
 import { formatSummary } from "../sdk/archive/format.ts";
@@ -155,6 +156,8 @@ export interface OrchestratorConfig {
   verbosity: "low" | "medium" | "high";
   /** Skip plan generation and proceed directly to implementation. */
   skipPlan: boolean;
+  /** Stop after the plan phase so a reviewer can approve implementation. */
+  planOnly: boolean;
   /** Workspace root for workflow filesystem operations. */
   workspaceRoot?: string;
 }
@@ -188,6 +191,20 @@ async function ensurePlansDirectory(workspaceRoot: string): Promise<void> {
   } catch {
     // Directory already exists or creation failed - continue anyway
   }
+}
+
+function toRepoRelativePlanPath(
+  workspaceRoot: string,
+  planFilePath: string,
+): string {
+  const prefix = workspaceRoot.endsWith("/")
+    ? workspaceRoot
+    : `${workspaceRoot}/`;
+  if (planFilePath.startsWith(prefix)) {
+    return planFilePath.slice(prefix.length);
+  }
+  const match = planFilePath.match(/plans\/[^/]+\.plan\.md$/);
+  return match ? match[0] : planFilePath;
 }
 
 /**
@@ -924,6 +941,44 @@ export async function runOrchestrator(
 
       console.log(formatSuccess("Plan phase completed successfully"));
       await report("step.completed", "Plan step completed", { step: 3 });
+    }
+
+    if (config.planOnly) {
+      const markdown = await Deno.readTextFile(planFilePath).catch(() => "");
+      const relativePath = toRepoRelativePlanPath(
+        normalizedWorkspaceRoot,
+        planFilePath,
+      );
+      await uploadPlanArtifact({
+        planPath: relativePath,
+        markdown,
+      });
+      await report("phase.completed", "Plan artifact ready for review", {
+        phase: "plan",
+        step: 3,
+        data: {
+          plan_path: relativePath,
+          bytes: new TextEncoder().encode(markdown).byteLength,
+        },
+      });
+      console.log(
+        formatSuccess(
+          "Plan phase completed. Implementation waits for review.",
+        ),
+      );
+      if (!saveCtx) {
+        await Deno.remove(tmpDir, { recursive: true }).catch(() => undefined);
+      }
+      await report("invocation.succeeded", "Plan phase ready for review");
+      return {
+        success: true,
+        tmpDir,
+        planOutputPath,
+        combinedPromptPaths: {
+          plan: combinedPromptPlanPath,
+          implement: combinedPromptImplementPath,
+        },
+      };
     }
 
     // Step 4: Implement Phase

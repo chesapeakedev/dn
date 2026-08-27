@@ -99,6 +99,14 @@ class RecordingClient implements RunnerWorkerClient {
     this.failure = failure;
     return Promise.resolve();
   }
+  uploadedPlan: { path: string; markdown: string } | null = null;
+  uploadPlan(
+    _jobId: string,
+    input: { path: string; markdown: string },
+  ): Promise<void> {
+    this.uploadedPlan = input;
+    return Promise.resolve();
+  }
 }
 
 function localConfig(path = "/workspace/dn") {
@@ -1032,4 +1040,60 @@ Deno.test("runRunnerJob logs cancel before the terminal outcome", async () => {
     `expected cancel log, got ${JSON.stringify(status)}`,
   );
   assertEquals(client.failure?.reason, "cancelled");
+});
+
+Deno.test("buildRunnerKickstartCommand adds --plan-only for pause_after plan", async () => {
+  const planJob = job();
+  planJob.operation = {
+    type: "kickstart",
+    issue_url: "https://github.com/chesapeakedev/dn/issues/213",
+    publish: "pr",
+    agent: "codex",
+    pause_after: "plan",
+  };
+  const { argv } = await buildRunnerKickstartCommand(planJob, [
+    "/usr/local/bin/dn",
+  ]);
+  assertEquals(argv, [
+    "/usr/local/bin/dn",
+    "--unattended",
+    "--agent",
+    "codex",
+    "kickstart",
+    "--sandbox",
+    "none",
+    "--publish",
+    "pr",
+    "--plan-only",
+    "https://github.com/chesapeakedev/dn/issues/213",
+  ]);
+});
+
+Deno.test("buildRunnerKickstartCommand constructs loop argv", async () => {
+  const loopJob: RunnerJob = {
+    ...job(),
+    id: "job-loop-1",
+    operation: {
+      type: "loop",
+      issue_url: "https://github.com/chesapeakedev/dn/issues/213",
+      agent: "codex",
+      publish: "pr",
+      plan_file: "plans/issue-213.plan.md",
+    },
+  };
+  const { argv } = await buildRunnerKickstartCommand(loopJob, [
+    "/usr/local/bin/dn",
+  ]);
+  assertEquals(argv, [
+    "/usr/local/bin/dn",
+    "--unattended",
+    "--agent",
+    "codex",
+    "loop",
+    "--publish",
+    "pr",
+    "--plan-file",
+    "plans/issue-213.plan.md",
+    "https://github.com/chesapeakedev/dn/issues/213",
+  ]);
 });

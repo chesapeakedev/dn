@@ -184,6 +184,7 @@ async function main() {
     savedPlanName,
     verbosity: "medium",
     skipPlan: false,
+    planOnly: false,
     workspaceRoot,
   };
 

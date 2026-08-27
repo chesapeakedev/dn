@@ -96,7 +96,9 @@ export type RunnerCapabilityOperation =
   | "denoise-task"
   | "task-sync"
   | "land"
-  | "sync";
+  | "sync"
+  | "plan"
+  | "loop";
 
 /** Capabilities detected on a developer device. */
 export interface RunnerCapabilities {
@@ -290,7 +292,7 @@ export function validateDenoiseTaskDocument(
   return task as unknown as DenoiseTaskDocument;
 }
 
-/** Kickstart is the only remotely dispatchable operation in protocol v1. */
+/** Kickstart job dispatched to a device runner. */
 export interface RunnerKickstartOperation {
   /** Discriminator that prevents generic remote execution. */
   type: "kickstart";
@@ -300,6 +302,24 @@ export interface RunnerKickstartOperation {
   publish: PublishMode;
   /** Installed local agent harness selected for the job. */
   agent: AgentHarness;
+  /** Stop after the plan phase so Denoise can collect a reviewable artifact. */
+  pause_after?: "plan";
+  /** Skip plan generation and implement from an existing plan. */
+  skip_plan?: boolean;
+}
+
+/** Implement an already-reviewed plan with `dn loop`. */
+export interface RunnerLoopOperation {
+  /** Discriminator for loop (implement) operations. */
+  type: "loop";
+  /** Canonical GitHub issue URL used to correlate the plan. */
+  issue_url: string;
+  /** Installed local agent harness selected for the job. */
+  agent: AgentHarness;
+  /** Local publish behavior requested for implement. */
+  publish: PublishMode;
+  /** Optional repo-relative plan path (`plans/*.plan.md`). Never a local filesystem path. */
+  plan_file?: string;
 }
 
 /** A denoise-task operation dispatched to a device runner. */
@@ -339,7 +359,8 @@ export type RunnerOperation =
   | RunnerKickstartOperation
   | RunnerDenoiseTaskOperation
   | RunnerLandOperation
-  | RunnerSyncOperation;
+  | RunnerSyncOperation
+  | RunnerLoopOperation;
 
 /** State of the renewable lease held by a device runner. */
 export interface RunnerJobLease {
@@ -368,7 +389,7 @@ export interface RunnerJob {
   runner_id: string;
   /** GitHub `owner/repo` slug for the registered checkout. */
   repository: string;
-  /** Typed operation; kickstart only in protocol v1. */
+  /** Typed operation (kickstart, plan/loop, land, sync, or denoise-task). */
   operation: RunnerOperation;
   /** ISO-8601 time at which the job was queued. */
   created_at: string;
@@ -832,7 +853,45 @@ export function validateRunnerJob(
     ) {
       throw new Error("Runner job has an unsupported agent harness.");
     }
+    if (
+      job.operation.pause_after != null && job.operation.pause_after !== "plan"
+    ) {
+      throw new Error('Kickstart jobs require pause_after "plan" when set.');
+    }
+    if (
+      job.operation.skip_plan === true && job.operation.pause_after === "plan"
+    ) {
+      throw new Error(
+        "Kickstart jobs cannot combine skip_plan with pause_after.",
+      );
+    }
     repositoryFromIssueUrl(job.operation.issue_url);
+  } else if (job.operation.type === "loop") {
+    if (
+      job.operation.publish !== "none" &&
+      job.operation.publish !== "pr" &&
+      job.operation.publish !== "direct"
+    ) {
+      throw new Error(
+        'Loop jobs require publish "none", "pr", or "direct".',
+      );
+    }
+    if (
+      !["opencode", "cursor", "claude", "codex", "copilot"].includes(
+        job.operation.agent,
+      )
+    ) {
+      throw new Error("Runner job has an unsupported agent harness.");
+    }
+    repositoryFromIssueUrl(job.operation.issue_url);
+    if (
+      job.operation.plan_file != null &&
+      !/^plans\/[^/]+\.plan\.md$/.test(job.operation.plan_file)
+    ) {
+      throw new Error(
+        "Loop jobs require a repo-relative plans/*.plan.md path when plan_file is set.",
+      );
+    }
   } else if (job.operation.type === "land") {
     if (
       !["opencode", "cursor", "claude", "codex", "copilot"].includes(
@@ -854,7 +913,7 @@ export function validateRunnerJob(
     repositoryFromIssueUrl(job.operation.issue_url);
   } else {
     throw new Error(
-      "Runner protocol v1 only permits kickstart, denoise-task, land, or sync jobs.",
+      "Runner protocol v1 only permits kickstart, loop, denoise-task, land, or sync jobs.",
     );
   }
   if (

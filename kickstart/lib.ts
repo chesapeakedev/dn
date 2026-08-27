@@ -333,6 +333,8 @@ export interface KickstartConfig {
   verbosity: "low" | "medium" | "high";
   /** Skip plan generation and proceed directly to implementation. */
   skipPlan: boolean;
+  /** Stop after the plan phase so a reviewer can approve implementation. */
+  planOnly: boolean;
   /** Optional flags when invoked from {@link dn meld} only */
   meldPhase?: MeldPhaseCliOptions;
 }
@@ -1775,6 +1777,7 @@ export async function runFullKickstart(
     contextFiles: config.contextFiles,
     verbosity: config.verbosity,
     skipPlan: config.skipPlan,
+    planOnly: config.planOnly,
     workspaceRoot,
   };
 

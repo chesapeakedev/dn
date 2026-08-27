@@ -72,6 +72,11 @@ export interface RunnerWorkerClient {
   ): Promise<void>;
   /** Records failure, cancellation, or lease interruption. */
   failJob(jobId: string, failure: RunnerJobFailure): Promise<void>;
+  /** Uploads a plan artifact after a plan-only kickstart. */
+  uploadPlan?(
+    jobId: string,
+    input: { path: string; markdown: string },
+  ): Promise<void>;
 }
 
 /** Child-process shape used by the job executor. */
@@ -229,6 +234,23 @@ export function buildRunnerKickstartCommand(
       ],
     };
   }
+  if (job.operation.type === "loop") {
+    return {
+      argv: [
+        ...commandPrefix,
+        "--unattended",
+        "--agent",
+        job.operation.agent,
+        "loop",
+        "--publish",
+        job.operation.publish,
+        ...(job.operation.plan_file != null
+          ? ["--plan-file", job.operation.plan_file]
+          : []),
+        job.operation.issue_url,
+      ],
+    };
+  }
   const issueRepository = repositoryFromIssueUrl(job.operation.issue_url);
   const crossRepo = issueRepository.toLowerCase() !==
     job.repository.toLowerCase();
@@ -243,6 +265,8 @@ export function buildRunnerKickstartCommand(
       "none",
       "--publish",
       job.operation.publish,
+      ...(job.operation.pause_after === "plan" ? ["--plan-only"] : []),
+      ...(job.operation.skip_plan === true ? ["--skip-plan"] : []),
       ...(crossRepo ? ["--allow-cross-repo"] : []),
       job.operation.issue_url,
     ],
@@ -415,6 +439,10 @@ function formatRunnerJobTarget(job: RunnerJob): string {
     const issue = issueShorthand(operation.issue_url);
     return operation.plan_file ? `${issue} ${operation.plan_file}` : issue;
   }
+  if (operation.type === "loop") {
+    const issue = issueShorthand(operation.issue_url);
+    return operation.plan_file ? `${issue} ${operation.plan_file}` : issue;
+  }
   return issueShorthand(operation.issue_url);
 }
 
@@ -427,8 +455,14 @@ export function formatRunnerJobClaimLog(job: RunnerJob): string {
   const operation = job.operation;
   const details: string[] = [operation.type];
   if (operation.type !== "sync") details.push(operation.agent);
-  if (operation.type === "kickstart" || operation.type === "denoise-task") {
+  if (
+    operation.type === "kickstart" || operation.type === "denoise-task" ||
+    operation.type === "loop"
+  ) {
     details.push(`publish=${operation.publish}`);
+  }
+  if (operation.type === "kickstart" && operation.pause_after === "plan") {
+    details.push("pause_after=plan");
   }
   return `Claimed job ${job.id} (${details.join(", ")}) ${
     formatRunnerJobTarget(job)
@@ -524,6 +558,47 @@ async function terminateChild(
   }
 }
 
+function isRepoRelativePlanFile(value: string): boolean {
+  return /^plans\/[^/]+\.plan\.md$/.test(value);
+}
+
+async function readPlanArtifact(
+  checkoutPath: string,
+  planPath: string,
+): Promise<{ path: string; markdown: string } | null> {
+  if (!isRepoRelativePlanFile(planPath)) return null;
+  try {
+    const markdown = await Deno.readTextFile(`${checkoutPath}/${planPath}`);
+    if (markdown.trim() === "") return null;
+    return { path: planPath, markdown };
+  } catch {
+    return null;
+  }
+}
+
+async function findLatestPlanArtifact(
+  checkoutPath: string,
+): Promise<{ path: string; markdown: string } | null> {
+  const plansDir = `${checkoutPath}/plans`;
+  try {
+    const entries: { name: string; mtime: number }[] = [];
+    for await (const entry of Deno.readDir(plansDir)) {
+      if (!entry.isFile || !entry.name.endsWith(".plan.md")) continue;
+      const stat = await Deno.stat(`${plansDir}/${entry.name}`);
+      entries.push({
+        name: entry.name,
+        mtime: stat.mtime?.getTime() ?? 0,
+      });
+    }
+    entries.sort((left, right) => right.mtime - left.mtime);
+    const latest = entries[0];
+    if (!latest) return null;
+    return await readPlanArtifact(checkoutPath, `plans/${latest.name}`);
+  } catch {
+    return null;
+  }
+}
+
 function completionFrom(
   startedAt: number,
   prUrl?: string,
@@ -577,6 +652,7 @@ export async function runRunnerJob(
   let didLogProgressDeliveryFailure = false;
   let prUrl: string | undefined;
   let invocationFailedMessage: string | undefined;
+  let planPath: string | undefined;
   const diagnosticLines: string[] = [];
   const graceMs = options.cancellationGraceMs ?? DEFAULT_CANCELLATION_GRACE_MS;
 
@@ -637,6 +713,12 @@ export async function runRunnerJob(
     }
     if (progressEvent.type === "invocation.failed") {
       invocationFailedMessage = progressEvent.message;
+    }
+    if (
+      progressEvent.type === "phase.completed" &&
+      typeof progressEvent.data?.plan_path === "string"
+    ) {
+      planPath = progressEvent.data.plan_path;
     }
     const scanLine = formatRunnerProgressLog(job.id, progressEvent);
     if (scanLine) options.status?.(scanLine);
@@ -728,9 +810,26 @@ export async function runRunnerJob(
       job.id,
       completionFrom(startedAt, prUrl),
     );
-    return prUrl
-      ? { kind: "succeeded", prUrl, durationMs }
-      : { kind: "succeeded", durationMs };
+    const shouldUploadPlan = job.operation.type === "kickstart" &&
+      job.operation.pause_after === "plan" &&
+      options.client.uploadPlan != null;
+    if (shouldUploadPlan && options.client.uploadPlan) {
+      const artifact = (planPath
+        ? await readPlanArtifact(registration.path, planPath)
+        : null) ?? await findLatestPlanArtifact(registration.path);
+      if (artifact) {
+        try {
+          await options.client.uploadPlan(job.id, artifact);
+        } catch (error) {
+          recordDiagnostic(
+            `Plan artifact upload failed: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        }
+      }
+    }
+    return { kind: "succeeded", prUrl, durationMs };
   } finally {
     await cleanup?.();
   }

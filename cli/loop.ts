@@ -45,6 +45,8 @@ import {
   runCursorCloudAgentTracked,
 } from "../sdk/github/cursorCloudAgent.ts";
 import { readContextFileSections } from "../sdk/github/prompt.ts";
+import { parsePublishMode } from "../sdk/github/publish.ts";
+import type { PublishMode } from "../sdk/github/publish.ts";
 import { isAbsolute, join } from "@std/path";
 
 const ISSUE_NUMBER_PATTERN = /^#?\d+$/;
@@ -320,6 +322,8 @@ export async function parseLoopArgs(
   let workspaceRoot: string | undefined = undefined;
   let allowCrossRepo = false;
   let steeringPrompt: string | undefined = undefined;
+  let publish: PublishMode = "none";
+  let publishSpecified = false;
 
   const { contextFiles, rest: argsAfterContext } = resolveContextFileArgs(
     args,
@@ -336,6 +340,9 @@ export async function parseLoopArgs(
     const arg = flagArgs[i];
     if (arg === "--plan-file" && i + 1 < flagArgs.length) {
       planFilePath = flagArgs[++i];
+    } else if (arg === "--publish" && i + 1 < flagArgs.length) {
+      publish = parsePublishMode(flagArgs[++i]);
+      publishSpecified = true;
     } else if (arg === "--allow-cross-repo" || arg === "-A") {
       allowCrossRepo = true;
     } else if (arg === "--cursor-cloud") {
@@ -382,9 +389,13 @@ export async function parseLoopArgs(
   if (cursorCloudRefSpecified && !cursorCloud) {
     throw new Error("--ref requires --cursor-cloud.");
   }
+  if (cursorCloud && publishSpecified && publish !== "pr") {
+    throw new Error("Cursor cloud loop runs require --publish pr.");
+  }
+  if (cursorCloud) publish = "pr";
 
   return {
-    publish: "none" as const,
+    publish,
     agentHarness,
     ...(agentSelection.model ? { agentModel: agentSelection.model } : {}),
     ...(agentSelection.thinking
@@ -402,6 +413,7 @@ export async function parseLoopArgs(
     cursorCloudRef,
     verbosity: "medium",
     skipPlan: false,
+    planOnly: false,
     ...(steeringPrompt !== undefined ? { steeringPrompt } : {}),
     ...(contextFiles.length > 0 ? { contextFiles } : {}),
   };
@@ -423,6 +435,9 @@ function showHelp(): void {
   console.log("Options:");
   console.log(
     "  --plan-file <path>       Deprecated alias for passing a plan file argument",
+  );
+  console.log(
+    "  --publish <mode>         none (default), pr, or direct",
   );
   console.log(
     "  --allow-cross-repo, -A   Allow issue URLs from a different repository",

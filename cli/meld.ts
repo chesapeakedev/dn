@@ -468,6 +468,7 @@ export async function handleMeld(
       workspaceRoot,
       verbosity: "medium",
       skipPlan: false,
+      planOnly: false,
       ...(contextFiles.length > 0 ? { contextFiles } : {}),
       meldPhase: {
         targetRaw: target,

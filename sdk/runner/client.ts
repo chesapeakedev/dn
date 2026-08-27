@@ -265,6 +265,18 @@ export class RunnerApiClient {
     );
   }
 
+  /** Uploads plan markdown for a plan-only kickstart job. */
+  uploadPlan(
+    jobId: string,
+    input: { path: string; markdown: string },
+  ): Promise<void> {
+    return this.#request(
+      "POST",
+      `/api/runners/jobs/${encodeURIComponent(jobId)}/plan`,
+      input,
+    );
+  }
+
   /** Returns owner-visible runner status. */
   status(): Promise<RunnerStatusResponse> {
     return this.#request("GET", "/api/runners/status");
