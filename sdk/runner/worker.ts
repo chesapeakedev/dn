@@ -252,8 +252,11 @@ export function buildRunnerKickstartCommand(
     };
   }
   const issueRepository = repositoryFromIssueUrl(job.operation.issue_url);
-  const crossRepo = issueRepository.toLowerCase() !==
-    job.repository.toLowerCase();
+  if (issueRepository.toLowerCase() !== job.repository.toLowerCase()) {
+    throw new Error(
+      `Runner job issue belongs to ${issueRepository}, not ${job.repository}.`,
+    );
+  }
   return {
     argv: [
       ...commandPrefix,
@@ -267,7 +270,6 @@ export function buildRunnerKickstartCommand(
       job.operation.publish,
       ...(job.operation.pause_after === "plan" ? ["--plan-only"] : []),
       ...(job.operation.skip_plan === true ? ["--skip-plan"] : []),
-      ...(crossRepo ? ["--allow-cross-repo"] : []),
       job.operation.issue_url,
     ],
   };

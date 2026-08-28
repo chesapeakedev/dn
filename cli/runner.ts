@@ -192,6 +192,16 @@ async function handleConnect(args: string[]): Promise<void> {
       "Usage: dn runner connect <code> [--install] [--repo]",
     );
   }
+  try {
+    const origin = new URL(apiUrl).origin;
+    if (origin !== DEFAULT_DENOISE_API_URL) {
+      console.error(
+        `Warning: connecting to ${origin} instead of ${DEFAULT_DENOISE_API_URL}. Confirm this is the Denoise host you intend.`,
+      );
+    }
+  } catch {
+    throw new Error(`Invalid --api-url: ${apiUrl}`);
+  }
   if (Deno.build.os !== "darwin" && Deno.build.os !== "linux") {
     throw new Error("Device runners require macOS or Linux.");
   }
