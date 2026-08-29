@@ -74,7 +74,7 @@ interface ApiErrorBody {
  */
 export class RunnerApiClient {
   readonly #baseUrl: URL;
-  readonly #credential?: string;
+  #credential?: string;
   readonly #fetch: typeof fetch;
   readonly #requestTimeoutMs: number;
 
@@ -101,6 +101,15 @@ export class RunnerApiClient {
     this.#fetch = options.fetch ?? fetch;
     this.#requestTimeoutMs = options.requestTimeoutMs ??
       DEFAULT_RUNNER_REQUEST_TIMEOUT_MS;
+  }
+
+  /**
+   * Replaces the bearer used on authenticated routes after a heartbeat
+   * rotation. Pairing still supplies the initial credential via the
+   * constructor.
+   */
+  setCredential(credential: string): void {
+    this.#credential = credential;
   }
 
   async #request<T>(

@@ -45,8 +45,14 @@ POST /api/runners/tasks   # { runner_id, op: "upsert"|"delete", task_document?|t
 GET  /api/runners/tasks?runner_id=<id>   # long-poll device snapshot
 ```
 
-Heartbeat responses include `pending_task_ops` and `list_tasks_requested`. The
-runner ACKs applied envelopes with `task_sync_acks` and may attach `task_list`.
+Heartbeat responses include `pending_task_ops` and `list_tasks_requested`. They
+also slide `credential_expires_at` (7-day idle TTL, same as the session cookie).
+Clients that send `accepts_credential_rotation: true` may receive a replacement
+`credential` about once a day; persist it to `credential.json` and use it on the
+next request. The previous bearer stays valid for a few minutes so in-flight
+claim/lease calls do not 401. Older clients omit the flag and keep sliding
+expiry without rotation. The runner ACKs applied envelopes with `task_sync_acks`
+and may attach `task_list`.
 
 ## Before you connect
 

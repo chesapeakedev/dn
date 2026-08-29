@@ -5,7 +5,12 @@ import { formatElapsedTime } from "../github/output.ts";
 import { formatAgentFailureOutput } from "../github/progress.ts";
 import { checkRunnerRepositories, detectRunnerCapabilities } from "./doctor.ts";
 import type { LocalRunnerConfig } from "./config.ts";
-import { loadRunnerConfig, recordRunnerLoopAlive } from "./config.ts";
+import {
+  loadRunnerConfig,
+  loadRunnerCredential,
+  recordRunnerLoopAlive,
+  saveRunnerCredential,
+} from "./config.ts";
 import type {
   RunnerCapabilities,
   RunnerHeartbeat,
@@ -77,6 +82,11 @@ export interface RunnerWorkerClient {
     jobId: string,
     input: { path: string; markdown: string },
   ): Promise<void>;
+  /**
+   * Installs a replacement bearer after Denoise rotates the runner credential
+   * on heartbeat. Optional so tests can omit it.
+   */
+  setCredential?(credential: string): void;
 }
 
 /** Child-process shape used by the job executor. */
@@ -857,6 +867,32 @@ export function formatRunnerJobOutcomeLog(
   return `Job ${jobId} ${outcome.kind}${durationPart}: ${outcome.message}`;
 }
 
+/**
+ * Persists a sliding expiry and optional replacement bearer from a heartbeat.
+ * Disk write happens before the in-memory client switches, so a crash still
+ * has a secret Denoise will accept (current or previous-grace).
+ */
+async function applyHeartbeatCredential(
+  client: RunnerWorkerClient,
+  response: RunnerHeartbeatResponse,
+): Promise<void> {
+  if (!response.credential && !response.credential_expires_at) return;
+  const stored = await loadRunnerCredential();
+  if (stored) {
+    await saveRunnerCredential({
+      ...stored,
+      credential: response.credential ?? stored.credential,
+      created_at: response.credential
+        ? new Date().toISOString()
+        : stored.created_at,
+      expires_at: response.credential_expires_at ?? stored.expires_at,
+    });
+  }
+  if (response.credential) {
+    client.setCredential?.(response.credential);
+  }
+}
+
 /** Runs the authenticated heartbeat/claim loop with one-job concurrency. */
 export async function serveRunner(
   options: ServeRunnerOptions,
@@ -911,6 +947,7 @@ export async function serveRunner(
       capabilities,
       repositories,
       state: config.paused ? "paused" : "ready",
+      accepts_credential_rotation: true,
       ...(pendingAcks.length > 0 ? { task_sync_acks: pendingAcks } : {}),
       ...(pendingTaskList ? { task_list: pendingTaskList } : {}),
     };
@@ -920,6 +957,7 @@ export async function serveRunner(
         "Heartbeat",
         () => options.client.heartbeat(heartbeat),
       );
+      await applyHeartbeatCredential(options.client, heartbeatResponse);
     } catch (error) {
       if (isAbortError(error) || options.signal?.aborted) return;
       throw error;
@@ -992,13 +1030,15 @@ export async function serveRunner(
       announcedIdle = false;
       status(formatRunnerJobClaimLog(job));
       try {
-        await retryApi("Heartbeat", () =>
-          options.client.heartbeat({
+        await retryApi("Heartbeat", async () => {
+          const busyResponse = await options.client.heartbeat({
             ...heartbeat,
             state: "busy",
             ...(pendingAcks.length > 0 ? { task_sync_acks: pendingAcks } : {}),
             ...(pendingTaskList ? { task_list: pendingTaskList } : {}),
-          }));
+          });
+          await applyHeartbeatCredential(options.client, busyResponse);
+        });
       } catch (error) {
         if (isAbortError(error) || options.signal?.aborted) return;
         throw error;

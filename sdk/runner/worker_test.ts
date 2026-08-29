@@ -29,8 +29,10 @@ import {
 } from "./worker.ts";
 import {
   getRunnerConfigPaths,
+  loadRunnerCredential,
   RUNNER_CONFIG_SCHEMA_VERSION,
   saveRunnerConfig,
+  saveRunnerCredential,
 } from "./config.ts";
 import { detectRunnerCapabilities } from "./doctor.ts";
 
@@ -62,6 +64,7 @@ class RecordingClient implements RunnerWorkerClient {
   completion: RunnerJobCompletion | null = null;
   failure: RunnerJobFailure | null = null;
   cancelOnRenewal = false;
+  credentials: string[] = [];
 
   heartbeat(_heartbeat: RunnerHeartbeat): Promise<RunnerHeartbeatResponse> {
     return Promise.resolve({
@@ -106,6 +109,9 @@ class RecordingClient implements RunnerWorkerClient {
   ): Promise<void> {
     this.uploadedPlan = input;
     return Promise.resolve();
+  }
+  setCredential(credential: string): void {
+    this.credentials.push(credential);
   }
 }
 
@@ -894,6 +900,55 @@ Deno.test("serveRunner does not retry a rejected credential", async () => {
       "invalid or expired runner credential",
     );
     assertEquals(logs.length, 0);
+  } finally {
+    if (previousHome === undefined) Deno.env.delete("DN_RUNNER_HOME");
+    else Deno.env.set("DN_RUNNER_HOME", previousHome);
+    await Deno.remove(directory, { recursive: true });
+  }
+});
+
+Deno.test("serveRunner persists heartbeat credential rotation", async () => {
+  const directory = await Deno.makeTempDir({ prefix: "dn-runner-rotate-" });
+  const previousHome = Deno.env.get("DN_RUNNER_HOME");
+  Deno.env.set("DN_RUNNER_HOME", directory);
+  const paths = getRunnerConfigPaths(directory);
+  const client = new RecordingClient();
+  client.heartbeat = (heartbeat: RunnerHeartbeat) => {
+    assertEquals(heartbeat.accepts_credential_rotation, true);
+    return Promise.resolve({
+      pending_task_ops: [],
+      list_tasks_requested: false,
+      credential: "runner-1.new-secret",
+      credential_expires_at: "2026-08-01T12:00:00.000Z",
+    });
+  };
+  try {
+    await saveRunnerConfig({
+      schema_version: RUNNER_CONFIG_SCHEMA_VERSION,
+      paused: false,
+      repositories: {},
+    }, paths);
+    await saveRunnerCredential({
+      schema_version: RUNNER_CONFIG_SCHEMA_VERSION,
+      runner_id: "runner-1",
+      display_name: "Test Mac",
+      api_url: "https://denoise.example",
+      credential: "runner-1.old-secret",
+      created_at: "2026-07-23T12:00:00.000Z",
+      expires_at: "2026-07-30T12:00:00.000Z",
+    }, paths);
+    await serveRunner({
+      runnerId: "runner-1",
+      dnVersion: "0.0.0-test",
+      commandPrefix: ["/usr/local/bin/dn"],
+      client,
+      once: true,
+      log: () => {},
+    });
+    assertEquals(client.credentials, ["runner-1.new-secret"]);
+    const stored = await loadRunnerCredential(paths);
+    assertEquals(stored?.credential, "runner-1.new-secret");
+    assertEquals(stored?.expires_at, "2026-08-01T12:00:00.000Z");
   } finally {
     if (previousHome === undefined) Deno.env.delete("DN_RUNNER_HOME");
     else Deno.env.set("DN_RUNNER_HOME", previousHome);

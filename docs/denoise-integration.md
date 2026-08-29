@@ -305,8 +305,12 @@ require the short-lived pairing secrets returned by the preceding step.
 | POST   | `/credential/rotate`               | Replace and invalidate a runner credential    |
 
 Runner credentials are scoped, expiring bearer values stored with mode `0600` on
-the device. Store only their hashes server-side. Revocation and rotation
-invalidate the previous value immediately.
+the device. Store only their hashes server-side. Heartbeats slide a 7-day idle
+TTL (same window as session cookies). Capable clients
+(`accepts_credential_rotation`) may receive a replacement secret on heartbeat
+about once a day; keep the previous hash valid for a short overlap. Manual
+`/credential/rotate` still invalidates the previous value immediately.
+Revocation invalidates immediately.
 
 Heartbeat repository entries contain `owner/repo`, readiness, and an optional
 reason. They never contain local paths. Jobs contain opaque IDs, invocation and

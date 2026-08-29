@@ -460,6 +460,11 @@ export interface RunnerHeartbeat {
    * (`list_tasks_requested` on the previous heartbeat response).
    */
   task_list?: DenoiseTaskDocument[];
+  /**
+   * When true, Denoise may return a replacement bearer on this heartbeat.
+   * Older clients omit the field and keep sliding expiry without rotation.
+   */
+  accepts_credential_rotation?: boolean;
 }
 
 /** Server response body for runner heartbeats (task-sync channel). */
@@ -468,6 +473,16 @@ export interface RunnerHeartbeatResponse {
   pending_task_ops: RunnerTaskSyncOp[];
   /** When true, include `task_list` on the next heartbeat. */
   list_tasks_requested: boolean;
+  /**
+   * Current idle expiry after this heartbeat. Persist so local doctor/state
+   * matches the sliding server TTL.
+   */
+  credential_expires_at?: string;
+  /**
+   * Replacement plaintext bearer when Denoise rotated the secret. Persist and
+   * use on subsequent requests. Omitted when the current secret is still fresh.
+   */
+  credential?: string;
 }
 
 /** Owner session request to push or delete a local task on a paired runner. */

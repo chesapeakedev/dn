@@ -73,6 +73,12 @@ Deno.test("RunnerApiClient sends runner credentials only to authenticated endpoi
     requests[2].headers.get("Authorization"),
     "Bearer runner-secret",
   );
+  client.setCredential("runner-secret-rotated");
+  await client.status();
+  assertEquals(
+    requests[3].headers.get("Authorization"),
+    "Bearer runner-secret-rotated",
+  );
 });
 
 Deno.test("RunnerApiClient surfaces minimum protocol errors", async () => {
