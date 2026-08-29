@@ -118,6 +118,7 @@ Deno.test("resolveWorkflowArguments preserves issue URL as one argument", () => 
         },
       },
       "cursor",
+      { GITHUB_REPOSITORY: "acme/widgets" },
     ),
     ["--agent", "cursor", "kickstart", "--publish", "pr", issue],
   );
@@ -140,6 +141,7 @@ Deno.test("resolveWorkflowArguments adds --plan-only for pause_after plan", () =
         },
       },
       "cursor",
+      { GITHUB_REPOSITORY: "acme/widgets" },
     ),
     [
       "--agent",
@@ -171,6 +173,7 @@ Deno.test("resolveWorkflowArguments adds --skip-plan for implement beat", () => 
         },
       },
       "cursor",
+      { GITHUB_REPOSITORY: "acme/widgets" },
     ),
     [
       "--agent",
@@ -181,6 +184,36 @@ Deno.test("resolveWorkflowArguments adds --skip-plan for implement beat", () => 
       "--skip-plan",
       "--saved-plan",
       "issue-42",
+      issue,
+    ],
+  );
+});
+
+Deno.test("resolveWorkflowArguments adds --allow-cross-repo when issue is outside GITHUB_REPOSITORY", () => {
+  const issue = "https://github.com/chesapeakedev/chesapeake/issues/213";
+  assertEquals(
+    resolveWorkflowArguments(
+      "dn.kickstart_issue",
+      "repository_dispatch",
+      {
+        action: "dn.kickstart_issue",
+        client_payload: {
+          schema_version: "1.0",
+          dispatch_id: "dispatch-cross",
+          issue_url: issue,
+          awp: true,
+        },
+      },
+      "cursor",
+      { GITHUB_REPOSITORY: "chesapeakedev/dn" },
+    ),
+    [
+      "--agent",
+      "cursor",
+      "kickstart",
+      "--publish",
+      "pr",
+      "--allow-cross-repo",
       issue,
     ],
   );

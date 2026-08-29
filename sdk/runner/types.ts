@@ -893,7 +893,6 @@ export function validateRunnerJob(
       );
     }
     repositoryFromIssueUrl(job.operation.issue_url);
-    assertIssueUrlMatchesRepository(job.operation.issue_url, repository);
   } else if (job.operation.type === "loop") {
     if (
       job.operation.publish !== "none" &&
@@ -912,7 +911,6 @@ export function validateRunnerJob(
       throw new Error("Runner job has an unsupported agent harness.");
     }
     repositoryFromIssueUrl(job.operation.issue_url);
-    assertIssueUrlMatchesRepository(job.operation.issue_url, repository);
     if (
       job.operation.plan_file != null &&
       !/^plans\/[^/]+\.plan\.md$/.test(job.operation.plan_file)

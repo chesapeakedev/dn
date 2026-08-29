@@ -373,6 +373,33 @@ function resolveIssue(payload: Record<string, unknown>): string {
   return String(issueNumber);
 }
 
+function repositoryFromGithubIssueUrl(issue: string): string | null {
+  const match = issue.match(
+    /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/issues\/[1-9]\d*$/,
+  );
+  return match ? `${match[1]}/${match[2]}` : null;
+}
+
+/** Pass --allow-cross-repo when the issue lives outside GITHUB_REPOSITORY. */
+function withAllowCrossRepo(
+  args: string[],
+  env: Record<string, string | undefined>,
+): string[] {
+  const issue = args.at(-1);
+  if (issue == null) return args;
+  const issueRepo = repositoryFromGithubIssueUrl(issue);
+  const workspace = env.GITHUB_REPOSITORY?.trim();
+  if (
+    issueRepo == null ||
+    workspace == null ||
+    workspace === "" ||
+    issueRepo.toLowerCase() === workspace.toLowerCase()
+  ) {
+    return args;
+  }
+  return [...args.slice(0, -1), "--allow-cross-repo", issue];
+}
+
 function validateDispatchEnvelope(
   event: GitHubEvent,
   expectedType: string,
@@ -524,7 +551,7 @@ export function resolveWorkflowArguments(
       }
     }
     args.push(resolveIssue(payload));
-    return args;
+    return withAllowCrossRepo(args, env);
   }
 
   throw new WorkflowExecError(

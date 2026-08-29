@@ -90,14 +90,10 @@ Deno.test("validateRunnerJob accepts a protocol v1 kickstart job", () => {
   assertEquals(validateRunnerJob(validJob(), "runner-1"), validJob());
 });
 
-Deno.test("validateRunnerJob rejects kickstart jobs for a different execution repo", () => {
+Deno.test("validateRunnerJob accepts kickstart jobs for a different execution repo", () => {
   const job = validJob();
   job.repository = "chesapeakedev/other";
-  assertThrows(
-    () => validateRunnerJob(job),
-    Error,
-    "not chesapeakedev/other",
-  );
+  assertEquals(validateRunnerJob(job).repository, "chesapeakedev/other");
 });
 
 Deno.test("validateRunnerJob rejects an unsupported protocol version", () => {
