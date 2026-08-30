@@ -113,6 +113,11 @@ class RecordingClient implements RunnerWorkerClient {
   setCredential(credential: string): void {
     this.credentials.push(credential);
   }
+  githubTokens: string[] = [];
+  claimGithubToken(_jobId: string): Promise<{ token: string }> {
+    this.githubTokens.push("ghs_cloud");
+    return Promise.resolve({ token: "ghs_cloud" });
+  }
 }
 
 function localConfig(path = "/workspace/dn") {
@@ -256,6 +261,68 @@ Deno.test("runRunnerJob forwards NDJSON progress and completion receipt", async 
     "https://github.com/chesapeakedev/dn/pull/214",
   );
   assertEquals(client.completion?.hosted_runs_avoided, 1);
+});
+
+Deno.test("runRunnerJob on exe.dev clones, injects GitHub token, and registers", async () => {
+  const previous = Deno.env.get("DN_RUNNER_PROVIDER");
+  Deno.env.set("DN_RUNNER_PROVIDER", "exe.dev");
+  const client = new RecordingClient();
+  const runnerHome = await Deno.makeTempDir({ prefix: "dn-cloud-job-" });
+  const previousHome = Deno.env.get("DN_RUNNER_HOME");
+  Deno.env.set("DN_RUNNER_HOME", runnerHome);
+  let spawnedEnv: Record<string, string> = {};
+  try {
+    await saveRunnerConfig({
+      schema_version: "1.0",
+      paused: false,
+      repositories: {},
+    }, getRunnerConfigPaths(runnerHome));
+    const outcome = await runRunnerJob(job(), {
+      runnerId: "runner-1",
+      commandPrefix: ["/usr/local/bin/dn"],
+      config: {
+        schema_version: "1.0",
+        paused: false,
+        repositories: {},
+      },
+      client,
+      ensureCheckout: async (repository, token) => {
+        assertEquals(repository, "chesapeakedev/dn");
+        assertEquals(token, "ghs_cloud");
+        const checkout = await Deno.makeTempDir({ prefix: "dn-cloud-co-" });
+        await saveRunnerConfig({
+          schema_version: "1.0",
+          paused: false,
+          repositories: {
+            "chesapeakedev/dn": {
+              path: checkout,
+              trusted_at: "2026-08-30T00:00:00.000Z",
+            },
+          },
+        }, getRunnerConfigPaths(runnerHome));
+        return checkout;
+      },
+      spawn(_command, _cwd, env) {
+        spawnedEnv = env;
+        return {
+          stdout: stream("done\n"),
+          stderr: stream(""),
+          status: Promise.resolve({ success: true, code: 0, signal: null }),
+          kill() {},
+        };
+      },
+    });
+    assertEquals(outcome.kind, "succeeded");
+    assertEquals(client.githubTokens, ["ghs_cloud"]);
+    assertEquals(spawnedEnv.GITHUB_TOKEN, "ghs_cloud");
+    assertEquals(spawnedEnv.GH_TOKEN, "ghs_cloud");
+  } finally {
+    if (previous == null) Deno.env.delete("DN_RUNNER_PROVIDER");
+    else Deno.env.set("DN_RUNNER_PROVIDER", previous);
+    if (previousHome == null) Deno.env.delete("DN_RUNNER_HOME");
+    else Deno.env.set("DN_RUNNER_HOME", previousHome);
+    await Deno.remove(runnerHome, { recursive: true });
+  }
 });
 
 Deno.test("runRunnerJob terminates on cancellation and does not complete", async () => {

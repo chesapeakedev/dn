@@ -1,7 +1,9 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
+export * from "./bootstrap.ts";
 export * from "./client.ts";
+export * from "./cloudCheckout.ts";
 export * from "./config.ts";
 export * from "./doctor.ts";
 export * from "./service.ts";

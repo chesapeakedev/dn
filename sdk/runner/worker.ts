@@ -4,6 +4,8 @@
 import { formatElapsedTime } from "../github/output.ts";
 import { formatAgentFailureOutput } from "../github/progress.ts";
 import { checkRunnerRepositories, detectRunnerCapabilities } from "./doctor.ts";
+import { cloudRunnerEnabled } from "./bootstrap.ts";
+import { ensureCloudCheckout } from "./cloudCheckout.ts";
 import type { LocalRunnerConfig } from "./config.ts";
 import {
   loadRunnerConfig,
@@ -83,6 +85,13 @@ export interface RunnerWorkerClient {
     input: { path: string; markdown: string },
   ): Promise<void>;
   /**
+   * Mints a short-lived GitHub token for a claimed exe.dev (cloud) job.
+   * Device runners omit this and use the local `gh` login.
+   */
+  claimGithubToken?(
+    jobId: string,
+  ): Promise<{ token: string; expires_at?: string }>;
+  /**
    * Installs a replacement bearer after Denoise rotates the runner credential
    * on heartbeat. Optional so tests can omit it.
    */
@@ -127,6 +136,14 @@ export interface RunRunnerJobOptions {
   stderr?: (line: string) => void;
   /** Receives scan-layer status lines while the job runs. */
   status?: (message: string) => void;
+  /**
+   * Optional cloud checkout override for tests. Production uses
+   * {@link ensureCloudCheckout} when {@link cloudRunnerEnabled} is true.
+   */
+  ensureCheckout?: (
+    repository: string,
+    token: string,
+  ) => Promise<string>;
 }
 
 /** Options for the long-running outbound worker. */
@@ -635,7 +652,49 @@ export async function runRunnerJob(
   options: RunRunnerJobOptions,
 ): Promise<RunnerJobRunResult> {
   validateRunnerJob(job, options.runnerId);
-  const registration = options.config.repositories[job.repository];
+  let config = options.config;
+  const childEnv: Record<string, string> = {
+    DN_DISPATCH_ID: job.invocation_id,
+    DN_PROGRESS: "ndjson",
+    DN_PROGRESS_VERBOSE: "1",
+  };
+  if (cloudRunnerEnabled()) {
+    if (options.client.claimGithubToken == null) {
+      const message =
+        "This cloud runner cannot mint a GitHub token for the claimed job.";
+      await options.client.failJob(job.id, {
+        failed_at: new Date().toISOString(),
+        reason: "failed",
+        message,
+      });
+      return { kind: "failed", message };
+    }
+    try {
+      const claimed = await options.client.claimGithubToken(job.id);
+      const token = claimed.token.trim();
+      if (!token) throw new Error("GitHub token response was empty.");
+      childEnv.GITHUB_TOKEN = token;
+      childEnv.GH_TOKEN = token;
+      if (options.ensureCheckout) {
+        await options.ensureCheckout(job.repository, token);
+      } else {
+        await ensureCloudCheckout({
+          repository: job.repository,
+          token,
+        });
+      }
+      config = await loadRunnerConfig();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await options.client.failJob(job.id, {
+        failed_at: new Date().toISOString(),
+        reason: "failed",
+        message,
+      });
+      return { kind: "failed", message };
+    }
+  }
+  const registration = config.repositories[job.repository];
   if (!registration) {
     const message =
       `Repository ${job.repository} is not registered on this device.`;
@@ -654,11 +713,7 @@ export async function runRunnerJob(
   const child = (options.spawn ?? defaultSpawn)(
     command,
     registration.path,
-    {
-      DN_DISPATCH_ID: job.invocation_id,
-      DN_PROGRESS: "ndjson",
-      DN_PROGRESS_VERBOSE: "1",
-    },
+    childEnv,
   );
   const startedAt = Date.now();
   const stopLeaseLoop = new AbortController();

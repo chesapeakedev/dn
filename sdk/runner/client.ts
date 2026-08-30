@@ -286,6 +286,20 @@ export class RunnerApiClient {
     );
   }
 
+  /**
+   * Mints a short-lived GitHub token for a claimed cloud-runner job.
+   *
+   * Device runners do not call this; they use the machine's existing `gh` login.
+   */
+  claimGithubToken(
+    jobId: string,
+  ): Promise<{ token: string; expires_at?: string }> {
+    return this.#request(
+      "POST",
+      `/api/runners/jobs/${encodeURIComponent(jobId)}/github-token`,
+    );
+  }
+
   /** Returns owner-visible runner status. */
   status(): Promise<RunnerStatusResponse> {
     return this.#request("GET", "/api/runners/status");

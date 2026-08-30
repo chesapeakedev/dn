@@ -262,19 +262,22 @@ Denoise's task kickstart confirm dialog picks a **runner**. The client posts
 `runner_id` (and optional `source` derived from the runner provider) on
 `POST /api/github/dispatch`:
 
-| `source`         | Provider         | Behavior                                                                  |
-| ---------------- | ---------------- | ------------------------------------------------------------------------- |
-| `github_actions` | `github_actions` | Synthetic runner `github_actions:{owner}/{repo}`. `repository_dispatch`.  |
-| `device_runner`  | `device`         | Named developer device claims a typed kickstart job over outbound HTTPS.  |
-| `exe_dev`        | `exe.dev`        | User-connected `EXE_TOKEN`. Boot `ghcr.io/chesapeakedev/dn:<harness>` VM. |
-| `cloud_vm`       | historical       | Legacy label for hosted exe.dev; new dispatches use `exe_dev`.            |
-| `cursor_cloud`   | not in public UI | Managed `dn kickstart --cursor-cloud` if still dispatched.                |
+| `source`         | Provider         | Behavior                                                                                                     |
+| ---------------- | ---------------- | ------------------------------------------------------------------------------------------------------------ |
+| `github_actions` | `github_actions` | Synthetic runner `github_actions:{owner}/{repo}`. `repository_dispatch`.                                     |
+| `device_runner`  | `device`         | Named developer device claims a typed kickstart job over outbound HTTPS.                                     |
+| `exe_dev`        | `exe.dev`        | User-connected `EXE_TOKEN`. Pet VM runs `dn runner serve` and claims the same typed jobs as a device runner. |
+| `cloud_vm`       | historical       | Legacy label for hosted exe.dev; new dispatches use `exe_dev`.                                               |
+| `cursor_cloud`   | not in public UI | Managed `dn kickstart --cursor-cloud` if still dispatched.                                                   |
 
 Preflight availability is exposed at `GET /api/kickstart/runtimes?owner=&repo=`.
 Each row includes `provider`, `source`, and `runner_id`. Hosted denoise keeps
 Docker unavailable (use `dn kickstart --sandbox docker` locally). Denoise does
 **not** run kickstart on the application host and does **not** use a
-`KICKSTART_RUNNER_WORKSPACE_ROOT` launcher checkout for exe.dev.
+`KICKSTART_RUNNER_WORKSPACE_ROOT` launcher checkout for exe.dev. Connect boots
+the pet VM with `dn runner serve`; Kickstart enqueues a device-runner job. The
+VM clones `/workspace/{owner}/{repo}` after claiming a GitHub token from
+`POST /api/runners/jobs/:id/github-token`.
 
 `device_runner` and `exe_dev` require `runner_id`. The server must verify that
 the signed-in owner owns that runner. GitHub Actions uses the synthetic id
@@ -298,6 +301,7 @@ require the short-lived pairing secrets returned by the preceding step.
 | POST   | `/jobs/:id/progress`               | Ingest one existing progress event            |
 | POST   | `/jobs/:id/complete`               | Record the completion receipt                 |
 | POST   | `/jobs/:id/fail`                   | Record failure, cancellation, or interruption |
+| POST   | `/jobs/:id/github-token`           | Mint a short-lived GitHub token (exe.dev VMs) |
 | GET    | `/status`                          | Return owner-visible device state             |
 | GET    | `/jobs`                            | Return owner-visible recent jobs              |
 | POST   | `/kickstart`                       | Queue one typed kickstart job                 |

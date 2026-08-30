@@ -38,9 +38,10 @@ import {
   RUNNER_CONFIG_SCHEMA_VERSION,
   RUNNER_PROTOCOL_VERSION,
   type RunnerJobSummary,
+  serveRunner,
   validateDenoiseTaskDocument,
 } from "../sdk/runner/mod.ts";
-import { serveRunner } from "../sdk/runner/worker.ts";
+import { bootstrapRunnerCredentialFromEnv } from "../sdk/runner/bootstrap.ts";
 import type { PublishMode } from "../sdk/github/publish.ts";
 import { parsePublishMode } from "../sdk/github/publish.ts";
 
@@ -76,7 +77,8 @@ function showRunnerHelp(): void {
   console.log("  dn runner install");
   console.log("  dn runner start");
   console.log("  dn runner stop");
-  console.log("  dn runner serve [--once]\n");
+  console.log("  dn runner serve [--once]");
+  console.log("  dn runner bootstrap-env\n");
   console.log(
     "Device jobs use your registered checkout, local agent login, and hardware.",
   );
@@ -802,6 +804,15 @@ async function handleStop(args: string[]): Promise<void> {
   else console.log("Denoise runner user service stopped.");
 }
 
+async function handleBootstrapEnv(): Promise<void> {
+  const stored = await bootstrapRunnerCredentialFromEnv();
+  if (!stored) {
+    throw new Error(
+      "Set DN_RUNNER_ID, DN_RUNNER_CREDENTIAL, and DN_RUNNER_API_URL to pair this VM.",
+    );
+  }
+}
+
 async function handleServe(args: string[]): Promise<void> {
   let once = false;
   for (const argument of args) {
@@ -834,6 +845,7 @@ async function handleServe(args: string[]): Promise<void> {
         `Watch ${logs}, or run dn runner stop then dn runner serve for foreground diagnostics.`,
     );
   }
+  await bootstrapRunnerCredentialFromEnv();
   const { client, runnerId } = await authenticatedClient();
   try {
     await serveRunner({
@@ -970,6 +982,9 @@ export async function handleRunner(args: string[]): Promise<void> {
       break;
     case "serve":
       await handleServe(rest);
+      break;
+    case "bootstrap-env":
+      await handleBootstrapEnv();
       break;
     case "disconnect":
       await handleDisconnect(rest);
