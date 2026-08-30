@@ -74,7 +74,13 @@ export function extractDispatchPayloadError(
   template: WorkflowTemplateManifestEntry,
   payload: RepositoryDispatchClientPayload,
 ): string | undefined {
-  if (payload.schema_version !== template.payload_schema_version) {
+  if (template.id === "dn.kickstart_issue") {
+    if (
+      payload.schema_version !== "1.0" && payload.schema_version !== "1.1"
+    ) {
+      return "client_payload.schema_version must be 1.0 or 1.1";
+    }
+  } else if (payload.schema_version !== template.payload_schema_version) {
     return "client_payload.schema_version must be 1.0";
   }
 

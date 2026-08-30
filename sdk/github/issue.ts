@@ -131,10 +131,19 @@ export function summarizeIssueForDisplay(
     : issue.title;
   const owner = issue.owner.trim();
   const repo = issue.repo.trim();
-  const ref = owner !== "" && repo !== ""
+  const ref = isIssueHiddenInLogs()
+    ? `#${issue.number} from a hidden repo`
+    : owner !== "" && repo !== ""
     ? `${owner}/${repo}#${issue.number}`
     : `#${issue.number}`;
   return `${ref} — ${title}`;
+}
+
+/** True when kickstart should omit planning owner/repo from logs and prompts. */
+export function isIssueHiddenInLogs(
+  env: Record<string, string | undefined> = Deno.env.toObject(),
+): boolean {
+  return env.DN_ISSUE_HIDDEN === "1";
 }
 
 /**

@@ -65,6 +65,30 @@ Deno.test("summarizeIssueForDisplay falls back to #n when owner/repo missing", (
   assertEquals(summarizeIssueForDisplay(issue), "#7 — Hello");
 });
 
+Deno.test("summarizeIssueForDisplay hides owner/repo when DN_ISSUE_HIDDEN=1", () => {
+  const previous = Deno.env.get("DN_ISSUE_HIDDEN");
+  Deno.env.set("DN_ISSUE_HIDDEN", "1");
+  try {
+    const issue: IssueData = {
+      databaseId: 1,
+      number: 42,
+      title: "Secret work",
+      body: "",
+      labels: [],
+      repo: "private-ops",
+      owner: "acme",
+      relationships: emptyIssueRelationships(),
+    };
+    assertEquals(
+      summarizeIssueForDisplay(issue),
+      "#42 from a hidden repo — Secret work",
+    );
+  } finally {
+    if (previous == null) Deno.env.delete("DN_ISSUE_HIDDEN");
+    else Deno.env.set("DN_ISSUE_HIDDEN", previous);
+  }
+});
+
 Deno.test("writeIssueContext includes curated relationship summary", async () => {
   const tempFile = await Deno.makeTempFile({ suffix: ".md" });
 

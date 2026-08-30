@@ -329,13 +329,223 @@ export function applyProgressEnvFromClientPayload(
   return true;
 }
 
+/** True when GitHub Actions kickstart must claim the planning issue from Denoise. */
+export function needsActionsKickstartClaim(
+  workflowId: string,
+  payload: Record<string, unknown>,
+): boolean {
+  if (workflowId !== "dn.kickstart_issue") return false;
+  if (payload.schema_version !== "1.1") return false;
+  const hasUrl = typeof payload.issue_url === "string" &&
+    payload.issue_url.trim() !== "";
+  return !hasUrl;
+}
+
+/** Human-facing issue label that never includes owner/repo. */
+export function hiddenIssueLogLabel(issueNumber: unknown): string {
+  const parsed = Number(issueNumber);
+  if (Number.isInteger(parsed) && parsed > 0) {
+    return `#${parsed} from a hidden repo`;
+  }
+  return "a hidden repo issue";
+}
+
+/** Replace GitHub issue URLs in command args when the planning repo is hidden. */
+export function redactHiddenIssueArgs(
+  args: string[],
+  hidden: boolean,
+  issueNumber?: unknown,
+): string[] {
+  if (!hidden) return args;
+  const label = hiddenIssueLogLabel(issueNumber);
+  return args.map((arg) =>
+    /^https:\/\/github\.com\/[^/]+\/[^/]+\/issues\/[1-9]\d*$/.test(arg)
+      ? label
+      : arg
+  );
+}
+
+function summaryExecutionArgs(
+  args: string[] | undefined,
+  env: Record<string, string | undefined> = Deno.env.toObject(),
+): string[] | undefined {
+  if (args == null) return undefined;
+  const hidden = env.DN_ISSUE_HIDDEN === "1";
+  const fromArg = args.find((arg) => /\/issues\/([1-9]\d*)$/.test(arg));
+  const number = fromArg?.match(/\/issues\/([1-9]\d*)$/)?.[1];
+  return redactHiddenIssueArgs(args, hidden, number);
+}
+
+export interface ActionsKickstartClaim {
+  issue_url: string;
+  issue_hidden: boolean;
+  progress?: Record<string, unknown>;
+  github_token?: string;
+}
+
+function githubActionsMask(
+  value: string,
+  env: Record<string, string | undefined> = Deno.env.toObject(),
+): void {
+  const trimmed = value.trim();
+  if (trimmed === "" || env.GITHUB_ACTIONS !== "true") return;
+  console.log(`::add-mask::${trimmed}`);
+}
+
+async function requestActionsOidcToken(
+  audience: string,
+  env: Record<string, string | undefined>,
+  fetchFn: typeof fetch,
+): Promise<string | null> {
+  const requestUrl = env.ACTIONS_ID_TOKEN_REQUEST_URL?.trim();
+  const requestToken = env.ACTIONS_ID_TOKEN_REQUEST_TOKEN?.trim();
+  if (!requestUrl || !requestToken) return null;
+  let url: URL;
+  try {
+    url = new URL(requestUrl);
+  } catch {
+    return null;
+  }
+  url.searchParams.set("audience", audience);
+  const response = await fetchFn(url, {
+    headers: {
+      Authorization: `Bearer ${requestToken}`,
+      Accept: "application/json",
+    },
+  });
+  if (!response.ok) return null;
+  const body = await response.json() as { value?: unknown };
+  return typeof body.value === "string" && body.value.trim() !== ""
+    ? body.value.trim()
+    : null;
+}
+
+/** Fetches the planning issue URL from Denoise using OIDC or GITHUB_TOKEN. */
+export async function claimActionsKickstartTarget(
+  payload: Record<string, unknown>,
+  env: Record<string, string | undefined> = Deno.env.toObject(),
+  fetchFn: typeof fetch = fetch,
+): Promise<ActionsKickstartClaim> {
+  const dispatchId = requireNonEmptyString(
+    payload.dispatch_id,
+    "client_payload.dispatch_id",
+  );
+  const rawBase = typeof payload.progress_base_url === "string"
+    ? payload.progress_base_url.trim()
+    : (env.KICKSTART_PROGRESS_BASE_URL ?? env.DN_PROGRESS_BASE_URL ?? "")
+      .trim();
+  if (!rawBase) {
+    throw new WorkflowExecError(
+      "claim_url_missing",
+      "Hidden kickstart requires client_payload.progress_base_url",
+      "Set KICKSTART_PROGRESS_BASE_URL on Denoise and update dn-kickstart-issue.yml (id-token: write).",
+    );
+  }
+  let origin: string;
+  try {
+    origin = new URL(rawBase).origin;
+  } catch {
+    throw new WorkflowExecError(
+      "claim_url_missing",
+      "client_payload.progress_base_url is not a valid URL",
+    );
+  }
+  const claimUrl = `${origin}/api/kickstart/invocations/${
+    encodeURIComponent(dispatchId)
+  }/actions-claim`;
+  const oidc = await requestActionsOidcToken(origin, env, fetchFn);
+  const githubToken = (env.GITHUB_TOKEN ?? env.GH_TOKEN ?? "").trim();
+  const bearer = oidc ?? (githubToken !== "" ? githubToken : null);
+  if (bearer == null) {
+    throw new WorkflowExecError(
+      "claim_auth_missing",
+      "Could not mint a GitHub Actions OIDC token or GITHUB_TOKEN to claim the hidden issue",
+      "Add permissions.id-token: write to .github/workflows/dn-kickstart-issue.yml.",
+    );
+  }
+  const response = await fetchFn(claimUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${bearer}`,
+      Accept: "application/json",
+    },
+  });
+  if (!response.ok) {
+    throw new WorkflowExecError(
+      "claim_failed",
+      `Denoise actions-claim failed: HTTP ${response.status}`,
+    );
+  }
+  const body = await response.json() as Record<string, unknown>;
+  if (
+    typeof body.issue_url !== "string" ||
+    !/^https:\/\/github\.com\/[^/]+\/[^/]+\/issues\/[1-9]\d*$/.test(
+      body.issue_url,
+    )
+  ) {
+    throw new WorkflowExecError(
+      "claim_failed",
+      "Denoise actions-claim did not return a GitHub issue URL",
+    );
+  }
+  const progress = typeof body.progress === "object" && body.progress != null &&
+      !Array.isArray(body.progress)
+    ? body.progress as Record<string, unknown>
+    : undefined;
+  const minted = typeof body.github_token === "string"
+    ? body.github_token.trim()
+    : "";
+  return {
+    issue_url: body.issue_url,
+    issue_hidden: body.issue_hidden === true,
+    ...(progress != null ? { progress } : {}),
+    ...(minted !== "" ? { github_token: minted } : {}),
+  };
+}
+
+function applyActionsKickstartClaim(
+  payload: Record<string, unknown>,
+  claim: ActionsKickstartClaim,
+  env: Record<string, string | undefined> = Deno.env.toObject(),
+  setEnv: (key: string, value: string) => void = (key, value) =>
+    Deno.env.set(key, value),
+): void {
+  payload.issue_url = claim.issue_url;
+  githubActionsMask(claim.issue_url, env);
+  if (claim.github_token) {
+    githubActionsMask(claim.github_token, env);
+    setEnv("GITHUB_TOKEN", claim.github_token);
+    setEnv("GH_TOKEN", claim.github_token);
+  }
+  if (claim.progress) {
+    applyProgressEnvFromClientPayload({ progress: claim.progress }, setEnv);
+    const token = claim.progress.token;
+    if (typeof token === "string") githubActionsMask(token, env);
+  }
+  if (payload.issue_hidden === true || claim.issue_hidden) {
+    setEnv("DN_ISSUE_HIDDEN", "1");
+  }
+}
+
 function resolveIssue(payload: Record<string, unknown>): string {
   const hasUrl = payload.issue_url !== undefined &&
     payload.issue_url !== null &&
     payload.issue_url !== "";
   const hasNumber = payload.issue_number !== undefined &&
     payload.issue_number !== null && payload.issue_number !== "";
-  if (hasUrl === hasNumber) {
+  if (payload.schema_version === "1.1" && !hasUrl) {
+    throw new WorkflowExecError(
+      "hidden_issue_unresolved",
+      "Schema 1.1 kickstart issues must be resolved via Denoise actions-claim",
+    );
+  }
+  if (!hasUrl && !hasNumber) {
+    throw new WorkflowExecError(
+      "invalid_payload",
+      "Provide exactly one of client_payload.issue_url or client_payload.issue_number",
+    );
+  }
+  if (hasUrl && hasNumber && payload.schema_version !== "1.1") {
     throw new WorkflowExecError(
       "invalid_payload",
       "Provide exactly one of client_payload.issue_url or client_payload.issue_number",
@@ -413,10 +623,10 @@ function validateDispatchEnvelope(
     );
   }
   const payload = requireRecord(event.client_payload, "client_payload");
-  if (payload.schema_version !== "1.0") {
+  if (payload.schema_version !== "1.0" && payload.schema_version !== "1.1") {
     throw new WorkflowExecError(
       "invalid_payload",
-      "client_payload.schema_version must be 1.0",
+      "client_payload.schema_version must be 1.0 or 1.1",
     );
   }
   requireNonEmptyString(payload.dispatch_id, "client_payload.dispatch_id");
@@ -850,6 +1060,26 @@ export async function handleWorkflowExec(args: string[]): Promise<void> {
       );
       Deno.env.set("DN_DISPATCH_ID", dispatchId);
       applyProgressEnvFromClientPayload(payload);
+      if (needsActionsKickstartClaim(template.id, payload)) {
+        try {
+          const claim = await claimActionsKickstartTarget(payload);
+          applyActionsKickstartClaim(payload, claim);
+          checks.push({
+            name: "Hidden issue",
+            status: "passed",
+            message: payload.issue_hidden === true || claim.issue_hidden
+              ? hiddenIssueLogLabel(payload.issue_number)
+              : "Resolved planning issue via Denoise",
+          });
+        } catch (error) {
+          checks.push({
+            name: "Hidden issue",
+            status: "failed",
+            message: error instanceof Error ? error.message : String(error),
+          });
+          throw error;
+        }
+      }
     }
 
     const workspace = Deno.env.get("GITHUB_WORKSPACE") ?? Deno.cwd();
@@ -946,7 +1176,7 @@ export async function handleWorkflowExec(args: string[]): Promise<void> {
         agent,
         status: "validated",
         checks,
-        args: executionArgs,
+        args: summaryExecutionArgs(executionArgs),
       }));
       await writeActionOutputs("validated", phase, workflowId);
       return;
@@ -972,7 +1202,7 @@ export async function handleWorkflowExec(args: string[]): Promise<void> {
           agent,
           status: "passed",
           checks,
-          args: executionArgs,
+          args: summaryExecutionArgs(executionArgs),
         }));
         await writeActionOutputs(
           "passed",
@@ -1002,7 +1232,7 @@ export async function handleWorkflowExec(args: string[]): Promise<void> {
       agent,
       status: "passed",
       checks,
-      args: executionArgs,
+      args: summaryExecutionArgs(executionArgs),
     }));
     await writeActionOutputs("passed", phase, workflowId);
   } catch (error) {
@@ -1029,7 +1259,7 @@ export async function handleWorkflowExec(args: string[]): Promise<void> {
       status: "failed",
       checks,
       error: failure,
-      args: executionArgs,
+      args: summaryExecutionArgs(executionArgs),
     }));
     await writeActionOutputs("failed", phase, workflowId);
   }

@@ -380,8 +380,12 @@ function _generateContinuationPrompt(
     prompt += `- **Issue**: #${issueData.number}\n`;
     prompt += `- **Title**: ${issueData.title}\n`;
     if (issueData.owner && issueData.repo) {
-      prompt +=
-        `- **URL**: https://github.com/${issueData.owner}/${issueData.repo}/issues/${issueData.number}\n`;
+      if (Deno.env.get("DN_ISSUE_HIDDEN") === "1") {
+        prompt += `- **Issue**: #${issueData.number} from a hidden repo\n`;
+      } else {
+        prompt +=
+          `- **URL**: https://github.com/${issueData.owner}/${issueData.repo}/issues/${issueData.number}\n`;
+      }
     }
     prompt += `\n`;
   }

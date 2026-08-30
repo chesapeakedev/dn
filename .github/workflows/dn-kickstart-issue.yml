@@ -1,11 +1,12 @@
 name: dn kickstart issue
-run-name: "dn.kickstart_issue · ${{ github.event.client_payload.dispatch_id }}"
+run-name: "dn.kickstart_issue · ${{ github.event.client_payload.issue_hidden && format('#{0} from a hidden repo', github.event.client_payload.issue_number) || github.event.client_payload.dispatch_id }}"
 
 on:
   repository_dispatch:
     types: [dn.kickstart_issue]
 
 permissions:
+  id-token: write
   contents: write
   pull-requests: write
   issues: write

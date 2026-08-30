@@ -813,13 +813,17 @@ export async function runMeldPhase(
         if (config.publish !== "none") {
           console.log(
             formatWarning(
-              `Cross-repository AWP: issue stays on ${issueData.owner}/${issueData.repo}; commits and pull request land in ${currentRepo.owner}/${currentRepo.repo}.`,
+              Deno.env.get("DN_ISSUE_HIDDEN") === "1"
+                ? `Cross-repository AWP: #${issueData.number} from a hidden repo; commits and pull request land in ${currentRepo.owner}/${currentRepo.repo}.`
+                : `Cross-repository AWP: issue stays on ${issueData.owner}/${issueData.repo}; commits and pull request land in ${currentRepo.owner}/${currentRepo.repo}.`,
             ),
           );
         } else {
           console.log(
             formatWarning(
-              `Cross-repository operation: Implementing issue from ${issueData.owner}/${issueData.repo} in workspace ${currentRepo.owner}/${currentRepo.repo}`,
+              Deno.env.get("DN_ISSUE_HIDDEN") === "1"
+                ? `Cross-repository operation: Implementing #${issueData.number} from a hidden repo in workspace ${currentRepo.owner}/${currentRepo.repo}`
+                : `Cross-repository operation: Implementing issue from ${issueData.owner}/${issueData.repo} in workspace ${currentRepo.owner}/${currentRepo.repo}`,
             ),
           );
         }
@@ -1709,8 +1713,12 @@ function _generateContinuationPrompt(
     prompt += `- **Issue**: #${issueData.number}\n`;
     prompt += `- **Title**: ${issueData.title}\n`;
     if (issueData.owner && issueData.repo) {
-      prompt +=
-        `- **URL**: https://github.com/${issueData.owner}/${issueData.repo}/issues/${issueData.number}\n`;
+      if (Deno.env.get("DN_ISSUE_HIDDEN") === "1") {
+        prompt += `- **Issue**: #${issueData.number} from a hidden repo\n`;
+      } else {
+        prompt +=
+          `- **URL**: https://github.com/${issueData.owner}/${issueData.repo}/issues/${issueData.number}\n`;
+      }
     }
     prompt += `\n`;
   }

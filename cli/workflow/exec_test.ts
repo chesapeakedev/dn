@@ -5,10 +5,14 @@ import { assertEquals, assertThrows } from "@std/assert";
 import { join } from "@std/path";
 import {
   applyProgressEnvFromClientPayload,
+  claimActionsKickstartTarget,
   evaluateDailyKickstartReadiness,
+  hiddenIssueLogLabel,
   materializeKickstartPlanArtifact,
+  needsActionsKickstartClaim,
   openAutomationPullRequestUrl,
   openKickstartPullRequestUrl,
+  redactHiddenIssueArgs,
   renderWorkflowSummary,
   resolveDailyKickstartMilestone,
   resolveWorkflowArguments,
@@ -217,6 +221,159 @@ Deno.test("resolveWorkflowArguments adds --allow-cross-repo when issue is outsid
       issue,
     ],
   );
+});
+
+Deno.test("schema 1.1 kickstart without a claimed URL fails closed", () => {
+  assertThrows(
+    () =>
+      resolveWorkflowArguments(
+        "dn.kickstart_issue",
+        "repository_dispatch",
+        {
+          action: "dn.kickstart_issue",
+          client_payload: {
+            schema_version: "1.1",
+            dispatch_id: "dispatch-hidden",
+            issue_number: 432,
+            issue_hidden: true,
+            awp: true,
+          },
+        },
+        "cursor",
+        { GITHUB_REPOSITORY: "chesapeakedev/dn" },
+      ),
+    Error,
+    "resolved via Denoise actions-claim",
+  );
+});
+
+Deno.test("schema 1.1 kickstart uses the claimed issue URL and allow-cross-repo", () => {
+  const issue = "https://github.com/chesapeakedev/chesapeake/issues/432";
+  assertEquals(
+    resolveWorkflowArguments(
+      "dn.kickstart_issue",
+      "repository_dispatch",
+      {
+        action: "dn.kickstart_issue",
+        client_payload: {
+          schema_version: "1.1",
+          dispatch_id: "dispatch-hidden",
+          issue_number: 432,
+          issue_hidden: true,
+          issue_url: issue,
+          awp: true,
+        },
+      },
+      "cursor",
+      { GITHUB_REPOSITORY: "chesapeakedev/dn" },
+    ),
+    [
+      "--agent",
+      "cursor",
+      "kickstart",
+      "--publish",
+      "pr",
+      "--allow-cross-repo",
+      issue,
+    ],
+  );
+});
+
+Deno.test("same-repo kickstart still uses schema 1.0 issue numbers", () => {
+  assertEquals(
+    resolveWorkflowArguments(
+      "dn.kickstart_issue",
+      "repository_dispatch",
+      {
+        action: "dn.kickstart_issue",
+        client_payload: {
+          schema_version: "1.0",
+          dispatch_id: "dispatch-same",
+          issue_number: 12,
+          awp: true,
+        },
+      },
+      "cursor",
+      { GITHUB_REPOSITORY: "chesapeakedev/dn" },
+    ),
+    ["--agent", "cursor", "kickstart", "--publish", "pr", "12"],
+  );
+});
+
+Deno.test("needsActionsKickstartClaim is true only for schema 1.1 without URL", () => {
+  assertEquals(
+    needsActionsKickstartClaim("dn.kickstart_issue", {
+      schema_version: "1.1",
+      issue_number: 432,
+    }),
+    true,
+  );
+  assertEquals(
+    needsActionsKickstartClaim("dn.kickstart_issue", {
+      schema_version: "1.0",
+      issue_number: 12,
+    }),
+    false,
+  );
+});
+
+Deno.test("redactHiddenIssueArgs replaces GitHub issue URLs", () => {
+  assertEquals(
+    redactHiddenIssueArgs(
+      ["kickstart", "https://github.com/acme/secret/issues/432"],
+      true,
+      432,
+    ),
+    ["kickstart", "#432 from a hidden repo"],
+  );
+  assertEquals(hiddenIssueLogLabel(432), "#432 from a hidden repo");
+});
+
+Deno.test("claimActionsKickstartTarget posts OIDC then applies the issue URL", async () => {
+  const calls: string[] = [];
+  const claim = await claimActionsKickstartTarget(
+    {
+      dispatch_id: "dispatch-1",
+      progress_base_url: "https://denoise.example",
+    },
+    {
+      ACTIONS_ID_TOKEN_REQUEST_URL: "https://oidc.example/token",
+      ACTIONS_ID_TOKEN_REQUEST_TOKEN: "oidc-req",
+    },
+    (input, init) => {
+      const url = String(input);
+      const requestInit = init as
+        | { method?: string; headers?: HeadersInit }
+        | undefined;
+      calls.push(`${requestInit?.method ?? "GET"} ${url}`);
+      if (url.includes("oidc.example")) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ value: "oidc-jwt" }), { status: 200 }),
+        );
+      }
+      assertEquals(requestInit?.method, "POST");
+      const headers = new Headers(requestInit?.headers);
+      assertEquals(headers.get("Authorization"), "Bearer oidc-jwt");
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            issue_url: "https://github.com/acme/secret/issues/432",
+            issue_hidden: true,
+            progress: {
+              mode: "http",
+              url:
+                "https://denoise.example/api/kickstart/invocations/dispatch-1/events",
+              token: "progress-secret",
+            },
+          }),
+          { status: 200 },
+        ),
+      );
+    },
+  );
+  assertEquals(claim.issue_url, "https://github.com/acme/secret/issues/432");
+  assertEquals(claim.issue_hidden, true);
+  assertEquals(calls[0].includes("oidc.example"), true);
 });
 
 Deno.test("materializeKickstartPlanArtifact writes reviewed markdown", async () => {

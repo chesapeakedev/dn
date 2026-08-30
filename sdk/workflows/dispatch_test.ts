@@ -162,6 +162,15 @@ Deno.test("canonical kickstart dispatch accepts only pull request publishing", (
   };
   assertEquals(extractDispatchPayloadError(template, base), undefined);
   assertEquals(
+    extractDispatchPayloadError(template, {
+      schema_version: "1.1",
+      dispatch_id: "abc",
+      issue_number: 432,
+      issue_hidden: true,
+    }),
+    undefined,
+  );
+  assertEquals(
     extractDispatchPayloadError(template, { ...base, publish: "pr" }),
     undefined,
   );

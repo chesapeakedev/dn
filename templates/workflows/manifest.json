@@ -79,15 +79,16 @@
     },
     {
       "id": "dn.kickstart_issue",
-      "version": "4.1.0",
+      "version": "4.2.0",
       "source_path": "templates/workflows/dn-kickstart-issue.yml",
       "install_path": ".github/workflows/dn-kickstart-issue.yml",
-      "checksum": "sha256:9261107ce037487e35295014d3f0f846bff6550a999180b7f838e7f10881ce61",
-      "latest_version": "4.1.0",
+      "checksum": "sha256:de3b8810554336da1ecf89d673f83aa874fe8e33ed1a610cc533c7aba37a1b54",
+      "latest_version": "4.2.0",
       "deprecated": false,
       "deprecation_message": null,
       "minimum_dn_version": "0.0.30",
       "permissions": {
+        "id-token": "write",
         "contents": "write",
         "pull-requests": "write",
         "issues": "write"
@@ -109,13 +110,15 @@
         "optional": [
           "issue_url",
           "issue_number",
+          "issue_hidden",
+          "progress_base_url",
           "publish",
           "awp",
           "validate_only",
           "progress"
         ]
       },
-      "compatibility_notes": "Requires .github/dn/config.json. Provide exactly one of issue_url or issue_number. Optional nested progress {mode,url,token} enables live denoise phase/step ingest (same contract as exe.dev and Cursor Cloud). Canonical Actions dispatches always publish a pull request: publish may be omitted or set to pr, and awp may be omitted or true. Local CLI invocations continue to support none and direct."
+      "compatibility_notes": "Requires .github/dn/config.json. Same-repo kickstart uses schema 1.0 with issue_url or issue_number. Cross-repo (including private planning to a public execution repo) uses schema 1.1 with issue_number and issue_hidden, never issue_url; dn claims the URL from Denoise via OIDC or GITHUB_TOKEN. Canonical Actions dispatches always publish a pull request: publish may be omitted or set to pr, and awp may be omitted or true. Local CLI invocations continue to support none and direct."
     },
     {
       "id": "dn.daily_kickstart",
