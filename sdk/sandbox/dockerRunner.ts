@@ -47,6 +47,8 @@ export function buildDockerRunArgs(
   }
 
   args.push(docker.image, "sleep", "infinity");
+  // Golden images use ENTRYPOINT /usr/local/bin/init (systemd when argv is
+  // empty). This command keeps Docker sandboxes on sleep instead of systemd.
   return args;
 }
 
