@@ -19,6 +19,30 @@ This repository checks in that generated file. Do not pass `--agent cursor`
 unless asked. Nested Cursor CLI, Cloud Agents, and GitHub Actions are the rest
 of this page.
 
+### local-dn skill
+
+The Cursor-only **local-dn** skill
+([`.cursor/skills/local-dn/`](../.cursor/skills/local-dn/)) installs or reuses
+this checkout’s `dn` binary, then records the terminal with asciinema. It is not
+the generated `dn` kickstart skill, and it is not denoise’s **local-denoise**
+browser skill.
+
+In a Cursor chat on this repo, say what you want in plain language. Naming the
+skill is optional; these phrases attach it:
+
+| You type                           | What the agent should do                                                                |
+| ---------------------------------- | --------------------------------------------------------------------------------------- |
+| Record local dn                    | Install if needed, then asciinema of `dn --version` and `dn`                            |
+| Show that local dn is installed    | Same smoke recording ([visual.md](../.cursor/skills/local-dn/visual.md) smoke use case) |
+| Screenshot that this issue is done | `dn issue show`, then record the proving CLI command                                    |
+| Record a short video of #123       | Same issue-proof path; one `--command` sequence if it is a flow                         |
+| Use the local-dn skill             | Follow [SKILL.md](../.cursor/skills/local-dn/SKILL.md) then visual.md                   |
+
+You can also `@` `.cursor/skills/local-dn/SKILL.md` in the chat. Proof is a live
+`.cast` in the reply (`asciinema cat` transcript included), not a browser
+screenshot and not the frozen [docs/demo](demo/README.md) marketing cast. Do not
+commit capture files.
+
 ## Execution Targets
 
 | Target             | Command                                            | Where work runs                          | Result                                                     |

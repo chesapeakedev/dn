@@ -528,5 +528,11 @@ For anonymous Sapling feature branches:
 - Do not commit secrets or generated artifacts.
 - Do not reformat unrelated files.
 - When in doubt, match surrounding code style and choose the simplest solution.
+- For installing this checkout’s `dn` binary and recording terminal proof with
+  asciinema, use the **local-dn** skill (`.cursor/skills/local-dn/`). Smoke
+  recordings and GitHub-issue CLI proof:
+  [visual.md](.cursor/skills/local-dn/visual.md). Do not use the browser, frozen
+  `docs/demo` casts, or `make test` as a stand-in. Example Cursor prompts:
+  [docs/cursor.md](docs/cursor.md#local-dn-skill).
 
 ---

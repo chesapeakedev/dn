@@ -287,6 +287,12 @@ Use `--scope user` for a user-level Codex, OpenCode, or Claude installation. See
 [agent integration guides](docs/README.md#agent-integration) for nested CLI
 setup.
 
+In **Cursor IDE** on this checkout, ask the agent to **record local dn** or
+**screenshot that this issue is done** — that attaches the **local-dn** skill
+([`.cursor/skills/local-dn/`](.cursor/skills/local-dn/)). Proof is a live
+asciinema cast, not a browser screenshot. Example prompts:
+[Using Cursor](docs/cursor.md#local-dn-skill).
+
 ## Connect GitHub
 
 Commands that access GitHub need authentication. Prefer GitHub CLI; `dn auth` is

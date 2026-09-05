@@ -17,9 +17,12 @@ at each agent's native path:
 | `dn` (OpenCode)  | `.opencode/skills/dn/`           | OpenCode outer harness: kickstart / meld / loop, then ask before committing    |
 | `publish`        | `.agents/skills/publish/`        | Releasing or publishing dn itself                                              |
 | `milestone-plan` | `.agents/skills/milestone-plan/` | Decomposing an epic, roadmap slice, or multi-issue project into a dn milestone |
+| `local-dn`       | `.cursor/skills/local-dn/`       | Cursor: install this checkout’s `dn`; asciinema proof of CLI / issues          |
 
 Cursor-only skills also include `denoise-docs-pr` at
-`.cursor/skills/denoise-docs-pr/`. The `milestone-plan` skill is mirrored at
+`.cursor/skills/denoise-docs-pr/` and `local-dn` (see table). Example Cursor
+prompts for `local-dn`: [docs/cursor.md](../../docs/cursor.md#local-dn-skill).
+The `milestone-plan` skill is mirrored at
 `.cursor/skills/milestone-plan/SKILL.md` so both supported agent locations use
 the same workflow.
 
