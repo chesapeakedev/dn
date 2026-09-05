@@ -22,6 +22,7 @@ import { handleInitAgents } from "./init-agents.ts";
 import { handleInitStack } from "./init-stack.ts";
 import { handleInitWizard } from "./init-wizard.ts";
 import { handleIssue } from "./issue.ts";
+import { handleMilestone } from "./milestone.ts";
 import { handleInitWorkflows, handleWorkflows } from "./workflows.ts";
 import {
   type AgentSelection,
@@ -292,6 +293,9 @@ function showUsage(): void {
     "  issue        Manage GitHub issues and relationships",
   );
   console.error(
+    "  milestone    Manage GitHub milestones (create, list)",
+  );
+  console.error(
     "  workflows    Run, install, and manage GitHub Actions workflows",
   );
   console.error(
@@ -438,6 +442,10 @@ async function main(): Promise<void> {
     case "issue":
     case "issues":
       await handleIssue(subcommandArgs);
+      break;
+    case "milestone":
+    case "milestones":
+      await handleMilestone(subcommandArgs);
       break;
     case "workflows":
       await handleWorkflows(subcommandArgs);

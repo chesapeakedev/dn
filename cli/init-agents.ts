@@ -627,6 +627,11 @@ dn issue comment 123 --body-file update.md
 dn issue edit 123 --add-label needs-triage
 dn issue create --title "Brief title" --body-file description.md
 dn issue create --repo owner/repo --title "Brief title" --body-file description.md
+dn issue create --title "Brief title" --milestone 42
+dn issue edit 123 --milestone https://github.com/owner/repo/milestone/42
+dn issue edit 123 --clear-milestone
+dn milestone create --title "Q1" --description-file milestone.md
+dn milestone list --repo owner/repo --json
 dn issue relationship list 123
 \`\`\`
 

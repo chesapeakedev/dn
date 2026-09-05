@@ -63,6 +63,29 @@ const MILESTONES_QUERY = `
   }
 `;
 
+const REPOSITORY_ID_QUERY = `
+  query GetRepositoryId($owner: String!, $name: String!) {
+    repository(owner: $owner, name: $name) {
+      id
+    }
+  }
+`;
+
+const CREATE_MILESTONE_MUTATION = `
+  mutation CreateMilestone($input: CreateMilestoneInput!) {
+    createMilestone(input: $input) {
+      milestone {
+        id
+        number
+        title
+        description
+        state
+        dueOn
+      }
+    }
+  }
+`;
+
 export interface MilestoneIssue {
   number: number;
   title: string;
@@ -125,6 +148,42 @@ interface MilestonesResponse {
       }>;
     };
   };
+}
+
+interface RepositoryIdResponse {
+  repository: { id: string } | null;
+}
+
+interface CreateMilestoneResponse {
+  createMilestone: {
+    milestone: MilestoneListItem | null;
+  } | null;
+}
+
+interface MilestoneListItem {
+  id: string;
+  number: number;
+  title: string;
+  description: string | null;
+  state: string;
+  dueOn: string | null;
+}
+
+/** Options used to create a GitHub milestone. */
+export interface CreateMilestoneOptions {
+  title: string;
+  description?: string;
+  dueOn?: string;
+}
+
+/** Summary returned when creating or listing a milestone. */
+export interface MilestoneSummary {
+  id: string;
+  number: number;
+  title: string;
+  description: string | null;
+  state: string;
+  dueOn: string | null;
 }
 
 export function parseMilestoneUrl(url: string): {
@@ -245,6 +304,76 @@ export async function getMilestoneFromInput(
   throw new Error(
     `Invalid milestone: ${input}. Provide a milestone URL (https://github.com/owner/repo/milestone/3), a milestone number, or an exact open milestone title.`,
   );
+}
+
+/** Resolve a milestone number or URL to its GraphQL node ID. */
+export async function resolveMilestoneId(
+  owner: string,
+  repo: string,
+  input: string,
+): Promise<string> {
+  const trimmed = input.trim();
+  const urlParsed = parseMilestoneUrl(trimmed);
+  if (urlParsed) {
+    return (await getMilestone(
+      urlParsed.owner,
+      urlParsed.repo,
+      urlParsed.number,
+    )).id;
+  }
+
+  const number = Number(trimmed);
+  if (!Number.isSafeInteger(number) || number < 1) {
+    throw new Error(
+      `Invalid milestone: ${input}. Provide a milestone number or URL.`,
+    );
+  }
+  return (await getMilestone(owner, repo, number)).id;
+}
+
+/** Create an open GitHub milestone in a repository. */
+export async function createMilestone(
+  owner: string,
+  repo: string,
+  options: CreateMilestoneOptions,
+): Promise<MilestoneSummary> {
+  const client = await getClient();
+  const repositoryResult = await client.query(REPOSITORY_ID_QUERY, {
+    variables: { owner, name: repo },
+    cacheRead: false,
+    cacheWrite: false,
+  });
+  handleGraphQLErrors(
+    repositoryResult,
+    "Failed to create milestone",
+    owner,
+    repo,
+  );
+  const repositoryData = repositoryResult.data as RepositoryIdResponse | null;
+  const repositoryId = repositoryData?.repository?.id;
+  if (!repositoryId) {
+    throw new Error(`Repository ${owner}/${repo} not found`);
+  }
+
+  const input: Record<string, unknown> = {
+    repositoryId,
+    title: options.title,
+  };
+  if (options.description !== undefined) {
+    input.description = options.description;
+  }
+  if (options.dueOn !== undefined) input.dueOn = options.dueOn;
+
+  const result = await client.mutate(CREATE_MILESTONE_MUTATION, {
+    variables: { input },
+  });
+  handleGraphQLErrors(result, "Failed to create milestone", owner, repo);
+  const data = result.data as CreateMilestoneResponse | null;
+  const milestone = data?.createMilestone?.milestone;
+  if (!milestone) {
+    throw new Error("Failed to create milestone: No milestone returned");
+  }
+  return milestone;
 }
 
 export async function listOpenMilestones(

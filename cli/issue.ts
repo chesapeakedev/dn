@@ -33,6 +33,7 @@ import {
   removeSubIssue,
   reopenIssue,
   reprioritizeSubIssue,
+  resolveMilestoneId,
   updateIssue,
   type UpdateIssueOptions,
 } from "../sdk/mod.ts";
@@ -444,6 +445,7 @@ async function handleCreate(args: string[]): Promise<void> {
   let bodyStdin = false;
   const labels: string[] = [];
   let json = false;
+  let milestone: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -460,6 +462,8 @@ async function handleCreate(args: string[]): Promise<void> {
       bodyStdin = true;
     } else if (arg === "--label" && i + 1 < args.length) {
       labels.push(args[++i]);
+    } else if (arg === "--milestone" && i + 1 < args.length) {
+      milestone = args[++i];
     } else if (arg === "--json") {
       json = true;
     } else if (arg === "--help" || arg === "-h") {
@@ -501,6 +505,9 @@ async function handleCreate(args: string[]): Promise<void> {
     title,
     body: body || undefined,
     labels: labels.length > 0 ? labels : undefined,
+    milestoneId: milestone
+      ? await resolveMilestoneId(owner, repo, milestone)
+      : undefined,
   };
 
   const result = await createIssue(owner, repo, options);
@@ -523,6 +530,7 @@ function showCreateHelp(): void {
   console.log("  --body-file <path>    Read body from file");
   console.log("  --body-stdin          Read body from stdin");
   console.log("  --label <name>        Add label (repeatable)");
+  console.log("  --milestone <num-or-url> Assign milestone");
   console.log("  --json                Output as JSON");
   console.log("  --help, -h            Show this help message\n");
   console.log("Examples:");
@@ -549,6 +557,8 @@ async function handleEdit(args: string[]): Promise<void> {
   let bodyStdin = false;
   const addLabels: string[] = [];
   let json = false;
+  let milestone: string | undefined;
+  let clearMilestone = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -567,6 +577,10 @@ async function handleEdit(args: string[]): Promise<void> {
       addLabels.push(args[++i]);
     } else if (arg === "--json") {
       json = true;
+    } else if (arg === "--milestone" && i + 1 < args.length) {
+      milestone = args[++i];
+    } else if (arg === "--clear-milestone") {
+      clearMilestone = true;
     } else if (arg === "--help" || arg === "-h") {
       showEditHelp();
       return;
@@ -607,7 +621,9 @@ async function handleEdit(args: string[]): Promise<void> {
     body = new TextDecoder().decode(new Uint8Array(buffer));
   }
 
-  if (!title && !body && addLabels.length === 0) {
+  if (
+    !title && !body && addLabels.length === 0 && !milestone && !clearMilestone
+  ) {
     console.error(
       "Error: At least one of --title, --body, or --add-label required",
     );
@@ -618,6 +634,19 @@ async function handleEdit(args: string[]): Promise<void> {
   if (title !== undefined) options.title = title;
   if (body !== undefined) options.body = body;
   if (addLabels.length > 0) options.addLabels = addLabels;
+  if (milestone && clearMilestone) {
+    console.error("Error: Use only one of --milestone or --clear-milestone");
+    Deno.exit(1);
+  }
+  if (milestone) {
+    options.milestoneId = await resolveMilestoneId(
+      resolved.owner,
+      resolved.repo,
+      milestone,
+    );
+  } else if (clearMilestone) {
+    options.milestoneId = null;
+  }
 
   const result = await updateIssue(
     resolved.owner,
@@ -646,6 +675,8 @@ function showEditHelp(): void {
   console.log("  --body-file <path>    Read body from file");
   console.log("  --body-stdin          Read body from stdin");
   console.log("  --add-label <name>    Add label (repeatable)");
+  console.log("  --milestone <num-or-url> Assign milestone");
+  console.log("  --clear-milestone     Remove the milestone");
   console.log("  --json                Output as JSON");
   console.log("  --help, -h            Show this help message\n");
   console.log("Examples:");

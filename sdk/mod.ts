@@ -276,6 +276,20 @@ export function createAuthHandler(
 // Shared types
 export type { Commit, Issue } from "./github/types.ts";
 export type { AgentHarness, AgentSelection } from "./github/agentHarness.ts";
+export {
+  createMilestone,
+  getMilestone,
+  getMilestoneFromInput,
+  listOpenMilestones,
+  parseMilestoneUrl,
+  resolveMilestoneId,
+} from "./github/milestone.ts";
+export type {
+  CreateMilestoneOptions,
+  Milestone,
+  MilestoneIssue,
+  MilestoneSummary,
+} from "./github/milestone.ts";
 
 // Issue CRUD types
 export type {

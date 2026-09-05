@@ -181,6 +181,10 @@ Use `dn issue show <ref>` before editing GitHub issue state. Prefer
 `dn issue comment` for append-only progress updates, and use `dn issue edit`
 only when the user explicitly wants the issue body or metadata changed.
 
+Use `dn milestone create` and `dn milestone list` to manage open milestones.
+Issue creation and editing support `--milestone <num-or-url>`; use
+`--clear-milestone` when editing to remove an assignment.
+
 ## Outer harness
 
 You are the outer harness. Kickstart is a CLI command, not a nested

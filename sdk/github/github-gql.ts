@@ -1626,6 +1626,7 @@ export interface CreateIssueOptions {
   body?: string;
   labels?: string[];
   assignees?: string[];
+  milestoneId?: string;
 }
 
 /**
@@ -1637,6 +1638,7 @@ export interface UpdateIssueOptions {
   addLabels?: string[];
   removeLabels?: string[];
   assignees?: string[];
+  milestoneId?: string | null;
 }
 
 /**
@@ -2124,6 +2126,9 @@ export async function createIssue(
   if (labelIds.length > 0) {
     input.labelIds = labelIds;
   }
+  if (options.milestoneId !== undefined) {
+    input.milestoneId = options.milestoneId;
+  }
 
   // Note: assignees requires user IDs, not logins. For simplicity, we skip assignees
   // in the create mutation. Users can update the issue afterward.
@@ -2174,6 +2179,10 @@ export async function updateIssue(
 
   if (options.body !== undefined) {
     input.body = options.body;
+  }
+
+  if (options.milestoneId !== undefined) {
+    input.milestoneId = options.milestoneId;
   }
 
   // Handle labels

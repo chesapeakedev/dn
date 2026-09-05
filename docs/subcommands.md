@@ -1438,8 +1438,11 @@ dn issue show 123 --repo owner/repo        # Resolve number in another repo
 dn issue show 123 --no-comments            # Details only
 dn issue create --title "Bug" --body-file report.md
 dn issue create --repo owner/repo --title "Bug" --body-file report.md
+dn issue create --title "Bug" --milestone 42
 dn issue edit 123 --title "New title"
 dn issue edit 123 --add-label bug
+dn issue edit 123 --milestone https://github.com/owner/repo/milestone/42
+dn issue edit 123 --clear-milestone
 dn issue close 123                         # Close as completed
 dn issue close 123 --reason not_planned    # Close as not planned
 dn issue close 123 --comment "Fixed in #456"
@@ -1462,3 +1465,17 @@ as parent issue, sub-issues, blockers, blocked issues, and duplicate-of when
 GitHub exposes it for the issue. Those reads follow GitHub’s GraphQL paging: at
 most ten related-issue references appear per blocking/sub-issue edge unless the
 totals-only summary shows a larger total count (“more not shown”).
+
+## `dn milestone` — Manage GitHub milestones
+
+Create and list open milestones using the authenticated GitHub account:
+
+```bash
+dn milestone create --title "Q1 work"
+dn milestone create --title "Q1 work" --description-file milestone.md --due-on 2026-03-31
+dn milestone list --repo owner/repo --json
+```
+
+Milestone numbers refer to the current repository unless a full GitHub milestone
+URL is supplied. Use `--clear-milestone` with `dn issue edit` to remove an
+issue's milestone assignment.

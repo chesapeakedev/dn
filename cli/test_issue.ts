@@ -21,3 +21,12 @@ Deno.test("relationship help lists supported operations", async () => {
   assert(result.stdout.includes("mark-duplicate"));
   assert(result.stdout.includes("reprioritize sub-issue"));
 });
+
+Deno.test("milestone help lists create and list commands", async () => {
+  const result = await runDnCommand(["milestone", "--help"], {
+    expectFailure: false,
+  });
+
+  assert(result.stdout.includes("create"));
+  assert(result.stdout.includes("list"));
+});

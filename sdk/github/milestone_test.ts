@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { assertEquals } from "@std/assert";
-import { matchMilestoneByTitle } from "./milestone.ts";
+import { assertRejects } from "@std/assert";
+import { matchMilestoneByTitle, resolveMilestoneId } from "./milestone.ts";
 
 Deno.test("matchMilestoneByTitle returns number for exact case-insensitive match", () => {
   const milestones = [
@@ -23,4 +24,12 @@ Deno.test("matchMilestoneByTitle returns null for ambiguous or missing titles", 
   assertEquals(matchMilestoneByTitle(milestones, "Release"), null);
   assertEquals(matchMilestoneByTitle(milestones, "Missing"), null);
   assertEquals(matchMilestoneByTitle(milestones, "   "), null);
+});
+
+Deno.test("resolveMilestoneId rejects unsupported milestone references", async () => {
+  await assertRejects(
+    () => resolveMilestoneId("owner", "repo", "Q1 Features"),
+    Error,
+    "Provide a milestone number or URL",
+  );
 });
