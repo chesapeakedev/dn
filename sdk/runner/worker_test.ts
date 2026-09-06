@@ -63,6 +63,7 @@ class RecordingClient implements RunnerWorkerClient {
   progress: RunnerProgressEvent[] = [];
   completion: RunnerJobCompletion | null = null;
   failure: RunnerJobFailure | null = null;
+  calls: string[] = [];
   cancelOnRenewal = false;
   credentials: string[] = [];
 
@@ -95,6 +96,7 @@ class RecordingClient implements RunnerWorkerClient {
     _jobId: string,
     completion: RunnerJobCompletion,
   ): Promise<void> {
+    this.calls.push("complete");
     this.completion = completion;
     return Promise.resolve();
   }
@@ -107,6 +109,7 @@ class RecordingClient implements RunnerWorkerClient {
     _jobId: string,
     input: { path: string; markdown: string },
   ): Promise<void> {
+    this.calls.push("upload-plan");
     this.uploadedPlan = input;
     return Promise.resolve();
   }
@@ -1130,6 +1133,50 @@ Deno.test("runRunnerJob logs spawn, phase, and publish; skips agent.line", async
   assertEquals(status.some((line) => line.includes("thinking")), false);
   assertEquals(status.some((line) => line.includes("Resolving issue")), false);
   assertEquals(client.progress.length, 4);
+});
+
+Deno.test("runRunnerJob uploads a paused plan before completing the job", async () => {
+  const directory = await Deno.makeTempDir({ prefix: "dn-runner-plan-" });
+  const planPath = "plans/issue-213.plan.md";
+  await Deno.mkdir(`${directory}/plans`, { recursive: true });
+  await Deno.writeTextFile(`${directory}/${planPath}`, "# Plan\n");
+  const planJob = job();
+  planJob.operation = {
+    type: "kickstart",
+    issue_url: "https://github.com/chesapeakedev/dn/issues/213",
+    publish: "pr",
+    agent: "codex",
+    pause_after: "plan",
+  };
+  const client = new RecordingClient();
+  try {
+    await runRunnerJob(planJob, {
+      runnerId: "runner-1",
+      commandPrefix: ["/usr/local/bin/dn"],
+      config: localConfig(directory),
+      client,
+      spawn: () => ({
+        stdout: stream("done\n"),
+        stderr: stream(
+          `${
+            progressEvent("phase.completed", "Plan ready", {
+              phase: "plan",
+              data: { plan_path: planPath },
+            })
+          }\n`,
+        ),
+        status: Promise.resolve({ success: true, code: 0, signal: null }),
+        kill() {},
+      }),
+    });
+    assertEquals(client.calls, ["upload-plan", "complete"]);
+    assertEquals(client.uploadedPlan, {
+      path: planPath,
+      markdown: "# Plan\n",
+    });
+  } finally {
+    await Deno.remove(directory, { recursive: true });
+  }
 });
 
 Deno.test("runRunnerJob logs cancel before the terminal outcome", async () => {

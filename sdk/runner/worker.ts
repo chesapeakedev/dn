@@ -877,10 +877,6 @@ export async function runRunnerJob(
         ...(status.code === undefined ? {} : { exitCode: status.code }),
       };
     }
-    await options.client.completeJob(
-      job.id,
-      completionFrom(startedAt, prUrl),
-    );
     const shouldUploadPlan = job.operation.type === "kickstart" &&
       job.operation.pause_after === "plan" &&
       options.client.uploadPlan != null;
@@ -900,6 +896,10 @@ export async function runRunnerJob(
         }
       }
     }
+    await options.client.completeJob(
+      job.id,
+      completionFrom(startedAt, prUrl),
+    );
     return { kind: "succeeded", prUrl, durationMs };
   } finally {
     await cleanup?.();
