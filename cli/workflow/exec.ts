@@ -760,6 +760,32 @@ export function resolveWorkflowArguments(
         if (saved) args.push("--saved-plan", saved[1]);
       }
     }
+    if (
+      payload.verbosity !== undefined &&
+      payload.verbosity !== "low" &&
+      payload.verbosity !== "medium" &&
+      payload.verbosity !== "high"
+    ) {
+      throw new WorkflowExecError(
+        "invalid_payload",
+        "client_payload.verbosity must be low, medium, or high",
+      );
+    }
+    if (
+      payload.steer !== undefined &&
+      (typeof payload.steer !== "string" || payload.steer.length > 16000)
+    ) {
+      throw new WorkflowExecError(
+        "invalid_payload",
+        "client_payload.steer must be a string of at most 16000 characters",
+      );
+    }
+    if (payload.verbosity !== undefined) {
+      args.push("--verbosity", payload.verbosity);
+    }
+    if (typeof payload.steer === "string" && payload.steer.trim() !== "") {
+      args.push("--steer", payload.steer.trim());
+    }
     args.push(resolveIssue(payload));
     return withAllowCrossRepo(args, env);
   }

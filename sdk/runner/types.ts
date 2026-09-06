@@ -306,6 +306,10 @@ export interface RunnerKickstartOperation {
   pause_after?: "plan";
   /** Skip plan generation and implement from an existing plan. */
   skip_plan?: boolean;
+  /** Optional instructions that steer plan generation. */
+  steer?: string;
+  /** Requested plan detail level. */
+  verbosity?: "low" | "medium" | "high";
 }
 
 /** Implement an already-reviewed plan with `dn loop`. */
@@ -610,6 +614,10 @@ export interface RunnerKickstartRequest {
   issue_url: string;
   /** Requested local publish behavior. */
   publish: PublishMode;
+  /** Optional instructions that steer plan generation. */
+  steer?: string;
+  /** Requested plan detail level. */
+  verbosity?: "low" | "medium" | "high";
 }
 
 /** Request body used by `dn runner kickstart --denoise-task`. */

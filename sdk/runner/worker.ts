@@ -290,6 +290,12 @@ export function buildRunnerKickstartCommand(
       "none",
       "--publish",
       job.operation.publish,
+      ...(job.operation.verbosity != null
+        ? ["--verbosity", job.operation.verbosity]
+        : []),
+      ...(job.operation.steer != null && job.operation.steer.trim() !== ""
+        ? ["--steer", job.operation.steer]
+        : []),
       ...(job.operation.pause_after === "plan" ? ["--plan-only"] : []),
       ...(job.operation.skip_plan === true ? ["--skip-plan"] : []),
       ...allowCrossRepoArgs(job.operation.issue_url, job.repository),

@@ -1218,6 +1218,8 @@ Deno.test("buildRunnerKickstartCommand adds --plan-only for pause_after plan", a
     issue_url: "https://github.com/chesapeakedev/dn/issues/213",
     publish: "pr",
     agent: "codex",
+    verbosity: "low",
+    steer: "Keep the plan focused.",
     pause_after: "plan",
   };
   const { argv } = await buildRunnerKickstartCommand(planJob, [
@@ -1233,6 +1235,10 @@ Deno.test("buildRunnerKickstartCommand adds --plan-only for pause_after plan", a
     "none",
     "--publish",
     "pr",
+    "--verbosity",
+    "low",
+    "--steer",
+    "Keep the plan focused.",
     "--plan-only",
     "https://github.com/chesapeakedev/dn/issues/213",
   ]);

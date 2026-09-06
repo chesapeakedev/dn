@@ -159,6 +159,41 @@ Deno.test("resolveWorkflowArguments adds --plan-only for pause_after plan", () =
   );
 });
 
+Deno.test("resolveWorkflowArguments forwards plan controls", () => {
+  const issue = "https://github.com/acme/widgets/issues/42";
+  assertEquals(
+    resolveWorkflowArguments(
+      "dn.kickstart_issue",
+      "repository_dispatch",
+      {
+        action: "dn.kickstart_issue",
+        client_payload: {
+          schema_version: "1.0",
+          dispatch_id: "dispatch-controls",
+          issue_url: issue,
+          awp: true,
+          verbosity: "low",
+          steer: "Keep the plan focused.",
+        },
+      },
+      "cursor",
+      { GITHUB_REPOSITORY: "acme/widgets" },
+    ),
+    [
+      "--agent",
+      "cursor",
+      "kickstart",
+      "--publish",
+      "pr",
+      "--verbosity",
+      "low",
+      "--steer",
+      "Keep the plan focused.",
+      issue,
+    ],
+  );
+});
+
 Deno.test("resolveWorkflowArguments adds --skip-plan for implement beat", () => {
   const issue = "https://github.com/acme/widgets/issues/42";
   assertEquals(
