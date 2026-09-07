@@ -39,6 +39,7 @@ async function handleTidyAgent(args: string[]): Promise<void> {
     console.log("Supported harness: opencode");
     console.log("  --check  Report drift without changing files");
     console.log("  --fix    Create or patch files");
+    console.log("With no flag, report-only mode is used without a TTY.");
     return;
   }
 

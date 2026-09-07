@@ -24,8 +24,25 @@ Deno.test("dn tidy agent checks and creates OpenCode phase configs", async () =>
     const plan = JSON.parse(
       await Deno.readTextFile(`${testRepo.path}/opencode.plan.json`),
     );
+    const implement = JSON.parse(
+      await Deno.readTextFile(`${testRepo.path}/opencode.implement.json`),
+    );
+    assertEquals(plan.$schema, "https://opencode.ai/config.json");
     assertEquals(plan.permission.edit["plans/**/*.plan.md"], "allow");
     assertEquals(plan.permission.edit["**/*.plan.md"], "allow");
+    assertEquals(implement.$schema, "https://opencode.ai/config.json");
+    assertEquals(implement.permission.edit["*"], "allow");
+
+    const secondFix = await runDnCommand(["tidy", "agent", "--fix"], {
+      cwd: testRepo.path,
+    });
+    assert(secondFix.success);
+    assertEquals(
+      secondFix.stdout.match(/^(?:ok|fixed|missing) /gm)?.filter((line) =>
+        line.startsWith("fixed ")
+      ).length ?? 0,
+      0,
+    );
 
     const secondCheck = await runDnCommand(["tidy", "agent", "--check"], {
       cwd: testRepo.path,
