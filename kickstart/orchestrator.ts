@@ -33,6 +33,7 @@ import { assembleCombinedPrompt } from "../sdk/github/prompt.ts";
 import { createPR } from "../sdk/github/github.ts";
 import type { PRPlanSummary } from "../sdk/github/github.ts";
 import {
+  type AcceptanceCriteriaReport,
   createProgressReporter,
   processDurationData,
   type ProgressReporter,
@@ -44,6 +45,7 @@ import {
   checkAcceptanceCriteriaCompletion,
   extractPlanSummary,
 } from "./lib.ts";
+import { acceptanceCriteriaReportFromPlanContent } from "./planCompletion.ts";
 import type { PlanSummary } from "./lib.ts";
 import { decidePlanSkip, type PlanCompletionStatus } from "./issueAdequacy.ts";
 import {
@@ -642,6 +644,7 @@ export async function runOrchestrator(
   const publishesChanges = publish !== "none";
   const reporter = createProgressReporter();
   const processStartedAt = Date.now();
+  let acceptanceReport: AcceptanceCriteriaReport | undefined;
 
   const report = async (
     type:
@@ -671,6 +674,9 @@ export async function runOrchestrator(
         ? {
           data: {
             ...options.data,
+            ...(acceptanceReport
+              ? { acceptance_report: acceptanceReport }
+              : {}),
             ...processDurationData(processStartedAt),
           },
         }
@@ -1166,6 +1172,15 @@ export async function runOrchestrator(
     try {
       let completionStatus = await checkAcceptanceCriteriaCompletion(
         planFilePath,
+      );
+      acceptanceReport = acceptanceCriteriaReportFromPlanContent(
+        await Deno.readTextFile(planFilePath),
+        planRelativePath,
+      );
+      await Deno.mkdir(`${WORKSPACE_ROOT}/.dn`, { recursive: true });
+      await Deno.writeTextFile(
+        `${WORKSPACE_ROOT}/.dn/acceptance-report.json`,
+        JSON.stringify(acceptanceReport, null, 2) + "\n",
       );
 
       if (structuredImplementResult) {

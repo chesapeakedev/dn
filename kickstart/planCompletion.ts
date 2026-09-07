@@ -84,3 +84,37 @@ export function completionStatusFromPlanContent(content: string): {
     parseMarkdownCheckboxes(sectionContent),
   );
 }
+
+/**
+ * Creates a durable, transport-safe acceptance report from a plan.
+ *
+ * This deliberately reports checklist state only. It does not claim that
+ * tests or an independent human review passed.
+ */
+export function acceptanceCriteriaReportFromPlanContent(
+  content: string,
+  planPath?: string,
+): import("../sdk/github/progress.ts").AcceptanceCriteriaReport {
+  const body = content.replace(/^---[\s\S]*?---\s*/i, "").trim();
+  const sectionMatch = body.match(/^##\s+Acceptance\s+Criteria\s*$/mi);
+  const sectionStart = sectionMatch?.index == null
+    ? 0
+    : sectionMatch.index + sectionMatch[0].length;
+  const rest = body.slice(sectionStart);
+  const nextSection = sectionMatch ? rest.match(/^##\s+/m) : null;
+  const section = nextSection ? rest.slice(0, nextSection.index) : rest;
+  const criteria = [...section.matchAll(/^[-*]\s+\[([ xX])\]\s+(.+)$/gm)]
+    .map((match) => ({
+      text: match[2].trim(),
+      completed: match[1].toLowerCase() === "x",
+    }));
+  const completed = criteria.filter((criterion) => criterion.completed).length;
+  return {
+    schema_version: "1.0",
+    ...(planPath ? { plan_path: planPath } : {}),
+    completed,
+    total: criteria.length,
+    criteria,
+    checklist_complete: criteria.length > 0 && completed === criteria.length,
+  };
+}

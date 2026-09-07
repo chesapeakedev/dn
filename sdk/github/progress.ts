@@ -42,6 +42,17 @@ export interface ProgressEventInput {
   data?: Record<string, unknown>;
 }
 
+/** Machine-readable acceptance-criteria result attached to a terminal run. */
+export interface AcceptanceCriteriaReport {
+  schema_version: "1.0";
+  plan_path?: string;
+  completed: number;
+  total: number;
+  criteria: Array<{ text: string; completed: boolean }>;
+  /** Checklist state only; this is not a test verdict. */
+  checklist_complete: boolean;
+}
+
 /**
  * Process wall-clock milliseconds from a local start time.
  *

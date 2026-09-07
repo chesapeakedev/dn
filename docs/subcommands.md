@@ -1284,8 +1284,12 @@ auto-detected, materialized to markdown, and used as the plan.
 ### Incomplete plans and human actions
 
 After each implement pass, the agent updates the plan Acceptance Criteria
-checkboxes and writes `.dn/implement-result.json`. `dn` prints that result so
-you can decide the next step without guessing from a bare `6/8` counter.
+checkboxes and writes `.dn/implement-result.json`. `dn` also writes
+`.dn/acceptance-report.json`, a machine-readable snapshot of the final
+checklist. Runner jobs attach the same report to their completion receipt, so
+the criteria remain inspectable after a publishing run deletes the plan file.
+The report describes checklist state only; it is not a test verdict or an
+independent review of the issue.
 
 Each unfinished task should include `work_kind`: `feature`, `tests`, `docs`, or
 `other`. When every unfinished task is `work_kind: "tests"`, status is

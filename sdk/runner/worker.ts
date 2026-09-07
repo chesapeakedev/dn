@@ -30,6 +30,7 @@ import {
   validateRunnerJob,
 } from "./types.ts";
 import { applyTaskSyncOp, listTasks } from "../tasks/tasks.ts";
+import type { AcceptanceCriteriaReport } from "../github/progress.ts";
 
 const DEFAULT_LEASE_RENEWAL_MS = 15_000;
 const DEFAULT_CANCELLATION_GRACE_MS = 10_000;
@@ -641,6 +642,7 @@ async function findLatestPlanArtifact(
 function completionFrom(
   startedAt: number,
   prUrl?: string,
+  acceptanceReport?: AcceptanceCriteriaReport,
 ): RunnerJobCompletion {
   const durationMs = Math.max(0, Date.now() - startedAt);
   return {
@@ -649,6 +651,7 @@ function completionFrom(
     local_compute_minutes: Math.ceil(durationMs / 60_000),
     hosted_runs_avoided: 1,
     ...(prUrl ? { pr_url: prUrl } : {}),
+    ...(acceptanceReport ? { acceptance_report: acceptanceReport } : {}),
   };
 }
 
@@ -730,6 +733,7 @@ export async function runRunnerJob(
   let prUrl: string | undefined;
   let invocationFailedMessage: string | undefined;
   let planPath: string | undefined;
+  let acceptanceReport: AcceptanceCriteriaReport | undefined;
   const diagnosticLines: string[] = [];
   const graceMs = options.cancellationGraceMs ?? DEFAULT_CANCELLATION_GRACE_MS;
 
@@ -796,6 +800,12 @@ export async function runRunnerJob(
       typeof progressEvent.data?.plan_path === "string"
     ) {
       planPath = progressEvent.data.plan_path;
+    }
+    if (progressEvent.type === "invocation.succeeded") {
+      const candidate = progressEvent.data?.acceptance_report;
+      if (candidate && typeof candidate === "object") {
+        acceptanceReport = candidate as AcceptanceCriteriaReport;
+      }
     }
     const scanLine = formatRunnerProgressLog(job.id, progressEvent);
     if (scanLine) options.status?.(scanLine);
@@ -904,7 +914,7 @@ export async function runRunnerJob(
     }
     await options.client.completeJob(
       job.id,
-      completionFrom(startedAt, prUrl),
+      completionFrom(startedAt, prUrl, acceptanceReport),
     );
     return { kind: "succeeded", prUrl, durationMs };
   } finally {
