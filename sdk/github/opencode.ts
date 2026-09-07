@@ -16,6 +16,109 @@ import {
 import type { AgentRunOptions } from "./agentHarness.ts";
 import type { ProgressReporter } from "./progress.ts";
 
+type OpenCodePhase = "plan" | "implement";
+
+/**
+ * Returns the canonical permissions config used when bootstrapping a phase.
+ *
+ * @param phase - OpenCode phase to configure
+ */
+export function defaultOpenCodeConfig(
+  phase: OpenCodePhase,
+): Record<string, unknown> {
+  return {
+    "$schema": "https://opencode.ai/config.json",
+    "permission": {
+      "edit": phase === "plan"
+        ? {
+          "*": "deny",
+          "/tmp/**": "allow",
+          "plans/**/*.plan.md": "allow",
+          "plans/*.plan.md": "allow",
+          "**/*.plan.md": "allow",
+        }
+        : {
+          "*": "allow",
+          "/tmp/**": "allow",
+        },
+      "bash": {
+        "*": "allow",
+      },
+      "external_directory": "allow",
+    },
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/**
+ * Ensures an OpenCode phase config exists and has the standard plan-file
+ * permissions. Returns whether the file would be changed or was changed.
+ *
+ * @param workspaceRoot - Repository root containing the phase config files
+ * @param phase - OpenCode phase whose config should be maintained
+ * @param checkOnly - Report drift without writing files
+ */
+export async function ensureOpenCodePhaseConfig(
+  workspaceRoot: string,
+  phase: OpenCodePhase,
+  checkOnly = false,
+): Promise<boolean> {
+  const configPath = `${workspaceRoot}/opencode.${phase}.json`;
+  let config: Record<string, unknown>;
+  let changed = false;
+  try {
+    const parsed: unknown = JSON.parse(await Deno.readTextFile(configPath));
+    if (!isRecord(parsed)) throw new Error("config is not an object");
+    config = parsed;
+  } catch {
+    config = defaultOpenCodeConfig(phase);
+    changed = true;
+  }
+
+  if (phase === "plan") {
+    const permission = isRecord(config.permission) ? config.permission : {};
+    const edit = isRecord(permission.edit)
+      ? permission.edit
+      : { "*": "deny", "/tmp/**": "allow" };
+    const required: Record<string, unknown> = {
+      "plans/**/*.plan.md": "allow",
+      "plans/*.plan.md": "allow",
+      "**/*.plan.md": "allow",
+    };
+    for (const [path, value] of Object.entries(required)) {
+      if (edit[path] !== value) {
+        edit[path] = value;
+        changed = true;
+      }
+    }
+    if (permission.edit !== edit) changed = true;
+    if (config.permission !== permission) changed = true;
+    if (edit["/tmp/**"] !== "allow") changed = true;
+    if (!isRecord(permission.bash)) changed = true;
+    if (permission.external_directory !== "allow") changed = true;
+    if (config["$schema"] !== "https://opencode.ai/config.json") {
+      changed = true;
+    }
+    permission.edit = edit;
+    edit["/tmp/**"] = "allow";
+    permission.bash = { "*": "allow" };
+    permission.external_directory = "allow";
+    config.permission = permission;
+    config["$schema"] = "https://opencode.ai/config.json";
+  }
+
+  if (changed && !checkOnly) {
+    await Deno.writeTextFile(
+      configPath,
+      JSON.stringify(config, null, 2) + "\n",
+    );
+  }
+  return changed;
+}
+
 /**
  * Persist an additional `permission.edit.allow` glob into `opencode.plan.json`.
  *
@@ -209,22 +312,7 @@ export async function runOpenCode(
     } catch {
       // Try to create a default plan config template
       try {
-        const defaultPlanConfig = {
-          "$schema": "https://opencode.ai/config.json",
-          "permission": {
-            "edit": {
-              "*": "deny",
-              "/tmp/**": "allow",
-              "plans/**/*.plan.md": "allow",
-              "plans/*.plan.md": "allow",
-              "**/*.plan.md": "allow",
-            },
-            "bash": {
-              "*": "allow",
-            },
-            "external_directory": "allow",
-          },
-        };
+        const defaultPlanConfig = defaultOpenCodeConfig("plan");
         await Deno.writeTextFile(
           planConfigPath,
           JSON.stringify(defaultPlanConfig, null, 2) + "\n",
@@ -251,19 +339,7 @@ export async function runOpenCode(
     } catch {
       // Try to create a default implement config template
       try {
-        const defaultImplementConfig = {
-          "$schema": "https://opencode.ai/config.json",
-          "permission": {
-            "edit": {
-              "*": "allow",
-              "/tmp/**": "allow",
-            },
-            "bash": {
-              "*": "allow",
-            },
-            "external_directory": "allow",
-          },
-        };
+        const defaultImplementConfig = defaultOpenCodeConfig("implement");
         await Deno.writeTextFile(
           implementConfigPath,
           JSON.stringify(defaultImplementConfig, null, 2) + "\n",

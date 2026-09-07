@@ -332,7 +332,7 @@ function showUsage(): void {
     "  todo         Manage prioritized task list (~/.dn/todo.md); 'done' marks item and closes issue",
   );
   console.error(
-    "  tidy         Groom todo list: re-fetch issues, re-score, update ~/.dn/todo.md",
+    "  tidy         Groom todo list or check agent harness files",
   );
   console.error(
     "  sync         Git/Sapling: rebase onto trunk and publish local commits",

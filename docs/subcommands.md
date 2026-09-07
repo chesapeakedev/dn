@@ -482,6 +482,17 @@ dn tidy --limit 10
 
 See `dn tidy --help` for all options.
 
+Use `dn tidy agent` to maintain harness files implied by the resolved `dn.json`
+agent. For `agent: opencode`, it checks or creates `opencode.plan.json` and
+`opencode.implement.json`, and ensures plan files are editable during the plan
+phase. `--check` reports drift and exits non-zero when changes are needed;
+`--fix` applies the changes.
+
+```bash
+dn tidy agent --check
+dn tidy agent --fix
+```
+
 ## `dn auth` — Complementary GitHub sign-in
 
 Prefer **`gh auth login`** when you use GitHub CLI — `dn` reads `gh auth token`

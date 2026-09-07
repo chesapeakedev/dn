@@ -28,6 +28,57 @@ import {
   mergeAgentSelections,
 } from "../sdk/github/agentHarness.ts";
 import { resolveLocalAgentHarness } from "../sdk/config/localAgent.ts";
+import { resolveDnConfig } from "../sdk/config/resolve.ts";
+import { ensureOpenCodePhaseConfig } from "../sdk/github/opencode.ts";
+
+async function handleTidyAgent(args: string[]): Promise<void> {
+  if (args.includes("--help") || args.includes("-h")) {
+    console.log("dn tidy agent - Check agent harness configuration\n");
+    console.log("Usage: dn tidy agent [--check | --fix]\n");
+    console.log("Ensures phase config files for the resolved agent harness.");
+    console.log("Supported harness: opencode");
+    console.log("  --check  Report drift without changing files");
+    console.log("  --fix    Create or patch files");
+    return;
+  }
+
+  const check = args.includes("--check");
+  const fix = args.includes("--fix");
+  if (check && fix) throw new Error("Use only one of --check or --fix.");
+  const workspaceRoot = Deno.env.get("WORKSPACE_ROOT") ?? Deno.cwd();
+  const config = await resolveDnConfig({ repoRoot: workspaceRoot });
+  if (config.agent !== "opencode") {
+    console.log(
+      config.agent
+        ? `dn tidy agent: ${config.agent} harness does not require checks.`
+        : "dn tidy agent: no agent configured; nothing to check.",
+    );
+    return;
+  }
+
+  const checkOnly = check || !fix && !Deno.stdin.isTerminal();
+  const phases = ["plan", "implement"] as const;
+  let changesNeeded = false;
+  for (const phase of phases) {
+    const path = `${workspaceRoot}/opencode.${phase}.json`;
+    const needed = await ensureOpenCodePhaseConfig(
+      workspaceRoot,
+      phase,
+      checkOnly,
+    );
+    if (!needed) {
+      console.log(`ok ${path}`);
+    } else if (checkOnly) {
+      console.log(`missing ${path}`);
+      changesNeeded = true;
+    } else {
+      console.log(`fixed ${path}`);
+    }
+  }
+  if (checkOnly && changesNeeded) {
+    throw new Error("dn tidy agent --check found files that need changes.");
+  }
+}
 
 function promptYesNo(message: string): boolean {
   const answer = prompt(message + " (y/n): ")?.trim().toLowerCase();
@@ -38,9 +89,14 @@ export async function handleTidy(
   args: string[],
   globalAgent: AgentSelection | null = null,
 ): Promise<void> {
+  if (args[0] === "agent") {
+    await handleTidyAgent(args.slice(1));
+    return;
+  }
   if (args.includes("--help") || args.includes("-h")) {
     console.log("dn tidy - Groom the prioritized todo list\n");
     console.log("Usage: dn tidy [options]\n");
+    console.log("  dn tidy agent [--check | --fix]\n");
     console.log(
       "Re-fetches recent open issues, scores them (Fibonacci 1–8), and updates ~/.dn/todo.md.",
     );
