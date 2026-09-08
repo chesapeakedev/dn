@@ -452,7 +452,10 @@ export async function getCurrentBranch(
 /**
  * Resolves the repository default branch name from origin/HEAD or falls back to main.
  */
-export async function resolveDefaultBranch(): Promise<string> {
+export async function resolveDefaultBranch(
+  vcs: "git" | "sapling" = "git",
+): Promise<string> {
+  if (vcs === "sapling") return "main";
   try {
     const ref = await $`git symbolic-ref refs/remotes/origin/HEAD`.text();
     const match = ref.trim().match(/refs\/remotes\/origin\/(.+)$/);
@@ -522,7 +525,7 @@ export async function prepareVcsForPublish(
   const currentBranch = await getCurrentBranch(vcsContext.vcs);
 
   if (mode === "direct") {
-    const defaultBranch = await resolveDefaultBranch();
+    const defaultBranch = await resolveDefaultBranch(vcsContext.vcs);
     if (currentBranch !== defaultBranch) {
       if (vcsContext.vcs === "sapling") {
         await $`sl goto ${defaultBranch}`.quiet().noThrow();
