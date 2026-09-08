@@ -28,7 +28,6 @@ import {
   type IssueListItem,
   type IssueRelationshipReference,
   type IssueRelationshipSummary,
-  type IssueSplitProposal,
   type IssueWithComments,
   listIssues,
   parseIssueSplitDecision,

@@ -17,7 +17,7 @@ const result = (number: number) => ({
   state: "OPEN",
 });
 
-Deno.test("parseIssueSplitProposal requires exactly two complete issue records", async () => {
+Deno.test("parseIssueSplitProposal requires exactly two complete issue records", () => {
   assertEquals(
     parseIssueSplitProposal({
       original: { title: "A", body: "a" },
@@ -59,16 +59,17 @@ Deno.test("applyIssueSplit creates child, updates original, then attaches child"
     }),
     { labels: ["bug"], milestoneId: "milestone-1" },
     {
-      createIssue: async (options) => {
+      createIssue: (options) => {
         calls.push(`create:${options.title}:${options.milestoneId}`);
-        return result(2);
+        return Promise.resolve(result(2));
       },
-      updateIssue: async (options) => {
+      updateIssue: (options) => {
         calls.push(`update:${options.title}`);
-        return result(1);
+        return Promise.resolve(result(1));
       },
-      addSubIssue: async (number) => {
+      addSubIssue: (number) => {
         calls.push(`attach:${number}`);
+        return Promise.resolve();
       },
     },
   );
@@ -85,9 +86,9 @@ Deno.test("applyIssueSplit reports relationship failures after mutations", async
     }),
     {},
     {
-      createIssue: async () => result(2),
-      updateIssue: async () => result(1),
-      addSubIssue: async () => {
+      createIssue: () => Promise.resolve(result(2)),
+      updateIssue: () => Promise.resolve(result(1)),
+      addSubIssue: () => {
         throw new Error("permission denied");
       },
     },
