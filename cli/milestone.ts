@@ -5,6 +5,7 @@ import {
   createMilestone,
   getCurrentRepoFromRemote,
   listOpenMilestones,
+  publishMilestonePlan,
 } from "../sdk/mod.ts";
 
 interface RepoRef {
@@ -128,6 +129,51 @@ async function handleList(args: string[]): Promise<void> {
   }
 }
 
+async function handlePublish(args: string[]): Promise<void> {
+  const planPath = args.find((arg) => !arg.startsWith("--"));
+  if (!planPath) throw new Error("Plan file is required");
+  let repo: string | undefined;
+  let dryRun = false;
+  let json = false;
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === planPath) continue;
+    if (args[i] === "--repo") repo = optionValue(args, i++, "--repo");
+    else if (args[i] === "--dry-run") dryRun = true;
+    else if (args[i] === "--json") json = true;
+    else if (args[i] === "--help" || args[i] === "-h") {
+      showPublishHelp();
+      return;
+    } else throw new Error(`Unknown option: ${args[i]}`);
+  }
+  const plan = JSON.parse(await Deno.readTextFile(planPath)) as unknown;
+  const result = await publishMilestonePlan(plan, { repo, dryRun });
+  if (json) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+  if ("dry_run" in result) {
+    console.log(
+      `Validated plan for ${result.repo.owner}/${result.repo.repo} (dry run).`,
+    );
+    console.log(`Would create milestone: ${result.milestone.title}`);
+    console.log(`Would create ${result.issues.length} issue(s).`);
+    return;
+  }
+  console.log(
+    `Published milestone #${result.milestone.number} with ${result.issues.length} issue(s).`,
+  );
+}
+
+function showPublishHelp(): void {
+  console.log("dn milestone publish - Publish a milestone plan\n");
+  console.log("Usage:");
+  console.log("  dn milestone publish <plan.json> [options]\n");
+  console.log("Options:");
+  console.log("  --repo <owner/repo>   Repository to modify");
+  console.log("  --dry-run             Validate and preview without mutations");
+  console.log("  --json                Output as JSON");
+}
+
 /** Handle the `dn milestone` command. */
 export async function handleMilestone(args: string[]): Promise<void> {
   const subcommand = args[0];
@@ -135,10 +181,13 @@ export async function handleMilestone(args: string[]): Promise<void> {
     console.log("dn milestone - Manage GitHub milestones\n");
     console.log("  create    Create a milestone");
     console.log("  list      List open milestones");
+    console.log("  publish   Publish a milestone plan");
     return;
   }
   if (subcommand === "create") await handleCreate(args.slice(1));
   else if (subcommand === "list" || subcommand === "ls") {
     await handleList(args.slice(1));
+  } else if (subcommand === "publish") {
+    await handlePublish(args.slice(1));
   } else throw new Error(`Unknown milestone subcommand: ${subcommand}`);
 }

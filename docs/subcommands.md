@@ -1489,8 +1489,15 @@ Create and list open milestones using the authenticated GitHub account:
 dn milestone create --title "Q1 work"
 dn milestone create --title "Q1 work" --description-file milestone.md --due-on 2026-03-31
 dn milestone list --repo owner/repo --json
+dn milestone publish plans/auth-refactor.json --dry-run --json
+dn milestone publish plans/auth-refactor.json --repo owner/repo
 ```
 
 Milestone numbers refer to the current repository unless a full GitHub milestone
 URL is supplied. Use `--clear-milestone` with `dn issue edit` to remove an
 issue's milestone assignment.
+
+`dn milestone publish` reads a version `1.0` JSON plan with `milestone` and
+`issues` fields, creates the milestone and issues, and applies each issue's
+`blocked_by` local-id relationship after all issues exist. Use `--dry-run` to
+validate the plan and repository without making mutations.

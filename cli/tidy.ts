@@ -30,6 +30,10 @@ import {
 import { resolveLocalAgentHarness } from "../sdk/config/localAgent.ts";
 import { resolveDnConfig } from "../sdk/config/resolve.ts";
 import { ensureOpenCodePhaseConfig } from "../sdk/github/opencode.ts";
+import { validateSandboxPrerequisites } from "../sdk/sandbox/validate.ts";
+import { handleContext } from "./context.ts";
+import { handleRunner } from "./runner.ts";
+import { handleWorkflows } from "./workflows.ts";
 
 async function handleTidyAgent(args: string[]): Promise<void> {
   if (args.includes("--help") || args.includes("-h")) {
@@ -86,6 +90,83 @@ function promptYesNo(message: string): boolean {
   return answer === "y" || answer === "yes";
 }
 
+async function handleTidyConfig(args: string[]): Promise<void> {
+  const json = args.includes("--json");
+  const unexpected = args.filter((arg) => arg !== "--json");
+  if (unexpected.length > 0) {
+    throw new Error(`Unexpected argument: ${unexpected[0]}`);
+  }
+
+  const repoRoot = Deno.env.get("WORKSPACE_ROOT") ?? Deno.cwd();
+  const config = await resolveDnConfig({ repoRoot, includeUser: false });
+  const warnings = await validateSandboxPrerequisites(
+    config.sandbox?.provider ?? "none",
+  );
+  const result = {
+    config,
+    warnings,
+    ok: warnings.length === 0,
+  };
+
+  if (json) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  console.log(
+    `dn tidy config: ${
+      config.sources.agent || config.sources.sandbox
+        ? "valid"
+        : "valid (no project overrides)"
+    }`,
+  );
+  for (const warning of warnings) {
+    console.log(`WARNING ${warning.code}: ${warning.message}`);
+  }
+}
+
+async function runTidySurface(name: string, json: boolean): Promise<void> {
+  const outputArgs = json ? ["--json"] : [];
+  switch (name) {
+    case "config":
+      await handleTidyConfig(outputArgs);
+      return;
+    case "workflows":
+      await handleWorkflows(["validate", ...outputArgs]);
+      return;
+    case "context":
+      await handleContext([
+        "check",
+        Deno.env.get("WORKSPACE_ROOT") ?? Deno.cwd(),
+        ...outputArgs,
+      ]);
+      return;
+    case "runner":
+      await handleRunner(["doctor", ...outputArgs]);
+      return;
+    default:
+      throw new Error(`Unknown tidy surface: ${name}`);
+  }
+}
+
+async function handleTidyAll(args: string[]): Promise<void> {
+  const json = args.includes("--json");
+  const withBacklog = args.includes("--with-backlog");
+  const unexpected = args.filter((arg) =>
+    arg !== "--json" && arg !== "--with-backlog"
+  );
+  if (unexpected.length > 0) {
+    throw new Error(`Unexpected argument: ${unexpected[0]}`);
+  }
+
+  for (const surface of ["config", "workflows", "context", "runner"]) {
+    await runTidySurface(surface, json);
+  }
+  if (withBacklog) {
+    await handleTidy(json ? ["--json"] : []);
+  }
+}
+
 export async function handleTidy(
   args: string[],
   globalAgent: AgentSelection | null = null,
@@ -94,10 +175,31 @@ export async function handleTidy(
     await handleTidyAgent(args.slice(1));
     return;
   }
+  if (args[0] === "config") {
+    await handleTidyConfig(args.slice(1));
+    return;
+  }
+  if (["workflows", "context", "runner"].includes(args[0] ?? "")) {
+    const [surface, ...surfaceArgs] = args;
+    const json = surfaceArgs.includes("--json");
+    const unexpected = surfaceArgs.filter((arg) => arg !== "--json");
+    if (unexpected.length > 0) {
+      throw new Error(`Unexpected argument: ${unexpected[0]}`);
+    }
+    await runTidySurface(surface, json);
+    return;
+  }
+  if (args[0] === "--all") {
+    await handleTidyAll(args.slice(1));
+    return;
+  }
   if (args.includes("--help") || args.includes("-h")) {
     console.log("dn tidy - Groom the prioritized todo list\n");
     console.log("Usage: dn tidy [options]\n");
     console.log("  dn tidy agent [--check | --fix]\n");
+    console.log("  dn tidy config [--json]\n");
+    console.log("  dn tidy workflows|context|runner [--json]\n");
+    console.log("  dn tidy --all [--with-backlog] [--json]\n");
     console.log(
       "Re-fetches recent open issues, scores them (Fibonacci 1–8), and updates ~/.dn/todo.md.",
     );

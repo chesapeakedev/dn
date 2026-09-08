@@ -614,10 +614,23 @@ export const DN_COMPLETION_ROOT: CompletionNode = {
       },
     },
     tidy: {
-      flags: ["--limit", "--agent", ...HELP_FLAGS],
+      flags: [
+        "--limit",
+        "--agent",
+        "--all",
+        "--with-backlog",
+        "--json",
+        ...HELP_FLAGS,
+      ],
       flagValues: {
         "--limit": FILE_VALUE,
         "--agent": [...AGENT_HARNESSES],
+      },
+      commands: {
+        config: { flags: ["--json", ...HELP_FLAGS] },
+        workflows: { flags: ["--json", ...HELP_FLAGS] },
+        context: { flags: ["--json", ...HELP_FLAGS] },
+        runner: { flags: ["--json", ...HELP_FLAGS] },
       },
     },
     sync: {

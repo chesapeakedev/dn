@@ -18,6 +18,13 @@ import type { ProgressReporter } from "./progress.ts";
 
 type OpenCodePhase = "plan" | "implement";
 
+const OPENCODE_CONFIG_SCHEMA = "https://opencode.ai/config.json";
+const PLAN_EDIT_PERMISSIONS: Record<string, string> = {
+  "plans/**/*.plan.md": "allow",
+  "plans/*.plan.md": "allow",
+  "**/*.plan.md": "allow",
+};
+
 /**
  * Returns the canonical permissions config used when bootstrapping a phase.
  *
@@ -27,15 +34,13 @@ export function defaultOpenCodeConfig(
   phase: OpenCodePhase,
 ): Record<string, unknown> {
   return {
-    "$schema": "https://opencode.ai/config.json",
+    "$schema": OPENCODE_CONFIG_SCHEMA,
     "permission": {
       "edit": phase === "plan"
         ? {
           "*": "deny",
           "/tmp/**": "allow",
-          "plans/**/*.plan.md": "allow",
-          "plans/*.plan.md": "allow",
-          "**/*.plan.md": "allow",
+          ...PLAN_EDIT_PERMISSIONS,
         }
         : {
           "*": "allow",
@@ -51,6 +56,17 @@ export function defaultOpenCodeConfig(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function ensurePlanEditPermissions(edit: Record<string, unknown>): boolean {
+  let changed = false;
+  for (const [path, value] of Object.entries(PLAN_EDIT_PERMISSIONS)) {
+    if (edit[path] !== value) {
+      edit[path] = value;
+      changed = true;
+    }
+  }
+  return changed;
 }
 
 /**
@@ -83,23 +99,13 @@ export async function ensureOpenCodePhaseConfig(
     const edit = isRecord(permission.edit)
       ? permission.edit
       : { "*": "deny", "/tmp/**": "allow" };
-    const required: Record<string, unknown> = {
-      "plans/**/*.plan.md": "allow",
-      "plans/*.plan.md": "allow",
-      "**/*.plan.md": "allow",
-    };
-    for (const [path, value] of Object.entries(required)) {
-      if (edit[path] !== value) {
-        edit[path] = value;
-        changed = true;
-      }
-    }
+    changed = ensurePlanEditPermissions(edit) || changed;
     if (permission.edit !== edit) changed = true;
     if (config.permission !== permission) changed = true;
     if (edit["/tmp/**"] !== "allow") changed = true;
     if (!isRecord(permission.bash)) changed = true;
     if (permission.external_directory !== "allow") changed = true;
-    if (config["$schema"] !== "https://opencode.ai/config.json") {
+    if (config["$schema"] !== OPENCODE_CONFIG_SCHEMA) {
       changed = true;
     }
     permission.edit = edit;
@@ -107,7 +113,7 @@ export async function ensureOpenCodePhaseConfig(
     permission.bash = { "*": "allow" };
     permission.external_directory = "allow";
     config.permission = permission;
-    config["$schema"] = "https://opencode.ai/config.json";
+    config["$schema"] = OPENCODE_CONFIG_SCHEMA;
   }
 
   if (changed && !checkOnly) {
@@ -148,8 +154,7 @@ export async function augmentOpenCodePlanEditPermission(
     parsed = {};
   }
 
-  parsed["$schema"] = parsed["$schema"] ??
-    "https://opencode.ai/config.json";
+  parsed["$schema"] = parsed["$schema"] ?? OPENCODE_CONFIG_SCHEMA;
 
   const permissionObj = parsed.permission;
   let permissionRecord: Record<string, unknown>;
@@ -171,9 +176,7 @@ export async function augmentOpenCodePlanEditPermission(
     permissionRecord.edit = editRecord;
   }
 
-  editRecord["plans/**/*.plan.md"] = "allow";
-  editRecord["plans/*.plan.md"] = "allow";
-  editRecord["**/*.plan.md"] = "allow";
+  ensurePlanEditPermissions(editRecord);
   editRecord["/tmp/**"] = editRecord["/tmp/**"] ?? "allow";
   editRecord[rel] = "allow";
 
@@ -283,83 +286,10 @@ export async function runOpenCode(
     : implementConfigPath;
   const configType = useReadonlyConfig ? "plan" : "implement";
 
-  // Validate config files exist in workspace root
-  if (useReadonlyConfig) {
-    try {
-      await Deno.stat(planConfigPath);
-      const configContent = await Deno.readTextFile(planConfigPath);
-
-      // Check if config allows plan files in plans/ directory
-      const config = JSON.parse(configContent);
-      const editPerms = config?.permission?.edit || {};
-      const hasPlanFiles = editPerms["plans/**/*.plan.md"] === "allow" ||
-        editPerms["plans/*.plan.md"] === "allow" ||
-        editPerms["**/*.plan.md"] === "allow";
-
-      if (!hasPlanFiles) {
-        // Config exists but doesn't allow plan files - add permissions
-        console.warn(
-          formatWarning("Adding plan file permissions to opencode.plan.json"),
-        );
-        editPerms["plans/**/*.plan.md"] = "allow";
-        editPerms["plans/*.plan.md"] = "allow";
-        editPerms["**/*.plan.md"] = "allow";
-        await Deno.writeTextFile(
-          planConfigPath,
-          JSON.stringify(config, null, 2) + "\n",
-        );
-      }
-    } catch {
-      // Try to create a default plan config template
-      try {
-        const defaultPlanConfig = defaultOpenCodeConfig("plan");
-        await Deno.writeTextFile(
-          planConfigPath,
-          JSON.stringify(defaultPlanConfig, null, 2) + "\n",
-        );
-        console.log(
-          `Created default plan config at ${planConfigPath}`,
-        );
-      } catch (createError) {
-        throw new Error(
-          `Plan config not found at ${planConfigPath} and could not be created. ` +
-            `Please create opencode.plan.json in the workspace root. ` +
-            `Error: ${
-              createError instanceof Error
-                ? createError.message
-                : String(createError)
-            }`,
-        );
-      }
-    }
-  } else {
-    // Validate implement config exists
-    try {
-      await Deno.stat(implementConfigPath);
-    } catch {
-      // Try to create a default implement config template
-      try {
-        const defaultImplementConfig = defaultOpenCodeConfig("implement");
-        await Deno.writeTextFile(
-          implementConfigPath,
-          JSON.stringify(defaultImplementConfig, null, 2) + "\n",
-        );
-        console.log(
-          `Created default implement config at ${implementConfigPath}`,
-        );
-      } catch (createError) {
-        throw new Error(
-          `Implement config not found at ${implementConfigPath} and could not be created. ` +
-            `Please create opencode.implement.json in the workspace root. ` +
-            `Error: ${
-              createError instanceof Error
-                ? createError.message
-                : String(createError)
-            }`,
-        );
-      }
-    }
-  }
+  await ensureOpenCodePhaseConfig(
+    workspaceRoot,
+    useReadonlyConfig ? "plan" : "implement",
+  );
 
   // Handle config file swapping: copy phase-specific config to opencode.json temporarily
   let configSwapped = false;

@@ -284,6 +284,20 @@ export {
   parseMilestoneUrl,
   resolveMilestoneId,
 } from "./github/milestone.ts";
+export {
+  parseMilestonePlan,
+  publishMilestonePlan,
+} from "./github/milestonePlan.ts";
+export type {
+  MilestonePlan,
+  MilestonePlanDryRunResult,
+  MilestonePlanIssue,
+  MilestonePlanMilestone,
+  MilestonePlanPublishResult,
+  MilestonePlanRelationship,
+  MilestonePlanRepository,
+  PublishMilestonePlanOptions,
+} from "./github/milestonePlan.ts";
 export type {
   CreateMilestoneOptions,
   Milestone,

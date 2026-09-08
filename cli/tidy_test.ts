@@ -75,3 +75,50 @@ Deno.test("dn tidy agent patches missing OpenCode plan permissions", async () =>
     await cleanupTestRepo(testRepo);
   }
 });
+
+Deno.test("dn tidy agent resolves an OpenCode agent from user config", async () => {
+  const testRepo = await createTestRepo({
+    initialFiles: {
+      ".dn/config.json": '{"schema_version":"2.0","agent":"opencode"}\n',
+    },
+  });
+  try {
+    const check = await runDnCommand(["tidy", "agent", "--check"], {
+      cwd: testRepo.path,
+      env: { HOME: testRepo.path },
+      expectFailure: true,
+    });
+    assert(!check.success);
+    assert(check.stdout.includes("missing"));
+  } finally {
+    await cleanupTestRepo(testRepo);
+  }
+});
+
+Deno.test("dn tidy config validates repository and legacy configuration", async () => {
+  const testRepo = await createTestRepo({
+    initialFiles: {
+      ".github/dn/config.json":
+        '{"schema_version":"2.0","sandbox":{"provider":"none"}}\n',
+    },
+  });
+  try {
+    const result = await runDnCommand(["tidy", "config", "--json"], {
+      cwd: testRepo.path,
+    });
+    assert(result.success);
+    const output = JSON.parse(result.stdout);
+    assertEquals(output.ok, true);
+    assertEquals(output.config.sources.sandbox, "repository");
+    assertEquals(output.warnings, []);
+  } finally {
+    await cleanupTestRepo(testRepo);
+  }
+});
+
+Deno.test("dn tidy help documents cheap all-surfaces mode", async () => {
+  const result = await runDnCommand(["tidy", "--help"]);
+  assert(result.success);
+  assert(result.stdout.includes("dn tidy --all [--with-backlog] [--json]"));
+  assert(result.stdout.includes("dn tidy config [--json]"));
+});
