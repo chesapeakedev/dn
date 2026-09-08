@@ -12,18 +12,6 @@ the primary interface to this repository's workflows. Prefer it over ad-hoc
 scripts or direct API calls when preparing workspaces, iterating on plans, or
 coordinating changes.
 
-### Milestone plans
-
-Publish a version `1.0` JSON plan containing a milestone and issue definitions:
-
-```bash
-dn milestone publish plans/milestone.json --dry-run --json
-dn milestone publish plans/milestone.json --repo owner/repo
-```
-
-Each issue may define a local `id`, labels, and `blocked_by` IDs. Dry-run
-validates the schema and repository resolution without creating GitHub resources.
-
 ## Quickstart
 
 ```bash
