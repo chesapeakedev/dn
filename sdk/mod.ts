@@ -317,6 +317,19 @@ export type {
   UpdateIssueOptions,
 } from "./github/types.ts";
 
+export {
+  applyIssueSplit,
+  parseIssueSplitDecision,
+  parseIssueSplitProposal,
+} from "./github/issueSplit.ts";
+export type {
+  IssueSplitDecision,
+  IssueSplitOperations,
+  IssueSplitProposal,
+  IssueSplitRejection,
+  IssueSplitResult,
+} from "./github/issueSplit.ts";
+
 // GitHub GraphQL API client
 export {
   fetchCommits,

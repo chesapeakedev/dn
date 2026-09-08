@@ -18,6 +18,7 @@ import {
   addIssueBlockedBy,
   addIssueComment,
   addSubIssue,
+  applyIssueSplit,
   closeIssue,
   createIssue,
   type CreateIssueOptions,
@@ -27,8 +28,11 @@ import {
   type IssueListItem,
   type IssueRelationshipReference,
   type IssueRelationshipSummary,
+  type IssueSplitProposal,
   type IssueWithComments,
   listIssues,
+  parseIssueSplitDecision,
+  parseIssueSplitProposal,
   removeIssueBlockedBy,
   removeSubIssue,
   reopenIssue,
@@ -37,6 +41,11 @@ import {
   updateIssue,
   type UpdateIssueOptions,
 } from "../sdk/mod.ts";
+import {
+  type AgentHarness,
+  getRunAgent,
+  parseAgentHarness,
+} from "../sdk/github/agentHarness.ts";
 
 // ============================================================================
 // Helpers
@@ -661,6 +670,219 @@ async function handleEdit(args: string[]): Promise<void> {
     console.log(`Updated issue #${result.number}: ${result.title}`);
     console.log(result.url);
   }
+}
+
+/** Apply a confirmed semantic split: update A, create B, and attach B. */
+async function handleSplit(args: string[]): Promise<void> {
+  const repoArgs = parseRepoOption(args);
+  args = repoArgs.args;
+  let issueRef: string | null = null;
+  let titleA: string | undefined;
+  let titleB: string | undefined;
+  let bodyA: string | undefined;
+  let bodyB: string | undefined;
+  let proposalFile: string | undefined;
+  let agent: string | undefined;
+  let confirmed = false;
+  let json = false;
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--title-a" && i + 1 < args.length) titleA = args[++i];
+    else if (arg === "--title-b" && i + 1 < args.length) titleB = args[++i];
+    else if (arg === "--body-a" && i + 1 < args.length) bodyA = args[++i];
+    else if (arg === "--body-b" && i + 1 < args.length) bodyB = args[++i];
+    else if (arg === "--proposal-file" && i + 1 < args.length) {
+      proposalFile = args[++i];
+    } else if (arg === "--agent" && i + 1 < args.length) agent = args[++i];
+    else if (arg === "--yes" || arg === "-y") confirmed = true;
+    else if (arg === "--json") json = true;
+    else if (arg === "--help" || arg === "-h") {
+      showSplitHelp();
+      return;
+    } else if (!arg.startsWith("--") && !issueRef) issueRef = arg;
+  }
+
+  if (!issueRef) {
+    console.error("Error: Issue number or URL required");
+    Deno.exit(1);
+  }
+  let proposal;
+  if (agent && !proposalFile) {
+    const resolved = await resolveIssueRef(issueRef, repoArgs.repo);
+    if (!resolved) {
+      console.error(`Error: Invalid issue reference: ${issueRef}`);
+      Deno.exit(1);
+    }
+    const source = await getIssueWithComments(
+      resolved.owner,
+      resolved.repo,
+      resolved.number,
+    );
+    let harness: AgentHarness;
+    try {
+      harness = parseAgentHarness(agent.split(":", 1)[0]);
+    } catch (error) {
+      console.error(
+        `Error: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      Deno.exit(1);
+    }
+    const tempDir = await Deno.makeTempDir({ prefix: "dn-split-" });
+    const promptPath = `${tempDir}/proposal.md`;
+    await Deno.writeTextFile(
+      promptPath,
+      `Evaluate whether issue #${source.number} should be split. Prefer one issue when the work shares implementation prerequisites, one atomic migration, or one testable outcome. Reject artificial splits when dividing it adds coordination overhead, duplicates context, or makes implementation harder. Propose two issues only when both are independently implementable and easier to deliver.\n\nTitle: ${source.title}\n\nBody:\n${source.body}\n\nReturn JSON only: either {"split":false,"rationale":"specific reason"} or {"original":{"title":"...","body":"..."},"child":{"title":"...","body":"..."},"rationale":"why both are easier to implement"}.`,
+    );
+    try {
+      const selection = agent.split(":");
+      const result = await getRunAgent(harness, {
+        ...(selection[1] ? { model: selection[1] } : {}),
+        ...(selection[2] ? { thinking: selection[2] } : {}),
+      })("plan", promptPath, Deno.cwd(), true);
+      if (result.code !== 0) {
+        throw new Error(result.stderr || "Agent proposal failed");
+      }
+      const candidates = result.stdout.match(/\{[\s\S]*\}/g) ?? [];
+      const candidate = candidates.at(-1);
+      if (!candidate) {
+        throw new Error("Agent did not return a JSON split decision");
+      }
+      const decision = parseIssueSplitDecision(JSON.parse(candidate));
+      if ("split" in decision && decision.split === false) {
+        if (json) console.log(JSON.stringify(decision, null, 2));
+        else console.log(`Split rejected by agent: ${decision.rationale}`);
+        return;
+      }
+      proposal = parseIssueSplitProposal(decision);
+    } finally {
+      await Deno.remove(tempDir, { recursive: true }).catch(() => {});
+    }
+  }
+  if (proposalFile) {
+    const raw = proposalFile === "-"
+      ? new TextDecoder().decode(
+        new Uint8Array(await new Response(Deno.stdin.readable).arrayBuffer()),
+      )
+      : await Deno.readTextFile(proposalFile);
+    try {
+      const decision = parseIssueSplitDecision(JSON.parse(raw));
+      if ("split" in decision && decision.split === false) {
+        const output = { split: false, rationale: decision.rationale };
+        if (json) console.log(JSON.stringify(output, null, 2));
+        else console.log(`Split rejected by agent: ${decision.rationale}`);
+        return;
+      }
+      proposal = parseIssueSplitProposal(decision);
+    } catch (error) {
+      console.error(
+        `Error: Invalid split proposal: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      Deno.exit(1);
+    }
+  } else if (!proposal) {
+    if (!titleA?.trim() || !titleB?.trim()) {
+      console.error("Error: --title-a and --title-b are required");
+      Deno.exit(1);
+    }
+    proposal = parseIssueSplitProposal({
+      original: { title: titleA, body: bodyA ?? "" },
+      child: { title: titleB, body: bodyB ?? "" },
+      rationale: "Manual split",
+    });
+  }
+
+  const resolved = await resolveIssueRef(issueRef, repoArgs.repo);
+  if (!resolved) {
+    console.error(`Error: Invalid issue reference: ${issueRef}`);
+    Deno.exit(1);
+  }
+  const source = await getIssueWithComments(
+    resolved.owner,
+    resolved.repo,
+    resolved.number,
+  );
+  if (!confirmed) {
+    console.log(`Split #${source.number} into:`);
+    console.log(`  A: ${proposal.original.title}`);
+    console.log(`  B: ${proposal.child.title}`);
+    console.log(`Rationale: ${proposal.rationale}`);
+    const answer = new TextDecoder().decode(
+      new Uint8Array(await new Response(Deno.stdin.readable).arrayBuffer()),
+    ).trim().toLowerCase();
+    if (answer !== "y" && answer !== "yes") {
+      console.log("Split cancelled; GitHub was not changed.");
+      return;
+    }
+  }
+
+  const result = await applyIssueSplit(
+    proposal,
+    { labels: source.labels, milestoneId: source.milestone?.id },
+    {
+      createIssue: (options) =>
+        createIssue(resolved.owner, resolved.repo, options),
+      updateIssue: (options) =>
+        updateIssue(resolved.owner, resolved.repo, resolved.number, options),
+      addSubIssue: (childNumber) =>
+        addSubIssue(
+          resolved.owner,
+          resolved.repo,
+          resolved.number,
+          resolved.owner,
+          resolved.repo,
+          childNumber,
+        ),
+    },
+  );
+  const output = {
+    original: result.original,
+    child: result.child,
+    relationship: result.relationship,
+    ...(result.relationshipError
+      ? { relationshipError: result.relationshipError }
+      : {}),
+  };
+  if (json) console.log(JSON.stringify(output, null, 2));
+  else {
+    console.log(`Split #${resolved.number} into #${result.child.number}.`);
+    console.log(result.original.url);
+    console.log(result.child.url);
+    if (result.relationship === "failed") {
+      console.error(
+        `Relationship attachment failed: ${result.relationshipError}`,
+      );
+      Deno.exit(1);
+    }
+  }
+}
+
+function showSplitHelp(): void {
+  console.log(
+    "dn issue split - Split one issue into an updated original and a child\n",
+  );
+  console.log("Usage:");
+  console.log(
+    "  dn issue split <issue> --title-a <title> --title-b <title> [options]\n",
+  );
+  console.log("Options:");
+  console.log("  --title-a <title>       Updated original title (required)");
+  console.log("  --body-a <body>         Updated original body");
+  console.log("  --title-b <title>       New child title (required)");
+  console.log("  --body-b <body>         New child body");
+  console.log(
+    "  --proposal-file <path>  Read validated proposal JSON; use - for stdin",
+  );
+  console.log(
+    "  --agent <harness>       Ask the configured agent for a split-or-reject proposal",
+  );
+  console.log("  --yes                   Confirm without prompting");
+  console.log(
+    "  --json                  Output resulting issue records as JSON",
+  );
+  console.log("  --repo <owner/repo>     Repository for number refs");
 }
 
 function showEditHelp(): void {
@@ -1323,6 +1545,7 @@ function showHelp(): void {
   console.log("  show      Show issue details");
   console.log("  create    Create a new issue");
   console.log("  edit      Edit an existing issue");
+  console.log("  split     Split an issue into an updated original and child");
   console.log("  close     Close an issue");
   console.log("  reopen    Reopen a closed issue");
   console.log("  comment   Add comment to an issue");
@@ -1365,6 +1588,9 @@ export async function handleIssue(args: string[]): Promise<void> {
       case "edit":
       case "update":
         await handleEdit(subArgs);
+        break;
+      case "split":
+        await handleSplit(subArgs);
         break;
       case "close":
         await handleClose(subArgs);

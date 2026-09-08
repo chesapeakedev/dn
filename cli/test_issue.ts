@@ -10,6 +10,7 @@ Deno.test("issue help includes relationship subcommand", async () => {
   });
 
   assert(result.stdout.includes("relationship"));
+  assert(result.stdout.includes("split"));
 });
 
 Deno.test("relationship help lists supported operations", async () => {

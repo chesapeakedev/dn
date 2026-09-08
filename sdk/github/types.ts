@@ -18,6 +18,7 @@ export interface Issue {
   url: string;
   /** Label names (first page from GraphQL; may omit labels beyond the configured cap). */
   labels: string[];
+  milestone?: { id: string; number: number; title: string } | null;
 }
 
 export interface Commit {

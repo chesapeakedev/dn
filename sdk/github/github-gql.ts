@@ -225,6 +225,11 @@ const ISSUE_QUERY = `
             name
           }
         }
+        milestone {
+          id
+          number
+          title
+        }
         parent {
           number
           title
@@ -1364,6 +1369,11 @@ const GET_ISSUE_WITH_COMMENTS_QUERY = `
             name
           }
         }
+        milestone {
+          id
+          number
+          title
+        }
         parent {
           number
           title
@@ -1572,6 +1582,7 @@ export interface IssueWithComments {
   author: string;
   assignees: string[];
   labels: string[];
+  milestone: { id: string; number: number; title: string } | null;
   comments: IssueComment[];
   createdAt: string;
   updatedAt: string;
@@ -1706,6 +1717,7 @@ interface IssueWithCommentsResponse {
       author: { login: string } | null;
       assignees: { nodes: Array<{ login: string }> };
       labels: { nodes: Array<{ name: string }> };
+      milestone: { id: string; number: number; title: string } | null;
       parent: GraphqlRelationshipNode | null;
       subIssues: GraphqlRelationshipConnection;
       blockedBy: GraphqlRelationshipConnection;
@@ -1996,6 +2008,7 @@ export async function getIssueWithComments(
     author: issue.author?.login || "unknown",
     assignees: issue.assignees.nodes.map((a) => a.login),
     labels: issue.labels.nodes.map((l) => l.name),
+    milestone: issue.milestone,
     comments: issue.comments.nodes.map((c) => ({
       id: c.id,
       body: c.body,
