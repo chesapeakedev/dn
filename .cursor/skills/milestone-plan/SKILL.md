@@ -40,10 +40,9 @@ Follow these phases in order:
    `Acceptance Criteria` sections so they are compatible with kickstart.
 4. **Publish** — run `dn milestone publish plans/<slug>.milestone.json`.
    Publishing creates or updates the milestone and its tracked issues.
-5. **Initialize** — after publish succeeds, run
-   `dn init stack --milestone
-   <milestone>` (or the exact milestone identifier
-   printed by publish) to create the prioritized stack artifacts.
+5. **Initialize** — after publish succeeds, run `dn init stack <milestone>`. Use
+   the exact milestone identifier printed by publish to create the prioritized
+   stack artifacts.
 6. **Hand off** — report the milestone, issue URLs, generated stack path, and
    the next `dn kickstart --milestone <milestone>` command.
 

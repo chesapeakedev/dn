@@ -1,32 +1,30 @@
 # Milestone plan schema
 
 `plans/<slug>.milestone.json` is a declarative input for `dn milestone publish`.
-The following describes the required artifact shape.
+The following describes the artifact shape accepted by the command.
 
 ## Top-level fields
 
-- `schema_version`: Must be `1.0`.
-- `slug`: Lowercase, hyphen-separated identifier used in the plan filename.
-- `title`: Human-readable milestone title.
-- `overview`: Short description of the project's goal and boundaries.
-- `issues`: Ordered array of issue definitions. Earlier issues should be
-  deliverable before later issues unless dependencies say otherwise.
+- `schema_version`: Must be `"1.0"`.
+- `milestone`: Object with a required `title`, plus optional `description` and
+  `due_on` values.
+- `issues`: Array of issue definitions. Issues are created in array order.
 
-Optional fields are `repository` (`owner` and `name`), `milestone` (`title` and
-optional `description`), and `assumptions`.
+The optional `repo` field selects an `owner/repo`; otherwise `dn` resolves the
+repository from the current checkout. Use the filename to carry the plan slug.
 
 ## Issue fields
 
 Each issue requires:
 
-- `slug`: Unique issue identifier within the artifact.
+- `id`: Optional unique identifier within the artifact. It is required when the
+  issue declares `blocked_by` relationships.
 - `title`: GitHub issue title.
 - `body`: Markdown body. Include `## Acceptance Criteria` and checkbox items.
-- `acceptance_criteria`: Non-empty list of the same measurable milestones
-  represented in the body.
 
-An issue may include `depends_on`, an array of sibling issue slugs. Dependencies
-are planning metadata and should also be clear in the issue body when useful.
+Optional issue fields are `labels` (an array of label names) and `blocked_by`,
+an array of sibling issue `id` values. Dependencies should also be clear in the
+issue body when useful.
 
 ## Example
 

@@ -12,6 +12,9 @@ the primary interface to this repository's workflows. Prefer it over ad-hoc
 scripts or direct API calls when preparing workspaces, iterating on plans, or
 coordinating changes.
 
+For multi-issue projects, epics, or roadmap slices, also consult the
+`milestone-plan` skill listed in the skills roster.
+
 ## Quickstart
 
 ```bash
