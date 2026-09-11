@@ -3,6 +3,8 @@
 
 import { formatElapsedTime } from "../github/output.ts";
 import { formatAgentFailureOutput } from "../github/progress.ts";
+import { formatAgentSelection } from "../github/agentHarness.ts";
+import { resolveLocalAgentHarness } from "../config/localAgent.ts";
 import { checkRunnerRepositories, detectRunnerCapabilities } from "./doctor.ts";
 import { cloudRunnerEnabled } from "./bootstrap.ts";
 import { ensureCloudCheckout } from "./cloudCheckout.ts";
@@ -191,14 +193,33 @@ function defaultSpawn(
   return child;
 }
 
+/**
+ * Resolves the agent for a device-runner job from local/repo config.
+ *
+ * Ignores Denoise's stamped `job.operation.agent` so `~/.dn/config.json`,
+ * repo `dn.json`, and `DN_AGENT` / `*_ENABLED` win (same as interactive CLI).
+ */
+export async function resolveRunnerJobAgent(
+  repoRoot: string,
+  repositorySlug?: string,
+): Promise<string> {
+  const selection = await resolveLocalAgentHarness({
+    repoRoot,
+    ...(repositorySlug ? { repositorySlug } : {}),
+  });
+  return formatAgentSelection(selection);
+}
+
 /** Builds a command for a denoise-task job, materializing the task to a temp file. */
 export async function buildRunnerDenoiseTaskCommand(
   job: RunnerJob,
   commandPrefix: string[],
+  repoRoot: string,
 ): Promise<{ argv: string[]; cleanup: () => Promise<void> }> {
   if (job.operation.type !== "denoise-task") {
     throw new Error("Expected a denoise-task operation.");
   }
+  const agent = await resolveRunnerJobAgent(repoRoot, job.repository);
   const tmpDir = await Deno.makeTempDir({ prefix: "dn-denoise-task-" });
   const mdPath = `${tmpDir}/task.md`;
   const markdown = denoiseTaskToMarkdown(job.operation.task_document);
@@ -215,7 +236,7 @@ export async function buildRunnerDenoiseTaskCommand(
       ...commandPrefix,
       "--unattended",
       "--agent",
-      job.operation.agent,
+      agent,
       "kickstart",
       "--sandbox",
       "none",
@@ -228,30 +249,17 @@ export async function buildRunnerDenoiseTaskCommand(
 }
 
 /** Builds a command for a remote job, dispatching by operation type. */
-export function buildRunnerKickstartCommand(
+export async function buildRunnerKickstartCommand(
   job: RunnerJob,
   commandPrefix: string[],
-):
-  | { argv: string[]; cleanup?: () => Promise<void> }
-  | Promise<{ argv: string[]; cleanup?: () => Promise<void> }> {
+  repoRoot: string,
+): Promise<{ argv: string[]; cleanup?: () => Promise<void> }> {
   validateRunnerJob(job);
   if (commandPrefix.length === 0) {
     throw new Error("Runner command prefix is empty.");
   }
   if (job.operation.type === "denoise-task") {
-    return buildRunnerDenoiseTaskCommand(job, commandPrefix);
-  }
-  if (job.operation.type === "land") {
-    return {
-      argv: [
-        ...commandPrefix,
-        "--unattended",
-        "--agent",
-        job.operation.agent,
-        "land",
-        ...(job.operation.plan_file != null ? [job.operation.plan_file] : []),
-      ],
-    };
+    return buildRunnerDenoiseTaskCommand(job, commandPrefix, repoRoot);
   }
   if (job.operation.type === "sync") {
     return {
@@ -262,13 +270,26 @@ export function buildRunnerKickstartCommand(
       ],
     };
   }
+  const agent = await resolveRunnerJobAgent(repoRoot, job.repository);
+  if (job.operation.type === "land") {
+    return {
+      argv: [
+        ...commandPrefix,
+        "--unattended",
+        "--agent",
+        agent,
+        "land",
+        ...(job.operation.plan_file != null ? [job.operation.plan_file] : []),
+      ],
+    };
+  }
   if (job.operation.type === "loop") {
     return {
       argv: [
         ...commandPrefix,
         "--unattended",
         "--agent",
-        job.operation.agent,
+        agent,
         "loop",
         "--publish",
         job.operation.publish,
@@ -285,7 +306,7 @@ export function buildRunnerKickstartCommand(
       ...commandPrefix,
       "--unattended",
       "--agent",
-      job.operation.agent,
+      agent,
       "kickstart",
       "--sandbox",
       "none",
@@ -717,6 +738,7 @@ export async function runRunnerJob(
   const { argv: command, cleanup } = await buildRunnerKickstartCommand(
     job,
     options.commandPrefix,
+    registration.path,
   );
   options.status?.(formatRunnerSpawnLog(job.id, registration.path, command));
   const child = (options.spawn ?? defaultSpawn)(

@@ -3,6 +3,7 @@
 
 import { join, resolve } from "@std/path";
 import { AGENT_HARNESSES, type AgentHarness } from "../github/agentHarness.ts";
+import { resolveDnConfig } from "../config/resolve.ts";
 import { RunnerApiClient } from "./client.ts";
 import type { LocalRunnerConfig } from "./config.ts";
 import {
@@ -227,9 +228,61 @@ export async function inspectRunnerRepository(
   throw new Error("No .sl or .git repository metadata found.");
 }
 
+/**
+ * Moves `preferred` to the front of the installed harness list when present.
+ *
+ * Detection order otherwise stays {@link AGENT_HARNESSES}. Used so Denoise's
+ * `harnesses[0]` stamp matches the operator's configured default.
+ */
+export function orderHarnessesByPreference(
+  harnesses: readonly AgentHarness[],
+  preferred: AgentHarness | undefined,
+): AgentHarness[] {
+  if (!preferred || !harnesses.includes(preferred)) {
+    return [...harnesses];
+  }
+  return [preferred, ...harnesses.filter((harness) => harness !== preferred)];
+}
+
+/** Options for {@link detectRunnerCapabilities}. */
+export interface DetectRunnerCapabilitiesOptions {
+  /**
+   * Override path to `~/.dn/config.json` (tests). Defaults to the user config
+   * path used by {@link resolveDnConfig}.
+   */
+  userConfigPath?: string;
+  /**
+   * Neutral root for config resolve so only user defaults apply (no project
+   * `dn.json`). Defaults to `~/.dn` when HOME is set.
+   */
+  configRepoRoot?: string;
+}
+
+/**
+ * Reads the user-default agent from config without applying a project
+ * `dn.json` layer.
+ */
+export async function resolveUserPreferredHarness(
+  options: DetectRunnerCapabilitiesOptions = {},
+): Promise<AgentHarness | undefined> {
+  const home = Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE");
+  const configRepoRoot = options.configRepoRoot ??
+    (home ? join(home, ".dn") : ".");
+  const config = await resolveDnConfig({
+    repoRoot: configRepoRoot,
+    ...(options.userConfigPath != null
+      ? { userConfigPath: options.userConfigPath }
+      : {}),
+    env: {},
+    cli: {},
+  });
+  return config.agent;
+}
+
 /** Detects installed agent harnesses and Docker without reading credentials. */
 export async function detectRunnerCapabilities(
   probe: RunnerCommandProbe = defaultCommandProbe,
+  options: DetectRunnerCapabilitiesOptions = {},
 ): Promise<RunnerCapabilities> {
   const harnessResults = await Promise.all(
     AGENT_HARNESSES.map(async (harness) => ({
@@ -241,6 +294,10 @@ export async function detectRunnerCapabilities(
     })),
   );
   const docker = await probe.run("docker", ["version"]);
+  const available = harnessResults.filter((result) => result.available).map(
+    (result) => result.harness,
+  );
+  const preferred = await resolveUserPreferredHarness(options);
   return {
     operations: [
       "kickstart",
@@ -251,9 +308,7 @@ export async function detectRunnerCapabilities(
       "plan",
       "loop",
     ],
-    harnesses: harnessResults.filter((result) => result.available).map(
-      (result) => result.harness,
-    ),
+    harnesses: orderHarnessesByPreference(available, preferred),
     docker: docker.success,
   };
 }

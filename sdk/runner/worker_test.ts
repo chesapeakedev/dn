@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { assert, assertEquals, assertRejects } from "@std/assert";
+import { join } from "@std/path";
 import type {
   DenoiseTaskDocument,
   RunnerHeartbeat,
@@ -35,6 +36,42 @@ import {
   saveRunnerCredential,
 } from "./config.ts";
 import { detectRunnerCapabilities } from "./doctor.ts";
+
+const AGENT_ENV_KEYS = [
+  "DN_AGENT",
+  "OPENCODE_ENABLED",
+  "CURSOR_ENABLED",
+  "CLAUDE_ENABLED",
+  "CODEX_ENABLED",
+  "COPILOT_ENABLED",
+] as const;
+
+/** Clears agent env toggles so checkout `dn.json` controls resolution. */
+async function withClearedAgentEnv<T>(fn: () => Promise<T>): Promise<T> {
+  const previous = new Map<string, string | undefined>();
+  for (const key of AGENT_ENV_KEYS) {
+    previous.set(key, Deno.env.get(key));
+    Deno.env.delete(key);
+  }
+  try {
+    return await fn();
+  } finally {
+    for (const [key, value] of previous) {
+      if (value === undefined) Deno.env.delete(key);
+      else Deno.env.set(key, value);
+    }
+  }
+}
+
+/** Temp checkout with `dn.json` agent for hermetic runner argv tests. */
+async function checkoutWithAgent(agent: string): Promise<string> {
+  const root = await Deno.makeTempDir({ prefix: "dn-runner-agent-" });
+  await Deno.writeTextFile(
+    join(root, "dn.json"),
+    JSON.stringify({ schema_version: "2.0", agent }),
+  );
+  return root;
+}
 
 function job(): RunnerJob {
   return {
@@ -157,42 +194,84 @@ function stream(text: string): ReadableStream<Uint8Array> {
 }
 
 Deno.test("buildRunnerKickstartCommand constructs exact typed argv", async () => {
-  const { argv } = await buildRunnerKickstartCommand(job(), [
-    "/usr/local/bin/dn",
-  ]);
-  assertEquals(argv, [
-    "/usr/local/bin/dn",
-    "--unattended",
-    "--agent",
-    "codex",
-    "kickstart",
-    "--sandbox",
-    "none",
-    "--publish",
-    "pr",
-    "https://github.com/chesapeakedev/dn/issues/213",
-  ]);
+  await withClearedAgentEnv(async () => {
+    const repoRoot = await checkoutWithAgent("codex");
+    try {
+      const { argv } = await buildRunnerKickstartCommand(
+        job(),
+        ["/usr/local/bin/dn"],
+        repoRoot,
+      );
+      assertEquals(argv, [
+        "/usr/local/bin/dn",
+        "--unattended",
+        "--agent",
+        "codex",
+        "kickstart",
+        "--sandbox",
+        "none",
+        "--publish",
+        "pr",
+        "https://github.com/chesapeakedev/dn/issues/213",
+      ]);
+    } finally {
+      await Deno.remove(repoRoot, { recursive: true });
+    }
+  });
+});
+
+Deno.test("buildRunnerKickstartCommand prefers checkout dn.json over job stamp", async () => {
+  await withClearedAgentEnv(async () => {
+    const repoRoot = await checkoutWithAgent("cursor");
+    try {
+      const stamped = job();
+      stamped.operation = {
+        type: "kickstart",
+        issue_url: "https://github.com/chesapeakedev/dn/issues/213",
+        publish: "pr",
+        agent: "codex",
+      };
+      const { argv } = await buildRunnerKickstartCommand(
+        stamped,
+        ["/usr/local/bin/dn"],
+        repoRoot,
+      );
+      assertEquals(argv[2], "--agent");
+      assertEquals(argv[3], "cursor");
+    } finally {
+      await Deno.remove(repoRoot, { recursive: true });
+    }
+  });
 });
 
 Deno.test("buildRunnerKickstartCommand adds --allow-cross-repo for a different execution repo", async () => {
-  const crossRepoJob = job();
-  crossRepoJob.repository = "chesapeakedev/other";
-  const { argv } = await buildRunnerKickstartCommand(crossRepoJob, [
-    "/usr/local/bin/dn",
-  ]);
-  assertEquals(argv, [
-    "/usr/local/bin/dn",
-    "--unattended",
-    "--agent",
-    "codex",
-    "kickstart",
-    "--sandbox",
-    "none",
-    "--publish",
-    "pr",
-    "--allow-cross-repo",
-    "https://github.com/chesapeakedev/dn/issues/213",
-  ]);
+  await withClearedAgentEnv(async () => {
+    const repoRoot = await checkoutWithAgent("codex");
+    try {
+      const crossRepoJob = job();
+      crossRepoJob.repository = "chesapeakedev/other";
+      const { argv } = await buildRunnerKickstartCommand(
+        crossRepoJob,
+        ["/usr/local/bin/dn"],
+        repoRoot,
+      );
+      assertEquals(argv, [
+        "/usr/local/bin/dn",
+        "--unattended",
+        "--agent",
+        "codex",
+        "kickstart",
+        "--sandbox",
+        "none",
+        "--publish",
+        "pr",
+        "--allow-cross-repo",
+        "https://github.com/chesapeakedev/dn/issues/213",
+      ]);
+    } finally {
+      await Deno.remove(repoRoot, { recursive: true });
+    }
+  });
 });
 
 Deno.test("parseRunnerProgressLine validates invocation correlation", () => {
@@ -405,22 +484,31 @@ function denoiseTaskJob(): RunnerJob {
 }
 
 Deno.test("buildRunnerKickstartCommand constructs land argv without --single", async () => {
-  const land = job();
-  land.operation = {
-    type: "land",
-    issue_url: "https://github.com/chesapeakedev/dn/issues/213",
-    agent: "cursor",
-  };
-  const { argv } = await buildRunnerKickstartCommand(land, [
-    "/usr/local/bin/dn",
-  ]);
-  assertEquals(argv, [
-    "/usr/local/bin/dn",
-    "--unattended",
-    "--agent",
-    "cursor",
-    "land",
-  ]);
+  await withClearedAgentEnv(async () => {
+    const repoRoot = await checkoutWithAgent("cursor");
+    try {
+      const land = job();
+      land.operation = {
+        type: "land",
+        issue_url: "https://github.com/chesapeakedev/dn/issues/213",
+        agent: "codex",
+      };
+      const { argv } = await buildRunnerKickstartCommand(
+        land,
+        ["/usr/local/bin/dn"],
+        repoRoot,
+      );
+      assertEquals(argv, [
+        "/usr/local/bin/dn",
+        "--unattended",
+        "--agent",
+        "cursor",
+        "land",
+      ]);
+    } finally {
+      await Deno.remove(repoRoot, { recursive: true });
+    }
+  });
 });
 
 Deno.test("buildRunnerKickstartCommand constructs sync argv without skip-preflight", async () => {
@@ -429,9 +517,11 @@ Deno.test("buildRunnerKickstartCommand constructs sync argv without skip-preflig
     type: "sync",
     issue_url: "https://github.com/chesapeakedev/dn/issues/213",
   };
-  const { argv } = await buildRunnerKickstartCommand(sync, [
-    "/usr/local/bin/dn",
-  ]);
+  const { argv } = await buildRunnerKickstartCommand(
+    sync,
+    ["/usr/local/bin/dn"],
+    "/tmp",
+  );
   assertEquals(argv, [
     "/usr/local/bin/dn",
     "--unattended",
@@ -441,71 +531,96 @@ Deno.test("buildRunnerKickstartCommand constructs sync argv without skip-preflig
 });
 
 Deno.test("buildRunnerKickstartCommand appends a repo-relative land plan file", async () => {
-  const land = job();
-  land.operation = {
-    type: "land",
-    issue_url: "https://github.com/chesapeakedev/dn/issues/213",
-    agent: "codex",
-    plan_file: "plans/foo.plan.md",
-  };
-  const { argv } = await buildRunnerKickstartCommand(land, [
-    "/usr/local/bin/dn",
-  ]);
-  assertEquals(argv, [
-    "/usr/local/bin/dn",
-    "--unattended",
-    "--agent",
-    "codex",
-    "land",
-    "plans/foo.plan.md",
-  ]);
+  await withClearedAgentEnv(async () => {
+    const repoRoot = await checkoutWithAgent("codex");
+    try {
+      const land = job();
+      land.operation = {
+        type: "land",
+        issue_url: "https://github.com/chesapeakedev/dn/issues/213",
+        agent: "cursor",
+        plan_file: "plans/foo.plan.md",
+      };
+      const { argv } = await buildRunnerKickstartCommand(
+        land,
+        ["/usr/local/bin/dn"],
+        repoRoot,
+      );
+      assertEquals(argv, [
+        "/usr/local/bin/dn",
+        "--unattended",
+        "--agent",
+        "codex",
+        "land",
+        "plans/foo.plan.md",
+      ]);
+    } finally {
+      await Deno.remove(repoRoot, { recursive: true });
+    }
+  });
 });
 
 Deno.test("buildRunnerKickstartCommand dispatches denoise-task to temp file", async () => {
-  const { argv, cleanup } = await buildRunnerKickstartCommand(
-    denoiseTaskJob(),
-    ["/usr/local/bin/dn"],
-  );
-  try {
-    assertEquals(argv[0], "/usr/local/bin/dn");
-    assertEquals(argv[1], "--unattended");
-    assertEquals(argv[2], "--agent");
-    assertEquals(argv[3], "codex");
-    assertEquals(argv[4], "kickstart");
-    assertEquals(argv[5], "--sandbox");
-    assertEquals(argv[6], "none");
-    assertEquals(argv[7], "--publish");
-    assertEquals(argv[8], "none");
-    assert(argv[9].endsWith(".md"), `Expected .md file, got ${argv[9]}`);
-    // Verify the materialized content
-    const content = await Deno.readTextFile(argv[9]);
-    assert(content.startsWith("# Denoise test task"));
-    assert(content.includes("Test body content."));
-  } finally {
-    if (cleanup) await cleanup();
-  }
+  await withClearedAgentEnv(async () => {
+    const repoRoot = await checkoutWithAgent("codex");
+    try {
+      const { argv, cleanup } = await buildRunnerKickstartCommand(
+        denoiseTaskJob(),
+        ["/usr/local/bin/dn"],
+        repoRoot,
+      );
+      try {
+        assertEquals(argv[0], "/usr/local/bin/dn");
+        assertEquals(argv[1], "--unattended");
+        assertEquals(argv[2], "--agent");
+        assertEquals(argv[3], "codex");
+        assertEquals(argv[4], "kickstart");
+        assertEquals(argv[5], "--sandbox");
+        assertEquals(argv[6], "none");
+        assertEquals(argv[7], "--publish");
+        assertEquals(argv[8], "none");
+        assert(argv[9].endsWith(".md"), `Expected .md file, got ${argv[9]}`);
+        // Verify the materialized content
+        const content = await Deno.readTextFile(argv[9]);
+        assert(content.startsWith("# Denoise test task"));
+        assert(content.includes("Test body content."));
+      } finally {
+        if (cleanup) await cleanup();
+      }
+    } finally {
+      await Deno.remove(repoRoot, { recursive: true });
+    }
+  });
 });
 
 Deno.test("buildRunnerDenoiseTaskCommand creates temp file and cleanup", async () => {
-  const { argv, cleanup } = await buildRunnerDenoiseTaskCommand(
-    denoiseTaskJob(),
-    ["/usr/local/bin/dn"],
-  );
-  const mdPath = argv[9];
-  // Verify the temp file exists before cleanup
-  const fileExists = await Deno.stat(mdPath).then(() => true).catch(() =>
-    false
-  );
-  assert(fileExists, "Temp file should exist before cleanup");
-  await cleanup();
-  const fileExistsAfter = await Deno.stat(mdPath).then(() => true).catch(() =>
-    false
-  );
-  assertEquals(
-    fileExistsAfter,
-    false,
-    "Temp file should be removed after cleanup",
-  );
+  await withClearedAgentEnv(async () => {
+    const repoRoot = await checkoutWithAgent("codex");
+    try {
+      const { argv, cleanup } = await buildRunnerDenoiseTaskCommand(
+        denoiseTaskJob(),
+        ["/usr/local/bin/dn"],
+        repoRoot,
+      );
+      const mdPath = argv[9];
+      // Verify the temp file exists before cleanup
+      const fileExists = await Deno.stat(mdPath).then(() => true).catch(() =>
+        false
+      );
+      assert(fileExists, "Temp file should exist before cleanup");
+      await cleanup();
+      const fileExistsAfter = await Deno.stat(mdPath).then(() => true).catch(
+        () => false,
+      );
+      assertEquals(
+        fileExistsAfter,
+        false,
+        "Temp file should be removed after cleanup",
+      );
+    } finally {
+      await Deno.remove(repoRoot, { recursive: true });
+    }
+  });
 });
 
 Deno.test("formatRunnerJobFailureMessage prefers invocation.failed detail", () => {
@@ -1087,52 +1202,62 @@ Deno.test("serveRunner heartbeats again after a transient claim failure", async 
 });
 
 Deno.test("runRunnerJob logs spawn, phase, and publish; skips agent.line", async () => {
-  const client = new RecordingClient();
-  const status: string[] = [];
-  await runRunnerJob(job(), {
-    runnerId: "runner-1",
-    commandPrefix: ["/usr/local/bin/dn"],
-    config: localConfig(),
-    client,
-    status: (line) => status.push(line),
-    spawn(_command, cwd) {
-      const events = [
-        progressEvent("phase.started", "Plan phase started", {
-          phase: "plan",
-          seq: 1,
-        }),
-        progressEvent("agent.line", "thinking", { seq: 2 }),
-        progressEvent("step.started", "Resolving issue context", {
-          step: 1,
-          seq: 3,
-        }),
-        progressEvent("publish.completed", "Published", {
-          seq: 4,
-          data: { pr_url: "https://github.com/chesapeakedev/dn/pull/214" },
-        }),
-      ].join("\n") + "\n";
-      assertEquals(cwd, "/workspace/dn");
-      return {
-        stdout: stream("done\n"),
-        stderr: stream(events),
-        status: Promise.resolve({ success: true, code: 0, signal: null }),
-        kill() {},
-      };
-    },
+  await withClearedAgentEnv(async () => {
+    const repoRoot = await checkoutWithAgent("codex");
+    try {
+      const client = new RecordingClient();
+      const status: string[] = [];
+      await runRunnerJob(job(), {
+        runnerId: "runner-1",
+        commandPrefix: ["/usr/local/bin/dn"],
+        config: localConfig(repoRoot),
+        client,
+        status: (line) => status.push(line),
+        spawn(_command, cwd) {
+          const events = [
+            progressEvent("phase.started", "Plan phase started", {
+              phase: "plan",
+              seq: 1,
+            }),
+            progressEvent("agent.line", "thinking", { seq: 2 }),
+            progressEvent("step.started", "Resolving issue context", {
+              step: 1,
+              seq: 3,
+            }),
+            progressEvent("publish.completed", "Published", {
+              seq: 4,
+              data: { pr_url: "https://github.com/chesapeakedev/dn/pull/214" },
+            }),
+          ].join("\n") + "\n";
+          assertEquals(cwd, repoRoot);
+          return {
+            stdout: stream("done\n"),
+            stderr: stream(events),
+            status: Promise.resolve({ success: true, code: 0, signal: null }),
+            kill() {},
+          };
+        },
+      });
+      assertEquals(
+        status[0],
+        `Starting job job-1 in ${repoRoot}: dn --unattended --agent codex kickstart --sandbox none --publish pr https://github.com/chesapeakedev/dn/issues/213`,
+      );
+      assert(status.includes("Job job-1 plan started: Plan phase started"));
+      assert(
+        status.includes(
+          "Job job-1 publish completed: Published (https://github.com/chesapeakedev/dn/pull/214)",
+        ),
+      );
+      assertEquals(status.some((line) => line.includes("thinking")), false);
+      assertEquals(
+        status.some((line) => line.includes("Resolving issue")),
+        false,
+      );
+      assertEquals(client.progress.length, 4);
+    } finally {
+      await Deno.remove(repoRoot, { recursive: true });
+    }
   });
-  assertEquals(
-    status[0],
-    "Starting job job-1 in /workspace/dn: dn --unattended --agent codex kickstart --sandbox none --publish pr https://github.com/chesapeakedev/dn/issues/213",
-  );
-  assert(status.includes("Job job-1 plan started: Plan phase started"));
-  assert(
-    status.includes(
-      "Job job-1 publish completed: Published (https://github.com/chesapeakedev/dn/pull/214)",
-    ),
-  );
-  assertEquals(status.some((line) => line.includes("thinking")), false);
-  assertEquals(status.some((line) => line.includes("Resolving issue")), false);
-  assertEquals(client.progress.length, 4);
 });
 
 Deno.test("runRunnerJob uploads a paused plan before completing the job", async () => {
@@ -1212,63 +1337,81 @@ Deno.test("runRunnerJob logs cancel before the terminal outcome", async () => {
 });
 
 Deno.test("buildRunnerKickstartCommand adds --plan-only for pause_after plan", async () => {
-  const planJob = job();
-  planJob.operation = {
-    type: "kickstart",
-    issue_url: "https://github.com/chesapeakedev/dn/issues/213",
-    publish: "pr",
-    agent: "codex",
-    verbosity: "low",
-    steer: "Keep the plan focused.",
-    pause_after: "plan",
-  };
-  const { argv } = await buildRunnerKickstartCommand(planJob, [
-    "/usr/local/bin/dn",
-  ]);
-  assertEquals(argv, [
-    "/usr/local/bin/dn",
-    "--unattended",
-    "--agent",
-    "codex",
-    "kickstart",
-    "--sandbox",
-    "none",
-    "--publish",
-    "pr",
-    "--verbosity",
-    "low",
-    "--steer",
-    "Keep the plan focused.",
-    "--plan-only",
-    "https://github.com/chesapeakedev/dn/issues/213",
-  ]);
+  await withClearedAgentEnv(async () => {
+    const repoRoot = await checkoutWithAgent("codex");
+    try {
+      const planJob = job();
+      planJob.operation = {
+        type: "kickstart",
+        issue_url: "https://github.com/chesapeakedev/dn/issues/213",
+        publish: "pr",
+        agent: "cursor",
+        verbosity: "low",
+        steer: "Keep the plan focused.",
+        pause_after: "plan",
+      };
+      const { argv } = await buildRunnerKickstartCommand(
+        planJob,
+        ["/usr/local/bin/dn"],
+        repoRoot,
+      );
+      assertEquals(argv, [
+        "/usr/local/bin/dn",
+        "--unattended",
+        "--agent",
+        "codex",
+        "kickstart",
+        "--sandbox",
+        "none",
+        "--publish",
+        "pr",
+        "--verbosity",
+        "low",
+        "--steer",
+        "Keep the plan focused.",
+        "--plan-only",
+        "https://github.com/chesapeakedev/dn/issues/213",
+      ]);
+    } finally {
+      await Deno.remove(repoRoot, { recursive: true });
+    }
+  });
 });
 
 Deno.test("buildRunnerKickstartCommand constructs loop argv", async () => {
-  const loopJob: RunnerJob = {
-    ...job(),
-    id: "job-loop-1",
-    operation: {
-      type: "loop",
-      issue_url: "https://github.com/chesapeakedev/dn/issues/213",
-      agent: "codex",
-      publish: "pr",
-      plan_file: "plans/issue-213.plan.md",
-    },
-  };
-  const { argv } = await buildRunnerKickstartCommand(loopJob, [
-    "/usr/local/bin/dn",
-  ]);
-  assertEquals(argv, [
-    "/usr/local/bin/dn",
-    "--unattended",
-    "--agent",
-    "codex",
-    "loop",
-    "--publish",
-    "pr",
-    "--plan-file",
-    "plans/issue-213.plan.md",
-    "https://github.com/chesapeakedev/dn/issues/213",
-  ]);
+  await withClearedAgentEnv(async () => {
+    const repoRoot = await checkoutWithAgent("codex");
+    try {
+      const loopJob: RunnerJob = {
+        ...job(),
+        id: "job-loop-1",
+        operation: {
+          type: "loop",
+          issue_url: "https://github.com/chesapeakedev/dn/issues/213",
+          agent: "cursor",
+          publish: "pr",
+          plan_file: "plans/issue-213.plan.md",
+        },
+      };
+      const { argv } = await buildRunnerKickstartCommand(
+        loopJob,
+        ["/usr/local/bin/dn"],
+        repoRoot,
+      );
+      assertEquals(argv, [
+        "/usr/local/bin/dn",
+        "--unattended",
+        "--agent",
+        "codex",
+        "loop",
+        "--publish",
+        "pr",
+        "--plan-file",
+        "plans/issue-213.plan.md",
+        "https://github.com/chesapeakedev/dn/issues/213",
+      ]);
+    } finally {
+      await Deno.remove(repoRoot, { recursive: true });
+    }
+  });
 });

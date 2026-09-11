@@ -8,8 +8,10 @@ import {
   saveRunnerCredential,
 } from "./config.ts";
 import {
+  detectRunnerCapabilities,
   doctorRunner,
   inspectRunnerRepository,
+  orderHarnessesByPreference,
   parsePsElapsedMs,
   repositorySlugFromRemote,
   type RunnerCommandProbe,
@@ -24,6 +26,67 @@ Deno.test("parsePsElapsedMs accepts etimes seconds and etime clocks", () => {
   assertEquals(parsePsElapsedMs("03:04"), 184_000);
   assertEquals(parsePsElapsedMs("01:02:03"), 3_723_000);
   assertEquals(parsePsElapsedMs("1-02:03:04"), 93_784_000);
+});
+
+Deno.test("orderHarnessesByPreference moves preferred agent first", () => {
+  assertEquals(
+    orderHarnessesByPreference(
+      ["opencode", "cursor", "claude", "codex"],
+      "cursor",
+    ),
+    ["cursor", "opencode", "claude", "codex"],
+  );
+  assertEquals(
+    orderHarnessesByPreference(["opencode", "cursor"], "copilot"),
+    ["opencode", "cursor"],
+  );
+  assertEquals(
+    orderHarnessesByPreference(["opencode", "cursor"], undefined),
+    ["opencode", "cursor"],
+  );
+});
+
+Deno.test("detectRunnerCapabilities prefers user defaults.agent when installed", async () => {
+  const directory = await Deno.makeTempDir({ prefix: "dn-doctor-pref-" });
+  const userConfigPath = `${directory}/config.json`;
+  await Deno.writeTextFile(
+    userConfigPath,
+    JSON.stringify({
+      schema_version: "2.0",
+      defaults: { agent: "cursor" },
+    }),
+  );
+  const probe: RunnerCommandProbe = {
+    run(command) {
+      if (
+        command === "opencode" || command === "agent" || command === "claude" ||
+        command === "codex"
+      ) {
+        return Promise.resolve({ success: true, stdout: "1.0.0", stderr: "" });
+      }
+      if (command === "docker") {
+        return Promise.resolve({ success: true, stdout: "", stderr: "" });
+      }
+      return Promise.resolve({
+        success: false,
+        stdout: "",
+        stderr: "command not found",
+      });
+    },
+  };
+  try {
+    const capabilities = await detectRunnerCapabilities(probe, {
+      userConfigPath,
+      configRepoRoot: directory,
+    });
+    assertEquals(capabilities.harnesses[0], "cursor");
+    assertEquals(
+      capabilities.harnesses,
+      ["cursor", "opencode", "claude", "codex"],
+    );
+  } finally {
+    await Deno.remove(directory, { recursive: true });
+  }
 });
 
 Deno.test("serveLogShowsActiveJob ignores completed jobs and idle lines", () => {

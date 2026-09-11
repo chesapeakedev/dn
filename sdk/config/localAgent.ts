@@ -13,6 +13,11 @@ export interface ResolveLocalAgentHarnessOptions {
   repoRoot: string;
   /** Explicit `--agent` selection, usually from global and subcommand CLI flags. */
   agent?: AgentSelection | null;
+  /**
+   * Optional `owner/repo` slug for user `repos[...]` overrides. When omitted,
+   * {@link resolveDnConfig} detects the slug from the checkout remote.
+   */
+  repositorySlug?: string;
 }
 
 /**
@@ -29,6 +34,9 @@ export async function resolveLocalAgentHarness(
 ): Promise<AgentSelection> {
   const config = await resolveDnConfig({
     repoRoot: options.repoRoot,
+    ...(options.repositorySlug
+      ? { repositorySlug: options.repositorySlug }
+      : {}),
     // File layers only; DN_AGENT and *_ENABLED are handled in the harness helper.
     env: {},
     cli: {},

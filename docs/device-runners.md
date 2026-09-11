@@ -271,10 +271,19 @@ The runner applies these boundaries:
   (`dn kickstart --sandbox none --publish …`,
   `dn --unattended --agent <harness> land [plan_file]`, or
   `dn --unattended sync`) and rejects argv, shell, environment, and workflow
-  definitions. `--sandbox none` keeps ticketless denoise-task jobs runnable on
-  devices whose repo config prefers `exe.dev`. Land jobs never receive local
-  filesystem paths; `plan_file` is repo-relative (`plans/*.plan.md`) or omitted
-  so `dn land` picks the newest plan. Sync jobs never pass `--skip-preflight`.
+  definitions. For agent-bearing jobs, `<harness>` comes from local resolution
+  on the checkout (`DN_AGENT` / `*_ENABLED`, then `~/.dn/config.json` defaults
+  and `repos[owner/repo]`, then repo `dn.json`), not Denoise's stamped
+  `operation.agent` (often the first advertised harness). `--sandbox none` keeps
+  ticketless denoise-task jobs runnable on devices whose repo config prefers
+  `exe.dev`. Land jobs never receive local filesystem paths; `plan_file` is
+  repo-relative (`plans/*.plan.md`) or omitted so `dn land` picks the newest
+  plan. Sync jobs never pass `--skip-preflight`.
+- Set a preferred agent with `defaults.agent` in `~/.dn/config.json` (or a
+  per-repo override / project `dn.json`). After changing it, restart the runner
+  so heartbeats re-advertise harnesses with that agent first (Denoise still
+  stamps `harnesses[0]` for job metadata; the worker ignores that stamp when
+  spawning).
 - The issue URL must belong to the registered repository. Local paths never
   enter heartbeat, job, or progress payloads.
 - GitHub and agent authentication come from the local machine. Denoise does not

@@ -110,8 +110,9 @@ explicit local CLI invocations.
 
 ### `dn.land`
 
-Device-runner only. Queues default-agent `dn land` on the paired checkout (not
-`--single`). Required fields:
+Device-runner only. Queues `dn land` on the paired checkout (not `--single`)
+using the same local agent resolution as kickstart (`~/.dn/config.json` / repo
+`dn.json` / `DN_AGENT`). Required fields:
 
 - `schema_version`
 - `dispatch_id`
@@ -320,9 +321,11 @@ Heartbeat repository entries contain `owner/repo`, readiness, and an optional
 reason. They never contain local paths. Jobs contain opaque IDs, invocation and
 runner IDs, repository slug, issue URL or task document, publish mode, agent
 harness, timestamps, and lease state. Protocol v1 accepts `kickstart`,
-`denoise-task`, `land`, and `sync` operation types. Land jobs use the same
-harness as kickstart and never include local filesystem paths. Sync jobs run
-`dn --unattended sync` in the registered checkout (no `--skip-preflight`).
+`denoise-task`, `land`, and `sync` operation types. The `operation.agent` field
+is wire validation and display metadata; the device worker resolves the agent
+from local config for the registered checkout when spawning. Land jobs never
+include local filesystem paths. Sync jobs run `dn --unattended sync` in the
+registered checkout (no `--skip-preflight`).
 
 Queue offline jobs for at most 24 hours and do not fall back to a hosted
 runtime. Claim one job per runner atomically. A reconnect after lease loss marks
