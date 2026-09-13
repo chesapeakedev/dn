@@ -32,6 +32,7 @@ endif
 	test_subcommands \
 	exe_dev_token \
 	skill_goldens \
+	runner_coverage \
 	bump_patch bump_minor bump_major release
 
 fmt: ; deno fmt
@@ -45,6 +46,22 @@ precommit:
 # subprocesses, so it must run with the same broad permissions used by the
 # CLI integration tests.
 tests: ; NODE_ENV=dev deno test --allow-all
+
+# Focused source coverage for the local/exe.dev runner worker and protocol.
+# Override RUNNER_STATEMENT_THRESHOLD while growing the suite; the intended
+# steady-state gate is 90% for sdk/runner sources.
+RUNNER_COVERAGE_DIR ?= /tmp/dn-runner-coverage
+RUNNER_STATEMENT_THRESHOLD ?= 55
+runner_coverage:
+	rm -rf "$(RUNNER_COVERAGE_DIR)"
+	deno test --allow-all --coverage="$(RUNNER_COVERAGE_DIR)" \
+		sdk/runner/worker_test.ts sdk/runner/client_test.ts \
+		sdk/runner/types_test.ts sdk/runner/config_test.ts \
+		sdk/runner/doctor_test.ts sdk/runner/bootstrap_test.ts \
+		sdk/runner/cloudCheckout_test.ts cli/runner_test.ts
+	deno run --allow-read --allow-run=deno scripts/report-runner-coverage.ts \
+		--profile "$(RUNNER_COVERAGE_DIR)" \
+		--threshold "$(RUNNER_STATEMENT_THRESHOLD)"
 configure: install
 publish: ; deno task publish
 
