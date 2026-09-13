@@ -663,6 +663,7 @@ async function findLatestPlanArtifact(
 function completionFrom(
   startedAt: number,
   prUrl?: string,
+  commitSha?: string,
   acceptanceReport?: AcceptanceCriteriaReport,
 ): RunnerJobCompletion {
   const durationMs = Math.max(0, Date.now() - startedAt);
@@ -672,6 +673,7 @@ function completionFrom(
     local_compute_minutes: Math.ceil(durationMs / 60_000),
     hosted_runs_avoided: 1,
     ...(prUrl ? { pr_url: prUrl } : {}),
+    ...(commitSha ? { commit_sha: commitSha } : {}),
     ...(acceptanceReport ? { acceptance_report: acceptanceReport } : {}),
   };
 }
@@ -753,6 +755,7 @@ export async function runRunnerJob(
   let progressCount = 0;
   let didLogProgressDeliveryFailure = false;
   let prUrl: string | undefined;
+  let commitSha: string | undefined;
   let invocationFailedMessage: string | undefined;
   let planPath: string | undefined;
   let acceptanceReport: AcceptanceCriteriaReport | undefined;
@@ -813,6 +816,13 @@ export async function runRunnerJob(
       typeof progressEvent.data?.pr_url === "string"
     ) {
       prUrl = progressEvent.data.pr_url;
+    }
+    if (
+      progressEvent.type === "publish.completed" &&
+      progressEvent.data?.publish_mode === "direct" &&
+      typeof progressEvent.data?.commit_sha === "string"
+    ) {
+      commitSha = progressEvent.data.commit_sha;
     }
     if (progressEvent.type === "invocation.failed") {
       invocationFailedMessage = progressEvent.message;
@@ -936,7 +946,7 @@ export async function runRunnerJob(
     }
     await options.client.completeJob(
       job.id,
-      completionFrom(startedAt, prUrl, acceptanceReport),
+      completionFrom(startedAt, prUrl, commitSha, acceptanceReport),
     );
     return { kind: "succeeded", prUrl, durationMs };
   } finally {

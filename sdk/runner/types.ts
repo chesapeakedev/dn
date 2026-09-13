@@ -417,6 +417,8 @@ export interface RunnerJobCompletion {
   hosted_runs_avoided: 1;
   /** Pull request created by publish mode, when available. */
   pr_url?: string;
+  /** Full commit SHA pushed to the default branch, when publication was direct. */
+  commit_sha?: string;
   /** Final plan checklist, when this job ran an issue-backed workflow. */
   acceptance_report?: import("../github/progress.ts").AcceptanceCriteriaReport;
 }

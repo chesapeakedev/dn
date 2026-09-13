@@ -1596,6 +1596,8 @@ export async function runOrchestrator(
         step: 8,
         data: {
           branch_name: publishResult.branchName,
+          commit_sha: publishResult.commitSha,
+          publish_mode: publish,
           ...(prUrl === undefined ? {} : { pr_url: prUrl }),
         },
       });

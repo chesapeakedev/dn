@@ -323,7 +323,11 @@ Deno.test("runRunnerJob forwards NDJSON progress and completion receipt", async 
         ts: "2026-07-23T12:00:00.000Z",
         type: "publish.completed",
         message: "Published",
-        data: { pr_url: "https://github.com/chesapeakedev/dn/pull/214" },
+        data: {
+          pr_url: "https://github.com/chesapeakedev/dn/pull/214",
+          commit_sha: "0123456789abcdef0123456789abcdef01234567",
+          publish_mode: "direct",
+        },
       });
       return {
         stdout: stream("done\n"),
@@ -341,6 +345,10 @@ Deno.test("runRunnerJob forwards NDJSON progress and completion receipt", async 
   assertEquals(
     client.completion?.pr_url,
     "https://github.com/chesapeakedev/dn/pull/214",
+  );
+  assertEquals(
+    client.completion?.commit_sha,
+    "0123456789abcdef0123456789abcdef01234567",
   );
   assertEquals(client.completion?.hosted_runs_avoided, 1);
 });
