@@ -1299,11 +1299,14 @@ and plan naming are available on `meld`.
 
 ## `dn loop` — Loop phase only
 
-Runs only the loop phase (steps 4–7: implement, completion, lint, artifacts,
-validate):
+Runs the loop phase (steps 4–7: implement, completion, lint, artifacts,
+validate). With `--publish pr` or `--publish direct`, also commits, pushes, and
+(for `pr`) opens a pull request after implement — same publish helpers as
+kickstart:
 
 ```bash
 dn loop plans/issue-123.plan.md
+dn loop --publish pr plans/issue-123.plan.md
 dn loop https://github.com/owner/repo/issues/123
 dn loop 123
 

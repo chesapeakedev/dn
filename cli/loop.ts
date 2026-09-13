@@ -73,6 +73,11 @@ interface LoopCliConfig extends KickstartConfig {
   cursorCloudRef: string;
   target: LoopTarget;
   planFilePath: string | null;
+  /**
+   * Issue URL/number passed alongside `--plan-file`. Denoise runners pass both
+   * so publish can resolve the issue when the plan body has no GitHub URL.
+   */
+  companionIssueInput: string | null;
 }
 
 /**
@@ -156,6 +161,26 @@ export function classifyLoopTarget(input: string | null): LoopTarget {
     return { kind: "denoise-task", path: trimmed };
   }
   return { kind: "plan-file", path: trimmed };
+}
+
+/**
+ * When `--plan-file` is paired with a positional issue URL/number, keep the
+ * issue so `--publish pr|direct` can resolve it even if the plan body has no
+ * github.com link.
+ */
+export function companionIssueInputForLoop(
+  planFilePath: string | null,
+  targetInput: string | null,
+): string | null {
+  if (planFilePath == null || targetInput == null) return null;
+  const companion = classifyLoopTarget(targetInput);
+  if (companion.kind === "github-issue") {
+    return companion.input;
+  }
+  if (targetInput !== planFilePath) {
+    throw new Error(`Unexpected loop argument: ${targetInput}`);
+  }
+  return null;
 }
 
 async function planFileExists(path: string): Promise<boolean> {
@@ -375,6 +400,10 @@ export async function parseLoopArgs(
   }
 
   const target = classifyLoopTarget(planFilePath ?? targetInput);
+  const companionIssueInput = companionIssueInputForLoop(
+    planFilePath,
+    targetInput,
+  );
 
   const agentSelection = await resolveLocalAgentHarness({
     repoRoot: workspaceRoot ?? Deno.cwd(),
@@ -407,6 +436,7 @@ export async function parseLoopArgs(
     savedPlanName: null,
     workspaceRoot,
     planFilePath,
+    companionIssueInput,
     target,
     sandboxFlag,
     cursorCloud,
@@ -437,7 +467,7 @@ function showHelp(): void {
     "  --plan-file <path>       Deprecated alias for passing a plan file argument",
   );
   console.log(
-    "  --publish <mode>         none (default), pr, or direct",
+    "  --publish <mode>         none (default), pr, or direct — commit/push/(open PR) after implement",
   );
   console.log(
     "  --allow-cross-repo, -A   Allow issue URLs from a different repository",
@@ -473,6 +503,7 @@ function showHelp(): void {
   console.log("  CODEX_ENABLED            Set to '1' to use Codex CLI\n");
   console.log("Examples:");
   console.log("  dn loop plans/my-feature.plan.md");
+  console.log("  dn loop --publish pr plans/my-feature.plan.md");
   console.log("  dn loop https://github.com/owner/repo/issues/123");
   console.log("  dn loop 123");
   console.log(
@@ -543,11 +574,7 @@ async function extractIssueContextFromPlan(
   explicitIssueUrl: string | null,
 ): Promise<{ issueData: IssueData | null }> {
   if (explicitIssueUrl) {
-    try {
-      return { issueData: await fetchIssueFromUrl(explicitIssueUrl) };
-    } catch {
-      // If fetch fails, continue without issue data.
-    }
+    return { issueData: await fetchIssueFromUrl(explicitIssueUrl) };
   }
 
   try {
@@ -614,6 +641,9 @@ export async function handleLoop(
     const resolved = await resolveLoopTarget(config.target, root);
     config.planFilePath = resolved.planFilePath;
     explicitIssueUrl = resolved.issueUrl;
+    if (explicitIssueUrl == null && config.companionIssueInput != null) {
+      explicitIssueUrl = await resolveIssueUrlInput(config.companionIssueInput);
+    }
   } catch (error) {
     console.error(
       `Error: ${error instanceof Error ? error.message : String(error)}`,
@@ -685,6 +715,12 @@ export async function handleLoop(
           );
         }
 
+        if (config.publish !== "none" && issueData === null) {
+          throw new Error(
+            "Publishing requires a resolvable GitHub issue. Pass an issue URL/number or include one in the plan.",
+          );
+        }
+
         // Read plan file content to use as plan output
         const planContent = await Deno.readTextFile(effectivePlanFilePath);
         await Deno.writeTextFile(planOutputPath, planContent);
@@ -696,6 +732,12 @@ export async function handleLoop(
           issueData,
           tmpDir,
         );
+
+        if (result.prUrl) {
+          console.log(`Pull request: ${result.prUrl}`);
+        } else if (result.branchName) {
+          console.log(`Published branch: ${result.branchName}`);
+        }
 
         if (result.continuationPromptPath) {
           console.log(

@@ -504,7 +504,30 @@ async function createBranch(
 }
 
 /**
+ * Checks out an existing branch/bookmark, used to resume plan-gated or retried
+ * kickstart runs that already created a `kickstart/` topic branch.
+ */
+async function checkoutExistingBranch(
+  vcs: "git" | "sapling",
+  branchName: string,
+): Promise<void> {
+  if (vcs === "sapling") {
+    await $`sl goto ${branchName}`;
+  } else {
+    await $`git checkout ${branchName}`;
+  }
+  console.log(
+    `Reusing existing ${
+      vcs === "sapling" ? "bookmark" : "branch"
+    }: ${branchName}`,
+  );
+}
+
+/**
  * Prepares VCS state for automated publish flows (no interactive prompts).
+ *
+ * Reuses an existing `kickstart/` topic branch when present so plan-only →
+ * approve implement and Retry do not fail with "branch already exists".
  */
 export async function prepareVcsForPublish(
   mode: PublishMode,
@@ -545,7 +568,29 @@ export async function prepareVcsForPublish(
   }
 
   const branchName = generateBranchName(issueData);
-  await createBranch(vcsContext.vcs, branchName);
+  if (currentBranch === branchName) {
+    console.log(
+      `Already on ${
+        vcsContext.vcs === "sapling" ? "bookmark" : "branch"
+      }: ${branchName}`,
+    );
+    return {
+      vcs: vcsContext.vcs,
+      branchName,
+      previousBranch: currentBranch,
+    };
+  }
+
+  if (await branchExists(vcsContext.vcs, branchName)) {
+    if (!branchName.startsWith(KICKSTART_BRANCH_PREFIX)) {
+      throw new Error(
+        `Branch ${branchName} already exists. Please delete it or use a different name.`,
+      );
+    }
+    await checkoutExistingBranch(vcsContext.vcs, branchName);
+  } else {
+    await createBranch(vcsContext.vcs, branchName);
+  }
   return {
     vcs: vcsContext.vcs,
     branchName,

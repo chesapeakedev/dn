@@ -26,8 +26,10 @@ import {
 import type { GitContext } from "../sdk/github/vcs.ts";
 import {
   checkForChanges,
+  cleanupBranch,
   detectVcs,
   prepareVcsForKickstart,
+  publishChanges,
 } from "../sdk/github/vcs.ts";
 import type {
   AgentHarness,
@@ -42,6 +44,13 @@ import {
   type ProgressReporter,
 } from "../sdk/github/progress.ts";
 import type { PublishMode } from "../sdk/github/publish.ts";
+import {
+  assertPublishAllowedInCi,
+  writeGithubActionVcsOutputs,
+} from "../sdk/github/publish.ts";
+import { createPR } from "../sdk/github/github.ts";
+import type { PRPlanSummary } from "../sdk/github/github.ts";
+import { formatSummary } from "../sdk/archive/format.ts";
 import { isUnattended } from "../sdk/github/output.ts";
 import { reviewTextInEditor } from "../sdk/github/editor.ts";
 import { augmentOpenCodePlanEditPermission } from "../sdk/github/opencode.ts";
@@ -405,6 +414,10 @@ export interface LoopPhaseResult {
   tmpDir: string;
   /** Path to combined implement prompt */
   combinedPromptImplementPath: string;
+  /** Pull request URL when publish mode is pr */
+  prUrl?: string;
+  /** Branch or bookmark name when changes were published */
+  branchName?: string;
 }
 
 /**
@@ -1220,7 +1233,9 @@ export async function runPlanPhase(
 }
 
 /**
- * Runs the loop phase (Steps 4-7): implement, completion check, lint, artifacts, validate
+ * Runs the loop phase (Steps 4-7, plus optional publish): implement, completion
+ * check, lint, artifacts, validate, and when `--publish pr|direct` is set,
+ * commit/push/(PR).
  */
 export async function runLoopPhase(
   config: KickstartConfig,
@@ -1231,10 +1246,24 @@ export async function runLoopPhase(
 ): Promise<LoopPhaseResult> {
   const workspaceRoot = getWorkspaceRoot(config);
   const reporter: ProgressReporter = createProgressReporter();
+  const publishesChanges = config.publish !== "none";
+  let gitContext: GitContext | null = null;
+  let planSummary: PlanSummary | null = null;
 
   const combinedPromptImplementPath = `${tmpDir}/combined_prompt_implement.txt`;
 
   try {
+    assertPublishAllowedInCi(config.publish);
+    if (publishesChanges) {
+      if (issueData === null) {
+        throw new Error(
+          "Publishing requires a resolvable GitHub issue (URL in the plan or as the loop target).",
+        );
+      }
+      console.log(formatStep(2, "Preparing VCS state..."));
+      gitContext = await prepareVcsForKickstart(config.publish, issueData);
+    }
+
     await reporter.report({
       type: "invocation.running",
       message: "Loop invocation running",
@@ -1544,6 +1573,10 @@ export async function runLoopPhase(
           );
         }
       } else {
+        // Capture plan summary before deleting (needed for PR body).
+        if (publishesChanges) {
+          planSummary = await extractPlanSummary(planFilePath);
+        }
         // Delete plan file when all criteria are complete (AWP mode only)
         if (config.publish !== "none") {
           try {
@@ -1573,6 +1606,9 @@ export async function runLoopPhase(
           "No acceptance criteria found in plan file. Unable to determine completion status.",
         ),
       );
+      if (publishesChanges) {
+        planSummary = await extractPlanSummary(planFilePath);
+      }
     }
 
     // Step 5: Run ensure.lint (fixer agent). Blocking when the recipe exists.
@@ -1620,8 +1656,11 @@ export async function runLoopPhase(
     // Step 7: Validate changes
     console.log(formatStep(7, "Validating changes..."));
 
-    const vcsContext = await detectVcs();
-    const vcsType = vcsContext?.vcs || null;
+    let vcsType = gitContext?.vcs ?? null;
+    if (!vcsType && !publishesChanges) {
+      const vcsContext = await detectVcs();
+      vcsType = vcsContext?.vcs || null;
+    }
 
     if (!vcsType) {
       console.log(
@@ -1646,6 +1685,9 @@ export async function runLoopPhase(
     const hasChanges = await checkForChanges(vcsType);
     if (!hasChanges) {
       console.log(formatInfo("No changes were made by the agent."));
+      if (publishesChanges && gitContext) {
+        await cleanupBranch(gitContext);
+      }
       await reporter.report({
         type: "invocation.succeeded",
         message: "Loop completed successfully",
@@ -1660,6 +1702,104 @@ export async function runLoopPhase(
       };
     }
 
+    if (publishesChanges) {
+      console.log(formatStep(8, "Committing and pushing changes..."));
+      await reporter.report({
+        type: "phase.started",
+        message: "Publish phase started",
+        phase: "publish",
+        step: 8,
+      });
+      if (!issueData || !gitContext) {
+        throw new Error("Issue data and git context required for commit");
+      }
+      const commitMessage = formatSummary(
+        `#${issueData.number} ${issueData.title}`,
+      );
+      const publishResult = await publishChanges(gitContext, {
+        message: commitMessage,
+        mode: config.publish,
+      });
+
+      let prUrl: string | undefined;
+      if (config.publish === "pr") {
+        console.log(formatStep(9, "Creating PR..."));
+        let prPlanSummary: PRPlanSummary | undefined;
+        if (planSummary) {
+          prPlanSummary = {
+            overview: planSummary.overview,
+            acceptanceCriteria: planSummary.acceptanceCriteria,
+          };
+        }
+        prUrl = await createPR(
+          issueData,
+          gitContext.branchName,
+          gitContext.vcs,
+          prPlanSummary,
+        ) ?? undefined;
+        if (prUrl) {
+          console.log(formatSuccess(`PR created: ${prUrl}`));
+        } else {
+          console.log(
+            formatInfo(`PR creation skipped (using ${gitContext.vcs}).`),
+          );
+          console.log(
+            formatInfo(
+              "   Please use the link shown in the push output above to create the PR manually.",
+            ),
+          );
+        }
+      } else {
+        console.log(
+          formatSuccess(`Changes pushed to ${gitContext.branchName}.`),
+        );
+      }
+
+      await writeGithubActionVcsOutputs({
+        ...publishResult,
+        prUrl,
+        publishMode: config.publish,
+      });
+      await reporter.report({
+        type: "publish.completed",
+        message: "Published changes",
+        phase: "publish",
+        step: 8,
+        data: {
+          branch_name: publishResult.branchName,
+          commit_sha: publishResult.commitSha,
+          ...(prUrl === undefined ? {} : { pr_url: prUrl }),
+        },
+      });
+      await reporter.report({
+        type: "phase.completed",
+        message: "Publish phase completed",
+        phase: "publish",
+        step: 8,
+      });
+
+      await reporter.report({
+        type: "invocation.succeeded",
+        message: "Loop completed successfully",
+      });
+      return {
+        success: true,
+        completionStatus,
+        implementResult: structuredImplementResult ?? undefined,
+        continuationPromptPath,
+        tmpDir,
+        combinedPromptImplementPath,
+        ...(prUrl === undefined ? {} : { prUrl }),
+        branchName: publishResult.branchName,
+      };
+    }
+
+    console.log(formatSuccess("Changes applied to workspace."));
+    console.log(
+      formatInfo(
+        "Review the changes, then run `dn land` to create commits.",
+      ),
+    );
     await reporter.report({
       type: "invocation.succeeded",
       message: "Loop completed successfully",

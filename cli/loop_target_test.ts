@@ -2,7 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { assertEquals } from "@std/assert";
-import { classifyLoopTarget, resolveLoopTarget } from "./loop.ts";
+import {
+  classifyLoopTarget,
+  companionIssueInputForLoop,
+  resolveLoopTarget,
+} from "./loop.ts";
 
 Deno.test("classifyLoopTarget accepts plan files, issue URLs, and issue numbers", () => {
   assertEquals(classifyLoopTarget(null), { kind: "auto" });
@@ -77,4 +81,25 @@ Deno.test("resolveLoopTarget falls back to an issue source with no matching plan
   } finally {
     await Deno.remove(repoRoot, { recursive: true });
   }
+});
+
+Deno.test("companionIssueInputForLoop keeps issue URL beside --plan-file", () => {
+  assertEquals(
+    companionIssueInputForLoop(
+      "plans/reservation-booking.plan.md",
+      "https://github.com/chesapeakedev/hoteling-demo-nick/issues/7",
+    ),
+    "https://github.com/chesapeakedev/hoteling-demo-nick/issues/7",
+  );
+  assertEquals(
+    companionIssueInputForLoop("plans/reservation-booking.plan.md", null),
+    null,
+  );
+  assertEquals(
+    companionIssueInputForLoop(
+      null,
+      "https://github.com/chesapeakedev/hoteling-demo-nick/issues/7",
+    ),
+    null,
+  );
 });

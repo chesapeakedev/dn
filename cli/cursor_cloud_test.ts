@@ -102,6 +102,15 @@ Deno.test("loop parses --publish pr", async () => {
   assertEquals(config.publish, "pr");
 });
 
+Deno.test("loop parses --publish direct", async () => {
+  const config = await parseLoopArgs([
+    "--publish",
+    "direct",
+    "plans/work.plan.md",
+  ]);
+  assertEquals(config.publish, "direct");
+});
+
 Deno.test("loop parses an explicit Cursor cloud starting ref", async () => {
   const config = await parseLoopArgs([
     "--cursor-cloud",
