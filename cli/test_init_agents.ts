@@ -343,6 +343,33 @@ Deno.test("repo base-image skill install writes named skill files", async () => 
   }
 });
 
+Deno.test("repo dn-until skill install writes authoring guidance", async () => {
+  const testRepo = await createTestRepo();
+
+  try {
+    await runDnCommand([
+      "init",
+      "agents",
+      "--skill",
+      "dn-until",
+      "--agent",
+      "opencode",
+    ], { cwd: testRepo.path });
+
+    const skillPath = `${testRepo.path}/.opencode/skills/dn-until/SKILL.md`;
+    const metadataPath =
+      `${testRepo.path}/.opencode/skills/dn-until/agents/openai.yaml`;
+    const content = await Deno.readTextFile(skillPath);
+
+    assert(content.includes("name: dn-until"));
+    assert(content.includes("## Content limitations"));
+    assert(content.includes("dn until import"));
+    assert(await pathExists(metadataPath));
+  } finally {
+    await cleanupTestRepo(testRepo);
+  }
+});
+
 Deno.test("repo rfc skill install writes named skill files", async () => {
   const testRepo = await createTestRepo();
 

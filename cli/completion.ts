@@ -36,7 +36,7 @@ const BOOTSTRAP_FLAGS = [
 ];
 const SANDBOX_PROVIDERS = ["none", "docker", "exe.dev"];
 const PUBLISH_MODES = ["none", "pr", "direct"];
-const SKILL_NAMES = ["dn", "base-image", "rfc"];
+const SKILL_NAMES = ["dn", "dn-until", "base-image", "rfc"];
 const SKILL_AGENTS = ["opencode", "cursor", "claude", "codex"];
 const ISSUE_STATES = ["open", "closed", "all"];
 const CLOSE_REASONS = ["completed", "not_planned"];

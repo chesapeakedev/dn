@@ -111,19 +111,29 @@ See also `cli/ensure.ts`.
 
 ## `dn until` — Iteration-bounded generator/verifier gambits
 
-Runs a bounded multi-tick generator/verifier workflow from a JSON config file.
-One primary tick is loop-like (`dn loop` is a single implement pass on a plan);
-`dn until` repeats that tick up to a shared iteration bound until a verifier
-gate passes, and can schedule optional interval gambits as a fraction of that
-bound. Prefer `dn until` for goal-shaped work with a shell or prompt gate — not
-for issue→plan→implement (`dn meld` / `dn loop` / `kickstart`).
+Runs a bounded multi-tick generator/verifier workflow from a JSON, TOML, or
+Markdown file with `+++` TOML frontmatter. One primary tick is loop-like
+(`dn loop` is a single implement pass on a plan); `dn until` repeats that tick
+up to a shared iteration bound until a verifier gate passes, and can schedule
+optional interval gambits as a fraction of that bound. Prefer `dn until` for
+goal-shaped work with a shell or prompt gate — not for issue→plan→implement
+(`dn meld` / `dn loop` / `kickstart`).
 
 ```bash
-dn until validate .github/dn/gambit.json
-dn until run .github/dn/gambit.json
-dn until run .github/dn/gambit.json --once
-dn until run .github/dn/gambit.json --strict-verdict
+dn until import https://github.com/owner/repo/issues/123
+dn until import 123 --split
+dn until validate ./goal.md
+dn until run ./goal.md
+dn until run ./goal.md --once
+dn until run ./goal.md --strict-verdict
 ```
+
+`dn until import` fetches an issue and writes a local goal file next to the
+current directory. The default is one Markdown file; `--split` writes a TOML
+config plus a neighboring Markdown body. Import is convert-only: it does not
+close the GitHub issue or start `dn until run`. Review an imported issue before
+running it. A suitable goal has one observable outcome and a clear Success or
+acceptance section.
 
 A config has top-level `iterations` (default `10`) and optional `timeout_ms`
 (hard wall-clock abort only; default one hour). Gambit `0` is the **primary**
@@ -135,9 +145,11 @@ goal loop (every iteration). Later gambits are either:
   (`before` | `after`, default `before`) relative to the primary tick.
 - **Tail** — `one_shot: true` runs once after the primary verifier succeeds.
 
-Each action has exactly one of `script` or `prompt`. A generator failure stops
-the run. A script verifier is done when it exits with code `0`. A prompt
-verifier is done when, in order:
+Each generator and verifier action has exactly one of `url`, `content`, or
+`script`. JSON `prompt` is an alias for `content`. Use `url` for a local
+Markdown file or a GitHub issue body, `content` for a short prompt, and `script`
+for a shell action. A generator failure stops the run. A script verifier is done
+when it exits with code `0`. A prompt verifier is done when, in order:
 
 1. A verdict file exists (default `.dn/until-verdict.json`, or
    `verifier.verdict_path`) with `{"done": true}`, or
@@ -185,6 +197,50 @@ use the same sandbox settings for every gambit.
 
 With `iterations: 4` and `interval: 0.25`, the review gambit fires once;
 `align: "spread"` places that fire on iteration `2`.
+
+### What Markdown is not supported in `content`
+
+`content` is for short, light prompts, not a full Markdown document. Put real
+Markdown in a file and reference it with `url`, or use the body of a one-file
+Markdown goal. In particular:
+
+- A `'''` delimiter cannot appear inside a matching `'''` string. This affects
+  Python, TOML, and SQL examples with nested quotes.
+- Switching to `"""` requires escaping `\` and `"`; a trailing `\` can consume
+  the next line.
+- Leading whitespace on wrapped lines is part of the prompt and is not
+  formatting.
+- Relative Markdown links and images are not resolved. Headings and lists are
+  characters sent to the agent, not a separately loaded document.
+
+Install the authoring and review skill for the agent used in a repository:
+
+```bash
+dn init agents --skill dn-until --agent codex
+dn init agents --skill dn-until --agent opencode
+dn init agents --skill dn-until --agent claude
+```
+
+The `dn-until` skill helps agents assess whether an issue is a bounded goal,
+choose `url` versus `content` versus `script`, and write a file that passes
+`dn until validate`. It does not replace the `dn` harness skill.
+
+An until goal can be a standalone `.toml` file or a single `.md` file with `+++`
+TOML frontmatter. In the Markdown form, omit `generator.url` and
+`generator.content` to make the body the primary generator:
+
+```markdown
++++
+iterations = 10
+
+[verifier]
+script = "make precommit"
++++
+
+# Goal
+
+Describe the bounded outcome here.
+```
 
 ## Common argument formats
 
@@ -648,7 +704,7 @@ dn init agents
 
 Pass `--skill` to install native skill files for one explicitly selected
 supported agent. `--agent` is required with `--skill`. Optionally pass a skill
-name after `--skill` (`dn` default, `base-image`, or `rfc`).
+name after `--skill` (`dn` default, `dn-until`, `base-image`, or `rfc`).
 
 ```bash
 dn init agents --skill --agent codex
@@ -658,13 +714,14 @@ dn init agents --skill --agent cursor
 dn init agents --skill --agent cursor --scope user
 dn init agents --skill base-image --agent opencode
 dn init agents --skill rfc --agent opencode
+dn init agents --skill dn-until --agent opencode
 dn init agents --skill --agent codex --scope user
 dn init agents --skill --agent claude --dry-run --json
 ```
 
 Supported skill agents: `codex`, `claude`, `opencode`, `cursor`.
 
-Supported skill names: `dn` (default), `base-image`, `rfc`.
+Supported skill names: `dn` (default), `dn-until`, `base-image`, `rfc`.
 
 Repo-scope installs write (replace `dn` with the skill name when set):
 
@@ -684,8 +741,8 @@ User-scope installs write:
 - `claude`: `~/.claude/skills/<name>/SKILL.md`
 - `cursor`: `~/.cursor/skills/dn/SKILL.md` (dn skill only)
 
-`--agent cursor` only installs the dn harness skill. `base-image` and `rfc`
-follow the selected agent's native skill tree (`--agent opencode` →
+`--agent cursor` only installs the dn harness skill. `dn-until`, `base-image`,
+and `rfc` follow the selected agent's native skill tree (`--agent opencode` →
 `.opencode/skills/`, `--agent codex` → `.agents/skills/`). Outer-harness UX
 (kickstart argv, ask-before-commit, publish phrasing, nested `--agent`) is
 documented in [Outer harness](outer-harness.md).
@@ -693,6 +750,9 @@ documented in [Outer harness](outer-harness.md).
 Managed skill files are idempotent; existing unmanaged files are left untouched
 unless `--force` is passed. Use `--dry-run` to inspect planned writes, skips,
 and conflicts without changing files.
+
+The `dn-until` skill teaches agents to author and review bounded goal files,
+including the `url` versus `content` versus `script` choice.
 
 The `base-image` skill documents golden-image hygiene and `sandbox.docker.image`
 / `sandbox.docker.dockerfile` configuration. See [sandbox.md](sandbox.md).
