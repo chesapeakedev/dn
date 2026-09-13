@@ -49,7 +49,9 @@ for (const line of lcov.split("\n")) {
 
 const percentage = total === 0 ? 100 : (covered / total) * 100;
 console.log(
-  `dn runner statement coverage ${percentage.toFixed(2)}% (${covered}/${total})`,
+  `dn runner statement coverage ${
+    percentage.toFixed(2)
+  }% (${covered}/${total})`,
 );
 if (uncovered.length > 0) {
   console.log("Uncovered lines");
@@ -57,6 +59,8 @@ if (uncovered.length > 0) {
 }
 if (percentage < threshold) {
   throw new Error(
-    `dn runner statement coverage ${percentage.toFixed(2)}% is below ${threshold}%.`,
+    `dn runner statement coverage ${
+      percentage.toFixed(2)
+    }% is below ${threshold}%.`,
   );
 }
