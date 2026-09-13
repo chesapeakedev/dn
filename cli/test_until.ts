@@ -7,6 +7,7 @@ import {
   applyMetadataToPrompt,
   DEFAULT_VERDICT_PATH,
   extractVerdictJson,
+  loadUntilConfig,
   parseUntilConfig,
   resolvePromptDone,
   runUntil,
@@ -69,6 +70,86 @@ Deno.test("parseUntilConfig rejects actions with both execution modes", () => {
     Error,
     "exactly one string",
   );
+});
+
+Deno.test("parseUntilConfig accepts content and rejects multiple new sources", () => {
+  const config = parseUntilConfig({
+    generator: { content: "short goal" },
+    verifier: { script: "true" },
+  });
+  assertEquals(config.gambits[0].generator.content, "short goal");
+  assertThrows(
+    () =>
+      parseUntilConfig({
+        generator: { content: "goal", url: "goal.md" },
+        verifier: { script: "true" },
+      }),
+    Error,
+    "exactly one string",
+  );
+  const issueConfig = parseUntilConfig({
+    generator: {
+      url: "https://github.com/chesapeakedev/chesapeake/issues/491",
+    },
+    verifier: { script: "true" },
+  });
+  assertEquals(
+    issueConfig.gambits[0].generator.url,
+    "https://github.com/chesapeakedev/chesapeake/issues/491",
+  );
+  const promptConfig = parseUntilConfig({
+    generator: { prompt: "legacy goal" },
+    verifier: { script: "true" },
+  });
+  assertEquals(promptConfig.gambits[0].generator.content, "legacy goal");
+});
+
+Deno.test("loadUntilConfig parses TOML and resolves relative URL files", async () => {
+  const root = await Deno.makeTempDir();
+  try {
+    await Deno.writeTextFile(join(root, "goal.md"), "# Goal\n\nShip it.");
+    const path = join(root, "until.toml");
+    await Deno.writeTextFile(
+      path,
+      `[generator]\nurl = "./goal.md"\n\n[verifier]\nscript = "true"\n`,
+    );
+    const config = await loadUntilConfig(path);
+    assertEquals(config.gambits[0].generator.content, "# Goal\n\nShip it.");
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("loadUntilConfig uses markdown body as the primary generator", async () => {
+  const root = await Deno.makeTempDir();
+  try {
+    const path = join(root, "until.md");
+    await Deno.writeTextFile(
+      path,
+      '+++\niterations = 1\n\n[verifier]\nscript = "true"\n+++\n\n# Goal\n\nPlay together.',
+    );
+    const config = await loadUntilConfig(path);
+    assertEquals(
+      config.gambits[0].generator.content,
+      "# Goal\n\nPlay together.",
+    );
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("loadUntilConfig fails closed for a missing local URL", async () => {
+  const root = await Deno.makeTempDir();
+  try {
+    const path = join(root, "until.toml");
+    await Deno.writeTextFile(
+      path,
+      `[generator]\nurl = "./missing.md"\n\n[verifier]\nscript = "true"\n`,
+    );
+    await assertRejects(() => loadUntilConfig(path), Deno.errors.NotFound);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
 });
 
 Deno.test("parseUntilConfig rejects iterations below 1", () => {

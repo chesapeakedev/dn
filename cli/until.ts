@@ -4,6 +4,7 @@
 /** Goal-driven generator/verifier workflows (`dn until`). */
 
 import { dirname, resolve } from "@std/path";
+import { parse as parseToml } from "@std/toml";
 import type {
   AgentHarness,
   AgentSelection,
@@ -33,6 +34,8 @@ import {
   resolveSandboxProvider,
 } from "../sdk/sandbox/resolve.ts";
 import type { DnSandboxConfig, ExecResult } from "../sdk/sandbox/types.ts";
+import { fetchIssueFromUrl } from "../sdk/github/issue.ts";
+import { isGitHubIssueUrl } from "../sdk/meld/resolve.ts";
 
 /** Default workspace-relative path for prompt-verifier verdict files. */
 export const DEFAULT_VERDICT_PATH = ".dn/until-verdict.json";
@@ -43,8 +46,10 @@ export type IntervalAlign = "start" | "end" | "spread";
 /** When an interval gambit runs relative to the primary tick. */
 export type IntervalPhase = "before" | "after";
 
-/** A generator action. Exactly one of prompt and script is required. */
+/** A generator action. Exactly one of content, url, and script is required. */
 export interface UntilAction {
+  content?: string;
+  url?: string;
   prompt?: string;
   script?: string;
 }
@@ -129,15 +134,30 @@ function positiveInteger(
 function parseAction(value: unknown, field: string): UntilAction {
   const action = record(value, field);
   const prompt = action.prompt;
+  const content = action.content;
+  const url = action.url;
   const script = action.script;
-  if ((typeof prompt === "string") === (typeof script === "string")) {
-    throw new Error(`${field} requires exactly one string: prompt or script`);
+  if (prompt !== undefined && content !== undefined) {
+    throw new Error(`${field} cannot contain both prompt and content`);
   }
-  const text = typeof prompt === "string" ? prompt : script as string;
+  const contentValue = content ?? prompt;
+  const sources = [contentValue, url, script].filter((item) =>
+    item !== undefined
+  );
+  if (
+    sources.length !== 1 || sources.some((item) => typeof item !== "string")
+  ) {
+    throw new Error(
+      `${field} requires exactly one string: url, content, or script`,
+    );
+  }
+  const text = sources[0] as string;
   if (text.trim().length === 0) {
-    throw new Error(`${field}.prompt or ${field}.script must not be empty`);
+    throw new Error(`${field} source must not be empty`);
   }
-  return typeof prompt === "string" ? { prompt } : { script: script as string };
+  if (typeof script === "string") return { script };
+  if (typeof url === "string") return { url };
+  return { content: text };
 }
 
 function parseDoneWhen(
@@ -370,6 +390,79 @@ export function parseUntilConfig(value: unknown): UntilConfig {
     ),
     gambits: gambitsRaw.map(parseGambit),
   };
+}
+
+function parseUntilDocument(
+  content: string,
+  configPath: string,
+): Record<string, unknown> {
+  const extension = configPath.toLowerCase().split(".").pop();
+  if (extension === "json") return record(JSON.parse(content), "gambit config");
+  if (extension === "toml") return record(parseToml(content), "gambit config");
+  if (extension !== "md" && extension !== "markdown") {
+    throw new Error("until config must be a .json, .toml, or .md file");
+  }
+  if (!content.startsWith("+++")) {
+    throw new Error("markdown until configs require +++ TOML frontmatter");
+  }
+  const end = content.indexOf("\n+++", 3);
+  if (end < 0) {
+    throw new Error("markdown until config has unterminated frontmatter");
+  }
+  const root = record(parseToml(content.slice(4, end)), "gambit config");
+  const body = content.slice(end + 5).trim();
+  if (body !== "") {
+    const generator = record(root.generator ?? {}, "generator");
+    if (
+      generator.url === undefined && generator.content === undefined &&
+      generator.prompt === undefined && generator.script === undefined
+    ) {
+      root.generator = { ...generator, content: body };
+    }
+  }
+  return root;
+}
+
+async function resolveActionSource(
+  action: UntilAction,
+  configDirectory: string,
+): Promise<UntilAction> {
+  if (!action.url) return action;
+  const source = action.url.trim();
+  if (isGitHubIssueUrl(source)) {
+    const issue = await fetchIssueFromUrl(source);
+    const content = (issue.body ?? "").trim();
+    if (content === "") throw new Error(`until action url is empty: ${source}`);
+    return { content };
+  }
+  const localPath = source.startsWith("file:") ? source.slice(5) : source;
+  const content = await Deno.readTextFile(resolve(configDirectory, localPath));
+  if (content.trim() === "") {
+    throw new Error(`until action url is empty: ${source}`);
+  }
+  return { content };
+}
+
+/** Loads and normalizes a JSON, TOML, or markdown+frontmatter until config. */
+export async function loadUntilConfig(
+  configPath: string,
+): Promise<UntilConfig> {
+  const absolutePath = resolve(configPath);
+  const raw = parseUntilDocument(
+    await Deno.readTextFile(absolutePath),
+    absolutePath,
+  );
+  const config = parseUntilConfig(raw);
+  const configDirectory = dirname(absolutePath);
+  const gambits = await Promise.all(config.gambits.map(async (gambit) => ({
+    ...gambit,
+    generator: await resolveActionSource(gambit.generator, configDirectory),
+    verifier: {
+      ...gambit.verifier,
+      ...(await resolveActionSource(gambit.verifier, configDirectory)),
+    },
+  })));
+  return { ...config, gambits };
 }
 
 /**
@@ -608,7 +701,10 @@ async function runAction(
   verifierExtras?: Pick<VerifierConfig, "verdict_path">,
 ): Promise<ExecResult> {
   if (action.script) return await runScript(action.script, workspaceRoot);
-  let prompt = applyMetadataToPrompt(action.prompt!, metadata);
+  let prompt = applyMetadataToPrompt(
+    action.content ?? action.prompt!,
+    metadata,
+  );
   if (verifierExtras) {
     const verdictPath = verifierExtras.verdict_path ?? DEFAULT_VERDICT_PATH;
     await ensureVerdictDir(workspaceRoot, verdictPath);
@@ -677,7 +773,7 @@ async function runGambitTick(
     workspaceRoot,
     agent,
     gambit.metadata,
-    gambit.verifier.prompt
+    (gambit.verifier.content ?? gambit.verifier.prompt)
       ? { verdict_path: gambit.verifier.verdict_path }
       : undefined,
   );
@@ -818,14 +914,15 @@ function showHelp(): void {
     `dn until - Bounded multi-tick generator/verifier gambits
 
 Usage:
-  dn until validate <gambit.json>
-  dn until run <gambit.json> [--once] [--strict-verdict] [--workspace-root <path>] [--agent <agent>]
+  dn until validate <gambit.json|gambit.toml|gambit.md>
+  dn until run <gambit.json|gambit.toml|gambit.md> [--once] [--strict-verdict] [--workspace-root <path>] [--agent <agent>]
 
 One primary tick is loop-like (see dn loop). dn until repeats that tick up to
 top-level iterations until the primary verifier reports done, and schedules
 optional interval gambits as a fraction of that bound (interval + align/at).
 
-Each action has exactly one of prompt or script. Script verifiers report done
+Each action has exactly one of url, content, or script. JSON prompt is an alias
+for content. Script verifiers report done
 with exit code 0. Prompt verifiers write JSON to ${DEFAULT_VERDICT_PATH}
 (or verifier.verdict_path), emit JSON in stdout, or match
 verifier.done_when.stdout_contains. Interval gambit verifier failures are soft
@@ -863,9 +960,7 @@ export async function handleUntil(
       workspaceRoot = resolve(optionRest[++index]);
     } else throw new Error(`Unknown until option: ${optionRest[index]}`);
   }
-  const parsed = parseUntilConfig(
-    JSON.parse(await Deno.readTextFile(resolve(configPath))),
-  );
+  const parsed = await loadUntilConfig(configPath);
   if (command === "validate") {
     console.log(`Valid gambit config with ${parsed.gambits.length} gambit(s).`);
     return;
