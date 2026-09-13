@@ -7,12 +7,73 @@ import {
   applyMetadataToPrompt,
   DEFAULT_VERDICT_PATH,
   extractVerdictJson,
+  importIssueAsUntilGoal,
   loadUntilConfig,
   parseUntilConfig,
+  renderUntilImport,
   resolvePromptDone,
   runUntil,
   scheduleIntervalIterations,
 } from "./until.ts";
+import {
+  emptyIssueRelationships,
+  type IssueData,
+} from "../sdk/github/issue.ts";
+
+const ISSUE_491_FIXTURE: IssueData = {
+  databaseId: null,
+  number: 491,
+  title: "Dogfood until with a goal prompt",
+  body: "# Ship the goal\n\n## Success\n\n- [ ] The local goal is complete.\n",
+  labels: [],
+  repo: "chesapeake",
+  owner: "chesapeakedev",
+  relationships: emptyIssueRelationships(),
+};
+
+Deno.test("import renders a #491-shaped issue as a valid one-file goal", async () => {
+  const root = await Deno.makeTempDir();
+  try {
+    const result = await importIssueAsUntilGoal(ISSUE_491_FIXTURE, root);
+    const content = await Deno.readTextFile(result.configPath);
+    assertEquals(content.includes("+++"), true);
+    assertEquals(content.includes(ISSUE_491_FIXTURE.body), true);
+    const config = await loadUntilConfig(result.configPath);
+    assertEquals(config.iterations, 10);
+    assertEquals(
+      config.gambits[0].generator.content,
+      ISSUE_491_FIXTURE.body.trim(),
+    );
+    assertEquals(config.gambits[0].verifier.script, undefined);
+    assertEquals(config.gambits[0].verifier.content !== undefined, true);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("import renders split TOML and markdown goal files", () => {
+  const rendered = renderUntilImport(ISSUE_491_FIXTURE, true);
+  assertEquals(rendered.markdown.includes("[generator]"), true);
+  assertEquals(
+    rendered.markdown.includes('url = "./dogfood-until-with-a-goal.md"'),
+    true,
+  );
+  assertEquals(rendered.body, ISSUE_491_FIXTURE.body);
+});
+
+Deno.test("import split output is valid for until validate", async () => {
+  const root = await Deno.makeTempDir();
+  try {
+    const result = await importIssueAsUntilGoal(ISSUE_491_FIXTURE, root, true);
+    const config = await loadUntilConfig(result.configPath);
+    assertEquals(
+      config.gambits[0].generator.content,
+      ISSUE_491_FIXTURE.body,
+    );
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
 
 Deno.test("parseUntilConfig accepts a single bounded script gambit", () => {
   const config = parseUntilConfig({

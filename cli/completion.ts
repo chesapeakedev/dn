@@ -476,6 +476,7 @@ export const DN_COMPLETION_ROOT: CompletionNode = {
     until: {
       flags: HELP_FLAGS,
       commands: {
+        import: { flags: ["--split", ...HELP_FLAGS] },
         validate: { flags: HELP_FLAGS },
         run: {
           flags: [

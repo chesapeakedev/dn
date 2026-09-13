@@ -3,7 +3,7 @@
 
 /** Goal-driven generator/verifier workflows (`dn until`). */
 
-import { dirname, resolve } from "@std/path";
+import { dirname, join, resolve } from "@std/path";
 import { parse as parseToml } from "@std/toml";
 import type {
   AgentHarness,
@@ -34,7 +34,12 @@ import {
   resolveSandboxProvider,
 } from "../sdk/sandbox/resolve.ts";
 import type { DnSandboxConfig, ExecResult } from "../sdk/sandbox/types.ts";
-import { fetchIssueFromUrl } from "../sdk/github/issue.ts";
+import {
+  fetchIssueFromUrl,
+  type IssueData,
+  resolveIssueUrlInput,
+  suggestPlanNameFromTitle,
+} from "../sdk/github/issue.ts";
 import { isGitHubIssueUrl } from "../sdk/meld/resolve.ts";
 
 /** Default workspace-relative path for prompt-verifier verdict files. */
@@ -109,6 +114,8 @@ export interface RunUntilOptions {
 
 const DEFAULT_ITERATIONS = 10;
 const DEFAULT_TIMEOUT_MS = 60 * 60 * 1000;
+const DEFAULT_IMPORT_VERIFIER =
+  'Review the goal, its Success section, and its acceptance criteria. When they are complete, write { "done": true, "reason": "short note" } to .dn/until-verdict.json. Otherwise write { "done": false, "reason": "what remains" }.';
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const TEMPLATE_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -463,6 +470,84 @@ export async function loadUntilConfig(
     },
   })));
   return { ...config, gambits };
+}
+
+/** Output paths produced by {@link importIssueAsUntilGoal}. */
+export interface UntilImportResult {
+  /** The primary file to pass to `dn until validate` or `dn until run`. */
+  configPath: string;
+  /** The sidecar issue body path when split output was requested. */
+  bodyPath?: string;
+}
+
+function importSlug(issue: IssueData): string {
+  return suggestPlanNameFromTitle(issue.title, 5) ?? `issue-${issue.number}`;
+}
+
+function untilFrontmatter(
+  verifierPrompt: string,
+  generatorUrl?: string,
+): string {
+  const generator = generatorUrl === undefined
+    ? ""
+    : `\n[generator]\nurl = ${JSON.stringify(generatorUrl)}\n`;
+  return `+++\niterations = ${DEFAULT_ITERATIONS}\n${generator}\n[verifier]\nprompt = ${
+    JSON.stringify(verifierPrompt)
+  }\n+++\n\n`;
+}
+
+/**
+ * Renders a fetched GitHub issue as an until goal document.
+ *
+ * The default form keeps the issue body as the markdown generator. Split form
+ * output uses a TOML config whose generator points to a neighboring markdown
+ * body file. Neither form mutates GitHub or starts an until run.
+ */
+export function renderUntilImport(
+  issue: IssueData,
+  split = false,
+): { markdown: string; body?: string } {
+  const body = issue.body;
+  if (body.trim().length === 0) {
+    throw new Error(`Issue #${issue.number} has an empty body`);
+  }
+  if (split) {
+    return {
+      markdown: `[generator]\nurl = ${
+        JSON.stringify(`./${importSlug(issue)}.md`)
+      }\n\n[verifier]\nprompt = ${JSON.stringify(DEFAULT_IMPORT_VERIFIER)}\n`,
+      body: body.endsWith("\n") ? body : `${body}\n`,
+    };
+  }
+  const verifier = untilFrontmatter(DEFAULT_IMPORT_VERIFIER);
+  return {
+    markdown: `${verifier}${body.endsWith("\n") ? body : `${body}\n`}`,
+  };
+}
+
+/**
+ * Writes a fetched issue to a local until goal file next to the working
+ * directory, returning the paths written.
+ */
+export async function importIssueAsUntilGoal(
+  issue: IssueData,
+  directory = Deno.cwd(),
+  split = false,
+): Promise<UntilImportResult> {
+  const slug = importSlug(issue);
+  const rendered = renderUntilImport(issue, split);
+  const configPath = join(directory, `${slug}${split ? ".toml" : ".md"}`);
+  if (split) {
+    const bodyPath = join(directory, `${slug}.md`);
+    await Deno.writeTextFile(bodyPath, rendered.body ?? "");
+    await Deno.writeTextFile(
+      configPath,
+      `iterations = ${DEFAULT_ITERATIONS}\n\n${rendered.markdown}`,
+    );
+    return { configPath, bodyPath };
+  }
+  await Deno.writeTextFile(configPath, rendered.markdown);
+  return { configPath };
 }
 
 /**
@@ -914,6 +999,7 @@ function showHelp(): void {
     `dn until - Bounded multi-tick generator/verifier gambits
 
 Usage:
+  dn until import <issue-url|number> [--split]
   dn until validate <gambit.json|gambit.toml|gambit.md>
   dn until run <gambit.json|gambit.toml|gambit.md> [--once] [--strict-verdict] [--workspace-root <path>] [--agent <agent>]
 
@@ -931,6 +1017,23 @@ verifier.done_when.stdout_contains. Interval gambit verifier failures are soft
   );
 }
 
+async function handleUntilImport(args: string[]): Promise<void> {
+  const [issueInput, ...options] = args;
+  if (!issueInput) {
+    throw new Error("Usage: dn until import <issue-url|number> [--split]");
+  }
+  let split = false;
+  for (const option of options) {
+    if (option === "--split") split = true;
+    else throw new Error(`Unknown until import option: ${option}`);
+  }
+  const issueUrl = await resolveIssueUrlInput(issueInput);
+  const issue = await fetchIssueFromUrl(issueUrl);
+  const result = await importIssueAsUntilGoal(issue, Deno.cwd(), split);
+  console.log(`Wrote until goal: ${result.configPath}`);
+  if (result.bodyPath) console.log(`Wrote issue body: ${result.bodyPath}`);
+}
+
 /** Handles the `dn until` command. */
 export async function handleUntil(
   args: string[],
@@ -943,8 +1046,13 @@ export async function handleUntil(
   if (command === "help" || command === "--help" || command === "-h") {
     return showHelp();
   }
+  if (command === "import") {
+    return await handleUntilImport(
+      [configPath, ...options].filter((value) => value !== undefined),
+    );
+  }
   if ((command !== "validate" && command !== "run") || !configPath) {
-    throw new Error("Usage: dn until <validate|run> <gambit.json>");
+    throw new Error("Usage: dn until <import|validate|run> <path-or-issue>");
   }
   let once = false;
   let strictVerdict = false;
