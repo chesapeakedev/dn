@@ -1003,6 +1003,21 @@ export async function runRunnerJob(
         }
       }
     }
+    const publishMode = job.operation.type === "kickstart" ||
+        job.operation.type === "loop" ||
+        job.operation.type === "denoise-task"
+      ? job.operation.publish
+      : null;
+    if (publishMode === "direct" && commitSha === undefined) {
+      const message =
+        `dn exited successfully without publishing ${publishMode} changes.`;
+      await options.client.failJob(job.id, {
+        failed_at: new Date().toISOString(),
+        reason: "failed",
+        message,
+      });
+      return { kind: "failed", message, durationMs };
+    }
     const retainedWorkspace = job.operation.type === "kickstart" ||
         job.operation.type === "loop" ||
         job.operation.type === "denoise-task"

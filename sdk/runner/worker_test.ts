@@ -353,6 +353,47 @@ Deno.test("runRunnerJob forwards NDJSON progress and completion receipt", async 
   assertEquals(client.completion?.hosted_runs_avoided, 1);
 });
 
+Deno.test("runRunnerJob fails a publish job that emits no publication receipt", async () => {
+  const client = new RecordingClient();
+  const publishJob = job();
+  publishJob.operation = {
+    type: "kickstart",
+    issue_url: "https://github.com/chesapeakedev/dn/issues/213",
+    publish: "direct",
+    agent: "codex",
+  };
+  const outcome = await runRunnerJob(publishJob, {
+    runnerId: "runner-1",
+    commandPrefix: ["/usr/local/bin/dn"],
+    config: {
+      schema_version: "1.0",
+      paused: false,
+      repositories: {
+        "chesapeakedev/dn": {
+          path: "/workspace/dn",
+          trusted_at: "2026-07-23T12:00:00.000Z",
+        },
+      },
+    },
+    client,
+    spawn() {
+      return {
+        stdout: stream("done\n"),
+        stderr: stream(""),
+        status: Promise.resolve({ success: true, code: 0, signal: null }),
+        kill() {},
+      };
+    },
+  });
+
+  assertEquals(outcome.kind, "failed");
+  assertEquals(
+    client.failure?.message,
+    "dn exited successfully without publishing direct changes.",
+  );
+  assertEquals(client.completion, null);
+});
+
 Deno.test("runRunnerJob on exe.dev clones, injects GitHub token, and registers", async () => {
   const previous = Deno.env.get("DN_RUNNER_PROVIDER");
   Deno.env.set("DN_RUNNER_PROVIDER", "exe.dev");
