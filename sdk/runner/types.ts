@@ -419,6 +419,16 @@ export interface RunnerJobCompletion {
   pr_url?: string;
   /** Full commit SHA pushed to the default branch, when publication was direct. */
   commit_sha?: string;
+  /** Checkout directory that retains work for publish=none. */
+  workspace_path?: string;
+  /** Number of files changed in the retained checkout. */
+  diff_files?: number;
+  /** Added lines in the retained checkout diff. */
+  diff_additions?: number;
+  /** Removed lines in the retained checkout diff. */
+  diff_deletions?: number;
+  /** Untracked files in the retained checkout. */
+  diff_untracked_files?: number;
   /** Final plan checklist, when this job ran an issue-backed workflow. */
   acceptance_report?: import("../github/progress.ts").AcceptanceCriteriaReport;
 }

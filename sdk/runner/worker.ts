@@ -665,6 +665,7 @@ function completionFrom(
   prUrl?: string,
   commitSha?: string,
   acceptanceReport?: AcceptanceCriteriaReport,
+  workspaceSummary?: WorkspaceSummary,
 ): RunnerJobCompletion {
   const durationMs = Math.max(0, Date.now() - startedAt);
   return {
@@ -674,8 +675,66 @@ function completionFrom(
     hosted_runs_avoided: 1,
     ...(prUrl ? { pr_url: prUrl } : {}),
     ...(commitSha ? { commit_sha: commitSha } : {}),
+    ...(workspaceSummary?.workspacePath == null ? {} : {
+      workspace_path: workspaceSummary.workspacePath,
+      diff_files: workspaceSummary.files,
+      diff_additions: workspaceSummary.additions,
+      diff_deletions: workspaceSummary.deletions,
+      diff_untracked_files: workspaceSummary.untrackedFiles,
+    }),
     ...(acceptanceReport ? { acceptance_report: acceptanceReport } : {}),
   };
+}
+
+interface WorkspaceSummary {
+  workspacePath: string;
+  files: number;
+  additions: number;
+  deletions: number;
+  untrackedFiles: number;
+}
+
+async function workspaceSummary(
+  workspacePath: string,
+): Promise<WorkspaceSummary | undefined> {
+  try {
+    const run = async (
+      command: string,
+      args: string[],
+    ): Promise<Deno.CommandOutput> =>
+      await new Deno.Command(command, {
+        args,
+        cwd: workspacePath,
+        stdout: "piped",
+        stderr: "null",
+      }).output();
+    let status = await run("git", ["status", "--porcelain"]);
+    const usingSapling = !status.success;
+    if (usingSapling) status = await run("sl", ["status", "--no-status"]);
+    if (!status.success) return undefined;
+    const statusText = new TextDecoder().decode(status.stdout);
+    const lines = statusText.split("\n").filter((line) => line.trim() !== "");
+    const untrackedFiles = lines.filter((line) =>
+      usingSapling ? line.trimStart().startsWith("?") : line.startsWith("??")
+    ).length;
+    const diff = usingSapling
+      ? await run("sl", ["diff", "--stat"])
+      : await run("git", ["--no-pager", "diff", "--shortstat"]);
+    const diffText = new TextDecoder().decode(diff.stdout);
+    const files = Number(diffText.match(/(\d+) file/)?.[1] ?? 0) +
+      untrackedFiles;
+    const additions = Number(diffText.match(/(\d+) insertion/)?.[1] ?? 0);
+    const deletions = Number(diffText.match(/(\d+) deletion/)?.[1] ?? 0);
+    return {
+      workspacePath,
+      files,
+      additions,
+      deletions,
+      untrackedFiles,
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 /** Executes one validated job, renews its lease, and reports its terminal state. */
@@ -944,9 +1003,22 @@ export async function runRunnerJob(
         }
       }
     }
+    const retainedWorkspace = job.operation.type === "kickstart" ||
+        job.operation.type === "loop" ||
+        job.operation.type === "denoise-task"
+      ? job.operation.publish === "none"
+      : false;
     await options.client.completeJob(
       job.id,
-      completionFrom(startedAt, prUrl, commitSha, acceptanceReport),
+      completionFrom(
+        startedAt,
+        prUrl,
+        commitSha,
+        acceptanceReport,
+        retainedWorkspace
+          ? await workspaceSummary(registration.path)
+          : undefined,
+      ),
     );
     return { kind: "succeeded", prUrl, durationMs };
   } finally {
