@@ -45,100 +45,68 @@ export interface PlanSkipDecision {
   existingPlanCompletion: PlanCompletionStatus | null;
 }
 
-const SECTION_PATTERNS: readonly { name: string; pattern: RegExp }[] = [
-  { name: "summary_section", pattern: /^#{1,3}\s+summary\b/im },
-  {
-    name: "acceptance_section",
-    pattern: /^#{1,3}\s+acceptance\s+criteria\b/im,
-  },
+const CANONICAL_SECTION_PATTERNS: readonly {
+  name: string;
+  pattern: RegExp;
+}[] = [
+  { name: "overview_section", pattern: /^#{1,6}\s+Overview\s*$/im },
   {
     name: "implementation_section",
-    pattern:
-      /^#{1,3}\s+(implementation(\s+plan)?|proposed(\s+approach)?|approach)\b/im,
+    pattern: /^#{1,6}\s+Implementation\s+Plan\s*$/im,
   },
   {
-    name: "context_section",
-    pattern: /^#{1,3}\s+(context|background|details)\b/im,
+    name: "acceptance_section",
+    pattern: /^#{1,6}\s+Acceptance\s+Criteria\s*$/im,
   },
 ];
 
-const CHECKLIST_PATTERN = /^\s*[-*]\s+\[[ xX]\]\s+\S+/m;
-const FILE_PATH_PATTERN =
-  /(?:^|[\s`(])((?:[\w.-]+\/)+[\w.-]+\.[A-Za-z][A-Za-z0-9]*)\b/;
-const CODE_FENCE_PATTERN = /```[\s\S]{20,}?```/;
+const CHECKLIST_PATTERN = /^\s*[-*+]\s+\[[ xX]\]\s*(.*?)\s*$/gm;
+
+function actionableChecklistItems(body: string): string[] {
+  return [...body.matchAll(CHECKLIST_PATTERN)]
+    .map((match) => match[1].trim())
+    .filter((item) => /[\p{L}\p{N}]/u.test(item));
+}
+
+function hasMeaningfulDescription(body: string): boolean {
+  const description = body
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/^#{1,6}\s+.*$/gm, " ")
+    .replace(CHECKLIST_PATTERN, " ")
+    .replace(/[`*_>#]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return description.length >= 20 && description.split(" ").length >= 3;
+}
 
 /**
- * Score how implement-ready an issue body is. Adequate when score >= 3, or
- * body is long (>= 800) with at least two signals.
+ * Determine whether an issue contains enough explicit structure to skip
+ * kickstart's planning agent. The check is intentionally conservative because
+ * a false positive skips an important review of the implementation plan.
  */
 export function assessIssueAdequacy(
   input: IssueAdequacyInput,
 ): IssueAdequacyResult {
-  const title = input.title.trim();
   const body = input.body.trim();
   const signals: string[] = [];
-  let score = 0;
+  const canonicalSections = CANONICAL_SECTION_PATTERNS.filter((section) => {
+    const present = section.pattern.test(body);
+    if (present) signals.push(section.name);
+    return present;
+  });
+  const checklistItems = actionableChecklistItems(body);
+  const hasChecklist = checklistItems.length > 0;
+  if (hasChecklist) signals.push("checklist");
+  const meaningfulDescription = hasMeaningfulDescription(body);
+  if (meaningfulDescription) signals.push("description");
 
-  if (body.length >= 400) {
-    score += 1;
-    signals.push("body_length");
-  }
-  if (body.length >= 800) {
-    score += 1;
-    signals.push("body_long");
-  }
-
-  for (const section of SECTION_PATTERNS) {
-    if (section.pattern.test(body)) {
-      score += 1;
-      signals.push(section.name);
-    }
-  }
-
-  if (CHECKLIST_PATTERN.test(body)) {
-    score += 2;
-    signals.push("checklist");
-  }
-
-  if (FILE_PATH_PATTERN.test(body)) {
-    score += 1;
-    signals.push("file_paths");
-  }
-
-  if (CODE_FENCE_PATTERN.test(body)) {
-    score += 1;
-    signals.push("code_fence");
-  }
-
-  // Title-only or near-empty bodies never skip.
-  if (body.length < 80) {
-    return {
-      adequate: false,
-      score,
-      signals,
-      reason: "thin_issue",
-    };
-  }
-
-  // Vague one-liners with no structure stay on the plan path.
-  if (
-    body.length < 200 &&
-    title.length > 0 &&
-    signals.filter((s) => s !== "body_length").length === 0
-  ) {
-    return {
-      adequate: false,
-      score,
-      signals,
-      reason: "thin_issue",
-    };
-  }
-
-  const structuralSignals = signals.filter((signal) =>
-    signal !== "body_length" && signal !== "body_long"
-  );
-  const adequate = structuralSignals.length >= 2 &&
-    (score >= 3 || (body.length >= 800 && score >= 2));
+  const hasCanonicalPlan = canonicalSections.length ===
+      CANONICAL_SECTION_PATTERNS.length &&
+    meaningfulDescription && hasChecklist;
+  const hasFallbackPlan = meaningfulDescription && hasChecklist;
+  const adequate = hasCanonicalPlan || hasFallbackPlan;
+  const score = canonicalSections.length + (hasChecklist ? 2 : 0) +
+    (meaningfulDescription ? 1 : 0);
   return {
     adequate,
     score,
@@ -154,7 +122,7 @@ export function assessIssueAdequacy(
 export function synthesizePlanFromIssue(input: IssueAdequacyInput): string {
   const title = input.title.trim() || "Implementation";
   const body = input.body.trim() || "_No issue body provided._";
-  const checklist = [...body.matchAll(/^\s*[-*]\s+\[[ xX]\]\s+(.+)$/gm)].map(
+  const checklist = [...body.matchAll(/^\s*[-*+]\s+\[[ xX]\]\s+(.+)$/gm)].map(
     (match) => `- [ ] ${match[1].trim()}`,
   );
   const acceptance = checklist.length > 0 ? checklist.join("\n") : [
