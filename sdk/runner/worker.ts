@@ -1008,7 +1008,12 @@ export async function runRunnerJob(
         job.operation.type === "denoise-task"
       ? job.operation.publish
       : null;
-    if (publishMode === "direct" && commitSha === undefined) {
+    const awaitingPlanReview = job.operation.type === "kickstart" &&
+      job.operation.pause_after === "plan";
+    if (
+      publishMode === "direct" && commitSha === undefined &&
+      !awaitingPlanReview
+    ) {
       const message =
         `dn exited successfully without publishing ${publishMode} changes.`;
       await options.client.failJob(job.id, {

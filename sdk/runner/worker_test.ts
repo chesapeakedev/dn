@@ -1353,6 +1353,54 @@ Deno.test("runRunnerJob uploads a paused plan before completing the job", async 
   }
 });
 
+Deno.test(
+  "runRunnerJob completes a direct publish job paused after its plan without a commit receipt",
+  async () => {
+    const directory = await Deno.makeTempDir({
+      prefix: "dn-runner-direct-plan-",
+    });
+    const planPath = "plans/issue-213.plan.md";
+    await Deno.mkdir(`${directory}/plans`, { recursive: true });
+    await Deno.writeTextFile(`${directory}/${planPath}`, "# Plan\n");
+    const planJob = job();
+    planJob.operation = {
+      type: "kickstart",
+      issue_url: "https://github.com/chesapeakedev/dn/issues/213",
+      publish: "direct",
+      agent: "codex",
+      pause_after: "plan",
+    };
+    const client = new RecordingClient();
+    try {
+      const outcome = await runRunnerJob(planJob, {
+        runnerId: "runner-1",
+        commandPrefix: ["/usr/local/bin/dn"],
+        config: localConfig(directory),
+        client,
+        spawn: () => ({
+          stdout: stream("done\n"),
+          stderr: stream(
+            `${
+              progressEvent("phase.completed", "Plan ready", {
+                phase: "plan",
+                data: { plan_path: planPath },
+              })
+            }\n`,
+          ),
+          status: Promise.resolve({ success: true, code: 0, signal: null }),
+          kill() {},
+        }),
+      });
+      assertEquals(outcome.kind, "succeeded");
+      assertEquals(client.calls, ["upload-plan", "complete"]);
+      assertEquals(client.failure, null);
+      assertEquals(client.completion?.commit_sha, undefined);
+    } finally {
+      await Deno.remove(directory, { recursive: true });
+    }
+  },
+);
+
 Deno.test("runRunnerJob logs cancel before the terminal outcome", async () => {
   const client = new RecordingClient();
   client.cancelOnRenewal = true;
