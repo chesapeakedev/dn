@@ -49,6 +49,13 @@ interface CommonRunnerOptions {
   json: boolean;
 }
 
+/** Resolves the publish mode for a runner kickstart like local Kickstart. */
+export function resolveRunnerPublishMode(
+  publish: PublishMode | undefined,
+): PublishMode {
+  return publish ?? "none";
+}
+
 interface InstallRunnerOptions extends CommonRunnerOptions {
   ifPresent: boolean;
 }
@@ -67,10 +74,10 @@ function showRunnerHelp(): void {
   console.log("  dn runner status [--json]");
   console.log("  dn runner jobs [--json]");
   console.log(
-    "  dn runner kickstart <issue> [--publish <mode>] [--wait] [--json]",
+    "  dn runner kickstart <issue> [--publish <none|pr|direct>] [--wait] [--json]",
   );
   console.log(
-    "  dn runner kickstart --denoise-task <file> [--publish <mode>] [--wait] [--json]",
+    "  dn runner kickstart --denoise-task <file> [--publish <none|pr|direct>] [--wait] [--json]",
   );
   console.log("  dn runner pause|resume|disconnect [--json]");
   console.log("  dn runner rotate [--json]");
@@ -556,15 +563,9 @@ async function handleKickstart(args: string[]): Promise<void> {
       "Usage: dn runner kickstart <issue> | dn runner kickstart --denoise-task <file>",
     );
   }
-  // Issue-backed device jobs may leave work local (`none`) or open a PR (`pr`).
-  // Denoise-task jobs may publish none/pr/direct (free Void uses none).
-  const resolvedPublish: PublishMode = publish ??
-    (denoiseTaskPath ? "none" : "pr");
-  if (!denoiseTaskPath && resolvedPublish === "direct") {
-    throw new Error(
-      "Issue-backed device runner jobs support --publish none or pr; use --denoise-task for direct.",
-    );
-  }
+  // Match `dn kickstart`: local runner jobs default to keeping the work in the
+  // checkout, while explicit `pr` and `direct` modes publish it.
+  const resolvedPublish = resolveRunnerPublishMode(publish);
   const [{ client, runnerId }, config] = await Promise.all([
     authenticatedClient(),
     loadRunnerConfig(),

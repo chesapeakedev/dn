@@ -1,14 +1,23 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
-import { assertStringIncludes } from "@std/assert";
+import { assertEquals, assertStringIncludes } from "@std/assert";
 import { runDnCommand } from "./test_utils.ts";
+import { resolveRunnerPublishMode } from "./runner.ts";
+
+Deno.test("runner kickstart defaults to local publishing", () => {
+  assertEquals(resolveRunnerPublishMode(undefined), "none");
+  assertEquals(resolveRunnerPublishMode("none"), "none");
+  assertEquals(resolveRunnerPublishMode("pr"), "pr");
+  assertEquals(resolveRunnerPublishMode("direct"), "direct");
+});
 
 Deno.test("runner CLI exposes the device command surface", async () => {
   const result = await runDnCommand(["runner", "--help"]);
   assertStringIncludes(result.stdout, "dn runner connect");
   assertStringIncludes(result.stdout, "dn runner status");
   assertStringIncludes(result.stdout, "dn runner kickstart");
+  assertStringIncludes(result.stdout, "--publish <none|pr|direct>");
   assertStringIncludes(result.stdout, "dn runner install");
   assertStringIncludes(result.stdout, "dn runner start");
   assertStringIncludes(result.stdout, "dn runner stop");

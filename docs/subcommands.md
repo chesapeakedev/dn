@@ -294,9 +294,9 @@ confirmation. Pass `--yes` only after reviewing the checkout. Repository paths
 remain in the local configuration and never enter runner API payloads.
 
 `kickstart` accepts a full GitHub issue URL or a number resolved from the
-current checkout. Issue-backed device jobs may use `--publish none` or
-`--publish pr`. `--publish direct` remains available only through
-`--denoise-task`. `--wait` polls until the job reaches a terminal state.
+current checkout. Issue-backed device jobs support the same publish modes as
+local Kickstart: `--publish none` (the default), `--publish pr`, or
+`--publish direct`. `--wait` polls until the job reaches a terminal state.
 
 Device runners also accept denoise-task jobs. Queue one from a local JSON file:
 

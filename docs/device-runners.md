@@ -188,11 +188,13 @@ dn runner kickstart 213 --publish none --json
 ```
 
 Numeric issue references use the current checkout. A full issue URL must match
-an explicitly registered repository. Issue-backed protocol jobs may leave work
-local (`--publish none`) so you can `dn land` then `dn sync` from denoise or the
-CLI, or open a pull request (`--publish pr`). GitHub Actions and hosted VMs stay
-PR-only. Denoise-task jobs may use `publish: none` (default when queueing via
-`--denoise-task`) when there is no GitHub issue to open a PR against.
+an explicitly registered repository. Issue-backed protocol jobs use the same
+publish modes as local Kickstart: `--publish none` (the default) leaves work
+local so you can `dn land` then `dn sync`, `--publish pr` opens a pull request,
+and `--publish direct` commits and pushes to the default branch. GitHub Actions
+and hosted VMs stay PR-only. Denoise-task jobs may use `publish: none` (default
+when queueing via `--denoise-task`) when there is no GitHub issue to open a PR
+against.
 
 Queue a denoise-task job (ticketless) from a local JSON file:
 

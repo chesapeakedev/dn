@@ -104,8 +104,9 @@ Optional fields:
 - `validate_only` validates configuration without running the mapped command
 
 Canonical Actions and hosted-VM dispatches reject `none`, `direct`, and
-`awp: false`. Device-runner kickstart may set `publish` to `none` or `pr` so the
-paired checkout can land locally. Those publish modes remain available for
+`awp: false`. Device-runner kickstart may set `publish` to `none`, `pr`, or
+`direct` so the paired checkout can land locally, open a pull request, or
+publish directly to the default branch. Those publish modes remain available for
 explicit local CLI invocations.
 
 ### `dn.land`
