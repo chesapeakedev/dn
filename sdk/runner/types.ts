@@ -618,7 +618,7 @@ export interface RunnerJobsResponse {
   jobs: RunnerJobSummary[];
 }
 
-/** Request body used by `dn runner kickstart`. */
+/** Request body used by the device-runner kickstart API. */
 export interface RunnerKickstartRequest {
   /** Opaque target device identifier. */
   runner_id: string;
@@ -634,7 +634,7 @@ export interface RunnerKickstartRequest {
   verbosity?: "low" | "medium" | "high";
 }
 
-/** Request body used by `dn runner kickstart --denoise-task`. */
+/** Request body used by the device-runner denoise-task API. */
 export interface RunnerDenoiseTaskRequest {
   /** Opaque target device identifier. */
   runner_id: string;

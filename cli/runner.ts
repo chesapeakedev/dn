@@ -34,26 +34,14 @@ import {
 } from "../sdk/runner/service.ts";
 import {
   parseRepositorySlug,
-  repositoryFromIssueUrl,
   RUNNER_CONFIG_SCHEMA_VERSION,
   RUNNER_PROTOCOL_VERSION,
-  type RunnerJobSummary,
   serveRunner,
-  validateDenoiseTaskDocument,
 } from "../sdk/runner/mod.ts";
 import { bootstrapRunnerCredentialFromEnv } from "../sdk/runner/bootstrap.ts";
-import type { PublishMode } from "../sdk/github/publish.ts";
-import { parsePublishMode } from "../sdk/github/publish.ts";
 
 interface CommonRunnerOptions {
   json: boolean;
-}
-
-/** Resolves the publish mode for a runner kickstart like local Kickstart. */
-export function resolveRunnerPublishMode(
-  publish: PublishMode | undefined,
-): PublishMode {
-  return publish ?? "none";
 }
 
 interface InstallRunnerOptions extends CommonRunnerOptions {
@@ -73,12 +61,6 @@ function showRunnerHelp(): void {
   console.log("  dn runner doctor [--json]");
   console.log("  dn runner status [--json]");
   console.log("  dn runner jobs [--json]");
-  console.log(
-    "  dn runner kickstart <issue> [--publish <none|pr|direct>] [--wait] [--json]",
-  );
-  console.log(
-    "  dn runner kickstart --denoise-task <file> [--publish <none|pr|direct>] [--wait] [--json]",
-  );
   console.log("  dn runner pause|resume|disconnect [--json]");
   console.log("  dn runner rotate [--json]");
   console.log("  dn runner install");
@@ -510,163 +492,6 @@ async function handleJobs(args: string[]): Promise<void> {
   }
 }
 
-function terminalJob(job: RunnerJobSummary): boolean {
-  return ["succeeded", "failed", "cancelled", "interrupted"].includes(
-    job.state,
-  );
-}
-
-async function resolveKickstartIssue(
-  input: string,
-): Promise<{ issueUrl: string; repository: string }> {
-  if (/^#?\d+$/.test(input)) {
-    const inspected = await inspectRunnerRepository(Deno.cwd());
-    const issueNumber = input.replace(/^#/, "");
-    return {
-      repository: inspected.repository,
-      issueUrl:
-        `https://github.com/${inspected.repository}/issues/${issueNumber}`,
-    };
-  }
-  return {
-    issueUrl: input,
-    repository: repositoryFromIssueUrl(input),
-  };
-}
-
-async function handleKickstart(args: string[]): Promise<void> {
-  let issue: string | null = null;
-  let denoiseTaskPath: string | null = null;
-  let publish: PublishMode | undefined;
-  let wait = false;
-  let json = false;
-  for (let index = 0; index < args.length; index++) {
-    const argument = args[index];
-    if (argument === "--publish") {
-      const value = args[++index];
-      if (!value) throw new Error("--publish requires a value.");
-      publish = parsePublishMode(value);
-    } else if (argument === "--denoise-task") {
-      denoiseTaskPath = args[++index];
-      if (!denoiseTaskPath) {
-        throw new Error("--denoise-task requires a file path.");
-      }
-    } else if (argument === "--wait") wait = true;
-    else if (argument === "--json") json = true;
-    else if (argument.startsWith("-")) {
-      throw new Error(`Unknown option: ${argument}`);
-    } else if (!issue) issue = argument;
-    else throw new Error(`Unexpected argument: ${argument}`);
-  }
-  if (!issue && !denoiseTaskPath) {
-    throw new Error(
-      "Usage: dn runner kickstart <issue> | dn runner kickstart --denoise-task <file>",
-    );
-  }
-  // Match `dn kickstart`: local runner jobs default to keeping the work in the
-  // checkout, while explicit `pr` and `direct` modes publish it.
-  const resolvedPublish = resolveRunnerPublishMode(publish);
-  const [{ client, runnerId }, config] = await Promise.all([
-    authenticatedClient(),
-    loadRunnerConfig(),
-  ]);
-
-  if (denoiseTaskPath) {
-    const jsonText = await Deno.readTextFile(denoiseTaskPath);
-    const taskDocument = validateDenoiseTaskDocument(JSON.parse(jsonText));
-    const repository = taskDocument.repo_hint ?? undefined;
-    if (!repository) {
-      throw new Error(
-        "Denoise task document must include repo_hint (owner/repo) for device runner jobs.",
-      );
-    }
-    if (!config.repositories[repository]) {
-      throw new Error(
-        `${repository} is not registered; run dn runner register from its checkout.`,
-      );
-    }
-    const queued = await client.denoiseTask({
-      runner_id: runnerId,
-      repository,
-      task_document: taskDocument,
-      publish: resolvedPublish,
-    });
-    if (!wait) {
-      if (json) console.log(JSON.stringify(queued));
-      else {
-        console.log(
-          `Queued denoise-task ${taskDocument.id} on this device until ${queued.expires_at}.`,
-        );
-      }
-      return;
-    }
-    let completed: RunnerJobSummary | undefined;
-    while (!completed) {
-      const jobs = await client.jobs();
-      const current = jobs.jobs.find((job) =>
-        job.invocation_id === queued.invocation_id
-      );
-      if (current && terminalJob(current)) completed = current;
-      else await delay(2_000);
-    }
-    if (json) console.log(JSON.stringify({ ...queued, job: completed }));
-    else {
-      console.log(
-        `${completed.state}: ${
-          completed.pr_url ?? `denoise-task ${taskDocument.id}`
-        }`,
-      );
-    }
-    if (completed.state !== "succeeded") {
-      throw new Error(`Runner job ${completed.state}.`);
-    }
-    return;
-  }
-
-  const resolved = await resolveKickstartIssue(issue!);
-  if (!config.repositories[resolved.repository]) {
-    throw new Error(
-      `${resolved.repository} is not registered; run dn runner register from its checkout.`,
-    );
-  }
-  const queued = await client.kickstart({
-    runner_id: runnerId,
-    repository: resolved.repository,
-    issue_url: resolved.issueUrl,
-    publish: resolvedPublish,
-  });
-  if (!wait) {
-    if (json) console.log(JSON.stringify(queued));
-    else {
-      console.log(
-        `Queued ${resolved.issueUrl} on this device until ${queued.expires_at}.`,
-      );
-    }
-    return;
-  }
-  let completed: RunnerJobSummary | undefined;
-  while (!completed) {
-    const jobs = await client.jobs();
-    const current = jobs.jobs.find((job) =>
-      job.invocation_id === queued.invocation_id
-    );
-    if (current && terminalJob(current)) completed = current;
-    else await delay(2_000);
-  }
-  if (json) console.log(JSON.stringify({ ...queued, job: completed }));
-  else {
-    const opLabel = "issue_url" in completed.operation
-      ? completed.operation.issue_url
-      : `denoise-task ${completed.operation.task_document.title}`;
-    console.log(
-      `${completed.state}: ${completed.pr_url ?? opLabel}`,
-    );
-  }
-  if (completed.state !== "succeeded") {
-    throw new Error(`Runner job ${completed.state}.`);
-  }
-}
-
 async function handlePauseState(
   paused: boolean,
   args: string[],
@@ -962,9 +787,6 @@ export async function handleRunner(args: string[]): Promise<void> {
       break;
     case "jobs":
       await handleJobs(rest);
-      break;
-    case "kickstart":
-      await handleKickstart(rest);
       break;
     case "pause":
       await handlePauseState(true, rest);

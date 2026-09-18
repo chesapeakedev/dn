@@ -425,7 +425,7 @@ when present. Forwarded progress events include `task_id` (= document `id`).
 `--sandbox none` avoids failing against repo `exe.dev` config, which requires a
 GitHub issue and PR publishing.
 
-Queue a denoise-task job via the runner kickstart API (owner session or device
+Queue a denoise-task job via the device-runner API (owner session or device
 credential). Void and the browser use this path; there is no separate
 `/api/runners/denoise-task` route required:
 

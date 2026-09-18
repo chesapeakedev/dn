@@ -178,36 +178,10 @@ In denoise, select the named device as the kickstart destination. The catalog
 row has `provider: "device"`, `source: "device_runner"`, and the opaque
 `runner_id`. GitHub Actions and exe.dev are other providers in the same catalog.
 
-Agents and scripts can queue the same job from the device:
-
-```bash
-dn runner kickstart 213
-dn runner kickstart https://github.com/owner/repo/issues/213 --wait
-dn runner kickstart 213 --publish pr --json
-dn runner kickstart 213 --publish none --json
-```
-
-Numeric issue references use the current checkout. A full issue URL must match
-an explicitly registered repository. Issue-backed protocol jobs use the same
-publish modes as local Kickstart: `--publish none` (the default) leaves work
-local so you can `dn land` then `dn sync`, `--publish pr` opens a pull request,
-and `--publish direct` commits and pushes to the default branch. GitHub Actions
-and hosted VMs stay PR-only. Denoise-task jobs may use `publish: none` (default
-when queueing via `--denoise-task`) when there is no GitHub issue to open a PR
-against.
-
-Queue a denoise-task job (ticketless) from a local JSON file:
-
-```bash
-dn runner kickstart --denoise-task task.json
-dn runner kickstart --denoise-task task.json --publish none --wait --json
-```
-
-The `--denoise-task` flag reads a `DenoiseTaskDocument` JSON file (schema v1:
-`id`, `title`, `body`, `status`, `updated_at`, optional `repo_hint` /
-`acceptance_criteria` / `tags`), sends it inline to the denoise API, and the
-paired runner materializes it into plan-compatible markdown before executing
-`dn kickstart`. Progress events for these jobs include `task_id`.
+Jobs are queued by Denoise and claimed by the paired runner. The runner does not
+expose a user-facing issue dispatch command; this keeps repository selection and
+job authorization in the Denoise control plane. Progress and recent outcomes are
+available through Denoise or `dn runner jobs`.
 
 An offline runner can retain a job in the denoise queue for up to 24 hours.
 Denoise does not move that job to paid hosted infrastructure. The outbound

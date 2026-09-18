@@ -267,7 +267,6 @@ dn runner register
 dn runner doctor
 dn runner status --json
 dn runner jobs --json
-dn runner kickstart 213 --wait --json
 dn runner pause
 dn runner resume
 dn runner rotate
@@ -292,20 +291,6 @@ duration, outcome) and only reprints idle status about every five minutes.
 `register [path]` detects the GitHub remote and asks for an explicit trust
 confirmation. Pass `--yes` only after reviewing the checkout. Repository paths
 remain in the local configuration and never enter runner API payloads.
-
-`kickstart` accepts a full GitHub issue URL or a number resolved from the
-current checkout. Issue-backed device jobs support the same publish modes as
-local Kickstart: `--publish none` (the default), `--publish pr`, or
-`--publish direct`. `--wait` polls until the job reaches a terminal state.
-
-Device runners also accept denoise-task jobs. Queue one from a local JSON file:
-
-```bash
-dn runner kickstart --denoise-task task.json --wait --json
-```
-
-The task document is sent inline to the runner API and the target device
-materializes it into a plan-compatible markdown file.
 
 `status`, `jobs`, `doctor`, `pause`, `resume`, `rotate`, `unregister`,
 `install`, `start`, `stop`, and `disconnect` support stable JSON output.
