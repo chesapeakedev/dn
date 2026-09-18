@@ -36,6 +36,37 @@ export interface ScoringResult {
 }
 
 /**
+ * Normalize an agent scoring `ref` to the issue number string used as input.
+ * Agents sometimes return full issue URLs or `#N` instead of bare `N`.
+ */
+export function normalizeScoringRef(ref: string): string {
+  const trimmed = ref.trim();
+  if (/^\d+$/.test(trimmed)) return trimmed;
+  const hash = /^#(\d+)$/.exec(trimmed);
+  if (hash != null) return hash[1];
+  const fromUrl = /\/issues\/(\d+)(?:\/|$|\?|#)/.exec(trimmed);
+  if (fromUrl != null) return fromUrl[1];
+  return trimmed;
+}
+
+function scoredRefFromItem(item: Record<string, unknown>): ScoredRef | null {
+  if (!("ref" in item)) return null;
+  const ref = normalizeScoringRef(String(item.ref ?? ""));
+  if (ref === "") return null;
+  if (item.disqualified) {
+    return {
+      ref,
+      disqualified: true,
+      reason: String(item.reason ?? ""),
+    };
+  }
+  const score = typeof item.score === "number" && VALID_SCORES.has(item.score)
+    ? item.score
+    : undefined;
+  return { ref, score, reason: String(item.reason ?? "") };
+}
+
+/**
  * Get binary directory (works in both compiled binary and development mode).
  * Same pattern as kickstart/lib.ts and orchestrator.ts.
  */
@@ -163,21 +194,9 @@ export async function runScoring(
     }
     const scored: ScoredRef[] = [];
     for (const item of arr) {
-      if (item && typeof item === "object" && "ref" in item) {
-        const r = item as Record<string, unknown>;
-        const ref = String(r.ref ?? "");
-        if (r.disqualified) {
-          scored.push({
-            ref,
-            disqualified: true,
-            reason: String(r.reason ?? ""),
-          });
-        } else {
-          const score = typeof r.score === "number" && VALID_SCORES.has(r.score)
-            ? r.score
-            : undefined;
-          scored.push({ ref, score, reason: String(r.reason ?? "") });
-        }
+      if (item && typeof item === "object") {
+        const parsedRef = scoredRefFromItem(item as Record<string, unknown>);
+        if (parsedRef != null) scored.push(parsedRef);
       }
     }
     const merge_suggestions = obj.merge_suggestions as
@@ -188,21 +207,9 @@ export async function runScoring(
 
   const scored: ScoredRef[] = [];
   for (const item of parsed) {
-    if (item && typeof item === "object" && "ref" in item) {
-      const r = item as Record<string, unknown>;
-      const ref = String(r.ref ?? "");
-      if (r.disqualified) {
-        scored.push({
-          ref,
-          disqualified: true,
-          reason: String(r.reason ?? ""),
-        });
-      } else {
-        const score = typeof r.score === "number" && VALID_SCORES.has(r.score)
-          ? r.score
-          : undefined;
-        scored.push({ ref, score, reason: String(r.reason ?? "") });
-      }
+    if (item && typeof item === "object") {
+      const parsedRef = scoredRefFromItem(item as Record<string, unknown>);
+      if (parsedRef != null) scored.push(parsedRef);
     }
   }
   return { scored };

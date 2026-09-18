@@ -324,6 +324,54 @@ Deno.test("validateRunnerJob accepts a sync job", () => {
   assertEquals(validateRunnerJob(syncJob(), "runner-1"), syncJob());
 });
 
+function initStackJob(
+  overrides?: Partial<{
+    milestone: number;
+    publish: "none" | "pr" | "direct";
+    stack_mode: "create" | "refresh" | "overwrite";
+  }>,
+): RunnerJob {
+  return {
+    protocol_version: "1.0",
+    id: "job-init-stack-1",
+    invocation_id: "invocation-init-stack-1",
+    runner_id: "runner-1",
+    repository: "chesapeakedev/dn",
+    operation: {
+      type: "init_stack",
+      milestone: overrides?.milestone ?? 7,
+      publish: overrides?.publish ?? "pr",
+      ...(overrides?.stack_mode != null
+        ? { stack_mode: overrides.stack_mode }
+        : {}),
+    },
+    created_at: "2026-07-23T12:00:00.000Z",
+    queued_until: "2026-07-24T12:00:00.000Z",
+    lease: {
+      id: "lease-init-stack-1",
+      expires_at: "2026-07-23T12:01:00.000Z",
+      cancel_requested: false,
+    },
+  };
+}
+
+Deno.test("validateRunnerJob accepts an init_stack job", () => {
+  assertEquals(validateRunnerJob(initStackJob(), "runner-1"), initStackJob());
+});
+
+Deno.test("validateRunnerJob accepts an init_stack job with refresh mode", () => {
+  const job = initStackJob({ stack_mode: "refresh" });
+  assertEquals(validateRunnerJob(job, "runner-1"), job);
+});
+
+Deno.test("validateRunnerJob rejects an init_stack job with invalid milestone", () => {
+  assertThrows(
+    () => validateRunnerJob(initStackJob({ milestone: 0 }), "runner-1"),
+    Error,
+    "positive integer milestone",
+  );
+});
+
 function loopJob(planFile?: string): RunnerJob {
   return {
     protocol_version: "1.0",

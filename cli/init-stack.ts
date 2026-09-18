@@ -31,6 +31,7 @@ import {
   commitStackArtifacts,
   publishStackArtifactsPullRequest,
 } from "../sdk/github/vcs.ts";
+import { createProgressReporter } from "../sdk/github/progress.ts";
 
 /**
  * Parsed CLI flags for `dn init stack`.
@@ -623,6 +624,24 @@ export async function handleInitStack(
     await writeGithubActionVcsOutputs({
       ...publishResult,
       publishMode,
+    });
+    const reporter = createProgressReporter();
+    await reporter.report({
+      type: "publish.completed",
+      message: "Published stack artifacts",
+      phase: "publish",
+      data: {
+        branch_name: publishResult.branchName,
+        commit_sha: publishResult.commitSha,
+        publish_mode: publishMode,
+        ...(publishResult.prUrl === undefined
+          ? {}
+          : { pr_url: publishResult.prUrl }),
+      },
+    });
+    await reporter.report({
+      type: "invocation.succeeded",
+      message: "Stack initialization completed",
     });
     console.log(
       `Published stack artifacts to ${

@@ -98,7 +98,8 @@ export type RunnerCapabilityOperation =
   | "land"
   | "sync"
   | "plan"
-  | "loop";
+  | "loop"
+  | "init_stack";
 
 /** Capabilities detected on a developer device. */
 export interface RunnerCapabilities {
@@ -358,13 +359,26 @@ export interface RunnerSyncOperation {
   issue_url: string;
 }
 
+/** Rank a GitHub milestone with `dn init stack` and optionally open a stack PR. */
+export interface RunnerInitStackOperation {
+  /** Discriminator for init-stack operations. */
+  type: "init_stack";
+  /** GitHub milestone number to rank. */
+  milestone: number;
+  /** Local publish behavior requested for stack artifacts. */
+  publish: PublishMode;
+  /** How to write the stack file when one already exists. */
+  stack_mode?: "create" | "refresh" | "overwrite";
+}
+
 /** Typed operation union reserved for future protocol additions. */
 export type RunnerOperation =
   | RunnerKickstartOperation
   | RunnerDenoiseTaskOperation
   | RunnerLandOperation
   | RunnerSyncOperation
-  | RunnerLoopOperation;
+  | RunnerLoopOperation
+  | RunnerInitStackOperation;
 
 /** State of the renewable lease held by a device runner. */
 export interface RunnerJobLease {
@@ -393,7 +407,7 @@ export interface RunnerJob {
   runner_id: string;
   /** GitHub `owner/repo` slug for the registered checkout. */
   repository: string;
-  /** Typed operation (kickstart, plan/loop, land, sync, or denoise-task). */
+  /** Typed operation (kickstart, plan/loop, land, sync, init_stack, or denoise-task). */
   operation: RunnerOperation;
   /** ISO-8601 time at which the job was queued. */
   created_at: string;
@@ -962,9 +976,37 @@ export function validateRunnerJob(
   } else if (job.operation.type === "sync") {
     repositoryFromIssueUrl(job.operation.issue_url);
     assertIssueUrlMatchesRepository(job.operation.issue_url, repository);
+  } else if (job.operation.type === "init_stack") {
+    if (
+      !Number.isInteger(job.operation.milestone) ||
+      job.operation.milestone <= 0
+    ) {
+      throw new Error(
+        "Init-stack jobs require a positive integer milestone number.",
+      );
+    }
+    if (
+      job.operation.publish !== "none" &&
+      job.operation.publish !== "pr" &&
+      job.operation.publish !== "direct"
+    ) {
+      throw new Error(
+        'Init-stack jobs require publish "none", "pr", or "direct".',
+      );
+    }
+    if (
+      job.operation.stack_mode != null &&
+      job.operation.stack_mode !== "create" &&
+      job.operation.stack_mode !== "refresh" &&
+      job.operation.stack_mode !== "overwrite"
+    ) {
+      throw new Error(
+        'Init-stack jobs require stack_mode "create", "refresh", or "overwrite" when set.',
+      );
+    }
   } else {
     throw new Error(
-      "Runner protocol v1 only permits kickstart, loop, denoise-task, land, or sync jobs.",
+      "Runner protocol v1 only permits kickstart, loop, denoise-task, land, sync, or init_stack jobs.",
     );
   }
   if (

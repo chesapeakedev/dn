@@ -485,6 +485,8 @@ async function handleJobs(args: string[]): Promise<void> {
   for (const job of result.jobs) {
     const label = job.operation.type === "denoise-task"
       ? `denoise-task ${job.operation.task_document.title}`
+      : job.operation.type === "init_stack"
+      ? `milestone-${job.operation.milestone}`
       : job.operation.issue_url;
     console.log(
       `${job.state.padEnd(11)} ${job.repository} ${label}`,

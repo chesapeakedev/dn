@@ -642,14 +642,22 @@ export async function publishChanges(
   if (gitContext.vcs === "sapling") {
     if (paths && paths.length > 0) {
       for (const path of paths) {
-        await $`sl add ${path}`;
+        // New files need add; already-tracked modifications do not. `sl add`
+        // errors with "already tracked!" on the latter — ignore that.
+        await $`sl add ${path}`.quiet().noThrow();
       }
     } else {
-      await $`sl add .`;
+      await $`sl add .`.quiet().noThrow();
     }
     await $`sl commit -m ${message}`;
     console.log(`Pushing bookmark ${gitContext.branchName}...`);
-    await $`sl push --to ${gitContext.branchName}`;
+    if (mode === "direct") {
+      await $`sl push --to ${gitContext.branchName}`;
+    } else {
+      // Topic / automation branches (stack PRs, kickstart) are rewritten on
+      // retry — match git's force-with-lease behavior for non-trunk publishes.
+      await $`sl push --force --to ${gitContext.branchName}`;
+    }
   } else {
     if (paths && paths.length > 0) {
       for (const path of paths) {
@@ -782,8 +790,12 @@ async function createAutomationPullRequest(options: {
   );
   if (!response.ok) {
     const detail = await response.text();
+    const unrelated = detail.includes("no history in common") ||
+      detail.includes("have completely different commit histories");
     throw new Error(
-      `Failed to create pull request for ${options.branchName}: HTTP ${response.status}: ${detail}`,
+      unrelated
+        ? `Failed to create pull request for ${options.branchName}: branch has no history in common with ${options.defaultBranch}. Delete the remote branch (\`git push origin --delete ${options.branchName}\` or \`sl push --delete ${options.branchName}\`) and ensure your checkout shares history with origin/${options.defaultBranch}, then retry.`
+        : `Failed to create pull request for ${options.branchName}: HTTP ${response.status}: ${detail}`,
     );
   }
   const pull = await response.json() as GitHubPullRequestSummary;
@@ -813,6 +825,10 @@ export async function publishStackArtifactsPullRequest(
   const previousBranch = await getCurrentBranch(vcsContext.vcs);
 
   if (vcsContext.vcs === "sapling") {
+    // Point the stable bookmark at the current commit (where stack files were
+    // just written). Do not `sl goto` the GitHub default branch name — on
+    // git-backed checkouts getCurrentBranch() often returns "default", which
+    // is not equal to "main" and would interrupt a dirty working tree.
     await $`sl bookmark -f ${branchName}`;
   } else {
     // Establish a force-with-lease expectation when this stable automation
@@ -821,6 +837,9 @@ export async function publishStackArtifactsPullRequest(
     const remoteRef =
       `refs/heads/${branchName}:refs/remotes/origin/${branchName}`;
     await $`git fetch origin ${remoteRef}`.quiet().noThrow();
+    if (previousBranch !== defaultBranch) {
+      await $`git checkout ${defaultBranch}`.quiet();
+    }
     await $`git checkout -B ${branchName}`;
   }
 

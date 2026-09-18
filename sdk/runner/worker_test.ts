@@ -579,6 +579,75 @@ Deno.test("buildRunnerKickstartCommand constructs sync argv without skip-preflig
   assertEquals(argv.includes("--skip-preflight"), false);
 });
 
+Deno.test("buildRunnerKickstartCommand constructs init_stack argv", async () => {
+  await withClearedAgentEnv(async () => {
+    const repoRoot = await checkoutWithAgent("cursor");
+    try {
+      const initStack = job();
+      initStack.operation = {
+        type: "init_stack",
+        milestone: 7,
+        publish: "pr",
+        stack_mode: "refresh",
+      };
+      const { argv } = await buildRunnerKickstartCommand(
+        initStack,
+        ["/usr/local/bin/dn"],
+        repoRoot,
+      );
+      assertEquals(argv, [
+        "/usr/local/bin/dn",
+        "--unattended",
+        "--agent",
+        "cursor",
+        "init",
+        "stack",
+        "7",
+        "--refresh",
+        "--publish",
+        "pr",
+      ]);
+    } finally {
+      await Deno.remove(repoRoot, { recursive: true });
+    }
+  });
+});
+
+Deno.test("buildRunnerKickstartCommand constructs init_stack overwrite argv", async () => {
+  await withClearedAgentEnv(async () => {
+    const repoRoot = await checkoutWithAgent("codex");
+    try {
+      const initStack = job();
+      initStack.operation = {
+        type: "init_stack",
+        milestone: 12,
+        publish: "direct",
+        stack_mode: "overwrite",
+      };
+      const { argv } = await buildRunnerKickstartCommand(
+        initStack,
+        ["/usr/local/bin/dn"],
+        repoRoot,
+      );
+      assertEquals(argv, [
+        "/usr/local/bin/dn",
+        "--unattended",
+        "--agent",
+        "codex",
+        "init",
+        "stack",
+        "12",
+        "--overwrite",
+        "--yes",
+        "--publish",
+        "direct",
+      ]);
+    } finally {
+      await Deno.remove(repoRoot, { recursive: true });
+    }
+  });
+});
+
 Deno.test("buildRunnerKickstartCommand appends a repo-relative land plan file", async () => {
   await withClearedAgentEnv(async () => {
     const repoRoot = await checkoutWithAgent("codex");
@@ -903,6 +972,18 @@ Deno.test("formatRunnerJobClaimLog summarizes operation details", () => {
   assertEquals(
     formatRunnerJobClaimLog(sync),
     "Claimed job job-sync (sync) chesapeakedev/dn#213",
+  );
+  const initStack = job();
+  initStack.id = "job-init-stack";
+  initStack.operation = {
+    type: "init_stack",
+    milestone: 7,
+    publish: "pr",
+    stack_mode: "refresh",
+  };
+  assertEquals(
+    formatRunnerJobClaimLog(initStack),
+    "Claimed job job-init-stack (init_stack, publish=pr, stack_mode=refresh) chesapeakedev/dn#milestone-7",
   );
   assertEquals(
     formatRunnerJobClaimLog(denoiseTaskJob()),

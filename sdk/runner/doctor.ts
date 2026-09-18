@@ -307,6 +307,7 @@ export async function detectRunnerCapabilities(
       "sync",
       "plan",
       "loop",
+      "init_stack",
     ],
     harnesses: orderHarnessesByPreference(available, preferred),
     docker: docker.success,

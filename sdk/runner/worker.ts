@@ -270,6 +270,28 @@ export async function buildRunnerKickstartCommand(
       ],
     };
   }
+  if (job.operation.type === "init_stack") {
+    const agent = await resolveRunnerJobAgent(repoRoot, job.repository);
+    const stackMode = job.operation.stack_mode;
+    return {
+      argv: [
+        ...commandPrefix,
+        "--unattended",
+        "--agent",
+        agent,
+        "init",
+        "stack",
+        String(job.operation.milestone),
+        ...(stackMode === "refresh"
+          ? ["--refresh"]
+          : stackMode === "overwrite"
+          ? ["--overwrite", "--yes"]
+          : []),
+        "--publish",
+        job.operation.publish,
+      ],
+    };
+  }
   const agent = await resolveRunnerJobAgent(repoRoot, job.repository);
   if (job.operation.type === "land") {
     return {
@@ -504,6 +526,9 @@ function formatRunnerJobTarget(job: RunnerJob): string {
     const issue = issueShorthand(operation.issue_url);
     return operation.plan_file ? `${issue} ${operation.plan_file}` : issue;
   }
+  if (operation.type === "init_stack") {
+    return `${job.repository}#milestone-${operation.milestone}`;
+  }
   return issueShorthand(operation.issue_url);
 }
 
@@ -515,12 +540,17 @@ function formatRunnerJobTarget(job: RunnerJob): string {
 export function formatRunnerJobClaimLog(job: RunnerJob): string {
   const operation = job.operation;
   const details: string[] = [operation.type];
-  if (operation.type !== "sync") details.push(operation.agent);
+  if (operation.type !== "sync" && operation.type !== "init_stack") {
+    details.push(operation.agent);
+  }
   if (
     operation.type === "kickstart" || operation.type === "denoise-task" ||
-    operation.type === "loop"
+    operation.type === "loop" || operation.type === "init_stack"
   ) {
     details.push(`publish=${operation.publish}`);
+  }
+  if (operation.type === "init_stack" && operation.stack_mode != null) {
+    details.push(`stack_mode=${operation.stack_mode}`);
   }
   if (operation.type === "kickstart" && operation.pause_after === "plan") {
     details.push("pause_after=plan");
