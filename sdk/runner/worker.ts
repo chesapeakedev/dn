@@ -46,6 +46,7 @@ const DEFAULT_LEASE_RENEWAL_MS = 15_000;
 const DEFAULT_CANCELLATION_GRACE_MS = 10_000;
 const DEFAULT_IDLE_WAIT_MS = 2_500;
 const DEFAULT_IDLE_LOG_INTERVAL_MS = 5 * 60_000;
+const DEFAULT_CAPABILITY_REFRESH_MS = 60_000;
 const DEFAULT_API_RETRY_MS = 5_000;
 const MAX_API_RETRY_MS = 30_000;
 const MAX_PROGRESS_EVENTS = 10_000;
@@ -179,6 +180,13 @@ export interface ServeRunnerOptions {
   idleWaitMs?: number;
   /** Minimum time between idle status lines (defaults to 5 minutes). */
   idleLogIntervalMs?: number;
+  /**
+   * Minimum time between harness/capability re-probes (defaults to 60s).
+   *
+   * Heartbeats always include the latest cached values; set `0` to re-probe
+   * every loop iteration.
+   */
+  capabilityRefreshMs?: number;
   /** Initial delay before retrying a transient heartbeat or claim.
    * Defaults to 5 seconds. */
   apiRetryMs?: number;
@@ -1167,6 +1175,8 @@ export async function serveRunner(
   const idleWaitMs = options.idleWaitMs ?? DEFAULT_IDLE_WAIT_MS;
   const idleLogIntervalMs = options.idleLogIntervalMs ??
     DEFAULT_IDLE_LOG_INTERVAL_MS;
+  const capabilityRefreshMs = options.capabilityRefreshMs ??
+    DEFAULT_CAPABILITY_REFRESH_MS;
   const apiRetryMs = options.apiRetryMs ?? DEFAULT_API_RETRY_MS;
   const status = (message: string): void => {
     log(formatRunnerServeLog(message, now()));
@@ -1197,6 +1207,8 @@ export async function serveRunner(
     }
   };
   let capabilities = await detectRunnerCapabilities();
+  let agentReadiness = await detectAgentReadiness();
+  let lastCapabilityProbeAt = now().getTime();
   let announcedReady = false;
   let announcedIdle = false;
   let lastIdleLogAt = 0;
@@ -1206,11 +1218,16 @@ export async function serveRunner(
     if (options.signal?.aborted) return;
     const config = await loadRunnerConfig();
     const repositories = await checkRunnerRepositories(config);
-    const [liveCapabilities, agentReadiness] = await Promise.all([
-      detectRunnerCapabilities(),
-      detectAgentReadiness(),
-    ]);
-    capabilities = liveCapabilities;
+    const probeAt = now().getTime();
+    if (probeAt - lastCapabilityProbeAt >= capabilityRefreshMs) {
+      const [liveCapabilities, liveAgentReadiness] = await Promise.all([
+        detectRunnerCapabilities(),
+        detectAgentReadiness(),
+      ]);
+      capabilities = liveCapabilities;
+      agentReadiness = liveAgentReadiness;
+      lastCapabilityProbeAt = probeAt;
+    }
     const heartbeat: RunnerHeartbeat = {
       protocol_version: RUNNER_PROTOCOL_VERSION,
       dn_version: options.dnVersion,

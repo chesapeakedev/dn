@@ -263,7 +263,7 @@ The runner applies these boundaries:
   `agent_readiness` (config present, local agent source, and per-harness
   install/auth booleans) so the UI can explain when local config overrides the
   picker and when CLI login is still required. Capabilities and readiness are
-  re-probed each heartbeat.
+  re-probed about once a minute and reused on intervening heartbeats.
 - The issue URL must belong to the registered repository. Local paths never
   enter heartbeat, job, or progress payloads.
 - GitHub and agent authentication come from the local machine. Denoise does not

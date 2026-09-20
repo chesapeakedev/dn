@@ -392,7 +392,8 @@ async function probeHarnessAuthenticated(
 /**
  * Detects non-secret agent readiness for Denoise UI messaging.
  *
- * Re-run on each heartbeat so config and auth changes appear without a restart.
+ * Serve loops refresh this periodically so config and auth changes appear
+ * without a restart; heartbeats reuse the latest cached result between probes.
  */
 export async function detectAgentReadiness(
   probe: RunnerCommandProbe = defaultCommandProbe,
