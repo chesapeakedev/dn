@@ -27,7 +27,8 @@ export const DN_REPOSITORY_CONFIG_PATH = "dn.json";
 /** Legacy repository configuration filename retained for migration. */
 export const DN_LEGACY_CONFIG_PATH = ".github/dn/config.json";
 
-function defaultUserConfigPath(): string {
+/** Default path to the user configuration file (`~/.dn/config.json`). */
+export function defaultUserConfigPath(): string {
   const home = Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE");
   return home ? join(home, ".dn", "config.json") : join(".dn", "config.json");
 }

@@ -8,6 +8,7 @@ import {
   saveRunnerCredential,
 } from "./config.ts";
 import {
+  detectAgentReadiness,
   detectRunnerCapabilities,
   doctorRunner,
   inspectRunnerRepository,
@@ -20,6 +21,7 @@ import {
   serveLoopHungReason,
 } from "./doctor.ts";
 import type { RunnerServiceStatus } from "./service.ts";
+import { join } from "@std/path";
 
 Deno.test("parsePsElapsedMs accepts etimes seconds and etime clocks", () => {
   assertEquals(parsePsElapsedMs("  42\n"), 42_000);
@@ -85,6 +87,98 @@ Deno.test("detectRunnerCapabilities prefers user defaults.agent when installed",
       ["cursor", "opencode", "claude", "codex"],
     );
   } finally {
+    await Deno.remove(directory, { recursive: true });
+  }
+});
+
+Deno.test("detectAgentReadiness reports user config and cursor auth via env", async () => {
+  const directory = await Deno.makeTempDir({ prefix: "dn-doctor-ready-" });
+  const userConfigPath = join(directory, "config.json");
+  await Deno.writeTextFile(
+    userConfigPath,
+    JSON.stringify({
+      schema_version: "2.0",
+      defaults: { agent: "cursor" },
+    }),
+  );
+  const previousKey = Deno.env.get("CURSOR_API_KEY");
+  Deno.env.set("CURSOR_API_KEY", "test-key-not-a-secret-for-assert");
+  const probe: RunnerCommandProbe = {
+    run(command, args) {
+      if (command === "agent" && args[0] === "--version") {
+        return Promise.resolve({ success: true, stdout: "1.0.0", stderr: "" });
+      }
+      if (command === "agent" && args[0] === "status") {
+        return Promise.resolve({ success: true, stdout: "ok", stderr: "" });
+      }
+      return Promise.resolve({
+        success: false,
+        stdout: "",
+        stderr: "command not found",
+      });
+    },
+  };
+  try {
+    const readiness = await detectAgentReadiness(probe, {
+      userConfigPath,
+      configRepoRoot: directory,
+    });
+    assertEquals(readiness.user_config_present, true);
+    assertEquals(readiness.local_agent, "cursor");
+    assertEquals(readiness.local_agent_source, "user_config");
+    const cursor = readiness.harnesses.find((entry) =>
+      entry.harness === "cursor"
+    );
+    assertEquals(cursor?.installed, true);
+    assertEquals(cursor?.authenticated, true);
+    // Never leak the API key into readiness.
+    assertEquals(JSON.stringify(readiness).includes("test-key"), false);
+  } finally {
+    if (previousKey === undefined) Deno.env.delete("CURSOR_API_KEY");
+    else Deno.env.set("CURSOR_API_KEY", previousKey);
+    await Deno.remove(directory, { recursive: true });
+  }
+});
+
+Deno.test("detectAgentReadiness reports missing config with no local agent", async () => {
+  const directory = await Deno.makeTempDir({ prefix: "dn-doctor-noready-" });
+  const userConfigPath = join(directory, "missing-config.json");
+  const previous = new Map<string, string | undefined>();
+  for (
+    const key of [
+      "DN_AGENT",
+      "OPENCODE_ENABLED",
+      "CURSOR_ENABLED",
+      "CLAUDE_ENABLED",
+      "CODEX_ENABLED",
+      "COPILOT_ENABLED",
+    ]
+  ) {
+    previous.set(key, Deno.env.get(key));
+    Deno.env.delete(key);
+  }
+  const probe: RunnerCommandProbe = {
+    run() {
+      return Promise.resolve({
+        success: false,
+        stdout: "",
+        stderr: "command not found",
+      });
+    },
+  };
+  try {
+    const readiness = await detectAgentReadiness(probe, {
+      userConfigPath,
+      configRepoRoot: directory,
+    });
+    assertEquals(readiness.user_config_present, false);
+    assertEquals(readiness.local_agent, null);
+    assertEquals(readiness.local_agent_source, null);
+  } finally {
+    for (const [key, value] of previous) {
+      if (value === undefined) Deno.env.delete(key);
+      else Deno.env.set(key, value);
+    }
     await Deno.remove(directory, { recursive: true });
   }
 });

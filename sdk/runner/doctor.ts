@@ -17,8 +17,15 @@ import {
   runnerServiceCommandsEqual,
   type RunnerServiceStatus,
 } from "./service.ts";
-import type { RunnerCapabilities, RunnerRepositoryReadiness } from "./types.ts";
+import type {
+  RunnerAgentReadiness,
+  RunnerCapabilities,
+  RunnerHarnessReadiness,
+  RunnerRepositoryReadiness,
+} from "./types.ts";
 import { RUNNER_PROTOCOL_VERSION } from "./types.ts";
+import { resolveLocalAgentOverride } from "../config/localAgent.ts";
+import { defaultUserConfigPath } from "../config/resolve.ts";
 
 /** Result of one local runner readiness check. */
 export interface RunnerDoctorCheck {
@@ -40,6 +47,8 @@ export interface RunnerDoctorResult {
   credential: RunnerDoctorCredential | null;
   /** Locally detected harness and Docker capabilities. */
   capabilities: RunnerCapabilities;
+  /** Non-secret agent config and auth readiness. */
+  agent_readiness: RunnerAgentReadiness;
   /** Slug-only checkout readiness. */
   repositories: RunnerRepositoryReadiness[];
   /** Ordered actionable checks. */
@@ -311,6 +320,123 @@ export async function detectRunnerCapabilities(
     ],
     harnesses: orderHarnessesByPreference(available, preferred),
     docker: docker.success,
+  };
+}
+
+/**
+ * Best-effort auth probe for one harness. Never returns secret values.
+ *
+ * @returns `true` / `false` when conclusive; `null` when unsupported
+ */
+async function probeHarnessAuthenticated(
+  harness: AgentHarness,
+  installed: boolean,
+  probe: RunnerCommandProbe,
+): Promise<boolean | null> {
+  if (!installed) return false;
+
+  if (harness === "cursor") {
+    if (Deno.env.get("CURSOR_API_KEY")?.trim()) return true;
+    const status = await probe.run(HARNESS_COMMANDS.cursor, ["status"]);
+    return status.success;
+  }
+  if (harness === "claude") {
+    if (Deno.env.get("ANTHROPIC_API_KEY")?.trim()) return true;
+    const status = await probe.run(HARNESS_COMMANDS.claude, [
+      "auth",
+      "status",
+    ]);
+    if (status.success) return true;
+    // Older Claude CLIs may not support `auth status`; treat as inconclusive.
+    if (status.stderr.toLowerCase().includes("unknown")) return null;
+    return false;
+  }
+  if (harness === "codex") {
+    if (Deno.env.get("OPENAI_API_KEY")?.trim()) return true;
+    const status = await probe.run(HARNESS_COMMANDS.codex, ["login", "status"]);
+    if (status.success) return true;
+    return null;
+  }
+  if (harness === "opencode") {
+    // Presence of common provider keys or a user opencode config is enough.
+    if (
+      Deno.env.get("OPENAI_API_KEY")?.trim() ||
+      Deno.env.get("ANTHROPIC_API_KEY")?.trim() ||
+      Deno.env.get("OPENCODE_API_KEY")?.trim()
+    ) {
+      return true;
+    }
+    const home = Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE");
+    if (!home) return null;
+    for (
+      const candidate of [
+        join(home, ".config", "opencode", "opencode.json"),
+        join(home, ".config", "opencode", "config.json"),
+      ]
+    ) {
+      if (await pathExists(candidate)) return true;
+    }
+    return null;
+  }
+  if (harness === "copilot") {
+    const status = await probe.run(HARNESS_COMMANDS.copilot, [
+      "auth",
+      "status",
+    ]);
+    if (status.success) return true;
+    return null;
+  }
+  return null;
+}
+
+/**
+ * Detects non-secret agent readiness for Denoise UI messaging.
+ *
+ * Re-run on each heartbeat so config and auth changes appear without a restart.
+ */
+export async function detectAgentReadiness(
+  probe: RunnerCommandProbe = defaultCommandProbe,
+  options: DetectRunnerCapabilitiesOptions = {},
+): Promise<RunnerAgentReadiness> {
+  const userConfigPath = options.userConfigPath ?? defaultUserConfigPath();
+  const userConfigPresent = await pathExists(userConfigPath);
+  const home = Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE");
+  const configRepoRoot = options.configRepoRoot ??
+    (home ? join(home, ".dn") : ".");
+  let localAgent: AgentHarness | null = null;
+  let localAgentSource: RunnerAgentReadiness["local_agent_source"] = null;
+  try {
+    const override = await resolveLocalAgentOverride({
+      repoRoot: configRepoRoot,
+      userConfigPath,
+    });
+    if (override) {
+      localAgent = override.agent;
+      localAgentSource = override.source;
+    }
+  } catch {
+    // Conflicting env toggles: report no conclusive local agent.
+  }
+
+  const harnesses: RunnerHarnessReadiness[] = [];
+  for (const harness of AGENT_HARNESSES) {
+    const installed = (await probe.run(
+      HARNESS_COMMANDS[harness],
+      ["--version"],
+    )).success;
+    const authenticated = await probeHarnessAuthenticated(
+      harness,
+      installed,
+      probe,
+    );
+    harnesses.push({ harness, installed, authenticated });
+  }
+
+  return {
+    user_config_present: userConfigPresent,
+    local_agent: localAgent,
+    local_agent_source: localAgentSource,
+    harnesses,
   };
 }
 
@@ -645,10 +771,11 @@ export async function doctorRunner(
   options: DoctorRunnerOptions = {},
 ): Promise<RunnerDoctorResult> {
   const commandProbe = options.probe ?? probe ?? defaultCommandProbe;
-  const [credential, config, capabilities] = await Promise.all([
+  const [credential, config, capabilities, agentReadiness] = await Promise.all([
     loadRunnerCredential(),
     loadRunnerConfig(),
     detectRunnerCapabilities(commandProbe),
+    detectAgentReadiness(commandProbe),
   ]);
   const repositories = await checkRunnerRepositories(config, commandProbe);
   const safeCredential = credential
@@ -755,6 +882,7 @@ export async function doctorRunner(
     protocol_version: RUNNER_PROTOCOL_VERSION,
     credential: safeCredential,
     capabilities,
+    agent_readiness: agentReadiness,
     repositories,
     checks,
   };

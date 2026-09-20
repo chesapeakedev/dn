@@ -12,8 +12,16 @@ export type {
   WriteActionsConfigProjectionOptions,
   WriteActionsConfigProjectionResult,
 } from "./actions.ts";
-export { resolveLocalAgentHarness } from "./localAgent.ts";
-export type { ResolveLocalAgentHarnessOptions } from "./localAgent.ts";
+export {
+  resolveLocalAgentHarness,
+  resolveLocalAgentHarnessOrNull,
+  resolveLocalAgentOverride,
+} from "./localAgent.ts";
+export type {
+  LocalAgentOverride,
+  LocalAgentSource,
+  ResolveLocalAgentHarnessOptions,
+} from "./localAgent.ts";
 export { ENSURE_RECIPE_NAME_PATTERN, parseDnConfig } from "./parse.ts";
 export {
   checkStrictRfcCorpus,
@@ -22,6 +30,7 @@ export {
 } from "./strict.ts";
 export type { StrictRfcCheckResult } from "./strict.ts";
 export {
+  defaultUserConfigPath,
   DN_LEGACY_CONFIG_PATH,
   DN_REPOSITORY_CONFIG_PATH,
   resolveDnConfig,

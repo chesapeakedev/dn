@@ -244,6 +244,36 @@ Deno.test("buildRunnerKickstartCommand prefers checkout dn.json over job stamp",
   });
 });
 
+Deno.test("buildRunnerKickstartCommand uses job stamp when no local agent is set", async () => {
+  await withClearedAgentEnv(async () => {
+    const previousHome = Deno.env.get("HOME");
+    const home = await Deno.makeTempDir({ prefix: "dn-runner-home-" });
+    const repoRoot = await Deno.makeTempDir({ prefix: "dn-runner-empty-" });
+    Deno.env.set("HOME", home);
+    try {
+      const stamped = job();
+      stamped.operation = {
+        type: "kickstart",
+        issue_url: "https://github.com/chesapeakedev/dn/issues/213",
+        publish: "pr",
+        agent: "claude",
+      };
+      const { argv } = await buildRunnerKickstartCommand(
+        stamped,
+        ["/usr/local/bin/dn"],
+        repoRoot,
+      );
+      assertEquals(argv[2], "--agent");
+      assertEquals(argv[3], "claude");
+    } finally {
+      if (previousHome === undefined) Deno.env.delete("HOME");
+      else Deno.env.set("HOME", previousHome);
+      await Deno.remove(home, { recursive: true });
+      await Deno.remove(repoRoot, { recursive: true });
+    }
+  });
+});
+
 Deno.test("buildRunnerKickstartCommand adds --allow-cross-repo for a different execution repo", async () => {
   await withClearedAgentEnv(async () => {
     const repoRoot = await checkoutWithAgent("codex");

@@ -114,6 +114,41 @@ export interface RunnerCapabilities {
   docker: boolean;
 }
 
+/** Why a local agent preference wins over a Denoise-stamped preference. */
+export type RunnerLocalAgentSource = "env" | "user_config" | "repo_config";
+
+/** Per-harness install and auth status (booleans only; no secrets). */
+export interface RunnerHarnessReadiness {
+  /** Agent harness identifier. */
+  harness: AgentHarness;
+  /** Whether the harness CLI responds to `--version`. */
+  installed: boolean;
+  /**
+   * Whether the harness appears authenticated for unattended use.
+   * `null` when the probe is unsupported or inconclusive.
+   */
+  authenticated: boolean | null;
+}
+
+/**
+ * Non-secret agent readiness reported on heartbeats for Denoise UI messaging.
+ *
+ * Older servers ignore this field; older clients omit it.
+ */
+export interface RunnerAgentReadiness {
+  /** True when `~/.dn/config.json` exists. */
+  user_config_present: boolean;
+  /**
+   * Harness that will win over a Denoise-stamped preference, if any.
+   * Null when no `DN_AGENT` / `*_ENABLED` / file agent is set.
+   */
+  local_agent: AgentHarness | null;
+  /** Why {@link local_agent} is set; null when local_agent is null. */
+  local_agent_source: RunnerLocalAgentSource | null;
+  /** Per known harness — never include secrets or raw CLI output. */
+  harnesses: RunnerHarnessReadiness[];
+}
+
 /**
  * Public metadata for an enrolled developer device.
  *
@@ -497,6 +532,11 @@ export interface RunnerHeartbeat {
    * Older clients omit the field and keep sliding expiry without rotation.
    */
   accepts_credential_rotation?: boolean;
+  /**
+   * Non-secret local agent config and auth readiness for Denoise UI messaging.
+   * Older servers ignore this field; older clients omit it.
+   */
+  agent_readiness?: RunnerAgentReadiness;
 }
 
 /** Server response body for runner heartbeats (task-sync channel). */

@@ -3,9 +3,17 @@
 
 import { formatElapsedTime } from "../github/output.ts";
 import { formatAgentFailureOutput } from "../github/progress.ts";
-import { formatAgentSelection } from "../github/agentHarness.ts";
-import { resolveLocalAgentHarness } from "../config/localAgent.ts";
-import { checkRunnerRepositories, detectRunnerCapabilities } from "./doctor.ts";
+import {
+  type AgentHarness,
+  formatAgentSelection,
+  isAgentHarness,
+} from "../github/agentHarness.ts";
+import { resolveLocalAgentHarnessOrNull } from "../config/localAgent.ts";
+import {
+  checkRunnerRepositories,
+  detectAgentReadiness,
+  detectRunnerCapabilities,
+} from "./doctor.ts";
 import { cloudRunnerEnabled } from "./bootstrap.ts";
 import { ensureCloudCheckout } from "./cloudCheckout.ts";
 import type { LocalRunnerConfig } from "./config.ts";
@@ -194,20 +202,36 @@ function defaultSpawn(
 }
 
 /**
- * Resolves the agent for a device-runner job from local/repo config.
+ * Resolves the agent for a device-runner job.
  *
- * Ignores Denoise's stamped `job.operation.agent` so `~/.dn/config.json`,
- * repo `dn.json`, and `DN_AGENT` / `*_ENABLED` win (same as interactive CLI).
+ * Precedence: local env / `~/.dn/config.json` / repo `dn.json` → Denoise's
+ * stamped `job.operation.agent` → built-in `opencode`.
  */
 export async function resolveRunnerJobAgent(
   repoRoot: string,
   repositorySlug?: string,
+  stampedAgent?: string,
 ): Promise<string> {
-  const selection = await resolveLocalAgentHarness({
+  const local = await resolveLocalAgentHarnessOrNull({
     repoRoot,
     ...(repositorySlug ? { repositorySlug } : {}),
   });
-  return formatAgentSelection(selection);
+  if (local) {
+    return formatAgentSelection(local);
+  }
+  if (stampedAgent && isAgentHarness(stampedAgent)) {
+    return stampedAgent;
+  }
+  return "opencode";
+}
+
+/** Extracts the stamped agent harness from a job operation when present. */
+function stampedAgentFromJob(job: RunnerJob): AgentHarness | undefined {
+  const operation = job.operation;
+  if ("agent" in operation && typeof operation.agent === "string") {
+    return isAgentHarness(operation.agent) ? operation.agent : undefined;
+  }
+  return undefined;
 }
 
 /** Builds a command for a denoise-task job, materializing the task to a temp file. */
@@ -219,7 +243,11 @@ export async function buildRunnerDenoiseTaskCommand(
   if (job.operation.type !== "denoise-task") {
     throw new Error("Expected a denoise-task operation.");
   }
-  const agent = await resolveRunnerJobAgent(repoRoot, job.repository);
+  const agent = await resolveRunnerJobAgent(
+    repoRoot,
+    job.repository,
+    stampedAgentFromJob(job),
+  );
   const tmpDir = await Deno.makeTempDir({ prefix: "dn-denoise-task-" });
   const mdPath = `${tmpDir}/task.md`;
   const markdown = denoiseTaskToMarkdown(job.operation.task_document);
@@ -271,7 +299,11 @@ export async function buildRunnerKickstartCommand(
     };
   }
   if (job.operation.type === "init_stack") {
-    const agent = await resolveRunnerJobAgent(repoRoot, job.repository);
+    const agent = await resolveRunnerJobAgent(
+      repoRoot,
+      job.repository,
+      stampedAgentFromJob(job),
+    );
     const stackMode = job.operation.stack_mode;
     return {
       argv: [
@@ -292,7 +324,11 @@ export async function buildRunnerKickstartCommand(
       ],
     };
   }
-  const agent = await resolveRunnerJobAgent(repoRoot, job.repository);
+  const agent = await resolveRunnerJobAgent(
+    repoRoot,
+    job.repository,
+    stampedAgentFromJob(job),
+  );
   if (job.operation.type === "land") {
     return {
       argv: [
@@ -1160,7 +1196,7 @@ export async function serveRunner(
       }
     }
   };
-  const capabilities = await detectRunnerCapabilities();
+  let capabilities = await detectRunnerCapabilities();
   let announcedReady = false;
   let announcedIdle = false;
   let lastIdleLogAt = 0;
@@ -1170,6 +1206,11 @@ export async function serveRunner(
     if (options.signal?.aborted) return;
     const config = await loadRunnerConfig();
     const repositories = await checkRunnerRepositories(config);
+    const [liveCapabilities, agentReadiness] = await Promise.all([
+      detectRunnerCapabilities(),
+      detectAgentReadiness(),
+    ]);
+    capabilities = liveCapabilities;
     const heartbeat: RunnerHeartbeat = {
       protocol_version: RUNNER_PROTOCOL_VERSION,
       dn_version: options.dnVersion,
@@ -1177,6 +1218,7 @@ export async function serveRunner(
       repositories,
       state: config.paused ? "paused" : "ready",
       accepts_credential_rotation: true,
+      agent_readiness: agentReadiness,
       ...(pendingAcks.length > 0 ? { task_sync_acks: pendingAcks } : {}),
       ...(pendingTaskList ? { task_list: pendingTaskList } : {}),
     };

@@ -339,25 +339,12 @@ export function mergeAgentSelections(
 }
 
 /**
- * Parses CLI flags and environment into a single {@link AgentSelection}.
+ * Resolves an agent from CLI flags and environment only (no file or builtin).
  *
- * Environment toggles (`DN_AGENT`, `*_ENABLED`) are used only when no explicit
- * `--agent` selection was provided. File config supplies a harness-only
- * fallback after that.
- *
- * @param options.agent - Explicit `--agent` selection from CLI flags
- * @param options.fallbackAgent - Config-derived harness used after flags/env
- * @returns Resolved selection (default harness `opencode`)
+ * @returns Selection when `DN_AGENT` or exactly one `*_ENABLED` is set
  * @throws Error if conflicting env vars are set
  */
-export function resolveAgentHarnessFromFlagsAndEnv(options: {
-  agent?: AgentSelection | null;
-  fallbackAgent?: AgentHarness | null;
-} = {}): AgentSelection {
-  if (options.agent) {
-    return options.agent;
-  }
-
+export function resolveAgentHarnessFromEnvOnly(): AgentSelection | null {
   const dnAgent = Deno.env.get("DN_AGENT");
   if (dnAgent) {
     return parseAgentSelection(dnAgent);
@@ -391,8 +378,61 @@ export function resolveAgentHarnessFromFlagsAndEnv(options: {
   if (uniqueEnvSelections[0]) {
     return { harness: uniqueEnvSelections[0] };
   }
+  return null;
+}
+
+/**
+ * Parses CLI flags and environment into a single {@link AgentSelection}.
+ *
+ * Environment toggles (`DN_AGENT`, `*_ENABLED`) are used only when no explicit
+ * `--agent` selection was provided. File config supplies a harness-only
+ * fallback after that.
+ *
+ * @param options.agent - Explicit `--agent` selection from CLI flags
+ * @param options.fallbackAgent - Config-derived harness used after flags/env
+ * @returns Resolved selection (default harness `opencode`)
+ * @throws Error if conflicting env vars are set
+ */
+export function resolveAgentHarnessFromFlagsAndEnv(options: {
+  agent?: AgentSelection | null;
+  fallbackAgent?: AgentHarness | null;
+} = {}): AgentSelection {
+  if (options.agent) {
+    return options.agent;
+  }
+
+  const fromEnv = resolveAgentHarnessFromEnvOnly();
+  if (fromEnv) {
+    return fromEnv;
+  }
   if (options.fallbackAgent) {
     return { harness: options.fallbackAgent };
   }
   return { harness: "opencode" };
+}
+
+/**
+ * Like {@link resolveAgentHarnessFromFlagsAndEnv} but returns null instead of
+ * the built-in OpenCode default when nothing is configured.
+ */
+export function resolveAgentHarnessFromFlagsAndEnvOrNull(options: {
+  agent?: AgentSelection | null;
+  fallbackAgent?: AgentHarness | null;
+} = {}): AgentSelection | null {
+  if (options.agent) {
+    return options.agent;
+  }
+  const fromEnv = resolveAgentHarnessFromEnvOnly();
+  if (fromEnv) {
+    return fromEnv;
+  }
+  if (options.fallbackAgent) {
+    return { harness: options.fallbackAgent };
+  }
+  return null;
+}
+
+/** Returns true when `value` is a supported {@link AgentHarness}. */
+export function isAgentHarness(value: string): value is AgentHarness {
+  return AGENT_HARNESSES.includes(value as AgentHarness);
 }

@@ -247,19 +247,23 @@ The runner applies these boundaries:
   (`dn kickstart --sandbox none --publish …`,
   `dn --unattended --agent <harness> land [plan_file]`, or
   `dn --unattended sync`) and rejects argv, shell, environment, and workflow
-  definitions. For agent-bearing jobs, `<harness>` comes from local resolution
-  on the checkout (`DN_AGENT` / `*_ENABLED`, then `~/.dn/config.json` defaults
-  and `repos[owner/repo]`, then repo `dn.json`), not Denoise's stamped
-  `operation.agent` (often the first advertised harness). `--sandbox none` keeps
-  ticketless denoise-task jobs runnable on devices whose repo config prefers
-  `exe.dev`. Land jobs never receive local filesystem paths; `plan_file` is
-  repo-relative (`plans/*.plan.md`) or omitted so `dn land` picks the newest
-  plan. Sync jobs never pass `--skip-preflight`.
-- Set a preferred agent with `defaults.agent` in `~/.dn/config.json` (or a
-  per-repo override / project `dn.json`). After changing it, restart the runner
-  so heartbeats re-advertise harnesses with that agent first (Denoise still
-  stamps `harnesses[0]` for job metadata; the worker ignores that stamp when
-  spawning).
+  definitions. For agent-bearing jobs, `<harness>` resolution order is:
+  1. Local selection (`DN_AGENT` / `*_ENABLED`, then `~/.dn/config.json`
+     defaults and `repos[owner/repo]`, then repo `dn.json`)
+  2. Denoise's stamped `operation.agent` (owner preference, otherwise the first
+     advertised harness)
+  3. Built-in `opencode` `--sandbox none` keeps ticketless denoise-task jobs
+     runnable on devices whose repo config prefers `exe.dev`. Land jobs never
+     receive local filesystem paths; `plan_file` is repo-relative
+     (`plans/*.plan.md`) or omitted so `dn land` picks the newest plan. Sync
+     jobs never pass `--skip-preflight`.
+- Set a preferred agent in the Denoise Runners UI (stored on the device
+  registration) or with `defaults.agent` in `~/.dn/config.json`. Local config
+  and env always win over the UI preference. Heartbeats include
+  `agent_readiness` (config present, local agent source, and per-harness
+  install/auth booleans) so the UI can explain when local config overrides the
+  picker and when CLI login is still required. Capabilities and readiness are
+  re-probed each heartbeat.
 - The issue URL must belong to the registered repository. Local paths never
   enter heartbeat, job, or progress payloads.
 - GitHub and agent authentication come from the local machine. Denoise does not
@@ -279,8 +283,10 @@ estimate dollar savings.
 ## Diagnose readiness
 
 `dn runner doctor` checks the platform, pairing expiration, installed harnesses,
-every registered checkout, and whether a serve loop is running. It reports
-repository slugs, not paths, in JSON output. Doctor fails when no loop is
+every registered checkout, and whether a serve loop is running. JSON output also
+includes `agent_readiness` (whether `~/.dn/config.json` is present, which local
+agent would override a Denoise preference, and per-harness install/auth
+booleans). It reports repository slugs, not paths. Doctor fails when no loop is
 running, which is the same condition that makes denoise show the device offline.
 
 For foreground logs, stop the user service first so two loops do not race:
