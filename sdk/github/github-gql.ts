@@ -383,6 +383,58 @@ const PULL_REQUEST_WITH_COMMENTS_QUERY = `
   }
 `;
 
+const PULL_REQUEST_REVIEW_QUERY = `
+  query ReviewPullRequest($owner: String!, $name: String!, $number: Int!) {
+    repository(owner: $owner, name: $name) {
+      pullRequest(number: $number) {
+        number
+        title
+        body
+        url
+        state
+        isDraft
+        mergeable
+        mergeStateStatus
+        reviewDecision
+        headRefName
+        headRefOid
+        baseRefName
+        baseRefOid
+        commits(first: 100) {
+          pageInfo { hasNextPage }
+          nodes { commit { oid message } }
+        }
+        files(first: 100) {
+          pageInfo { hasNextPage }
+          nodes { path additions deletions changeType }
+        }
+        comments(first: 100) {
+          pageInfo { hasNextPage }
+          nodes { body author { login } createdAt updatedAt }
+        }
+        reviews(first: 100) {
+          pageInfo { hasNextPage }
+          nodes { body state author { login } submittedAt }
+        }
+        reviewThreads(first: 100) {
+          pageInfo { hasNextPage }
+          nodes { isResolved isOutdated comments(first: 1) { totalCount } }
+        }
+        statusCheckRollup {
+          contexts(first: 100) {
+            pageInfo { hasNextPage }
+            nodes {
+              __typename
+              ... on CheckRun { name conclusion status detailsUrl }
+              ... on StatusContext { context state targetUrl }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
 // Type definitions for GraphQL responses
 
 interface RepositoryInfoResponse {
@@ -559,6 +611,45 @@ export interface PullRequestData {
   repo: string;
   comments: PRComment[];
   reviews: PRReview[];
+}
+
+/** Read-only evidence collected for a pull request review brief. */
+export interface PullRequestReviewData {
+  number: number;
+  title: string;
+  body: string;
+  url: string;
+  owner: string;
+  repo: string;
+  state: string;
+  isDraft: boolean;
+  mergeable: string;
+  mergeStateStatus: string | null;
+  reviewDecision: string | null;
+  headRefName: string | null;
+  headRefOid: string | null;
+  baseRefName: string | null;
+  baseRefOid: string | null;
+  commits: Array<{ oid: string; message: string }>;
+  files: Array<{
+    path: string;
+    additions: number;
+    deletions: number;
+    changeType: string;
+  }>;
+  comments: Array<
+    { body: string; author: string; createdAt: string; updatedAt: string }
+  >;
+  reviews: Array<
+    { body: string; state: string; author: string; submittedAt: string | null }
+  >;
+  reviewThreads: Array<
+    { isResolved: boolean; isOutdated: boolean; commentCount: number }
+  >;
+  checks: Array<
+    { name: string; conclusion: string | null; state: string | null }
+  >;
+  warnings: string[];
 }
 
 interface PullRequestWithCommentsResponse {
@@ -1285,6 +1376,176 @@ export async function fetchPullRequestWithComments(
     repo,
     comments,
     reviews,
+  };
+}
+
+/** Fetches PR metadata and review signals without performing any mutations. */
+export async function fetchPullRequestReviewData(
+  prUrl: string,
+): Promise<PullRequestReviewData> {
+  const parsed = parsePullRequestUrl(prUrl);
+  if (!parsed) {
+    throw new Error(
+      `Invalid PR URL format: ${prUrl}. Expected format: https://github.com/owner/repo/pull/123`,
+    );
+  }
+  const { owner, repo, number } = parsed;
+  const client = await getClient();
+  const result = await client.query(PULL_REQUEST_REVIEW_QUERY, {
+    variables: { owner, name: repo, number },
+    cacheRead: false,
+    cacheWrite: false,
+  });
+  handleGraphQLErrors(
+    result,
+    "Failed to fetch pull request review data",
+    owner,
+    repo,
+  );
+  if (!result.data) {
+    throw new Error(
+      `Pull request #${number} in ${owner}/${repo} returned no data.`,
+    );
+  }
+  const data = result.data as {
+    repository: {
+      pullRequest: {
+        number: number;
+        title: string;
+        body: string;
+        url: string;
+        state: string;
+        isDraft: boolean;
+        mergeable: string;
+        mergeStateStatus: string | null;
+        reviewDecision: string | null;
+        headRefName: string | null;
+        headRefOid: string | null;
+        baseRefName: string | null;
+        baseRefOid: string | null;
+        commits: {
+          pageInfo: { hasNextPage: boolean };
+          nodes: Array<{ commit: { oid: string; message: string } }>;
+        };
+        files: {
+          pageInfo: { hasNextPage: boolean };
+          nodes: Array<
+            {
+              path: string;
+              additions: number;
+              deletions: number;
+              changeType: string;
+            }
+          >;
+        };
+        comments: {
+          pageInfo: { hasNextPage: boolean };
+          nodes: Array<
+            {
+              body: string;
+              author: { login: string } | null;
+              createdAt: string;
+              updatedAt: string;
+            }
+          >;
+        };
+        reviews: {
+          pageInfo: { hasNextPage: boolean };
+          nodes: Array<
+            {
+              body: string;
+              state: string;
+              author: { login: string } | null;
+              submittedAt: string | null;
+            }
+          >;
+        };
+        reviewThreads: {
+          pageInfo: { hasNextPage: boolean };
+          nodes: Array<
+            {
+              isResolved: boolean;
+              isOutdated: boolean;
+              comments: { totalCount: number };
+            }
+          >;
+        };
+        statusCheckRollup: {
+          contexts: {
+            pageInfo: { hasNextPage: boolean };
+            nodes: Array<Record<string, unknown>>;
+          };
+        } | null;
+      } | null;
+    } | null;
+  };
+  const pr = data.repository?.pullRequest;
+  if (!pr) {
+    throw new Error(`Pull request #${number} not found in ${owner}/${repo}.`);
+  }
+  const warnings: string[] = [];
+  if (pr.commits.pageInfo.hasNextPage) {
+    warnings.push("Commit list is truncated.");
+  }
+  if (pr.files.pageInfo.hasNextPage) {
+    warnings.push("Changed-file list is truncated.");
+  }
+  if (pr.comments.pageInfo.hasNextPage) {
+    warnings.push("Conversation comments are truncated.");
+  }
+  if (pr.reviews.pageInfo.hasNextPage) warnings.push("Reviews are truncated.");
+  if (pr.reviewThreads.pageInfo.hasNextPage) {
+    warnings.push("Review threads are truncated.");
+  }
+  if (pr.statusCheckRollup?.contexts.pageInfo.hasNextPage) {
+    warnings.push("Checks are truncated.");
+  }
+  if (!pr.statusCheckRollup) warnings.push("Status checks are unavailable.");
+  return {
+    number: pr.number,
+    title: pr.title,
+    body: pr.body,
+    url: pr.url,
+    owner,
+    repo,
+    state: pr.state,
+    isDraft: pr.isDraft,
+    mergeable: pr.mergeable,
+    mergeStateStatus: pr.mergeStateStatus,
+    reviewDecision: pr.reviewDecision,
+    headRefName: pr.headRefName,
+    headRefOid: pr.headRefOid,
+    baseRefName: pr.baseRefName,
+    baseRefOid: pr.baseRefOid,
+    commits: pr.commits.nodes.map(({ commit }) => commit),
+    files: pr.files.nodes,
+    comments: pr.comments.nodes.map((comment) => ({
+      ...comment,
+      author: comment.author?.login ?? "unknown",
+    })),
+    reviews: pr.reviews.nodes.map((review) => ({
+      ...review,
+      author: review.author?.login ?? "unknown",
+    })),
+    reviewThreads: pr.reviewThreads.nodes.map((thread) => ({
+      isResolved: thread.isResolved,
+      isOutdated: thread.isOutdated,
+      commentCount: thread.comments.totalCount,
+    })),
+    checks: (pr.statusCheckRollup?.contexts.nodes ?? []).map((node) => ({
+      name: typeof node.name === "string"
+        ? node.name
+        : typeof node.context === "string"
+        ? node.context
+        : "unknown",
+      conclusion: typeof node.conclusion === "string" ? node.conclusion : null,
+      state: typeof node.state === "string"
+        ? node.state
+        : typeof node.status === "string"
+        ? node.status
+        : null,
+    })),
+    warnings,
   };
 }
 

@@ -192,6 +192,8 @@ const issueNode: CompletionNode = {
   },
 };
 
+const readNode: CompletionNode = { flags: ["--json", ...HELP_FLAGS] };
+
 const releaseCreateNode: CompletionNode = {
   flags: [
     "--target",
@@ -385,6 +387,7 @@ export const DN_COMPLETION_ROOT: CompletionNode = {
         },
       },
     },
+    read: readNode,
     issue: issueNode,
     issues: issueNode,
     workflows: {

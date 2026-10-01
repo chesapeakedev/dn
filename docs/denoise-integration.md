@@ -485,3 +485,12 @@ workflows, issue labels such as `denoise-build`, `cursor awp`, and
 `opencode awp`, and documented comment triggers remain supported compatibility
 paths. They do not take precedence over dispatch events; each trigger runs only
 the workflow that received it.
+
+# Read-only pull request briefs
+
+`dn read <url-or-number> --json` is safe to run as an on-demand Denoise job. It
+only reads GitHub GraphQL data and does not write the checkout, change branches,
+or mutate pull request, review, comment, commit, or CI state. Cache results by
+`identity.headSha` and `digest`; warnings identify truncated or unavailable
+GitHub connections. The merge outlook is a qualified judgment over observable
+signals, not a merge guarantee.

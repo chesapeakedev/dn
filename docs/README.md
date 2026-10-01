@@ -12,6 +12,11 @@ see [`docs/subcommands.md`](docs/subcommands.md) for `dn issue show` and
 related issues per relationship group); context files mirror GitHub totals and
 include “more not shown” lines when totals exceed what was loaded.
 
+`dn read <pull-request-url-or-number>` produces a read-only pull request review
+brief. Add `--json` for the versioned contract, including normalized identity,
+head SHA, deterministic digest, GitHub facts, conclusions, and warnings. The
+merge outlook is evidence-based and is not a GitHub guarantee.
+
 ## Guides
 
 | Document                                            | Description                                                |
@@ -46,3 +51,8 @@ include “more not shown” lines when totals exceed what was loaded.
 | Document                          | Description                                      |
 | --------------------------------- | ------------------------------------------------ |
 | [Denoise](denoise-integration.md) | Workflow contracts for denoise-style integrators |
+
+`dn read <pull-request-url-or-number>` produces a read-only pull request review
+brief. Add `--json` for the versioned contract, including the normalized PR
+identity, head SHA, deterministic digest, GitHub facts, conclusions, and data
+warnings. The merge outlook is evidence-based and is not a GitHub guarantee.

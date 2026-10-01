@@ -340,10 +340,23 @@ export {
   fetchIssueFromUrl,
   fetchIssuesClosed,
   fetchIssuesOpened,
+  fetchPullRequestReviewData,
   getCurrentRepoFromRemote,
   getDefaultBranch,
   getIssueIdentifiers,
 } from "./github/github-gql.ts";
+export {
+  canonicalizeReviewData,
+  computeReviewDigest,
+  createReviewBrief,
+} from "./github/reviewBrief.ts";
+export type {
+  ReviewBrief,
+  ReviewConclusions,
+  ReviewFact,
+  ReviewPullRequestIdentity,
+  ReviewWarning,
+} from "./github/reviewBrief.ts";
 
 // Issue CRUD operations
 export {
