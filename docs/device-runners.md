@@ -116,7 +116,24 @@ Run `dn runner serve` in a terminal only when:
 - The user service stopped (expired credential, bootstrap failure) and you are
   debugging it
 
-Do not run both. `dn runner serve` refuses to start when the user service is
+### Daily runner plus an isolated test runner
+
+For Playwright or other automation, you can pair a **second** runner identity in
+a separate directory while your everyday LaunchAgent loop keeps running:
+
+```bash
+export DN_RUNNER_HOME=/tmp/denoise-runner-e2e
+export DN_RUNNER_SERVICE=1
+dn runner connect <code> --api-url http://localhost:5175 --repo --name "E2E runner"
+dn runner serve
+```
+
+`DN_RUNNER_HOME` isolates credential and checkout registration files.
+`DN_RUNNER_SERVICE=1` skips the duplicate-process guard so foreground serve can
+run beside `cloud.denoise.runner`. Alternatively, pass `--home <dir>` before any
+`dn runner` subcommand (same effect as `DN_RUNNER_HOME`).
+
+Do not run both default serve loops. `dn runner serve` refuses to start when the user service is
 already running. Stop it first:
 
 ```bash

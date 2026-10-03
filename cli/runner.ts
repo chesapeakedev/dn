@@ -54,7 +54,7 @@ function showRunnerHelp(): void {
   );
   console.log("Usage:");
   console.log(
-    "  dn runner connect <code> [--install] [--repo] [--name <name>]",
+    "  dn runner [--home <dir>] connect <code> [--install] [--repo] [--name <name>]",
   );
   console.log("  dn runner register [path] [--yes] [--json]");
   console.log("  dn runner unregister <owner/repo> [--json]");
@@ -68,6 +68,9 @@ function showRunnerHelp(): void {
   console.log("  dn runner stop");
   console.log("  dn runner serve [--once]");
   console.log("  dn runner bootstrap-env\n");
+  console.log(
+    "Global option: --home <dir> stores runner state outside ~/.dn/runner (or set DN_RUNNER_HOME).",
+  );
   console.log(
     "Device jobs use your registered checkout, local agent login, and hardware.",
   );
@@ -668,9 +671,14 @@ async function handleServe(args: string[]): Promise<void> {
     const logs = service.supervisor === "systemd"
       ? "journalctl --user -u denoise-runner.service -f"
       : "tail -f ~/.dn/runner/runner.log";
+    const isolatedHome = Deno.env.get("DN_RUNNER_HOME")?.trim();
+    const isolationHint = isolatedHome
+      ? ` To run a second isolated loop alongside the user service, set DN_RUNNER_SERVICE=1 (DN_RUNNER_HOME=${isolatedHome}).`
+      : "";
     throw new Error(
       `${supervisor} is already running${pid}. That loop is what denoise uses. ` +
-        `Watch ${logs}, or run dn runner stop then dn runner serve for foreground diagnostics.`,
+        `Watch ${logs}, or run dn runner stop then dn runner serve for foreground diagnostics.` +
+        isolationHint,
     );
   }
   await bootstrapRunnerCredentialFromEnv();
@@ -763,10 +771,29 @@ async function handleRotate(args: string[]): Promise<void> {
   }
 }
 
+function applyRunnerHomeFlag(args: string[]): string[] {
+  const next: string[] = [];
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index];
+    if (argument === "--home") {
+      const value = args[index + 1]?.trim();
+      if (!value) {
+        throw new Error("--home requires a directory path.");
+      }
+      Deno.env.set("DN_RUNNER_HOME", resolve(value));
+      index += 1;
+      continue;
+    }
+    next.push(argument);
+  }
+  return next;
+}
+
 /** Handles the complete `dn runner` command family. */
 export async function handleRunner(args: string[]): Promise<void> {
-  const subcommand = args[0];
-  const rest = args.slice(1);
+  const parsed = applyRunnerHomeFlag(args);
+  const subcommand = parsed[0];
+  const rest = parsed.slice(1);
   if (!subcommand || ["help", "--help", "-h"].includes(subcommand)) {
     showRunnerHelp();
     return;
