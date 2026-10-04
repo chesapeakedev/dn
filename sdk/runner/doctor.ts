@@ -441,6 +441,21 @@ export async function detectAgentReadiness(
   };
 }
 
+/** Resolves a GitHub repository id via the local `gh` CLI when authenticated. */
+export async function resolveGithubRepositoryId(
+  repository: string,
+  probe: RunnerCommandProbe = defaultCommandProbe,
+): Promise<number | undefined> {
+  const result = await probe.run(
+    "gh",
+    ["api", `repos/${repository}`, "--jq", ".id"],
+    undefined,
+  );
+  if (!result.success || !result.stdout?.trim()) return undefined;
+  const id = Number(result.stdout.trim());
+  return Number.isInteger(id) && id > 0 ? id : undefined;
+}
+
 /** Checks all explicitly registered checkouts and reports slugs only. */
 export async function checkRunnerRepositories(
   config: LocalRunnerConfig,
@@ -449,6 +464,8 @@ export async function checkRunnerRepositories(
   return await Promise.all(
     Object.entries(config.repositories).map(
       async ([repository, registration]) => {
+        const repositoryId = registration.repository_id ??
+          await resolveGithubRepositoryId(repository, probe);
         try {
           const inspected = await inspectRunnerRepository(
             registration.path,
@@ -459,15 +476,21 @@ export async function checkRunnerRepositories(
           ) {
             return {
               repository,
+              ...(repositoryId != null ? { repository_id: repositoryId } : {}),
               ready: false,
               reason:
                 `Checkout remote is ${inspected.repository}; re-register the correct repository.`,
             };
           }
-          return { repository, ready: true };
+          return {
+            repository,
+            ...(repositoryId != null ? { repository_id: repositoryId } : {}),
+            ready: true,
+          };
         } catch (error) {
           return {
             repository,
+            ...(repositoryId != null ? { repository_id: repositoryId } : {}),
             ready: false,
             reason: error instanceof Error ? error.message : String(error),
           };

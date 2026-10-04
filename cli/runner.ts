@@ -21,6 +21,7 @@ import {
   detectRunnerCapabilities,
   doctorRunner,
   inspectRunnerRepository,
+  resolveGithubRepositoryId,
 } from "../sdk/runner/doctor.ts";
 import {
   generateRunnerService,
@@ -330,7 +331,13 @@ async function registerCurrentRepository(
       throw new Error("Repository registration requires explicit trust.");
     }
   }
-  await registerRunnerRepository(inspected.repository, absolutePath);
+  const repositoryId = await resolveGithubRepositoryId(inspected.repository);
+  await registerRunnerRepository(
+    inspected.repository,
+    absolutePath,
+    undefined,
+    repositoryId,
+  );
   return inspected.repository;
 }
 

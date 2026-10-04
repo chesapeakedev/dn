@@ -84,6 +84,8 @@ export type RunnerState =
 export interface RunnerRepositoryReadiness {
   /** GitHub `owner/repo` slug; never a local path. */
   repository: string;
+  /** Stable GitHub repository id when known from `gh api` during register. */
+  repository_id?: number;
   /** Whether the checkout can currently accept jobs. */
   ready: boolean;
   /** Actionable explanation when the checkout is not ready. */

@@ -33,6 +33,8 @@ export interface LocalRunnerRepository {
   path: string;
   /** ISO-8601 explicit trust confirmation time. */
   trusted_at: string;
+  /** GitHub repository id when resolved at register time via `gh api`. */
+  repository_id?: number;
 }
 
 /** Non-secret local runner settings. */
@@ -222,6 +224,7 @@ export async function registerRunnerRepository(
   repository: string,
   path: string,
   paths: RunnerConfigPaths = getRunnerConfigPaths(),
+  repositoryId?: number,
 ): Promise<LocalRunnerConfig> {
   const slug = parseRepositorySlug(repository);
   const absolutePath = resolve(path);
@@ -233,6 +236,9 @@ export async function registerRunnerRepository(
   config.repositories[slug] = {
     path: absolutePath,
     trusted_at: new Date().toISOString(),
+    ...(repositoryId != null && Number.isInteger(repositoryId) && repositoryId > 0
+      ? { repository_id: repositoryId }
+      : {}),
   };
   await saveRunnerConfig(config, paths);
   return config;
