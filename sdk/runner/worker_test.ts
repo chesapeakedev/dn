@@ -24,6 +24,7 @@ import {
   formatRunnerServeLog,
   parseRunnerProgressLine,
   type RunnerChildProcess,
+  runnerFailureForensicHint,
   type RunnerWorkerClient,
   runRunnerJob,
   serveRunner,
@@ -871,6 +872,21 @@ Deno.test("runRunnerJob includes stderr reason in failJob message", async () => 
     "dn kickstart exited with code 1. exe.dev sandbox kickstart runs require a GitHub issue and --publish pr",
   );
   assertEquals(client.failure?.exit_code, 1);
+});
+
+Deno.test("runner failure forensics explains common local stop conditions", () => {
+  assertEquals(
+    runnerFailureForensicHint(
+      "Error: Model not found: openrouter/openai/gpt-5.6-luna",
+    ),
+    "Forensics: the selected agent model is unavailable; update the agent/model configuration and retry.",
+  );
+  assertEquals(
+    runnerFailureForensicHint(
+      "abort: object not found - no match for id (deadbeef)",
+    ),
+    "Forensics: the registered checkout is not a complete usable VCS workspace; open the runner settings, verify the path, and refresh the checkout.",
+  );
 });
 
 Deno.test("formatRunnerServeLog prefixes an ISO-8601 timestamp", () => {

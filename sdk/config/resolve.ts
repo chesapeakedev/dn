@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { join } from "@std/path";
-import { $ } from "$dax";
 import { parseDnConfig } from "./parse.ts";
 import {
   parseDnSandboxConfig,
@@ -143,13 +142,21 @@ function mergeUserLayer(
 async function detectRepositorySlug(
   repoRoot: string,
 ): Promise<string | undefined> {
-  const commands = [
-    () => $`git -C ${repoRoot} remote get-url origin`.text(),
-    () => $`sl -R ${repoRoot} paths default`.text(),
+  const commands: [string, string[]][] = [
+    ["git", ["-C", repoRoot, "remote", "get-url", "origin"]],
+    ["sl", ["-R", repoRoot, "paths", "default"]],
   ];
-  for (const readRemote of commands) {
+  for (const [command, args] of commands) {
     try {
-      return repositorySlugFromRemote((await readRemote()).trim());
+      const output = await new Deno.Command(command, {
+        args,
+        stdout: "piped",
+        stderr: "piped",
+      }).output();
+      if (!output.success) continue;
+      return repositorySlugFromRemote(
+        new TextDecoder().decode(output.stdout).trim(),
+      );
     } catch {
       // try next VCS
     }

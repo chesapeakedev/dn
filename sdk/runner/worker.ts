@@ -201,7 +201,7 @@ function defaultSpawn(
   const child = new Deno.Command(command[0], {
     args: command.slice(1),
     cwd,
-    env,
+    env: { ...Deno.env.toObject(), ...env },
     stdin: "null",
     stdout: "piped",
     stderr: "piped",
@@ -426,7 +426,35 @@ export function formatRunnerJobFailureMessage(
   if (!detail) return exitPart;
   const summarized = formatAgentFailureOutput(detail, { truncate: true });
   if (!summarized) return exitPart;
-  return `${exitPart} ${summarized}`;
+  const forensicHint = runnerFailureForensicHint(summarized);
+  return `${exitPart} ${summarized}${forensicHint ? ` ${forensicHint}` : ""}`;
+}
+
+/**
+ * Adds a deterministic, non-agentic hint for common runner stop conditions.
+ *
+ * The original output remains in the message; these hints only translate a
+ * recognizable local failure into the next useful user action.
+ */
+export function runnerFailureForensicHint(output: string): string | undefined {
+  const normalized = output.toLowerCase();
+  if (normalized.includes("model not found")) {
+    return "Forensics: the selected agent model is unavailable; update the agent/model configuration and retry.";
+  }
+  if (
+    normalized.includes("not a git repository") ||
+    normalized.includes("object not found") ||
+    normalized.includes("reposetup failed")
+  ) {
+    return "Forensics: the registered checkout is not a complete usable VCS workspace; open the runner settings, verify the path, and refresh the checkout.";
+  }
+  if (
+    normalized.includes("enoent") ||
+    normalized.includes("no such file or directory")
+  ) {
+    return "Forensics: a required local executable or file was not found; run runner diagnostics and check the device environment.";
+  }
+  return undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -1342,7 +1370,7 @@ export async function serveRunner(
           config,
           client: options.client,
           stdout: console.log,
-          stderr: console.error,
+          stderr: (line) => console.error(formatRunnerServeLog(line, now())),
           status,
         });
       } catch (error) {
