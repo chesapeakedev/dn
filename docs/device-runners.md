@@ -133,8 +133,8 @@ dn runner serve
 run beside `cloud.denoise.runner`. Alternatively, pass `--home <dir>` before any
 `dn runner` subcommand (same effect as `DN_RUNNER_HOME`).
 
-Do not run both default serve loops. `dn runner serve` refuses to start when the user service is
-already running. Stop it first:
+Do not run both default serve loops. `dn runner serve` refuses to start when the
+user service is already running. Stop it first:
 
 ```bash
 dn runner stop
@@ -344,13 +344,12 @@ untrusted issue content when running kickstart interactively.
 For the installed service:
 
 ```bash
-# macOS
-tail -f ~/.dn/runner/runner.log
-tail -f ~/.dn/runner/runner.error.log
-
-# Linux
-journalctl --user -u denoise-runner.service -f
+dn runner logs --follow
 ```
+
+This shows the most recent 200 lines and follows the installed user service.
+`dn runner logs` prints the recent lines without following. On macOS it reads
+both LaunchAgent output files; on Linux it reads the systemd user journal.
 
 Re-pairing with `dn runner connect` stops the existing user service before
 credential exchange, then starts it again when `--install` is set **or** when a

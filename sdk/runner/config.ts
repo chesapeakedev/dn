@@ -236,7 +236,8 @@ export async function registerRunnerRepository(
   config.repositories[slug] = {
     path: absolutePath,
     trusted_at: new Date().toISOString(),
-    ...(repositoryId != null && Number.isInteger(repositoryId) && repositoryId > 0
+    ...(repositoryId != null && Number.isInteger(repositoryId) &&
+        repositoryId > 0
       ? { repository_id: repositoryId }
       : {}),
   };

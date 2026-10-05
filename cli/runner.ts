@@ -1,7 +1,7 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromFileUrl, resolve } from "@std/path";
+import { fromFileUrl, join, resolve } from "@std/path";
 import denoConfig from "../deno.json" with { type: "json" };
 import {
   DEFAULT_DENOISE_API_URL,
@@ -29,6 +29,7 @@ import {
   installRunnerService,
   refreshRunnerServiceIfPresent,
   RUNNER_SERVICE_LABEL,
+  RUNNER_SYSTEMD_UNIT,
   startRunnerService,
   stopRunnerService,
   uninstallRunnerService,
@@ -55,7 +56,7 @@ function showRunnerHelp(): void {
   );
   console.log("Usage:");
   console.log(
-    "  dn runner [--home <dir>] connect <code> [--install] [--repo] [--name <name>]",
+    "  dn runner connect <code> [--install] [--repo] [--name <name>]",
   );
   console.log("  dn runner register [path] [--yes] [--json]");
   console.log("  dn runner unregister <owner/repo> [--json]");
@@ -67,6 +68,7 @@ function showRunnerHelp(): void {
   console.log("  dn runner install");
   console.log("  dn runner start");
   console.log("  dn runner stop");
+  console.log("  dn runner logs [--follow]");
   console.log("  dn runner serve [--once]");
   console.log("  dn runner bootstrap-env\n");
   console.log(
@@ -642,6 +644,77 @@ async function handleStop(args: string[]): Promise<void> {
   else console.log("Denoise runner user service stopped.");
 }
 
+/** Native command used to display the installed runner service logs. */
+export interface RunnerLogsCommand {
+  /** Executable to invoke. */
+  command: string;
+  /** Arguments passed to the executable. */
+  args: string[];
+}
+
+/**
+ * Builds the platform-native command for `dn runner logs`.
+ *
+ * macOS reads both LaunchAgent output files. Linux reads the systemd user
+ * journal, which is where the runner service sends its stdout and stderr.
+ */
+export function buildRunnerLogsCommand(
+  platform: string,
+  home: string,
+  follow: boolean,
+): RunnerLogsCommand {
+  if (platform === "darwin") {
+    const logDirectory = join(home, ".dn", "runner");
+    return {
+      command: "tail",
+      args: [
+        "-n",
+        "200",
+        ...(follow ? ["-f"] : []),
+        `${logDirectory}/runner.log`,
+        `${logDirectory}/runner.error.log`,
+      ],
+    };
+  }
+  if (platform === "linux") {
+    return {
+      command: "journalctl",
+      args: [
+        "--user",
+        "-u",
+        RUNNER_SYSTEMD_UNIT,
+        "-n",
+        "200",
+        "--no-pager",
+        ...(follow ? ["-f"] : []),
+      ],
+    };
+  }
+  throw new Error("Device runner logs require macOS or Linux.");
+}
+
+async function handleLogs(args: string[]): Promise<void> {
+  const unknown = args.filter((argument) => argument !== "--follow");
+  if (unknown.length > 0) {
+    throw new Error(`Unexpected argument: ${unknown[0]}`);
+  }
+  const logs = buildRunnerLogsCommand(
+    Deno.build.os,
+    homeDirectory(),
+    args.includes("--follow"),
+  );
+  const status = await new Deno.Command(logs.command, {
+    args: logs.args,
+    stdout: "inherit",
+    stderr: "inherit",
+  }).output();
+  if (!status.success) {
+    throw new Error(
+      `${logs.command} exited with code ${status.code ?? "unknown"}.`,
+    );
+  }
+}
+
 async function handleBootstrapEnv(): Promise<void> {
   const stored = await bootstrapRunnerCredentialFromEnv();
   if (!stored) {
@@ -838,6 +911,9 @@ export async function handleRunner(args: string[]): Promise<void> {
       break;
     case "stop":
       await handleStop(rest);
+      break;
+    case "logs":
+      await handleLogs(rest);
       break;
     case "serve":
       await handleServe(rest);
