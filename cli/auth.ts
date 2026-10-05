@@ -8,6 +8,7 @@
  * Token resolution remains: GITHUB_TOKEN → gh auth token → dn cache.
  */
 
+import { githubApiUrl } from "../sdk/github/endpoints.ts";
 import { runDeviceFlow } from "../sdk/github/deviceFlow.ts";
 import {
   DEVICE_CLIENT_ID_ENV_VARS,
@@ -34,7 +35,7 @@ function sourceLabel(source: GitHubTokenSource): string {
 async function validateToken(
   token: string,
 ): Promise<{ login: string; scopes: string }> {
-  const res = await fetch("https://api.github.com/user", {
+  const res = await fetch(githubApiUrl("/user"), {
     headers: {
       Accept: "application/vnd.github+json",
       Authorization: `Bearer ${token}`,
