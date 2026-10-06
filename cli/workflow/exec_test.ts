@@ -4,6 +4,7 @@
 import { assertEquals, assertThrows } from "@std/assert";
 import { join } from "@std/path";
 import {
+  applyKickstartTimeoutEnvFromClientPayload,
   applyProgressEnvFromClientPayload,
   claimActionsKickstartTarget,
   evaluateDailyKickstartReadiness,
@@ -41,6 +42,21 @@ Deno.test("applyProgressEnvFromClientPayload sets HTTP progress env", () => {
     "https://denoise.example/api/kickstart/invocations/id/events",
   );
   assertEquals(env.DN_PROGRESS_TOKEN, "secret-token");
+});
+
+Deno.test("applyKickstartTimeoutEnvFromClientPayload sets phase timeout env", () => {
+  const env: Record<string, string> = {};
+  applyKickstartTimeoutEnvFromClientPayload(
+    {
+      plan_timeout_ms: 900_000,
+      implement_timeout_ms: 2_700_000,
+    },
+    (key, value) => {
+      env[key] = value;
+    },
+  );
+  assertEquals(env.PLAN_TIMEOUT_MS, "900000");
+  assertEquals(env.IMPLEMENT_TIMEOUT_MS, "2700000");
 });
 
 Deno.test("applyProgressEnvFromClientPayload ignores incomplete progress", () => {

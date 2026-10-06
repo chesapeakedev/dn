@@ -143,12 +143,16 @@ export interface RunnerCommandProbe {
 
 const defaultCommandProbe: RunnerCommandProbe = {
   async run(command, args, cwd) {
+    const timeout = AbortSignal.timeout(10_000);
     try {
       const output = await new Deno.Command(command, {
         args,
         cwd,
         stdout: "piped",
         stderr: "piped",
+        // Agent CLIs may block while checking for updates or auth. Doctor is
+        // a diagnostic command, so one such probe must not hold it forever.
+        signal: timeout,
       }).output();
       return {
         success: output.success,
@@ -156,6 +160,13 @@ const defaultCommandProbe: RunnerCommandProbe = {
         stderr: new TextDecoder().decode(output.stderr).trim(),
       };
     } catch (error) {
+      if (timeout.aborted) {
+        return {
+          success: false,
+          stdout: "",
+          stderr: `${command} probe timed out after 10 seconds`,
+        };
+      }
       if (error instanceof Deno.errors.NotFound) {
         return { success: false, stdout: "", stderr: "command not found" };
       }
@@ -619,7 +630,7 @@ export function serveLoopHungReason(input: {
     ) {
       return null;
     }
-    return `${label} is running but has not recorded loop progress since it started. The process is hung. Run dn runner install.`;
+    return `${label} is running but has not recorded loop progress since it started. The process is hung. Restart it with dn runner stop && dn runner start, or run dn runner install to refresh and restart the service.`;
   }
 
   const staleAfterMs = usingAlive
@@ -629,7 +640,7 @@ export function serveLoopHungReason(input: {
   if (ageMs <= staleAfterMs) return null;
   return `${label} is running but the serve loop has not progressed in ${
     formatCoarseAge(ageMs)
-  }. The process is hung. Run dn runner install.`;
+  }. The process is hung. Restart it with dn runner stop && dn runner start, or run dn runner install to refresh and restart the service.`;
 }
 
 async function fileMtimeMs(path: string): Promise<number | undefined> {
@@ -779,7 +790,7 @@ function checkinDoctorCheck(
       name: "checkin",
       ok: false,
       message:
-        "LaunchAgent is running but Denoise has not accepted a heartbeat recently. The serve loop is likely stuck. Run dn runner install. Pair again only if Denoise rejected the credential.",
+        "User service is running but Denoise has not accepted a heartbeat recently. The serve loop is likely stuck. Restart it with dn runner stop && dn runner start, or run dn runner install to refresh and restart the service. Pair again only if Denoise rejected the credential.",
     };
   }
   return {

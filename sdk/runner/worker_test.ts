@@ -791,6 +791,18 @@ Deno.test("formatRunnerJobFailureMessage prefers invocation.failed detail", () =
   );
 });
 
+Deno.test("formatRunnerJobFailureMessage prefers stderr over generic invocation.failed", () => {
+  assertEquals(
+    formatRunnerJobFailureMessage(1, {
+      invocationFailedMessage: "Kickstart invocation failed",
+      diagnosticLines: [
+        "Codex CLI implement phase timed out after 1200s. Increase IMPLEMENT_TIMEOUT_MS and retry.",
+      ],
+    }),
+    "dn kickstart exited with code 1. Codex CLI implement phase timed out after 1200s. Increase IMPLEMENT_TIMEOUT_MS and retry. Forensics: the agent hit its phase time limit; increase IMPLEMENT_TIMEOUT_MS or PLAN_TIMEOUT_MS and retry.",
+  );
+});
+
 Deno.test("formatRunnerJobFailureMessage falls back to stderr diagnostics", () => {
   assertEquals(
     formatRunnerJobFailureMessage(2, {

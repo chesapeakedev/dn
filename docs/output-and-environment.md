@@ -156,28 +156,51 @@ both are set. `DN_AGENT` uses the same parser. Environment toggles apply only
 when no explicit `--agent` or `DN_AGENT` selection was provided. Project
 `dn.json` / `.github/dn/config.json` `agent` stays a harness name.
 
+### Phase timeouts (all harnesses)
+
+Kickstart plan and implement phases each have a wall-clock limit. Defaults are
+**10 minutes for plan** and **20 minutes for implement** when no override is
+set.
+
+| Variable               | Purpose                                                               |
+| ---------------------- | --------------------------------------------------------------------- |
+| `PLAN_TIMEOUT_MS`      | Plan phase limit in milliseconds (default `600000`)                   |
+| `IMPLEMENT_TIMEOUT_MS` | Implement phase limit in milliseconds (default `1200000`)             |
+| `OPENCODE_TIMEOUT_MS`  | Harness-wide fallback when a phase-specific var is unset              |
+| `CODEX_TIMEOUT_MS`     | Codex harness override (falls back through phase vars / `OPENCODE_*`) |
+| `CURSOR_TIMEOUT_MS`    | Cursor harness override                                               |
+| `CLAUDE_TIMEOUT_MS`    | Claude harness override                                               |
+| `COPILOT_TIMEOUT_MS`   | Copilot harness override                                              |
+
+Denoise kickstart dispatches may set `client_payload.plan_timeout_ms` and
+`client_payload.implement_timeout_ms`; device runners and GitHub Actions export
+those as `PLAN_TIMEOUT_MS` / `IMPLEMENT_TIMEOUT_MS` before `dn kickstart` runs.
+
+At 80% of a phase budget, `dn` emits a `phase.timeout_warning` progress event
+with the remaining milliseconds.
+
 ### Claude-specific variables
 
 | Variable               | Purpose                                                      |
 | ---------------------- | ------------------------------------------------------------ |
 | `ANTHROPIC_API_KEY`    | API key for headless/bare Claude Code (see Anthropic docs)   |
-| `CLAUDE_TIMEOUT_MS`    | Phase timeout (falls back to `OPENCODE_TIMEOUT_MS`)          |
+| `CLAUDE_TIMEOUT_MS`    | Harness-wide timeout override (see phase timeouts above)     |
 | `CLAUDE_CODE_BARE`     | Set to `1` to enable `claude --bare` for a run (default off) |
 | `CLAUDE_ALLOWED_TOOLS` | Override default `--allowedTools` passed to Claude           |
 
 ### Codex-specific variables
 
-| Variable           | Purpose                                              |
-| ------------------ | ---------------------------------------------------- |
-| `OPENAI_API_KEY`   | API key used by Codex CLI when not already logged in |
-| `CODEX_TIMEOUT_MS` | Phase timeout (falls back to `OPENCODE_TIMEOUT_MS`)  |
+| Variable           | Purpose                                                  |
+| ------------------ | -------------------------------------------------------- |
+| `OPENAI_API_KEY`   | API key used by Codex CLI when not already logged in     |
+| `CODEX_TIMEOUT_MS` | Harness-wide timeout override (see phase timeouts above) |
 
 ### Copilot-specific variables
 
 | Variable                | Purpose                                                  |
 | ----------------------- | -------------------------------------------------------- |
 | `COPILOT_GITHUB_TOKEN`  | Token used by Copilot CLI in headless environments       |
-| `COPILOT_TIMEOUT_MS`    | Phase timeout (falls back to `OPENCODE_TIMEOUT_MS`)      |
+| `COPILOT_TIMEOUT_MS`    | Harness-wide timeout override (see phase timeouts above) |
 | `COPILOT_ALLOWED_TOOLS` | Override default `--allow-tool` passed to Copilot CLI    |
 | `COPILOT_MODEL`         | Optional model name passed to Copilot CLI with `--model` |
 

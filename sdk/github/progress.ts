@@ -18,7 +18,8 @@ export type KickstartProgressEventType =
   | "publish.completed"
   | "agent.line"
   | "invocation.succeeded"
-  | "invocation.failed";
+  | "invocation.failed"
+  | "phase.timeout_warning";
 
 /** A versioned progress event consumed by denoise. */
 export interface KickstartProgressEvent {

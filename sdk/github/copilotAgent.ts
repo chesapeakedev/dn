@@ -9,12 +9,16 @@ import {
   formatError,
   formatInfo,
   formatSuccess,
-  formatWarning,
   isTty,
   isUnattended,
   Spinner,
 } from "./output.ts";
 import type { AgentRunOptions } from "./agentHarness.ts";
+import {
+  buildAgentPhaseTimeoutMessage,
+  resolveHarnessPhaseTimeoutMs,
+  startAgentPhaseProgressMonitor,
+} from "./agentPhaseRuntime.ts";
 import type { ProgressReporter } from "./progress.ts";
 const DEFAULT_ALLOWED_TOOLS =
   "write, shell(deno:*), shell(make:*), shell(sl:*)";
@@ -123,44 +127,21 @@ export async function runCopilotAgent(
   }
 
   const startTime = Date.now();
-  const timeoutMs = parseInt(
-    Deno.env.get("COPILOT_TIMEOUT_MS") || Deno.env.get("OPENCODE_TIMEOUT_MS") ||
-      "600000",
-    10,
-  );
-  const timeoutWarningMs = Math.min(timeoutMs * 0.8, 600000);
-  const longRunWarningMs = 300000;
+  const timeoutMs = resolveHarnessPhaseTimeoutMs(phase, "COPILOT_TIMEOUT_MS");
 
   const spinner = attended ? new Spinner(`Running ${phase} phase...`) : null;
   if (spinner) {
     spinner.start();
   }
 
-  const progressInterval = setInterval(() => {
-    const elapsed = Date.now() - startTime;
-    if (spinner && elapsed > 5000) {
-      spinner.setMessage(
-        `Running ${phase} phase... (${formatElapsedTime(elapsed)})`,
-      );
-    }
-    if (!attended) {
-      if (elapsed > longRunWarningMs && elapsed < timeoutWarningMs) {
-        console.warn(
-          formatWarning(
-            `GitHub Copilot ${phase} phase has been running for ${
-              Math.round(elapsed / 1000)
-            }s.`,
-          ),
-        );
-      }
-      if (elapsed > timeoutWarningMs) {
-        const remaining = Math.round((timeoutMs - elapsed) / 1000);
-        console.warn(
-          formatWarning(`Approaching timeout (${remaining}s remaining).`),
-        );
-      }
-    }
-  }, 30000);
+  const stopProgressMonitor = startAgentPhaseProgressMonitor({
+    phase,
+    timeoutMs,
+    attended,
+    label: "GitHub Copilot",
+    reporter,
+    spinner,
+  });
 
   const promptInstruction =
     `Read and execute the instructions in this file: ${absolutePromptPath}`;
@@ -176,15 +157,17 @@ export async function runCopilotAgent(
     phase,
     reporter,
     timeoutMs,
-    `GitHub Copilot ${phase} phase timed out after ${
-      Math.round(timeoutMs / 1000)
-    }s. ` +
-      "Increase timeout with COPILOT_TIMEOUT_MS or OPENCODE_TIMEOUT_MS.",
+    buildAgentPhaseTimeoutMessage(
+      "GitHub Copilot",
+      phase,
+      timeoutMs,
+      "Increase timeout with IMPLEMENT_TIMEOUT_MS, PLAN_TIMEOUT_MS, COPILOT_TIMEOUT_MS, or OPENCODE_TIMEOUT_MS.",
+    ),
   ).finally(() => {
     if (spinner) {
       spinner.stop();
     }
-    clearInterval(progressInterval);
+    stopProgressMonitor();
   });
 
   const elapsed = Date.now() - startTime;

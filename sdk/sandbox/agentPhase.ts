@@ -113,9 +113,19 @@ export async function runAgentPhaseInSandbox(
     DN_IN_SANDBOX: "1",
   };
 
-  const timeoutMs = Deno.env.get("OPENCODE_TIMEOUT_MS");
-  if (timeoutMs) {
-    execEnv.OPENCODE_TIMEOUT_MS = timeoutMs;
+  for (
+    const key of [
+      "OPENCODE_TIMEOUT_MS",
+      "PLAN_TIMEOUT_MS",
+      "IMPLEMENT_TIMEOUT_MS",
+      "CODEX_TIMEOUT_MS",
+      "CLAUDE_TIMEOUT_MS",
+      "CURSOR_TIMEOUT_MS",
+      "COPILOT_TIMEOUT_MS",
+    ]
+  ) {
+    const value = Deno.env.get(key)?.trim();
+    if (value) execEnv[key] = value;
   }
 
   const argv = buildSandboxAgentCommand(

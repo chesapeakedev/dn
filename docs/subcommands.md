@@ -286,7 +286,10 @@ service to the new binary; `dn runner install` is first-time setup and hung
 recovery, not a step after every upgrade. Use foreground `dn runner serve` only
 for diagnostics, and only after `dn runner stop` if the user service is already
 running. Serve prints a timestamped timeline (ready, claim, phase, cancel,
-duration, outcome) and only reprints idle status about every five minutes.
+duration, outcome) and only reprints idle status about every five minutes. If
+`dn runner doctor` reports a hung or stale loop, restart it with
+`dn runner stop` followed by `dn runner start`. If it stays offline, run
+`dn runner install` to refresh the service definition and clear a stuck process.
 
 `register [path]` detects the GitHub remote and asks for an explicit trust
 confirmation. Pass `--yes` only after reviewing the checkout. Repository paths

@@ -9,12 +9,16 @@ import {
   formatError,
   formatInfo,
   formatSuccess,
-  formatWarning,
   isTty,
   isUnattended,
   Spinner,
 } from "./output.ts";
 import type { AgentRunOptions } from "./agentHarness.ts";
+import {
+  buildAgentPhaseTimeoutMessage,
+  resolveHarnessPhaseTimeoutMs,
+  startAgentPhaseProgressMonitor,
+} from "./agentPhaseRuntime.ts";
 import type { ProgressReporter } from "./progress.ts";
 
 /**
@@ -59,7 +63,8 @@ export function buildCodexExecArgs(
  *
  * **Environment**
  *
- * - `CODEX_TIMEOUT_MS` — phase timeout; falls back to `OPENCODE_TIMEOUT_MS`, then 10 minutes.
+ * - `CODEX_TIMEOUT_MS` — harness-wide override; falls back to `IMPLEMENT_TIMEOUT_MS` /
+ *   `PLAN_TIMEOUT_MS`, then `OPENCODE_TIMEOUT_MS`, then plan 10m / implement 20m defaults.
  *
  * @param phase - The phase to run ("plan" or "implement"); used for log/spinner text
  * @param combinedPromptPath - Path to the combined prompt file (resolved to absolute)
@@ -111,44 +116,21 @@ export async function runCodexAgent(
   }
 
   const startTime = Date.now();
-  const timeoutMs = parseInt(
-    Deno.env.get("CODEX_TIMEOUT_MS") || Deno.env.get("OPENCODE_TIMEOUT_MS") ||
-      "600000",
-    10,
-  );
-  const timeoutWarningMs = Math.min(timeoutMs * 0.8, 600000);
-  const longRunWarningMs = 300000;
+  const timeoutMs = resolveHarnessPhaseTimeoutMs(phase, "CODEX_TIMEOUT_MS");
 
   const spinner = attended ? new Spinner(`Running ${phase} phase...`) : null;
   if (spinner) {
     spinner.start();
   }
 
-  const progressInterval = setInterval(() => {
-    const elapsed = Date.now() - startTime;
-    if (spinner && elapsed > 5000) {
-      spinner.setMessage(
-        `Running ${phase} phase... (${formatElapsedTime(elapsed)})`,
-      );
-    }
-    if (!attended) {
-      if (elapsed > longRunWarningMs && elapsed < timeoutWarningMs) {
-        console.warn(
-          formatWarning(
-            `Codex CLI ${phase} phase has been running for ${
-              Math.round(elapsed / 1000)
-            }s.`,
-          ),
-        );
-      }
-      if (elapsed > timeoutWarningMs) {
-        const remaining = Math.round((timeoutMs - elapsed) / 1000);
-        console.warn(
-          formatWarning(`Approaching timeout (${remaining}s remaining).`),
-        );
-      }
-    }
-  }, 30000);
+  const stopProgressMonitor = startAgentPhaseProgressMonitor({
+    phase,
+    timeoutMs,
+    attended,
+    label: "Codex CLI",
+    reporter,
+    spinner,
+  });
 
   const promptInstruction =
     `Read and execute the instructions in this file: ${absolutePromptPath}`;
@@ -164,15 +146,17 @@ export async function runCodexAgent(
     phase,
     reporter,
     timeoutMs,
-    `Codex CLI ${phase} phase timed out after ${
-      Math.round(timeoutMs / 1000)
-    }s. ` +
-      "Increase timeout with CODEX_TIMEOUT_MS or OPENCODE_TIMEOUT_MS.",
+    buildAgentPhaseTimeoutMessage(
+      "Codex CLI",
+      phase,
+      timeoutMs,
+      "Increase timeout with IMPLEMENT_TIMEOUT_MS, PLAN_TIMEOUT_MS, CODEX_TIMEOUT_MS, or OPENCODE_TIMEOUT_MS.",
+    ),
   ).finally(() => {
     if (spinner) {
       spinner.stop();
     }
-    clearInterval(progressInterval);
+    stopProgressMonitor();
   });
 
   const elapsed = Date.now() - startTime;

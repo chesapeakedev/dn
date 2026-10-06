@@ -270,11 +270,13 @@ function defaultKillProcess(
 
 const defaultServiceProbe: RunnerServiceCommandProbe = {
   async run(command, args) {
+    const timeout = AbortSignal.timeout(10_000);
     try {
       const output = await new Deno.Command(command, {
         args,
         stdout: "piped",
         stderr: "piped",
+        signal: timeout,
       }).output();
       return {
         success: output.success,
@@ -283,6 +285,14 @@ const defaultServiceProbe: RunnerServiceCommandProbe = {
         code: output.code,
       };
     } catch (error) {
+      if (timeout.aborted) {
+        return {
+          success: false,
+          stdout: "",
+          stderr: `${command} probe timed out after 10 seconds`,
+          code: 124,
+        };
+      }
       if (error instanceof Deno.errors.NotFound) {
         return {
           success: false,

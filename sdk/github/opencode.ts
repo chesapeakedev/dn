@@ -14,6 +14,11 @@ import {
   Spinner,
 } from "./output.ts";
 import type { AgentRunOptions } from "./agentHarness.ts";
+import {
+  buildAgentPhaseTimeoutMessage,
+  resolveHarnessPhaseTimeoutMs,
+  startAgentPhaseProgressMonitor,
+} from "./agentPhaseRuntime.ts";
 import type { ProgressReporter } from "./progress.ts";
 
 type OpenCodePhase = "plan" | "implement";
@@ -316,13 +321,10 @@ export async function runOpenCode(
   try {
     const startTime = Date.now();
 
-    // Configure timeout (default: 10 minutes, configurable via env var)
-    const timeoutMs = parseInt(
-      Deno.env.get("OPENCODE_TIMEOUT_MS") || "600000",
-      10,
+    const timeoutMs = resolveHarnessPhaseTimeoutMs(
+      phase,
+      "OPENCODE_TIMEOUT_MS",
     );
-    const timeoutWarningMs = Math.min(timeoutMs * 0.8, 600000); // Warn at 80% or 10 min, whichever is less
-    const longRunWarningMs = 300000; // Warn after 5 minutes
 
     // Spinner only when attended (TTY and not unattended)
     const spinner = attended ? new Spinner(`Running ${phase} phase...`) : null;
@@ -331,37 +333,14 @@ export async function runOpenCode(
       spinner.start();
     }
 
-    // Set up progress monitoring (only in non-TTY mode or for warnings)
-    const progressInterval = setInterval(() => {
-      const elapsed = Date.now() - startTime;
-
-      // In TTY mode, update spinner message with elapsed time
-      if (spinner && elapsed > 5000) {
-        // Show elapsed time after 5 seconds
-        spinner.setMessage(
-          `Running ${phase} phase... (${formatElapsedTime(elapsed)})`,
-        );
-      }
-
-      // Warn if running for a long time (unattended or non-TTY)
-      if (!attended) {
-        if (elapsed > longRunWarningMs && elapsed < timeoutWarningMs) {
-          console.warn(
-            formatWarning(
-              `opencode ${phase} phase has been running for ${
-                Math.round(elapsed / 1000)
-              }s. If it appears to hang, check stderr for prompts.`,
-            ),
-          );
-        }
-        if (elapsed > timeoutWarningMs) {
-          const remaining = Math.round((timeoutMs - elapsed) / 1000);
-          console.warn(
-            formatWarning(`Approaching timeout (${remaining}s remaining).`),
-          );
-        }
-      }
-    }, 30000); // Check every 30 seconds
+    const stopProgressMonitor = startAgentPhaseProgressMonitor({
+      phase,
+      timeoutMs,
+      attended,
+      label: "opencode",
+      reporter,
+      spinner,
+    });
 
     // Run opencode with timeout and stdin disabled to prevent hanging on prompts
     // Using stdin("null") prevents opencode from waiting for user input
@@ -372,16 +351,17 @@ export async function runOpenCode(
       phase,
       reporter,
       timeoutMs,
-      `opencode ${phase} phase timed out after ${
-        Math.round(timeoutMs / 1000)
-      }s. ` +
-        "This may indicate it's waiting for user input. Check stderr output for prompts. " +
-        "You can increase timeout with OPENCODE_TIMEOUT_MS environment variable.",
+      buildAgentPhaseTimeoutMessage(
+        "opencode",
+        phase,
+        timeoutMs,
+        "This may indicate it's waiting for user input. Increase timeout with IMPLEMENT_TIMEOUT_MS, PLAN_TIMEOUT_MS, or OPENCODE_TIMEOUT_MS.",
+      ),
     ).finally(() => {
       if (spinner) {
         spinner.stop();
       }
-      clearInterval(progressInterval);
+      stopProgressMonitor();
     });
 
     // Calculate elapsed time

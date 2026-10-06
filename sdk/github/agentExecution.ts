@@ -9,6 +9,11 @@ import {
   streamAgentOutput,
 } from "./progress.ts";
 
+export interface AgentCommandOptions {
+  /** When true, reports `invocation.failed` with `error_code: agent_timeout` before rejecting. */
+  reportTimeoutFailure?: boolean;
+}
+
 /** Runs an agent command while preserving its output and forwarding live lines. */
 export async function runAgentCommand(
   command: string,
@@ -18,6 +23,7 @@ export async function runAgentCommand(
   reporter: ProgressReporter = new NullReporter(),
   timeoutMs?: number,
   timeoutMessage?: string,
+  options: AgentCommandOptions = {},
 ): Promise<OpenCodeResult> {
   const child = new Deno.Command(command, {
     args,
@@ -54,7 +60,22 @@ export async function runAgentCommand(
         } catch {
           // The child may have exited while the timer fired.
         }
-        reject(new Error(timeoutMessage));
+        const message = timeoutMessage ??
+          `Agent ${phase} phase timed out after ${
+            Math.round(timeoutMs / 1000)
+          }s.`;
+        if (options.reportTimeoutFailure !== false) {
+          void reporter.report({
+            type: "invocation.failed",
+            phase,
+            message,
+            data: {
+              error_code: "agent_timeout",
+              timeout_ms: timeoutMs,
+            },
+          });
+        }
+        reject(new Error(message));
       }, timeoutMs);
     });
 

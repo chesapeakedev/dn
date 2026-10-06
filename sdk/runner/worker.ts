@@ -409,6 +409,25 @@ function allowCrossRepoArgs(issueUrl: string, repository: string): string[] {
  * Prefers the last `invocation.failed` progress message, then trailing non-progress
  * stderr lines, so the UI shows why kickstart exited rather than only the code.
  */
+const GENERIC_INVOCATION_FAILURE_MESSAGES = new Set([
+  "kickstart invocation failed",
+]);
+
+function isGenericInvocationFailureMessage(message: string): boolean {
+  return GENERIC_INVOCATION_FAILURE_MESSAGES.has(message.trim().toLowerCase());
+}
+
+function pickRunnerFailureDetail(
+  fromProgress?: string,
+  fromStderr?: string,
+): string | undefined {
+  const progress = fromProgress?.trim();
+  const stderr = fromStderr?.trim();
+  if (progress && !isGenericInvocationFailureMessage(progress)) return progress;
+  if (stderr) return stderr;
+  return progress || undefined;
+}
+
 export function formatRunnerJobFailureMessage(
   exitCode: number | undefined,
   options: {
@@ -425,7 +444,7 @@ export function formatRunnerJobFailureMessage(
     .filter((line) => line.length > 0)
     .slice(-5)
     .join("\n");
-  const detail = fromProgress || fromStderr;
+  const detail = pickRunnerFailureDetail(fromProgress, fromStderr);
   if (!detail) return exitPart;
   const summarized = formatAgentFailureOutput(detail, { truncate: true });
   if (!summarized) return exitPart;
@@ -456,6 +475,9 @@ export function runnerFailureForensicHint(output: string): string | undefined {
     normalized.includes("no such file or directory")
   ) {
     return "Forensics: a required local executable or file was not found; run runner diagnostics and check the device environment.";
+  }
+  if (normalized.includes("timed out")) {
+    return "Forensics: the agent hit its phase time limit; increase IMPLEMENT_TIMEOUT_MS or PLAN_TIMEOUT_MS and retry.";
   }
   return undefined;
 }
@@ -500,6 +522,7 @@ export function parseRunnerProgressLine(
     "agent.line",
     "invocation.succeeded",
     "invocation.failed",
+    "phase.timeout_warning",
   ];
   if (!allowedTypes.includes(value.type)) return null;
   return value as unknown as RunnerProgressEvent;
@@ -854,6 +877,16 @@ export async function runRunnerJob(
     DN_PROGRESS: "ndjson",
     DN_PROGRESS_VERBOSE: "1",
   };
+  if (job.operation.type === "kickstart") {
+    if (job.operation.plan_timeout_ms != null) {
+      childEnv.PLAN_TIMEOUT_MS = String(job.operation.plan_timeout_ms);
+    }
+    if (job.operation.implement_timeout_ms != null) {
+      childEnv.IMPLEMENT_TIMEOUT_MS = String(
+        job.operation.implement_timeout_ms,
+      );
+    }
+  }
   if (cloudRunnerEnabled()) {
     if (options.client.claimGithubToken == null) {
       const message =

@@ -35,6 +35,7 @@ import type { PRPlanSummary } from "../sdk/github/github.ts";
 import {
   type AcceptanceCriteriaReport,
   createProgressReporter,
+  formatAgentFailureOutput,
   processDurationData,
   type ProgressReporter,
   uploadPlanArtifact,
@@ -66,6 +67,21 @@ import {
   printImplementResult,
 } from "./implementResult.ts";
 import { resolveImplementBlockingError } from "./detectBlockingError.ts";
+
+function agentPhaseExitFailureMessage(
+  phase: "plan" | "implement",
+  result: { code?: number | null; stderr?: string },
+): string {
+  const exitCode = result.code ?? "unknown";
+  const stderr = result.stderr?.trim();
+  if (!stderr) {
+    return `${phase} phase failed with exit code ${exitCode}`;
+  }
+  const excerpt = formatAgentFailureOutput(stderr, { truncate: true });
+  return excerpt
+    ? `${phase} phase failed with exit code ${exitCode}. ${excerpt}`
+    : `${phase} phase failed with exit code ${exitCode}`;
+}
 import {
   confirmTestsOnlyContinuation,
   mergeTestsOnlySteering,
@@ -711,6 +727,7 @@ export async function runOrchestrator(
   let issueContextPathFinal: string | undefined;
   let gitContext: GitContext | null = null;
   let vcsType: "git" | "sapling" | null = null;
+  let activeAgentPhase: "plan" | "implement" = "plan";
 
   try {
     await report("invocation.queued", "Kickstart invocation queued");
@@ -949,7 +966,7 @@ export async function runOrchestrator(
           ? " (often rate limit or quota from the AI backend—retry later or check API limits)"
           : "";
         throw new Error(
-          `Plan phase failed with exit code ${planResult.code}${hint}`,
+          `${agentPhaseExitFailureMessage("plan", planResult)}${hint}`,
         );
       }
       await report("phase.completed", "Plan phase completed", {
@@ -1015,6 +1032,7 @@ export async function runOrchestrator(
       phase: "implement",
       step: 4,
     });
+    activeAgentPhase = "implement";
     console.log(
       `\n${
         formatStep(
@@ -1101,7 +1119,7 @@ export async function runOrchestrator(
       console.error("\n=== Implement Phase STDOUT ===");
       console.error(implementResult.stdout || "(empty)");
       throw new Error(
-        `Implement phase failed with exit code ${implementResult.code}`,
+        agentPhaseExitFailureMessage("implement", implementResult),
       );
     }
     await report("phase.completed", "Implement phase completed", {
@@ -1658,7 +1676,17 @@ export async function runOrchestrator(
       );
     }
 
-    await report("invocation.failed", "Kickstart invocation failed");
+    const failureMessage = error instanceof Error
+      ? error.message
+      : String(error);
+    await report("invocation.failed", failureMessage, {
+      phase: activeAgentPhase,
+      data: {
+        error_code: failureMessage.toLowerCase().includes("timed out")
+          ? "agent_timeout"
+          : "kickstart_failed",
+      },
+    });
     throw error;
   }
 }

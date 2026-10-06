@@ -311,6 +311,27 @@ function requireMilestone(value: unknown, field: string): string {
  * Exports denoise HTTP progress env from nested `client_payload.progress`.
  * Missing or incomplete progress leaves existing env unchanged (NullReporter).
  */
+function isKickstartPhaseTimeoutMs(value: unknown): boolean {
+  return typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= 60_000 &&
+    value <= 7_200_000;
+}
+
+/** Exports per-dispatch kickstart phase timeout env from `client_payload`. */
+export function applyKickstartTimeoutEnvFromClientPayload(
+  payload: Record<string, unknown>,
+  setEnv: (key: string, value: string) => void = (key, value) =>
+    Deno.env.set(key, value),
+): void {
+  if (isKickstartPhaseTimeoutMs(payload.plan_timeout_ms)) {
+    setEnv("PLAN_TIMEOUT_MS", String(payload.plan_timeout_ms));
+  }
+  if (isKickstartPhaseTimeoutMs(payload.implement_timeout_ms)) {
+    setEnv("IMPLEMENT_TIMEOUT_MS", String(payload.implement_timeout_ms));
+  }
+}
+
 export function applyProgressEnvFromClientPayload(
   payload: Record<string, unknown>,
   setEnv: (key: string, value: string) => void = (key, value) =>
@@ -1086,6 +1107,7 @@ export async function handleWorkflowExec(args: string[]): Promise<void> {
       );
       Deno.env.set("DN_DISPATCH_ID", dispatchId);
       applyProgressEnvFromClientPayload(payload);
+      applyKickstartTimeoutEnvFromClientPayload(payload);
       if (needsActionsKickstartClaim(template.id, payload)) {
         try {
           const claim = await claimActionsKickstartTarget(payload);

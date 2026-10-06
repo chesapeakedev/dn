@@ -152,13 +152,15 @@ checks that the LaunchAgent is still making serve-loop progress. A running PID
 is not enough. If doctor reports a hung or stale agent, recover with:
 
 ```bash
-dn runner install
+dn runner stop
+dn runner start
 ```
 
-That rewrites the LaunchAgent to this `dn`, unloads the old job, kills a
-leftover PID if launchd left it, and starts a new serve loop. Pairing is
-unchanged. Re-pair only when doctor reports that Denoise rejected the
-credential. Refresh status in the browser does not contact the laptop.
+This restarts the installed user service without changing pairing. If the
+restart does not recover it, run `dn runner install`; that refreshes the service
+definition to this `dn`, clears a leftover hung process, and starts a new serve
+loop. Re-pair only when doctor reports that Denoise rejected the credential.
+Refreshing status in the browser does not contact the laptop.
 
 ```mermaid
 flowchart LR
@@ -166,8 +168,9 @@ flowchart LR
   agent --> beat["Heartbeat while logged in"]
   upgrade["make install or brew upgrade"] --> post["install --if-present"]
   post --> agent
-  hung["Doctor says hung"] --> recover["dn runner install"]
-  recover --> agent
+  hung["Doctor says hung"] --> recover["dn runner stop, then start"]
+  recover --> refresh["If still offline: dn runner install"]
+  refresh --> agent
 ```
 
 ```mermaid

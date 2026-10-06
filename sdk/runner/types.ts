@@ -348,6 +348,10 @@ export interface RunnerKickstartOperation {
   steer?: string;
   /** Requested plan detail level. */
   verbosity?: "low" | "medium" | "high";
+  /** Optional per-dispatch plan phase wall-clock limit in milliseconds. */
+  plan_timeout_ms?: number;
+  /** Optional per-dispatch implement phase wall-clock limit in milliseconds. */
+  implement_timeout_ms?: number;
 }
 
 /** Implement an already-reviewed plan with `dn loop`. */
