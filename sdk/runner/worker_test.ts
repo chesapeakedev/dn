@@ -36,7 +36,6 @@ import {
   saveRunnerConfig,
   saveRunnerCredential,
 } from "./config.ts";
-import { detectRunnerCapabilities } from "./doctor.ts";
 
 const AGENT_ENV_KEYS = [
   "DN_AGENT",
@@ -160,6 +159,15 @@ class RecordingClient implements RunnerWorkerClient {
     return Promise.resolve({ token: "ghs_cloud" });
   }
 }
+
+const unavailableCommandProbe = {
+  run: () =>
+    Promise.resolve({
+      success: false,
+      stdout: "",
+      stderr: "command not found",
+    }),
+};
 
 function localConfig(path = "/workspace/dn") {
   return {
@@ -905,6 +913,12 @@ Deno.test("serveRunner logs ready and idle status when no job is claimed", async
   Deno.env.set("DN_RUNNER_HOME", directory);
   const logs: string[] = [];
   const client = new RecordingClient();
+  let capabilities: RunnerHeartbeat["capabilities"] | undefined;
+  const originalHeartbeat = client.heartbeat.bind(client);
+  client.heartbeat = (heartbeat) => {
+    capabilities = heartbeat.capabilities;
+    return originalHeartbeat(heartbeat);
+  };
   try {
     await saveRunnerConfig({
       schema_version: RUNNER_CONFIG_SCHEMA_VERSION,
@@ -916,11 +930,12 @@ Deno.test("serveRunner logs ready and idle status when no job is claimed", async
       dnVersion: "0.0.0-test",
       commandPrefix: ["/usr/local/bin/dn"],
       client,
+      probe: unavailableCommandProbe,
       once: true,
       log: (line) => logs.push(line),
       now: () => new Date("2026-08-07T19:55:00.000Z"),
     });
-    const capabilities = await detectRunnerCapabilities();
+    assert(capabilities);
     const stamp = new Date("2026-08-07T19:55:00.000Z");
     assertEquals(logs, [
       formatRunnerServeLog(
@@ -964,6 +979,7 @@ Deno.test("serveRunner waits between empty claims", async () => {
       dnVersion: "0.0.0-test",
       commandPrefix: ["/usr/local/bin/dn"],
       client,
+      probe: unavailableCommandProbe,
       signal: controller.signal,
       idleWaitMs: 80,
       log: () => {},
@@ -1125,6 +1141,7 @@ Deno.test("serveRunner logs idle once across empty claims", async () => {
       dnVersion: "0.0.0-test",
       commandPrefix: ["/usr/local/bin/dn"],
       client,
+      probe: unavailableCommandProbe,
       signal: controller.signal,
       idleWaitMs: 20,
       idleLogIntervalMs: 60_000,
@@ -1171,6 +1188,7 @@ Deno.test("serveRunner logs a periodic still-waiting idle line", async () => {
       dnVersion: "0.0.0-test",
       commandPrefix: ["/usr/local/bin/dn"],
       client,
+      probe: unavailableCommandProbe,
       signal: controller.signal,
       idleWaitMs: 15,
       idleLogIntervalMs: 40,
@@ -1221,6 +1239,7 @@ Deno.test("serveRunner retries transient heartbeat failures", async () => {
       dnVersion: "0.0.0-test",
       commandPrefix: ["/usr/local/bin/dn"],
       client,
+      probe: unavailableCommandProbe,
       once: true,
       apiRetryMs: 20,
       log: (line) => logs.push(line),
@@ -1262,6 +1281,7 @@ Deno.test("serveRunner does not retry a rejected credential", async () => {
           dnVersion: "0.0.0-test",
           commandPrefix: ["/usr/local/bin/dn"],
           client,
+          probe: unavailableCommandProbe,
           once: true,
           apiRetryMs: 20,
           log: (line) => logs.push(line),
@@ -1312,6 +1332,7 @@ Deno.test("serveRunner persists heartbeat credential rotation", async () => {
       dnVersion: "0.0.0-test",
       commandPrefix: ["/usr/local/bin/dn"],
       client,
+      probe: unavailableCommandProbe,
       once: true,
       log: () => {},
     });
@@ -1357,6 +1378,7 @@ Deno.test("serveRunner heartbeats again after a transient claim failure", async 
       dnVersion: "0.0.0-test",
       commandPrefix: ["/usr/local/bin/dn"],
       client,
+      probe: unavailableCommandProbe,
       once: true,
       apiRetryMs: 20,
       log: (line) => logs.push(line),

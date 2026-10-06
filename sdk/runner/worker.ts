@@ -13,6 +13,7 @@ import {
   checkRunnerRepositories,
   detectAgentReadiness,
   detectRunnerCapabilities,
+  type RunnerCommandProbe,
 } from "./doctor.ts";
 import { cloudRunnerEnabled } from "./bootstrap.ts";
 import { ensureCloudCheckout } from "./cloudCheckout.ts";
@@ -168,6 +169,8 @@ export interface ServeRunnerOptions {
   commandPrefix: string[];
   /** Authenticated runner API implementation. */
   client: RunnerWorkerClient;
+  /** Optional local command probe override for deterministic diagnostics. */
+  probe?: RunnerCommandProbe;
   /** Return after one heartbeat/claim cycle for diagnostics. */
   once?: boolean;
   /** Optional signal that stops the outbound loop. */
@@ -1234,8 +1237,8 @@ export async function serveRunner(
       }
     }
   };
-  let capabilities = await detectRunnerCapabilities();
-  let agentReadiness = await detectAgentReadiness();
+  let capabilities = await detectRunnerCapabilities(options.probe);
+  let agentReadiness = await detectAgentReadiness(options.probe);
   let lastCapabilityProbeAt = now().getTime();
   let announcedReady = false;
   let announcedIdle = false;
@@ -1249,8 +1252,8 @@ export async function serveRunner(
     const probeAt = now().getTime();
     if (probeAt - lastCapabilityProbeAt >= capabilityRefreshMs) {
       const [liveCapabilities, liveAgentReadiness] = await Promise.all([
-        detectRunnerCapabilities(),
-        detectAgentReadiness(),
+        detectRunnerCapabilities(options.probe),
+        detectAgentReadiness(options.probe),
       ]);
       capabilities = liveCapabilities;
       agentReadiness = liveAgentReadiness;
