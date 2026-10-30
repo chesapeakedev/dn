@@ -13,16 +13,21 @@ import { resolve } from "@std/path";
 import { runScoring } from "../kickstart/score.ts";
 import { isGitHubIssueUrl } from "../sdk/meld/mod.ts";
 import { fetchDenoiseTaskRef } from "../sdk/denoise/fetchTaskRef.ts";
-import { isDenoiseTaskUrl, parseDenoiseTaskUrl } from "../sdk/denoise/taskUrl.ts";
+import {
+  isDenoiseTaskUrl,
+  parseDenoiseTaskUrl,
+} from "../sdk/denoise/taskUrl.ts";
 import { resolveGitHubToken } from "../sdk/github/token.ts";
 import {
   completeGitHubIssueForRef,
   firstUnchecked,
   readTodoList,
   resolveGitHubRef,
-  type TodoItem,
+  type TaskListItem,
   writeTodoList,
-} from "../sdk/todo/todo.ts";
+} from "../sdk/tasks/tasks.ts";
+import { getNativeTask } from "../sdk/tasks/native.ts";
+import { nativeTaskIdFromRef } from "../sdk/tasks/tasks.ts";
 import { fetchIssueFromUrl } from "../sdk/github/issue.ts";
 import {
   getCurrentRepoFromRemote,
@@ -36,7 +41,7 @@ import {
 import { resolveLocalAgentHarness } from "../sdk/config/localAgent.ts";
 import { enforceStrictRfcCorpus } from "../sdk/config/strict.ts";
 import { parseMilestoneUrl } from "../sdk/github/milestone.ts";
-import { parseFrontmatter } from "../sdk/todo/frontmatter.ts";
+import { parseFrontmatter } from "../sdk/tasks/frontmatter.ts";
 import {
   getStackArtifactPaths,
   markMilestoneStackItemDone,
@@ -232,13 +237,14 @@ export async function parseKickstartArgs(
     contextMarkdownPath: undefined,
     denoiseTaskUrl: undefined,
   };
-  const { issueUrl, contextMarkdownPath, denoiseTaskUrl } = denoiseTaskMaterialized
-    ? {
-      issueUrl: null as string | null,
-      contextMarkdownPath: denoiseTaskFilePath,
-      denoiseTaskUrl: undefined,
-    }
-    : classified;
+  const { issueUrl, contextMarkdownPath, denoiseTaskUrl } =
+    denoiseTaskMaterialized
+      ? {
+        issueUrl: null as string | null,
+        contextMarkdownPath: denoiseTaskFilePath,
+        denoiseTaskUrl: undefined,
+      }
+      : classified;
 
   const environmentWorkspaceRoot = Deno.env.get("WORKSPACE_ROOT");
   const resolvedWorkspaceRoot = workspaceRoot
@@ -548,7 +554,7 @@ async function runNoTicketFlow(
       const content = await Deno.readTextFile(planPath);
       const { frontmatter, body } = parseFrontmatter(content);
 
-      const items: TodoItem[] = parseStackTodoItems(body);
+      const items: TaskListItem[] = parseStackTodoItems(body);
 
       const list = { meta: frontmatter, items };
       const suggested = firstUnchecked(list);
@@ -636,7 +642,7 @@ async function runNoTicketFlow(
       planPaths,
       config.agentHarness,
     );
-    const scoredItems: TodoItem[] = scoring.scored
+    const scoredItems: TaskListItem[] = scoring.scored
       .filter((s) => !s.disqualified && s.score != null)
       .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
       .map((s) => {
@@ -671,6 +677,22 @@ async function runNoTicketFlow(
   if (!promptYesNo(`Proceed with ${ref}?`)) {
     console.error("Cancelled.");
     return null;
+  }
+
+  const nativeId = nativeTaskIdFromRef(ref);
+  if (nativeId) {
+    const doc = await getNativeTask(nativeId);
+    if (!doc) {
+      console.error(`Native task not found in task list: ${nativeId}`);
+      return null;
+    }
+    const tmpFile = materializeDenoiseTaskDocument(doc);
+    return {
+      ...config,
+      issueUrl: null,
+      contextMarkdownPath: tmpFile,
+      fromQueue: true,
+    };
   }
 
   const { issueUrl, contextMarkdownPath } = classifyInput(ref);
@@ -727,9 +749,9 @@ async function warnStackedUnlandedWork(repoRoot: string): Promise<void> {
 }
 
 /** Write a validated {@link DenoiseTaskDocument} to a temp `.md` kickstart context file. */
-async function materializeDenoiseTaskDocument(
+function materializeDenoiseTaskDocument(
   taskDocument: unknown,
-): Promise<string> {
+): string {
   const task = validateDenoiseTaskDocument(taskDocument);
   const markdown = denoiseTaskToMarkdown(task);
   const tmpFile = Deno.makeTempFileSync({
@@ -768,7 +790,7 @@ async function resolveDenoiseTaskUrlOnConfig(
       denoiseTaskUrl: undefined,
     };
   }
-  const tmpFile = await materializeDenoiseTaskDocument(ref.task_document);
+  const tmpFile = materializeDenoiseTaskDocument(ref.task_document);
   return {
     ...config,
     issueUrl: null,
@@ -955,7 +977,7 @@ export async function handleKickstart(
     );
 
     // Attended runs: silent exit. Closing/checkoff is left to dn land,
-    // --publish, dn todo done, or --once/--complete automation.
+    // --publish, dn task done, or --once/--complete automation.
     if (!isBatchQueue) {
       if (config.publish === "none" && config.fromQueue) {
         if (config.milestoneStackMarkdownPath) {
@@ -967,7 +989,7 @@ export async function handleKickstart(
         } else {
           console.log(
             formatInfo(
-              "Queue item left unchecked. After reviewing and landing, run `dn todo done` to check it off and close the GitHub issue if applicable.",
+              "Queue item left unchecked. After reviewing and landing, run `dn task done` to check it off and close the GitHub issue if applicable.",
             ),
           );
         }

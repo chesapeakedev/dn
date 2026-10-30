@@ -2,39 +2,46 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * dn task — manage local Denoise task documents (~/.dn/tasks/).
- *
- * Distinct from `dn todo` (~/.dn/todo.md GitHub/plan kickstart queue).
+ * dn task — manage the unified task list at ~/.dn/todo.md.
  */
 
 import {
   deleteTask,
-  getTask,
-  getTaskPath,
-  listTasks,
+  firstUnchecked,
+  getNativeTask,
+  getTaskDocumentPath,
+  getTaskListLockPath,
+  getTaskListPath,
+  listNativeTasks,
+  markDone,
+  nativeTaskIdFromRef,
+  readTaskList,
   upsertTask,
 } from "../sdk/tasks/tasks.ts";
+import { loadRunnerCredential } from "../sdk/runner/config.ts";
 import {
   type DenoiseTaskDocument,
   validateDenoiseTaskDocument,
 } from "../sdk/runner/types.ts";
 
 function showHelp(): void {
-  console.log("dn task - Manage local Denoise task documents (~/.dn/tasks/)\n");
+  console.log("dn task - Manage task list (~/.dn/todo.md)\n");
   console.log("Usage:");
   console.log("  dn task list [--json]");
-  console.log("  dn task show <id> [--json]");
+  console.log("  dn task show <id|ref> [--json]");
   console.log("  dn task upsert --file <path.json> | --stdin");
-  console.log("  dn task delete <id>\n");
+  console.log("  dn task delete <id>");
   console.log(
-    "These documents are ticketless DenoiseTaskDocument JSON files used by",
+    "  dn task done [ref] [--comment <text>]   Mark item done; close GitHub issue when applicable\n",
+  );
+  console.log("  dn task sync status [--json]\n");
+  console.log(
+    "Native Void tasks and the kickstart queue (issues, plans) share one file.",
   );
   console.log(
-    "Void local sync and `dn kickstart --denoise-task`. They are not the",
+    "Void task-sync and `dn kickstart --denoise-task` use native tasks.",
   );
-  console.log(
-    "GitHub/plan queue in ~/.dn/todo.md (see `dn todo` / `dn tidy`).\n",
-  );
+  console.log("`dn tidy` refreshes the GitHub/plan queue in the same file.\n");
 }
 
 /**
@@ -62,6 +69,12 @@ export async function handleTask(args: string[]): Promise<void> {
     case "delete":
       await handleDelete(subArgs);
       break;
+    case "done":
+      await handleDone(subArgs);
+      break;
+    case "sync":
+      await handleSync(subArgs);
+      break;
     default:
       console.error(`Unknown subcommand: ${subcommand}\n`);
       showHelp();
@@ -69,47 +82,86 @@ export async function handleTask(args: string[]): Promise<void> {
   }
 }
 
+const LOCK_STALE_MS = 30_000;
+
 async function handleList(args: string[]): Promise<void> {
   const json = args.includes("--json");
-  const tasks = await listTasks();
+  const natives = await listNativeTasks();
+  const queue = await readTaskList();
   if (json) {
-    console.log(JSON.stringify(tasks, null, 2));
-    return;
-  }
-  if (tasks.length === 0) {
-    console.log("No local tasks in ~/.dn/tasks/.");
-    return;
-  }
-  for (const task of tasks) {
     console.log(
-      `${task.status.padEnd(12)} ${task.id}  ${task.title}`,
+      JSON.stringify(
+        {
+          path: getTaskListPath(),
+          native_tasks: natives,
+          queue_items: queue.items,
+          meta: queue.meta,
+        },
+        null,
+        2,
+      ),
     );
+    return;
+  }
+  if (natives.length === 0 && queue.items.length === 0) {
+    console.log(`No tasks in ${getTaskListPath()}.`);
+    return;
+  }
+  if (natives.length > 0) {
+    console.log("Native tasks:");
+    for (const task of natives) {
+      console.log(
+        `  ${task.status.padEnd(12)} ${task.id}  ${task.title}`,
+      );
+    }
+  }
+  const queueOpen = queue.items.filter((i) => !i.checked);
+  if (queueOpen.length > 0) {
+    console.log("Kickstart queue (unchecked):");
+    for (const item of queueOpen) {
+      const title = item.title ? `  ${item.title}` : "";
+      console.log(`  - ${item.ref}${title}`);
+    }
   }
 }
 
 async function handleShow(args: string[]): Promise<void> {
   const json = args.includes("--json");
-  const id = args.find((a) => !a.startsWith("--"));
-  if (!id) {
-    console.error("Usage: dn task show <id> [--json]");
+  const idOrRef = args.find((a) => !a.startsWith("--"));
+  if (!idOrRef) {
+    console.error("Usage: dn task show <id|ref> [--json]");
     Deno.exit(1);
   }
-  const task = await getTask(id);
-  if (!task) {
-    console.error(`No task found: ${id}`);
+  const nativeId = nativeTaskIdFromRef(idOrRef) ?? idOrRef;
+  const task = await getNativeTask(nativeId);
+  if (task) {
+    if (json) {
+      console.log(JSON.stringify(task, null, 2));
+      return;
+    }
+    console.log(`id:      ${task.id}`);
+    console.log(`title:   ${task.title}`);
+    console.log(`status:  ${task.status}`);
+    console.log(`updated: ${task.updated_at}`);
+    console.log(`path:    ${getTaskDocumentPath(task.id)}`);
+    console.log("");
+    console.log(task.body);
+    return;
+  }
+  const list = await readTaskList();
+  const item = list.items.find((i) => i.ref === idOrRef);
+  if (!item) {
+    console.error(`No task found: ${idOrRef}`);
     Deno.exit(1);
   }
   if (json) {
-    console.log(JSON.stringify(task, null, 2));
+    console.log(JSON.stringify(item, null, 2));
     return;
   }
-  console.log(`id:      ${task.id}`);
-  console.log(`title:   ${task.title}`);
-  console.log(`status:  ${task.status}`);
-  console.log(`updated: ${task.updated_at}`);
-  console.log(`path:    ${getTaskPath(task.id)}`);
-  console.log("");
-  console.log(task.body);
+  console.log(`ref:     ${item.ref}`);
+  console.log(`checked: ${item.checked}`);
+  if (item.score != null) console.log(`score:   ${item.score}`);
+  if (item.title) console.log(`title:   ${item.title}`);
 }
 
 async function handleUpsert(args: string[]): Promise<void> {
@@ -148,7 +200,7 @@ async function handleUpsert(args: string[]): Promise<void> {
     Deno.exit(1);
   }
   const saved = await upsertTask(task);
-  console.log(`Upserted ${saved.id} → ${getTaskPath(saved.id)}`);
+  console.log(`Upserted ${saved.id} → ${getTaskDocumentPath(saved.id)}`);
 }
 
 async function handleDelete(args: string[]): Promise<void> {
@@ -163,4 +215,110 @@ async function handleDelete(args: string[]): Promise<void> {
     Deno.exit(1);
   }
   console.log(`Deleted ${id}`);
+}
+
+async function handleDone(args: string[]): Promise<void> {
+  let ref: string | null = null;
+  let closeComment: string | undefined;
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--comment" && i + 1 < args.length) {
+      closeComment = args[++i];
+    } else if (arg === "--help" || arg === "-h") {
+      showHelp();
+      return;
+    } else if (!arg.startsWith("--") && ref === null) {
+      ref = arg;
+    }
+  }
+
+  const list = await readTaskList();
+  const targetRef = ref ?? firstUnchecked(list)?.ref;
+  if (!targetRef) {
+    if (ref !== null) {
+      console.error(`No unchecked task list item found for ref: ${ref}`);
+    } else {
+      console.error("No unchecked items in task list.");
+    }
+    Deno.exit(1);
+  }
+
+  try {
+    const { closedIssue } = await markDone(targetRef, {
+      closeComment,
+    });
+    console.log(`Marked done: ${targetRef}`);
+    if (closedIssue) {
+      console.log("Closed the GitHub issue.");
+    }
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    Deno.exit(1);
+  }
+}
+
+async function handleSync(args: string[]): Promise<void> {
+  if (args.length === 0 || args[0] === "--help" || args[0] === "-h") {
+    console.log("Usage: dn task sync status [--json]");
+    return;
+  }
+  if (args[0] !== "status") {
+    console.error(`Unknown sync subcommand: ${args[0]}`);
+    console.log("Usage: dn task sync status [--json]");
+    Deno.exit(1);
+  }
+  const json = args.includes("--json");
+  const listPath = getTaskListPath();
+  const lockPath = getTaskListLockPath();
+  const listStat = await Deno.stat(listPath).catch(() => null);
+  const lockStat = await Deno.stat(lockPath).catch(() => null);
+  let lockHeld = false;
+  if (lockStat) {
+    const mtime = lockStat.mtime?.getTime();
+    const age = mtime != null ? Date.now() - mtime : LOCK_STALE_MS;
+    lockHeld = age < LOCK_STALE_MS;
+  }
+  const credential = await loadRunnerCredential();
+  const runnerPaired = credential != null;
+  const runnerExpired = credential != null &&
+    Date.parse(credential.expires_at) <= Date.now();
+  const natives = await listNativeTasks().catch(() => []);
+  const status = {
+    task_list_path: listPath,
+    task_list_exists: listStat != null,
+    task_list_modified_at: listStat?.mtime?.toISOString() ?? null,
+    lock_path: lockPath,
+    lock_held: lockHeld,
+    runner_paired: runnerPaired,
+    runner_id: credential?.runner_id ?? null,
+    runner_credential_expired: runnerExpired,
+    native_task_count: natives.length,
+  };
+  if (json) {
+    console.log(JSON.stringify(status, null, 2));
+    return;
+  }
+  console.log(`Task list: ${listPath}`);
+  if (listStat) {
+    console.log(`  modified: ${listStat.mtime?.toISOString() ?? "unknown"}`);
+  } else {
+    console.log("  (file not created yet)");
+  }
+  console.log(
+    `  lock: ${lockHeld ? "held (another dn process may be writing)" : "free"}`,
+  );
+  if (runnerPaired) {
+    const cred = credential!;
+    console.log(
+      `Runner: paired (${cred.runner_id})${
+        runnerExpired
+          ? " — credential expired, re-pair with dn runner connect"
+          : ""
+      }`,
+    );
+  } else {
+    console.log("Runner: not paired (Void task-sync needs dn runner serve)");
+  }
+  console.log(`Native tasks on disk: ${natives.length}`);
 }

@@ -18,8 +18,7 @@ export interface ParsedDenoiseTaskUrl {
   taskId: string;
 }
 
-const DENOISE_TASK_PATH =
-  /^\/milestone\/([^/]+)\/task\/([^/]+)\/?$/;
+const DENOISE_TASK_PATH = /^\/milestone\/([^/]+)\/task\/([^/]+)\/?$/;
 
 const ALLOWED_HOST_PATTERNS: readonly RegExp[] = [
   /^denoise\.cloud$/i,
@@ -43,7 +42,9 @@ export function isDenoiseTaskUrl(input: string): boolean {
 /**
  * Parse `https://{host}/milestone/{milestoneId}/task/{taskId}`.
  */
-export function parseDenoiseTaskUrl(input: string): ParsedDenoiseTaskUrl | null {
+export function parseDenoiseTaskUrl(
+  input: string,
+): ParsedDenoiseTaskUrl | null {
   const trimmed = input.trim();
   let url: URL;
   try {

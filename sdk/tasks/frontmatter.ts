@@ -38,10 +38,6 @@ function parseLine(line: string): { key: string; value: string } | null {
 
 /**
  * Strips ---delimited frontmatter from markdown and parses key-value pairs.
- * If no frontmatter block is present, returns empty object and the full content as body.
- *
- * @param content - Full file content
- * @returns Parsed frontmatter and body
  */
 export function parseFrontmatter(content: string): FrontmatterResult {
   const match = content.match(FRONTMATTER_RE);
@@ -62,9 +58,6 @@ export function parseFrontmatter(content: string): FrontmatterResult {
 
 /**
  * Serializes frontmatter and body back to markdown.
- *
- * @param frontmatter - Key-value pairs (values written as-is; use quotes if they contain colons)
- * @param body - Body content
  */
 export function stringifyFrontmatter(
   frontmatter: Record<string, string>,

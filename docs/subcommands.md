@@ -401,16 +401,18 @@ See `dn kickstart --help` for all options.
 
 Kickstart can pick work from a queue when you omit an issue argument. Closing
 the GitHub issue and checking off the queue item is **not** part of a normal
-attended exit — use `dn land`, `--publish`, or `dn todo done` after you review.
+attended exit — use `dn land`, `--publish`, or `dn task done` after you review.
 
 #### Queue backends
 
-**Todo list** (`~/.dn/todo.md`) — the default when no `--milestone` is set. The
-file is a prioritized checklist of issues and plan paths managed by `dn todo`,
-`dn tidy`, and `dn peek`. On start without an explicit ticket the CLI reads this
-file and prompts `"Proceed with <ref>?"` for the first unchecked item. If the
-list is empty the CLI offers to search the repo for open issues, score them via
-the LLM, write the result, and prompt the first suggestion.
+**Task list** (`~/.dn/todo.md`) — the default when no `--milestone` is set. The
+file holds the kickstart queue (issues and plan paths) and native Void tasks
+(`task:<id>` payloads). Managed by `dn task`, `dn tidy`, and `dn peek`. On start
+without an explicit ticket the CLI reads this file and prompts
+`"Proceed with
+<ref>?"` for the first unchecked item. If the list is empty the
+CLI offers to search the repo for open issues, score them via the LLM, write the
+result, and prompt the first suggestion.
 
 **Milestone stack** (`plans/{owner}_{repo}_{num}.stack.md`) — activated by
 `--milestone <num-or-url>`. The stack file is a checklisted set of issues linked
@@ -422,8 +424,8 @@ file and picks the first unchecked task. See `dn init stack --help`.
 After a successful plan + implement cycle with `publish: none`, kickstart exits
 silently (no “mark done?” / “continue?” prompts). The orchestrator already hints
 to run `dn land`. If the run came from the todo list or milestone stack, the
-queue item is left unchecked until you finish review — then run `dn todo done`
-(todo) or update the stack / use `--once`/`--complete` with `--publish`
+queue item is left unchecked until you finish review — then run `dn task done`
+(todo list) or update the stack / use `--once`/`--complete` with `--publish`
 (milestone).
 
 `dn land` targets **one plan at a time**. For per-issue commit/PR without a
@@ -475,41 +477,38 @@ The CLI returns to the shell when any of the following are true:
 - `--complete` finished the last unchecked stack item
 - A run fails (orchestrator error) — the process exits immediately
 
-## `dn task` — Local Denoise task documents
+## `dn task` — Unified task list
 
-Manages ticketless `DenoiseTaskDocument` JSON files at `~/.dn/tasks/`. Used by
-Void local sync and `dn kickstart --denoise-task`. **Distinct from** `dn todo`
-(`~/.dn/todo.md`), which queues GitHub issues and plan paths.
+Manages the user-level list at `~/.dn/todo.md`: native Void tasks (embedded JSON
+blocks synced via task-sync) and the kickstart queue (GitHub issues and plan
+paths).
 
 ```bash
 dn task list
 dn task list --json
-dn task show <id>
+dn task show <id|ref> [--json]
 dn task upsert --file task.json
 dn task upsert --stdin < task.json
 dn task delete <id>
+
+# Mark first unchecked queue item done (closes GitHub issue when applicable)
+dn task done
+dn task done 42
+dn task done https://github.com/owner/repo/issues/42
+dn task done plans/auth.plan.md
 ```
 
-## `dn todo` — Prioritized task list
-
-Manages the user-level list at `~/.dn/todo.md` (issues and plan paths,
-optionally scored). This is the default no-arg `dn kickstart` queue — not the
-Void document store.
+**Task sync (Void):** native tasks relay through the paired runner into the same
+file. Kickstart queue lines are not uploaded to Denoise. Inspect pairing and
+lock state locally:
 
 ```bash
-# Mark first unchecked item done (and close GitHub issue if applicable)
-dn todo done
-
-# Mark a specific ref done (issue number, URL, or path)
-dn todo done 42
-dn todo done https://github.com/owner/repo/issues/42
-dn todo done plans/auth.plan.md
+dn task sync status
+dn task sync status --json
 ```
 
-When the ref is a GitHub issue, the issue is closed with a comment. Use this
-after you’ve finished a ticket (e.g. after `dn land`, or after
-`--publish direct` when you want the issue closed) to keep the list and GitHub
-in sync. Attended `dn kickstart` does not mark todo items done on exit.
+Void local sync and `dn kickstart --denoise-task` use native tasks in the same
+file. `dn tidy` refreshes the issue/plan queue without removing native blocks.
 
 ## `dn tidy` — Refresh and re-score the list
 

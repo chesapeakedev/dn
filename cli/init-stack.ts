@@ -14,7 +14,7 @@ import {
   mergeAgentSelections,
 } from "../sdk/github/agentHarness.ts";
 import { resolveLocalAgentHarness } from "../sdk/config/localAgent.ts";
-import { stringifyFrontmatter } from "../sdk/todo/frontmatter.ts";
+import { stringifyFrontmatter } from "../sdk/tasks/frontmatter.ts";
 import {
   getStackArtifactPaths,
   mergeStackCheckmarks,

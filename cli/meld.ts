@@ -42,7 +42,7 @@ import {
 } from "../sdk/sandbox/cli.ts";
 import { resolveSandboxConfig } from "../sdk/sandbox/resolve.ts";
 import { runWithSandboxLifecycle } from "../sdk/sandbox/lifecycle.ts";
-import { promptAndAddToTodoList } from "../sdk/todo/todo.ts";
+import { promptAndAddToTodoList } from "../sdk/tasks/tasks.ts";
 import { resolveContextFileArgs } from "./contextFiles.ts";
 
 const ISSUE_NUMBER_PATTERN = /^#?\d+$/;

@@ -5,7 +5,7 @@
  * RFC frontmatter parsing and content handling.
  */
 
-import { parseFrontmatter } from "../todo/frontmatter.ts";
+import { parseFrontmatter } from "../tasks/frontmatter.ts";
 import { isRfcStatus, type Rfc, type RfcMetadata } from "./types.ts";
 
 /**

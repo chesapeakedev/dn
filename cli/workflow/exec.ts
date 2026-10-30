@@ -10,8 +10,8 @@ import {
   parseStackTodoItems,
 } from "../../sdk/github/stack.ts";
 import { resolveGitHubToken } from "../../sdk/github/token.ts";
-import { parseFrontmatter } from "../../sdk/todo/frontmatter.ts";
-import { firstUnchecked } from "../../sdk/todo/todo.ts";
+import { parseFrontmatter } from "../../sdk/tasks/frontmatter.ts";
+import { firstUnchecked } from "../../sdk/tasks/tasks.ts";
 import {
   loadWorkflowManifest,
   readDnWorkflowAgentConfig,

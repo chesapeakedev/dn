@@ -8,8 +8,8 @@ agent credentials stay on the device.
 Device runners are owner-only in protocol v1. They accept kickstart jobs,
 **land** jobs (`dn land` on the paired checkout), **sync** jobs (`dn sync` on
 the paired checkout; trunk quality gate), denoise-task jobs, and **task-sync**
-(Void ↔ `~/.dn/tasks/` relay), not arbitrary commands or GitHub Actions
-workflows.
+(Void ↔ `~/.dn/todo.md` native task relay), not arbitrary commands or GitHub
+Actions workflows.
 
 The close-out verbs match the denoise task dialog: Kickstart → Land → Sync →
 Done. See denoise-docs **Kickstart, land, sync, and done** (`/close-out/`). Void
@@ -19,23 +19,26 @@ Done. See denoise-docs **Kickstart, land, sync, and done** (`/close-out/`). Void
 
 Denoise does not store free-plan task bodies long-term. When The Void creates or
 edits a ticketless task, denoise relays a short-lived envelope to the paired
-runner. `dn runner serve` writes `DenoiseTaskDocument` JSON under
-`~/.dn/tasks/<id>.json` on the laptop. Listing tasks from the browser long-polls
-until the runner attaches a snapshot on the next heartbeat.
+runner. `dn runner serve` merges `DenoiseTaskDocument` payloads into
+`~/.dn/todo.md` on the laptop (native `task:<id>` entries). Listing tasks from
+the browser long-polls until the runner attaches a snapshot on the next
+heartbeat.
 
-This is **not** `dn todo` / `~/.dn/todo.md`. Todo remains the GitHub-issue and
-plan-path kickstart queue (`dn tidy`, `dn peek`, `dn todo done`). Local tasks
-are portable documents for ticketless Void work and `denoise-task` kickstart.
+The same file also holds the kickstart queue (GitHub issues and plan paths).
+Task-sync relays **native tasks only**; queue lines are not uploaded to Void.
+Manage the list with `dn task`, refresh issues with `dn tidy`, and mark queue
+items done with `dn task done`.
 
 ```bash
-# Inspect device-local tasks (no network)
+# Inspect the unified list (no network)
 dn task list
 dn task show <id> --json
 dn task upsert --file task.json
 dn task delete <id>
+dn task done
 
-# Run kickstart from a local document
-dn kickstart --denoise-task ~/.dn/tasks/<id>.json --publish none
+# Run kickstart from a native task id in the list
+dn kickstart --denoise-task <task-id> --publish none
 ```
 
 Owner session APIs (cookie auth):
@@ -52,7 +55,10 @@ Clients that send `accepts_credential_rotation: true` may receive a replacement
 next request. The previous bearer stays valid for a few minutes so in-flight
 claim/lease calls do not 401. Older clients omit the flag and keep sliding
 expiry without rotation. The runner ACKs applied envelopes with `task_sync_acks`
-and may attach `task_list`.
+and may attach `task_list` (native tasks only — not the full kickstart queue).
+
+Denoise retains task bodies only in short-lived relay envelopes while delivering
+to your device; the durable copy is `~/.dn/todo.md` on the laptop.
 
 ## Before you connect
 
@@ -245,8 +251,7 @@ Local runner state lives under `~/.dn/runner/`:
   as a hung serve loop.
 - `runner.log` and `runner.error.log` contain launchd service output on macOS.
 
-Local Void task documents (task-sync) live under `~/.dn/tasks/<id>.json`,
-separate from the GitHub/plan queue at `~/.dn/todo.md`.
+Local Void native tasks live in `~/.dn/todo.md` (not a separate JSON directory).
 
 The directory uses mode `0700`; credential and configuration files use mode
 `0600`.

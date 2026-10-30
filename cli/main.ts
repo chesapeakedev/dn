@@ -99,7 +99,6 @@ import { handleMeld } from "./meld.ts";
 import { handleGlance } from "./glance.ts";
 import { handlePeek } from "./peek.ts";
 import { handleTask } from "./task.ts";
-import { handleTodo } from "./todo.ts";
 import { handleTidy } from "./tidy.ts";
 import { handleRelease } from "./release.ts";
 import { handleRfc } from "./rfc.ts";
@@ -330,10 +329,7 @@ function showUsage(): void {
     "  land         Close out work into VCS commits; --issue-testplan updates GH issue",
   );
   console.error(
-    "  task         Manage local Denoise task documents (~/.dn/tasks/)",
-  );
-  console.error(
-    "  todo         Manage prioritized task list (~/.dn/todo.md); 'done' marks item and closes issue",
+    "  task         Manage task list (~/.dn/todo.md): native tasks, queue, done",
   );
   console.error(
     "  tidy         Groom todo list or check agent harness files",
@@ -501,9 +497,6 @@ async function main(): Promise<void> {
       break;
     case "task":
       await handleTask(subcommandArgs);
-      break;
-    case "todo":
-      await handleTodo(subcommandArgs);
       break;
     case "tidy":
       await handleTidy(subcommandArgs, globalAgent);

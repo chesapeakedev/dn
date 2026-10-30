@@ -451,13 +451,13 @@ expires_at).
 Free Void tasks stay on the paired laptop. Denoise only relays short-lived
 pending envelopes (TTL ~24h, capped backlog) and optional list snapshots:
 
-| Direction     | Mechanism                                                                                                     |
-| ------------- | ------------------------------------------------------------------------------------------------------------- |
-| Void → device | `POST /api/runners/tasks` upsert/delete → pending KV → heartbeat `pending_task_ops` → `~/.dn/tasks/<id>.json` |
-| Device → Void | `GET /api/runners/tasks?runner_id=` sets a list request; runner returns `task_list` on heartbeat              |
-| Execute       | Existing `denoise-task` kickstart job (above)                                                                 |
+| Direction     | Mechanism                                                                                                              |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Void → device | `POST /api/runners/tasks` upsert/delete → pending KV → heartbeat `pending_task_ops` → native blocks in `~/.dn/todo.md` |
+| Device → Void | `GET /api/runners/tasks?runner_id=` sets a list request; runner returns `task_list` on heartbeat                       |
+| Execute       | Existing `denoise-task` kickstart job (above)                                                                          |
 
-Do not confuse with `~/.dn/todo.md` (GitHub/plan queue). See
+Do not upload the full kickstart queue to Void; only native tasks sync. See
 [device-runners.md](./device-runners.md#local-task-sync-void-free-plan).
 
 ## Stack JSON Contract

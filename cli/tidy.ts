@@ -21,7 +21,7 @@ import {
   readTodoList,
   type TodoItem,
   writeTodoList,
-} from "../sdk/todo/todo.ts";
+} from "../sdk/tasks/tasks.ts";
 import type { AgentSelection } from "../sdk/github/agentHarness.ts";
 import {
   extractAgentSelectionFromArgs,

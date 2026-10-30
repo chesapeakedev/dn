@@ -107,7 +107,7 @@ export type RunnerCapabilityOperation =
 export interface RunnerCapabilities {
   /**
    * Typed operations accepted by this protocol version.
-   * `task-sync` enables Void ↔ ~/.dn/tasks/ relay via heartbeat.
+   * `task-sync` enables Void ↔ ~/.dn/todo.md native task relay via heartbeat.
    */
   operations: readonly RunnerCapabilityOperation[];
   /** Agent harnesses found on the device. */
@@ -547,7 +547,7 @@ export interface RunnerHeartbeat {
 
 /** Server response body for runner heartbeats (task-sync channel). */
 export interface RunnerHeartbeatResponse {
-  /** Pending CRUD envelopes for ~/.dn/tasks/ (empty when none). */
+  /** Pending CRUD envelopes for native tasks in ~/.dn/todo.md (empty when none). */
   pending_task_ops: RunnerTaskSyncOp[];
   /** When true, include `task_list` on the next heartbeat. */
   list_tasks_requested: boolean;

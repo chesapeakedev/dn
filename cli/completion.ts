@@ -606,14 +606,14 @@ export const DN_COMPLETION_ROOT: CompletionNode = {
           flagValues: { "--file": FILE_VALUE },
         },
         delete: { flags: HELP_FLAGS },
-      },
-    },
-    todo: {
-      flags: HELP_FLAGS,
-      commands: {
         done: {
           flags: ["--comment", ...HELP_FLAGS],
           flagValues: { "--comment": FILE_VALUE },
+        },
+        sync: {
+          commands: {
+            status: { flags: jsonHelp },
+          },
         },
       },
     },

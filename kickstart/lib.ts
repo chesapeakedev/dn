@@ -64,7 +64,7 @@ import { assembleCombinedPrompt } from "../sdk/github/prompt.ts";
 import { getMilestoneFromInput } from "../sdk/github/milestone.ts";
 import type { Milestone } from "../sdk/github/milestone.ts";
 import { getMilestoneDescriptionArtifactPath } from "../sdk/github/stack.ts";
-import { stringifyFrontmatter } from "../sdk/todo/frontmatter.ts";
+import { stringifyFrontmatter } from "../sdk/tasks/frontmatter.ts";
 import { meldTargetSystemPromptFile } from "../sdk/meld/prompts.ts";
 import { parseMeldTarget } from "../sdk/meld/target.ts";
 import {

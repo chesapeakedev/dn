@@ -5,9 +5,10 @@ import { assertEquals, assertRejects } from "@std/assert";
 import {
   applyTaskSyncOp,
   deleteTask,
-  getTask,
-  getTasksDir,
-  listTasks,
+  getNativeTask,
+  getTaskListPath,
+  listNativeTasks,
+  parseTaskListFile,
   upsertTask,
 } from "./tasks.ts";
 
@@ -37,14 +38,14 @@ function sampleTask(
     schema_version: "1.0" as const,
     id: overrides.id ?? "task-1",
     title: overrides.title ?? "Ship local sync",
-    body: overrides.body ?? "Write tasks to ~/.dn/tasks.",
+    body: overrides.body ?? "Write tasks to ~/.dn/todo.md.",
     status: overrides.status ?? "open" as const,
     updated_at: overrides.updated_at ?? "2026-08-11T12:00:00.000Z",
     created_at: "2026-08-11T11:00:00.000Z",
   };
 }
 
-Deno.test("tasks store upserts, lists, and deletes documents", async () => {
+Deno.test("native tasks upsert, list, and delete in unified todo.md", async () => {
   await withTempHome(async () => {
     await upsertTask(sampleTask());
     await upsertTask(sampleTask({
@@ -52,16 +53,19 @@ Deno.test("tasks store upserts, lists, and deletes documents", async () => {
       title: "Second",
       updated_at: "2026-08-11T13:00:00.000Z",
     }));
-    const listed = await listTasks();
+    const listed = await listNativeTasks();
     assertEquals(listed.map((t) => t.id), ["task-2", "task-1"]);
-    assertEquals((await getTask("task-1"))?.title, "Ship local sync");
+    assertEquals((await getNativeTask("task-1"))?.title, "Ship local sync");
     assertEquals(await deleteTask("task-1"), true);
-    assertEquals(await getTask("task-1"), null);
-    assertEquals((await listTasks()).map((t) => t.id), ["task-2"]);
+    assertEquals(await getNativeTask("task-1"), null);
+    assertEquals((await listNativeTasks()).map((t) => t.id), ["task-2"]);
+    const raw = await Deno.readTextFile(getTaskListPath());
+    assertEquals(raw.includes("<!-- dn-task:task-2 -->"), true);
+    assertEquals(raw.includes("task:task-2"), true);
   });
 });
 
-Deno.test("tasks store rejects path traversal ids", async () => {
+Deno.test("native tasks reject path traversal ids", async () => {
   await withTempHome(async () => {
     await assertRejects(
       () => upsertTask(sampleTask({ id: "../escape" })),
@@ -85,7 +89,7 @@ Deno.test("applyTaskSyncOp last-write-wins on updated_at", async () => {
         title: "Older",
       }),
     });
-    assertEquals((await getTask("task-1"))?.title, "Newer");
+    assertEquals((await getNativeTask("task-1"))?.title, "Newer");
     await applyTaskSyncOp({
       op: "upsert",
       task_id: "task-1",
@@ -94,9 +98,33 @@ Deno.test("applyTaskSyncOp last-write-wins on updated_at", async () => {
         title: "Latest",
       }),
     });
-    assertEquals((await getTask("task-1"))?.title, "Latest");
+    assertEquals((await getNativeTask("task-1"))?.title, "Latest");
     await applyTaskSyncOp({ op: "delete", task_id: "task-1" });
-    assertEquals(await getTask("task-1"), null);
-    assertEquals(getTasksDir().endsWith("/tasks"), true);
+    assertEquals(await getNativeTask("task-1"), null);
   });
+});
+
+Deno.test("parseTaskListFile round-trips native blocks", () => {
+  const content = `---
+updated: 2026-08-11
+---
+
+- [ ] task:abc-1 Fix parser
+
+<!-- dn-task:abc-1 -->
+\`\`\`json
+{
+  "schema_version": "1.0",
+  "id": "abc-1",
+  "title": "Fix parser",
+  "body": "Body text",
+  "status": "open",
+  "updated_at": "2026-08-11T12:00:00.000Z"
+}
+\`\`\`
+`;
+  const parsed = parseTaskListFile(content);
+  assertEquals(parsed.items.length, 1);
+  assertEquals(parsed.items[0].ref, "task:abc-1");
+  assertEquals(parsed.nativeTasks["abc-1"]?.title, "Fix parser");
 });

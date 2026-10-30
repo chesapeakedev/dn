@@ -803,15 +803,15 @@ rather than re-implement from scratch.
 \`\`\`bash
 dn init stack 42
 dn kickstart --milestone 42
-dn todo done 123
+dn task done 123
 dn tidy
 dn context check cli/main.ts
 \`\`\`
 
 - Use \`dn init stack\` and milestone-aware \`dn kickstart\` for ordered work from
   a GitHub milestone.
-- Use \`dn todo done\` and \`dn tidy\` to manage the local prioritized task list
-  in \`~/.dn/todo.md\`.
+- Use \`dn task done\` and \`dn tidy\` to manage the local task list in
+  \`~/.dn/todo.md\`.
 - Use \`dn context check\` to inspect inherited \`AGENTS.md\` context and prompt
   size when context assembly is relevant.
 

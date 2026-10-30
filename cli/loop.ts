@@ -16,7 +16,7 @@ import {
   writeIssueContext,
 } from "../sdk/github/issue.ts";
 import type { IssueData } from "../sdk/github/issue.ts";
-import { promptAndAddToTodoList } from "../sdk/todo/todo.ts";
+import { promptAndAddToTodoList } from "../sdk/tasks/tasks.ts";
 import { resolveLocalAgentHarness } from "../sdk/config/localAgent.ts";
 import type { AgentSelection } from "../sdk/github/agentHarness.ts";
 import {

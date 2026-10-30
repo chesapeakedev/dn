@@ -1,12 +1,15 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
-import { parseFrontmatter, stringifyFrontmatter } from "../todo/frontmatter.ts";
+import {
+  parseFrontmatter,
+  stringifyFrontmatter,
+} from "../tasks/frontmatter.ts";
 import {
   itemRefMatchesTarget,
   resolveGitHubRef,
-  type TodoItem,
-} from "../todo/todo.ts";
+  type TaskListItem,
+} from "../tasks/queue.ts";
 
 /** Normalize stack checklist refs for comparison (#123 vs issue URL). */
 export function normalizeStackRef(ref: string): string {
@@ -144,8 +147,8 @@ export function getMilestoneDescriptionArtifactPath(
 /**
  * Parses generated stack markdown checklist items into todo entries.
  */
-export function parseStackTodoItems(body: string): TodoItem[] {
-  const items: TodoItem[] = [];
+export function parseStackTodoItems(body: string): TaskListItem[] {
+  const items: TaskListItem[] = [];
   for (const line of body.split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;

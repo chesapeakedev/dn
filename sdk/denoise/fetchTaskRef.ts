@@ -66,7 +66,9 @@ export async function fetchDenoiseTaskRef(
   options: FetchDenoiseTaskRefOptions,
 ): Promise<DenoiseTaskRefResponse> {
   const base = origin.trim() || DEFAULT_DENOISE_API_URL;
-  const path = `/api/milestones/${encodeURIComponent(milestoneId)}/tasks/${encodeURIComponent(taskId)}`;
+  const path = `/api/milestones/${encodeURIComponent(milestoneId)}/tasks/${
+    encodeURIComponent(taskId)
+  }`;
   const url = new URL(path, base.endsWith("/") ? base : `${base}/`);
   const fetchImpl = options.fetch ?? fetch;
   const headers: Record<string, string> = {

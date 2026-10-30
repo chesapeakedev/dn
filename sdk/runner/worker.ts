@@ -40,7 +40,7 @@ import {
   RUNNER_PROTOCOL_VERSION,
   validateRunnerJob,
 } from "./types.ts";
-import { applyTaskSyncOp, listTasks } from "../tasks/tasks.ts";
+import { applyTaskSyncOp, listNativeTasks } from "../tasks/tasks.ts";
 import type { AcceptanceCriteriaReport } from "../github/progress.ts";
 
 const DEFAULT_LEASE_RENEWAL_MS = 15_000;
@@ -1341,7 +1341,7 @@ export async function serveRunner(
       }
     }
     if (heartbeatResponse?.list_tasks_requested) {
-      pendingTaskList = await listTasks();
+      pendingTaskList = await listNativeTasks();
       status(`Prepared local task list (${pendingTaskList.length})`);
     }
 

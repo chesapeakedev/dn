@@ -19,5 +19,8 @@ Deno.test("parseDenoiseTaskUrl accepts production and local hosts", () => {
 
 Deno.test("parseDenoiseTaskUrl rejects unrelated URLs", () => {
   assertEquals(parseDenoiseTaskUrl("https://github.com/o/r/issues/1"), null);
-  assertEquals(parseDenoiseTaskUrl("https://evil.com/milestone/a/task/b"), null);
+  assertEquals(
+    parseDenoiseTaskUrl("https://evil.com/milestone/a/task/b"),
+    null,
+  );
 });
