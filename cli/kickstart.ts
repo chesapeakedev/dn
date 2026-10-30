@@ -12,6 +12,9 @@ import { runFullKickstart } from "../kickstart/lib.ts";
 import { resolve } from "@std/path";
 import { runScoring } from "../kickstart/score.ts";
 import { isGitHubIssueUrl } from "../sdk/meld/mod.ts";
+import { fetchDenoiseTaskRef } from "../sdk/denoise/fetchTaskRef.ts";
+import { isDenoiseTaskUrl, parseDenoiseTaskUrl } from "../sdk/denoise/taskUrl.ts";
+import { resolveGitHubToken } from "../sdk/github/token.ts";
 import {
   completeGitHubIssueForRef,
   firstUnchecked,
@@ -86,6 +89,8 @@ type KickstartCliConfig = KickstartConfig & {
   milestoneRunOnce?: boolean;
   /** Path to a denoise task JSON file for ticketless kickstart. */
   denoiseTaskPath?: string;
+  /** Denoise milestone task page URL to fetch before kickstart. */
+  denoiseTaskUrl?: string;
   /** True when the issue/context was chosen from the todo list or milestone stack. */
   fromQueue?: boolean;
 };
@@ -102,8 +107,16 @@ function parseVerbosity(value: string | undefined): "low" | "medium" | "high" {
 function classifyInput(input: string): {
   issueUrl: string | null;
   contextMarkdownPath?: string;
+  denoiseTaskUrl?: string;
 } {
   const trimmed = input.trim();
+  if (isDenoiseTaskUrl(trimmed)) {
+    return {
+      issueUrl: null,
+      contextMarkdownPath: undefined,
+      denoiseTaskUrl: trimmed,
+    };
+  }
   if (isGitHubIssueUrl(trimmed) || ISSUE_NUMBER_PATTERN.test(trimmed)) {
     return { issueUrl: trimmed, contextMarkdownPath: undefined };
   }
@@ -214,14 +227,18 @@ export async function parseKickstartArgs(
     denoiseTaskFilePath = tmpFile;
   }
 
-  const { issueUrl, contextMarkdownPath } = denoiseTaskMaterialized
+  const classified = input ? classifyInput(input) : {
+    issueUrl: null as string | null,
+    contextMarkdownPath: undefined,
+    denoiseTaskUrl: undefined,
+  };
+  const { issueUrl, contextMarkdownPath, denoiseTaskUrl } = denoiseTaskMaterialized
     ? {
       issueUrl: null as string | null,
       contextMarkdownPath: denoiseTaskFilePath,
+      denoiseTaskUrl: undefined,
     }
-    : input
-    ? classifyInput(input)
-    : { issueUrl: null as string | null, contextMarkdownPath: undefined };
+    : classified;
 
   const environmentWorkspaceRoot = Deno.env.get("WORKSPACE_ROOT");
   const resolvedWorkspaceRoot = workspaceRoot
@@ -299,6 +316,7 @@ export async function parseKickstartArgs(
     cursorCloud,
     cursorCloudRef,
     ...(denoiseTaskPath ? { denoiseTaskPath } : {}),
+    ...(denoiseTaskUrl ? { denoiseTaskUrl } : {}),
     ...(steeringPrompt !== undefined ? { steeringPrompt } : {}),
     ...(contextFiles.length > 0 ? { contextFiles } : {}),
     verbosity,
@@ -373,6 +391,9 @@ function showHelp(): void {
   console.log(
     "  --denoise-task <file>    Materialize a denoise task JSON file as context (no GitHub fetch)",
   );
+  console.log(
+    "  <denoise_task_url>       https://denoise.cloud/milestone/.../task/... (fetches task; GitHub issue if linked)",
+  );
   console.log("  --help, -h               Show this help message\n");
   console.log("Environment variables:");
   console.log("  WORKSPACE_ROOT           Workspace root directory");
@@ -417,6 +438,9 @@ function showHelp(): void {
   );
   console.log(
     "  dn kickstart --awp --denoise-task task.json         # ticketless with PR",
+  );
+  console.log(
+    "  dn kickstart https://denoise.cloud/milestone/<id>/task/<id>",
   );
   console.log("  ISSUE=<issue_url_or_number> dn kickstart");
   console.log(
@@ -702,6 +726,57 @@ async function warnStackedUnlandedWork(repoRoot: string): Promise<void> {
   }
 }
 
+/** Write a validated {@link DenoiseTaskDocument} to a temp `.md` kickstart context file. */
+async function materializeDenoiseTaskDocument(
+  taskDocument: unknown,
+): Promise<string> {
+  const task = validateDenoiseTaskDocument(taskDocument);
+  const markdown = denoiseTaskToMarkdown(task);
+  const tmpFile = Deno.makeTempFileSync({
+    prefix: "dn-denoise-task-",
+    suffix: ".md",
+  });
+  Deno.writeTextFileSync(tmpFile, markdown);
+  return tmpFile;
+}
+
+/**
+ * When `config.denoiseTaskUrl` is set, fetch the task ref from Denoise and
+ * rewrite config to either a GitHub `issueUrl` (linked tasks) or a temp
+ * markdown path (native tasks), matching `--denoise-task` behavior.
+ */
+async function resolveDenoiseTaskUrlOnConfig(
+  config: KickstartCliConfig,
+): Promise<KickstartCliConfig> {
+  if (!config.denoiseTaskUrl) return config;
+  const parsed = parseDenoiseTaskUrl(config.denoiseTaskUrl);
+  if (!parsed) {
+    throw new Error(`Invalid Denoise task URL: ${config.denoiseTaskUrl}`);
+  }
+  const token = await resolveGitHubToken();
+  const ref = await fetchDenoiseTaskRef(
+    parsed.origin,
+    parsed.milestoneId,
+    parsed.taskId,
+    { githubToken: token },
+  );
+  if (ref.github_issue) {
+    return {
+      ...config,
+      issueUrl: ref.github_issue.url,
+      contextMarkdownPath: undefined,
+      denoiseTaskUrl: undefined,
+    };
+  }
+  const tmpFile = await materializeDenoiseTaskDocument(ref.task_document);
+  return {
+    ...config,
+    issueUrl: null,
+    contextMarkdownPath: tmpFile,
+    denoiseTaskUrl: undefined,
+  };
+}
+
 /**
  * Handles the kickstart subcommand
  */
@@ -719,6 +794,13 @@ export async function handleKickstart(
       globalSandbox,
       globalContextFiles,
     );
+  } catch (e) {
+    console.error(e instanceof Error ? e.message : String(e));
+    Deno.exit(1);
+  }
+
+  try {
+    config = await resolveDenoiseTaskUrlOnConfig(config);
   } catch (e) {
     console.error(e instanceof Error ? e.message : String(e));
     Deno.exit(1);

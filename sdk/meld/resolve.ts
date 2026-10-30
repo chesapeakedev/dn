@@ -1,7 +1,10 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
+import { fetchDenoiseTaskRef } from "../denoise/fetchTaskRef.ts";
+import { isDenoiseTaskUrl, parseDenoiseTaskUrl } from "../denoise/taskUrl.ts";
 import { fetchIssueFromUrl } from "../github/issue.ts";
+import { resolveGitHubToken } from "../github/token.ts";
 import {
   denoiseTaskToMarkdown,
   validateDenoiseTaskDocument,
@@ -51,6 +54,26 @@ export async function resolveSource(source: string): Promise<string> {
   const trimmed = source.trim();
   if (trimmed === "") {
     return "";
+  }
+  if (isDenoiseTaskUrl(trimmed)) {
+    const parsed = parseDenoiseTaskUrl(trimmed);
+    if (!parsed) {
+      throw new Error(`Invalid Denoise task URL: ${trimmed}`);
+    }
+    const token = await resolveGitHubToken();
+    const ref = await fetchDenoiseTaskRef(
+      parsed.origin,
+      parsed.milestoneId,
+      parsed.taskId,
+      { githubToken: token },
+    );
+    if (ref.github_issue) {
+      const issue = await fetchIssueFromUrl(ref.github_issue.url);
+      return `# ${issue.title}\n\n${issue.body ?? ""}`.trim();
+    }
+    return denoiseTaskToMarkdown(
+      validateDenoiseTaskDocument(ref.task_document),
+    );
   }
   if (isGitHubIssueUrl(trimmed)) {
     const issue = await fetchIssueFromUrl(trimmed);

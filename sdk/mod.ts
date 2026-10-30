@@ -754,3 +754,18 @@ export {
 } from "./rfc/types.ts";
 export type { Rfc, RfcMetadata, RfcState, RfcStatus } from "./rfc/types.ts";
 export type { RfcConfig, RfcRepoOptions } from "./rfc/state.ts";
+
+// Denoise cloud task URLs
+export {
+  fetchDenoiseTaskRef,
+} from "./denoise/fetchTaskRef.ts";
+export type {
+  DenoiseTaskRefGitHubIssue,
+  DenoiseTaskRefResponse,
+  FetchDenoiseTaskRefOptions,
+} from "./denoise/fetchTaskRef.ts";
+export {
+  isDenoiseTaskUrl,
+  parseDenoiseTaskUrl,
+} from "./denoise/taskUrl.ts";
+export type { ParsedDenoiseTaskUrl } from "./denoise/taskUrl.ts";
