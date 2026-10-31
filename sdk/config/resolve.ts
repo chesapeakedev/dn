@@ -82,6 +82,7 @@ function mergeRfcStrictSyncEnsure(
     ensure?: DnEnsureConfig;
     harness_hints?: DnHarnessHints;
     kickstart?: DnKickstartConfig;
+    harness?: DnConfigLayer["harness"];
   },
   source: DnConfigSource,
 ): void {
@@ -122,6 +123,9 @@ function mergeRfcStrictSyncEnsure(
         : {}),
     };
     result.sources.kickstart = source;
+  }
+  if (layer.harness?.defaults !== undefined) {
+    result.sources.harness = source;
   }
 }
 
@@ -200,11 +204,7 @@ export async function resolveDnConfig(
   const repository = await readOptional(
     join(options.repoRoot, DN_REPOSITORY_CONFIG_PATH),
     DN_REPOSITORY_CONFIG_PATH,
-  ) ??
-    await readOptional(
-      join(options.repoRoot, DN_LEGACY_CONFIG_PATH),
-      DN_LEGACY_CONFIG_PATH,
-    );
+  );
   if (repository) mergeLayer(result, repository, "repository");
   const env = options.env ??
     (options.includeUser === false ? {} : Deno.env.toObject());

@@ -117,7 +117,11 @@ export async function executeReviewPhaseIfNeeded(
     options.workspaceRoot,
     reviewConfig!.prompt,
   );
-  logShortReviewPromptWarning(resolved, reviewConfig!.prompt);
+  const promptLabel = reviewConfig!.prompt ??
+    (resolved.source === "file"
+      ? await defaultReviewPromptPath(options.workspaceRoot)
+      : "REVIEW.md");
+  logShortReviewPromptWarning(resolved, promptLabel);
 
   const result = await runReviewImplementPass({
     ...options,
@@ -142,7 +146,8 @@ export function logReviewSkipDecision(
 ): void {
   if (!decision.skip || decision.reason == null) return;
   const messages: Record<ReviewSkipReason, string> = {
-    no_config: "Skipping review phase (no kickstart.review in dn.json)",
+    no_config:
+      "Skipping review phase (no harness.defaults.kickstart.review in dn.json)",
     explicit_skip: "Skipping review phase (--skip-review)",
     env_skip: "Skipping review phase (DN_SKIP_REVIEW)",
     single_land: "Skipping review phase (--single land close-out)",
@@ -190,13 +195,33 @@ export async function loadKickstartReviewConfig(
 }
 
 /**
+ * Default review prompt path when `kickstart.review` omits `prompt`.
+ *
+ * Prefers repo-root `REVIEW.md`, then `review.md`, otherwise `REVIEW.md`.
+ */
+export async function defaultReviewPromptPath(
+  repoRoot: string,
+): Promise<string> {
+  for (const name of ["REVIEW.md", "review.md"] as const) {
+    try {
+      const stat = await Deno.stat(join(repoRoot, name));
+      if (stat.isFile) return name;
+    } catch (error) {
+      if (!(error instanceof Deno.errors.NotFound)) throw error;
+    }
+  }
+  return "REVIEW.md";
+}
+
+/**
  * Resolves review prompt text from a config value (file path or inline string).
  */
 export async function resolveReviewPrompt(
   repoRoot: string,
-  promptField: string,
+  promptField: string | undefined,
 ): Promise<ResolveReviewPromptResult> {
-  const trimmed = promptField.trim();
+  const field = promptField ?? await defaultReviewPromptPath(repoRoot);
+  const trimmed = field.trim();
   if (trimmed.length === 0) {
     return { content: "", source: "inline", warnShortPrompt: true };
   }
@@ -216,7 +241,7 @@ export async function resolveReviewPrompt(
   }
 
   return {
-    content: promptField,
+    content: promptField ?? field,
     source: "inline",
     warnShortPrompt: trimmed.length < 3,
   };

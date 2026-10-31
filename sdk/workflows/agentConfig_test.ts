@@ -72,9 +72,13 @@ Deno.test("installWorkflowSupport writes config when agent is provided", async (
     const results = await installWorkflowSupport(repoRoot, {
       agent: "claude",
     });
-    assertEquals(results.length, 1);
+    assertEquals(results.length, 2);
     const config = await readDnWorkflowAgentConfig(repoRoot);
     assertEquals(config?.agent, "claude");
+    const dnJson = JSON.parse(
+      await Deno.readTextFile(`${repoRoot}/dn.json`),
+    );
+    assertEquals(dnJson.harness.defaults.agent, "claude");
   } finally {
     await Deno.remove(repoRoot, { recursive: true });
   }

@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
-# Installs the agent harness declared in .github/dn/config.json.
+# Installs the agent harness declared in repository dn.json.
 # Used by canonical dn GitHub Actions workflows.
 set -euo pipefail
 
 ROOT="${GITHUB_WORKSPACE:-$(pwd)}"
-CONFIG="${ROOT}/.github/dn/config.json"
+CONFIG="${ROOT}/dn.json"
 
 if [ ! -f "${CONFIG}" ]; then
-  echo "::error::Missing ${CONFIG}. Run: dn init workflows --agent <opencode|cursor|claude|codex>" >&2
+  echo "::error::Missing ${CONFIG}. Set harness.defaults.agent in dn.json (or legacy top-level agent)." >&2
   exit 1
 fi
 
-agent="$(jq -r '.agent // empty' "${CONFIG}")"
+agent="$(jq -r '.harness.defaults.agent // .agent // empty' "${CONFIG}")"
 case "${agent}" in
-  opencode | cursor | claude | codex) ;;
+  opencode | cursor | claude | codex | copilot) ;;
   *)
-    echo "::error::Invalid agent in ${CONFIG}: ${agent}. Use opencode, cursor, claude, or codex." >&2
+    echo "::error::Invalid agent in ${CONFIG}: ${agent}. Use opencode, cursor, claude, codex, or copilot." >&2
     exit 1
     ;;
 esac
@@ -37,5 +37,9 @@ case "${agent}" in
     ;;
   codex)
     npm install -g @openai/codex
+    ;;
+  copilot)
+    echo "::error::Copilot agent install is not supported in install-agent.sh; configure the runner image instead." >&2
+    exit 1
     ;;
 esac

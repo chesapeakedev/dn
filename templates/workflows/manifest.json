@@ -37,7 +37,7 @@
           "validate_only"
         ]
       },
-      "compatibility_notes": "Requires .github/dn/config.json and chesapeakedev/dn-action. Opens or advances a stable pull request containing plans/{owner}_{repo}_{milestone}.stack.{md,json}. Canonical Actions dispatches accept only publish=pr. stack_mode refresh preserves completed checklist items; refresh=true maps to refresh, refresh=false maps to create."
+      "compatibility_notes": "Requires root dn.json (harness.defaults.agent) and chesapeakedev/dn-action. Opens or advances a stable pull request containing plans/{owner}_{repo}_{milestone}.stack.{md,json}. Canonical Actions dispatches accept only publish=pr. stack_mode refresh preserves completed checklist items; refresh=true maps to refresh, refresh=false maps to create."
     },
     {
       "id": "dn.meld_issue_plan",
@@ -75,7 +75,7 @@
           "progress"
         ]
       },
-      "compatibility_notes": "Requires .github/dn/config.json. Provide exactly one of issue_url or issue_number. Optional nested progress {mode,url,token} enables live denoise phase/step ingest when KICKSTART_PROGRESS_BASE_URL is configured. Updates the source issue body through the GitHub API and does not push repository content. The installed workflow also accepts the legacy dn.prep_issue_plan event and temporarily retains the legacy install filename for Denoise compatibility."
+      "compatibility_notes": "Requires root dn.json (harness.defaults.agent). Provide exactly one of issue_url or issue_number. Optional nested progress {mode,url,token} enables live denoise phase/step ingest when KICKSTART_PROGRESS_BASE_URL is configured. Updates the source issue body through the GitHub API and does not push repository content. The installed workflow also accepts the legacy dn.prep_issue_plan event and temporarily retains the legacy install filename for Denoise compatibility."
     },
     {
       "id": "dn.kickstart_issue",
@@ -118,7 +118,7 @@
           "progress"
         ]
       },
-      "compatibility_notes": "Requires .github/dn/config.json. Same-repo kickstart uses schema 1.0 with issue_url or issue_number. Cross-repo (including private planning to a public execution repo) uses schema 1.1 with issue_number and issue_hidden, never issue_url; dn claims the URL from Denoise via OIDC or GITHUB_TOKEN. Canonical Actions dispatches always publish a pull request: publish may be omitted or set to pr, and awp may be omitted or true. Local CLI invocations continue to support none and direct."
+      "compatibility_notes": "Requires root dn.json (harness.defaults.agent). Same-repo kickstart uses schema 1.0 with issue_url or issue_number. Cross-repo (including private planning to a public execution repo) uses schema 1.1 with issue_number and issue_hidden, never issue_url; dn claims the URL from Denoise via OIDC or GITHUB_TOKEN. Canonical Actions dispatches always publish a pull request: publish may be omitted or set to pr, and awp may be omitted or true. Local CLI invocations continue to support none and direct."
     },
     {
       "id": "dn.daily_kickstart",
@@ -153,7 +153,7 @@
         "required": [],
         "optional": ["milestone", "validate_only"]
       },
-      "compatibility_notes": "Requires .github/dn/config.json and a committed plans/{owner}_{repo}_{milestone}.stack.md from dn init stack. Runs dn kickstart --publish pr --milestone <milestone> --once. The implementation and stack progress are committed to one pull request; a later run skips while that issue's pull request remains open. When the milestone variable/stack is missing or the queue is empty, the workflow soft-passes with a clear summary instead of failing."
+      "compatibility_notes": "Requires root dn.json (harness.defaults.agent) and a committed plans/{owner}_{repo}_{milestone}.stack.md from dn init stack. Runs dn kickstart --publish pr --milestone <milestone> --once. The implementation and stack progress are committed to one pull request; a later run skips while that issue's pull request remains open. When the milestone variable/stack is missing or the queue is empty, the workflow soft-passes with a clear summary instead of failing."
     }
   ]
 }

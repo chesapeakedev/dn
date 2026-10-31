@@ -1150,8 +1150,8 @@ export async function handleWorkflowExec(args: string[]): Promise<void> {
       if (!config) {
         throw new WorkflowExecError(
           "agent_config_missing",
-          ".github/dn/config.json is missing",
-          "Run dn init workflows --agent <agent> and commit the config file.",
+          "dn.json is missing harness.defaults.agent (or legacy top-level agent)",
+          "Run dn init workflows --agent <agent> and commit dn.json.",
         );
       }
       return { message: `Configured agent: ${config.agent}`, result: true };

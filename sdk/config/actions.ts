@@ -1,10 +1,10 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
-import { dirname, join } from "@std/path";
-import { parseDnConfig } from "./parse.ts";
+import { join } from "@std/path";
 import { DN_LEGACY_CONFIG_PATH, DN_REPOSITORY_CONFIG_PATH } from "./resolve.ts";
 import type { ResolvedDnConfig } from "./types.ts";
+import type { AgentHarness } from "../github/agentHarness.ts";
 import type { SandboxProvider } from "../sandbox/types.ts";
 
 /** Repository-safe configuration passed to the dn GitHub Action. */
@@ -77,36 +77,48 @@ export interface WriteActionsConfigProjectionResult {
 /**
  * Writes `.github/dn/config.json` as a subset projection of project `dn.json`.
  *
- * Prefers root `dn.json`. Does not fall back to an existing legacy file as the
- * projection source (that file is the destination). Never reads `~/.dn/`.
+ * Deprecated: new repositories should commit root `dn.json` only. This helper
+ * is retained for tests and manual migration but does not write by default.
  */
-export async function writeActionsConfigProjection(
+export function writeActionsConfigProjection(
   repoRoot: string,
   options: WriteActionsConfigProjectionOptions = {},
 ): Promise<WriteActionsConfigProjectionResult> {
   const path = join(repoRoot, DN_LEGACY_CONFIG_PATH);
-  const projectPath = join(repoRoot, DN_REPOSITORY_CONFIG_PATH);
-  let projectContent: string;
+  void options;
+  return Promise.resolve({ path, written: false, skipped: true });
+}
+
+/**
+ * Sets `harness.defaults.agent` in repository `dn.json`, creating the file when
+ * missing.
+ */
+export async function upsertRepositoryHarnessAgent(
+  repoRoot: string,
+  agent: AgentHarness,
+  options: WriteActionsConfigProjectionOptions = {},
+): Promise<{ path: string; written: boolean }> {
+  const path = join(repoRoot, DN_REPOSITORY_CONFIG_PATH);
+  let raw: Record<string, unknown> = { schema_version: "2.0" };
   try {
-    projectContent = await Deno.readTextFile(projectPath);
+    raw = JSON.parse(await Deno.readTextFile(path)) as Record<string, unknown>;
   } catch (error) {
-    if (error instanceof Deno.errors.NotFound) {
-      return { path, written: false, skipped: true };
-    }
-    throw error;
+    if (!(error instanceof Deno.errors.NotFound)) throw error;
   }
-  const project = parseDnConfig(projectContent, DN_REPOSITORY_CONFIG_PATH);
-  const document = toActionsProjectionDocument(project);
-  if (!document) {
-    return { path, written: false, skipped: true };
-  }
+  const harness = isPlainObject(raw.harness) ? raw.harness : {};
+  const defaults = isPlainObject(harness.defaults) ? harness.defaults : {};
+  defaults.agent = agent;
+  harness.defaults = defaults;
+  raw.harness = harness;
+  delete raw.agent;
+  const content = `${JSON.stringify(raw, null, 2)}\n`;
   if (options.dryRun === true) {
-    return { path, written: false, skipped: false };
+    return { path, written: false };
   }
-  await Deno.mkdir(dirname(path), { recursive: true });
-  await Deno.writeTextFile(
-    path,
-    `${JSON.stringify(document, null, 2)}\n`,
-  );
-  return { path, written: true, skipped: false };
+  await Deno.writeTextFile(path, content);
+  return { path, written: true };
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

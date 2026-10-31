@@ -10,6 +10,8 @@ import type {
   DnConfigLayer,
   DnEnsureConfig,
   DnEnsureRecipe,
+  DnHarnessConfig,
+  DnHarnessDefaults,
   DnHarnessHints,
   DnKickstartConfig,
   DnKickstartReviewConfig,
@@ -254,17 +256,22 @@ function parseHarnessHints(value: unknown, source: string): DnHarnessHints {
 function parseKickstartReviewConfig(
   value: unknown,
   source: string,
+  field = "kickstart.review",
 ): DnKickstartReviewConfig {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new Error(
-      `Invalid dn config at ${source}: kickstart.review must be an object`,
+      `Invalid dn config at ${source}: ${field} must be an object`,
     );
   }
   const record = value as Record<string, unknown>;
-  if (typeof record.prompt !== "string" || record.prompt.trim().length === 0) {
-    throw new Error(
-      `Invalid dn config at ${source}: kickstart.review.prompt must be a non-empty string`,
-    );
+  if (record.prompt !== undefined) {
+    if (
+      typeof record.prompt !== "string" || record.prompt.trim().length === 0
+    ) {
+      throw new Error(
+        `Invalid dn config at ${source}: ${field}.prompt must be a non-empty string`,
+      );
+    }
   }
   if (record.auto_skip_max_lines !== undefined) {
     if (
@@ -273,12 +280,12 @@ function parseKickstartReviewConfig(
       record.auto_skip_max_lines < 0
     ) {
       throw new Error(
-        `Invalid dn config at ${source}: kickstart.review.auto_skip_max_lines must be a non-negative integer`,
+        `Invalid dn config at ${source}: ${field}.auto_skip_max_lines must be a non-negative integer`,
       );
     }
   }
   return {
-    prompt: record.prompt,
+    ...(typeof record.prompt === "string" ? { prompt: record.prompt } : {}),
     ...(typeof record.auto_skip_max_lines === "number"
       ? { auto_skip_max_lines: record.auto_skip_max_lines }
       : {}),
@@ -288,19 +295,130 @@ function parseKickstartReviewConfig(
 function parseKickstartConfig(
   value: unknown,
   source: string,
+  field = "kickstart",
 ): DnKickstartConfig {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new Error(
-      `Invalid dn config at ${source}: kickstart must be an object`,
+      `Invalid dn config at ${source}: ${field} must be an object`,
     );
   }
   const record = value as Record<string, unknown>;
   if (record.review !== undefined) {
     return {
-      review: parseKickstartReviewConfig(record.review, source),
+      review: parseKickstartReviewConfig(
+        record.review,
+        source,
+        `${field}.review`,
+      ),
     };
   }
   return {};
+}
+
+function parseHarnessDefaults(
+  value: unknown,
+  source: string,
+): DnHarnessDefaults {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(
+      `Invalid dn config at ${source}: harness.defaults must be an object`,
+    );
+  }
+  const record = value as Record<string, unknown>;
+  const agent = parseOptionalAgent(
+    record.agent,
+    source,
+    "harness.defaults.agent",
+  );
+  return {
+    ...(agent ? { agent } : {}),
+    ...(record.sandbox !== undefined
+      ? { sandbox: parseDnSandboxConfig(record.sandbox) }
+      : {}),
+    ...(record.kickstart !== undefined
+      ? {
+        kickstart: parseKickstartConfig(
+          record.kickstart,
+          source,
+          "harness.defaults.kickstart",
+        ),
+      }
+      : {}),
+  };
+}
+
+function parseHarnessConfig(
+  value: unknown,
+  source: string,
+): DnHarnessConfig {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(
+      `Invalid dn config at ${source}: harness must be an object`,
+    );
+  }
+  const record = value as Record<string, unknown>;
+  if (record.defaults === undefined) {
+    return {};
+  }
+  return { defaults: parseHarnessDefaults(record.defaults, source) };
+}
+
+function warnLegacyHarnessKeysOverridden(source: string): void {
+  console.warn(
+    `[dn] ${source}: harness.defaults overrides legacy top-level agent, sandbox, or kickstart. Prefer nesting under harness.defaults.`,
+  );
+}
+
+/** Merges `harness.defaults` over legacy top-level harness fields on a parsed layer. */
+function normalizeHarnessDefaults(
+  layer: DnConfigLayer,
+  source: string,
+): DnConfigLayer {
+  const defaults = layer.harness?.defaults;
+  const hasLegacy = layer.agent !== undefined || layer.sandbox !== undefined ||
+    layer.kickstart !== undefined;
+  if (!defaults && !hasLegacy) {
+    return layer;
+  }
+
+  const merged: DnConfigLayer = { ...layer };
+  let overridden = false;
+
+  if (defaults?.agent !== undefined) {
+    if (layer.agent !== undefined && layer.agent !== defaults.agent) {
+      overridden = true;
+    }
+    merged.agent = defaults.agent;
+  }
+  if (defaults?.sandbox !== undefined) {
+    if (layer.sandbox !== undefined) overridden = true;
+    merged.sandbox = defaults.sandbox;
+  }
+  if (defaults?.kickstart !== undefined || layer.kickstart !== undefined) {
+    const legacyKick = layer.kickstart;
+    const defaultsKick = defaults?.kickstart;
+    if (legacyKick !== undefined && defaultsKick !== undefined) {
+      overridden = true;
+    }
+    merged.kickstart = {
+      ...(legacyKick ?? {}),
+      ...(defaultsKick ?? {}),
+      ...(defaultsKick?.review !== undefined || legacyKick?.review !== undefined
+        ? {
+          review: {
+            ...(legacyKick?.review ?? {}),
+            ...(defaultsKick?.review ?? {}),
+          },
+        }
+        : {}),
+    };
+  }
+
+  if (overridden) {
+    warnLegacyHarnessKeysOverridden(source);
+  }
+
+  return merged;
 }
 
 function parseSyncConfig(value: unknown, source: string): DnSyncConfig {
@@ -362,7 +480,7 @@ export function parseDnConfig(content: string, source: string): DnConfigLayer {
     );
   }
   const agent = parseOptionalAgent(value.agent, source, "agent");
-  return {
+  const layer: DnConfigLayer = {
     ...(schema ? { schema_version: schema } : {}),
     ...(agent ? { agent } : {}),
     ...(value.sandbox !== undefined
@@ -392,5 +510,9 @@ export function parseDnConfig(content: string, source: string): DnConfigLayer {
     ...(value.kickstart !== undefined
       ? { kickstart: parseKickstartConfig(value.kickstart, source) }
       : {}),
+    ...(value.harness !== undefined
+      ? { harness: parseHarnessConfig(value.harness, source) }
+      : {}),
   };
+  return normalizeHarnessDefaults(layer, source);
 }

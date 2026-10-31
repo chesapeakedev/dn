@@ -103,9 +103,10 @@ export interface DnKickstartReviewConfig {
   /**
    * Repo-relative path to a markdown file or a literal prompt string. When the
    * value resolves to an existing file under the repo root, the file contents
-   * are used; otherwise the string is treated as inline markdown.
+   * are used; otherwise the string is treated as inline markdown. When omitted,
+   * runtime defaults to `REVIEW.md` then `review.md` at the repo root.
    */
-  prompt: string;
+  prompt?: string;
   /**
    * Skip the review pass when the workspace diff has at most this many added or
    * removed lines (excluding diff headers). Defaults to 100 when `review` is set.
@@ -117,6 +118,27 @@ export interface DnKickstartReviewConfig {
 export interface DnKickstartConfig {
   /** Optional review implement pass configuration. */
   review?: DnKickstartReviewConfig;
+}
+
+/**
+ * Team-suggested harness defaults (project `dn.json` `harness.defaults` only).
+ *
+ * Overridable by CLI flags, environment variables, user config, and runner job
+ * fields where documented. Normalized at parse time into top-level
+ * {@link DnConfigLayer} fields for runtime resolution.
+ */
+export interface DnHarnessDefaults {
+  /** Suggested agent harness for kickstart/meld/loop workflows. */
+  agent?: AgentHarness;
+  /** Suggested sandbox configuration. */
+  sandbox?: DnSandboxConfig;
+  /** Suggested kickstart phase settings (e.g. review pass). */
+  kickstart?: DnKickstartConfig;
+}
+
+/** Optional harness suggestion block (project `dn.json` only). */
+export interface DnHarnessConfig {
+  defaults?: DnHarnessDefaults;
 }
 
 /** Configuration values supported by repository and user configuration files. */
@@ -148,6 +170,8 @@ export interface DnConfigLayer {
   harness_hints?: DnHarnessHints;
   /** Kickstart phase settings (project config). */
   kickstart?: DnKickstartConfig;
+  /** Harness suggestions (project config); normalized into agent/sandbox/kickstart. */
+  harness?: DnHarnessConfig;
 }
 
 /** Runtime values which take precedence over file-based configuration. */
@@ -178,7 +202,8 @@ export interface ResolvedDnConfig extends DnConfigLayer {
       | "sync"
       | "ensure"
       | "harness_hints"
-      | "kickstart",
+      | "kickstart"
+      | "harness",
       DnConfigSource
     >
   >;

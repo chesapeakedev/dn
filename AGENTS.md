@@ -233,10 +233,10 @@ $ dn land plans/issue-123.plan.md
 $ dn sync --pr --issue 123   # or dn sync for trunk publish
 ```
 
-Optional `kickstart.review` in `dn.json` adds a second implement pass (review
-prompt from a repo markdown file or inline string). Kickstart auto-skips plan
-and review when heuristics match; use `--skip-review` or `DN_SKIP_REVIEW=1` to
-force skip. See `docs/subcommands.md`.
+Optional `harness.defaults.kickstart.review` in `dn.json` adds a second
+implement pass (prompt from repo-root `REVIEW.md`, another path, or inline
+string). Kickstart auto-skips plan and review when heuristics match; use
+`--skip-review` or `DN_SKIP_REVIEW=1` to force skip. See `docs/subcommands.md`.
 
 ```
 # CLI/CI close-out (not the IDE default)

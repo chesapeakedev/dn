@@ -1,11 +1,49 @@
 {
   "schema_version": "2.0",
-  "agent": "opencode",
   "harness_hints": {
     "vcs": "Sapling (`sl`). Never run git commands in this repo.",
     "close_out": "After kickstart/loop, ask before committing. If yes, this chat writes the commit with the repo VCS and omits `*.plan.md`. Do not auto-run `dn land`. Use `dn land` in CLI, CI, denoise, `--issue-testplan`, or when the user names it.",
     "trunk": "`make sync` / `dn sync` publishes to trunk after a local commit; `dn sync --pr` opens a PR from local commits. Distinct from land.",
     "nested_agent": "Do not pass `--agent` for this outer harness unless asked (no Cursor-in-Cursor, no Codex-in-Codex)."
+  },
+  "harness": {
+    "defaults": {
+      "agent": "opencode",
+      "sandbox": {
+        "provider": "none",
+        "workspace": "/workspace",
+        "sync": {
+          "mode": "bind",
+          "exclude": [".git", "node_modules", ".sl"]
+        },
+        "docker": {
+          "image": "ghcr.io/chesapeakedev/dn:opencode",
+          "network": "none",
+          "read_only_root": true,
+          "mounts": [
+            { "source": ".", "target": "/workspace" }
+          ],
+          "env_pass_through": [
+            "OPENAI_API_KEY",
+            "ANTHROPIC_API_KEY",
+            "CURSOR_API_KEY",
+            "COPILOT_GITHUB_TOKEN"
+          ]
+        },
+        "exe_dev": {
+          "image": "exeuntu",
+          "vm_name_prefix": "dn-kickstart",
+          "ttl": "4h",
+          "integrations": ["github"]
+        }
+      },
+      "kickstart": {
+        "review": {
+          "prompt": "REVIEW.md",
+          "auto_skip_max_lines": 100
+        }
+      }
+    }
   },
   "sync": {
     "preflight": [["make", "lint"], ["make", "tests"]],

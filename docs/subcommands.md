@@ -26,8 +26,8 @@ dn kickstart --context-file notes.md 123
 
 Use **`--sandbox <none|docker|exe.dev>`** to select a sandbox provider for agent
 workflows (`kickstart`, `loop`, `meld`, `until`, `ensure`). Omit the value to
-read `sandbox.provider` from `.github/dn/config.json`. See
-[Sandbox providers](sandbox.md).
+read `sandbox.provider` from repository `dn.json` (`harness.defaults.sandbox`).
+See [Sandbox providers](sandbox.md).
 
 In CI, `dn` automatically sets `NO_COLOR` and runs in unattended mode. See
 [Output and environment](output-and-environment.md) for NO_COLOR, FORCE_COLOR,
@@ -358,7 +358,7 @@ dn kickstart --verbosity high 123
 # Skip plan generation and run implementation directly
 dn kickstart --skip-plan 123
 
-# Skip the post-implement review pass (when kickstart.review is configured)
+# Skip the post-implement review pass (when harness.defaults.kickstart.review is configured)
 dn kickstart --skip-review 123
 ```
 
@@ -379,33 +379,39 @@ through the same implementation, completion, sandbox, publishing, and queue
 paths as the normal kickstart workflow. For a local non-publishing run, it is
 the kickstart equivalent of `dn loop <target>`.
 
-#### Review phase (`kickstart.review`)
+#### Review phase (`harness.defaults.kickstart.review`)
 
-When project `dn.json` defines `kickstart.review`, kickstart may run a **second
+When project `dn.json` defines `harness.defaults.kickstart.review` (legacy
+top-level `kickstart.review` is equivalent), kickstart may run a **second
 implement pass** after the first, with review instructions injected from
-`kickstart.review.prompt` (repo-relative markdown file or inline string). The
-same pass runs at the start of `dn land` before the commit agent (not with
+`prompt` (repo-relative markdown file or inline string). When `prompt` is
+omitted, dn uses repo-root `REVIEW.md`, then `review.md` if present. The same
+pass runs at the start of `dn land` before the commit agent (not with
 `dn land --single`). Tune the prompt file between runs to steer review behavior.
 
 Skip review with `--skip-review` or `DN_SKIP_REVIEW=1`. When the workspace diff
 has at most `auto_skip_max_lines` added/removed lines (default **100** when
 review is configured), kickstart and land skip the review pass automatically.
-Repos without `kickstart.review` never run review.
+Repos without review configuration never run review.
 
 Example configuration:
 
 ```json
 {
-  "kickstart": {
-    "review": {
-      "prompt": ".dn/review.md",
-      "auto_skip_max_lines": 100
+  "harness": {
+    "defaults": {
+      "kickstart": {
+        "review": {
+          "prompt": "REVIEW.md",
+          "auto_skip_max_lines": 100
+        }
+      }
     }
   }
 }
 ```
 
-See `.dn/review.example.md` in the dn repository for a starter prompt template.
+See `REVIEW.md` at the repository root for a starter prompt template.
 
 ### Cross-Repository Operations
 
@@ -628,8 +634,8 @@ Run once per machine and once per project. The wizard detects context
 automatically:
 
 - **Project mode** (inside a git or sapling checkout) writes root `dn.json`,
-  projects `.github/dn/config.json`, and can optionally install workflows, RFC
-  scaffolding, or a repo-scoped dn skill.
+  refreshes `.github/dn/install-agent.sh`, and can optionally install workflows,
+  RFC scaffolding, or a repo-scoped dn skill.
 - **User mode** (outside a repository) writes personal defaults to
   `~/.dn/config.json`. Repository `dn.json` overrides those defaults when you
   work inside a checkout.
@@ -665,7 +671,7 @@ dn init build --agent claude
 gh secret set ANTHROPIC_API_KEY
 gh variable set DN_DAILY_KICKSTART_MILESTONE --body 42
 dn init stack 42
-# Commit .github/dn/, .github/workflows/, and plans/owner_repo_42.stack.md
+# Commit dn.json, .github/dn/install-agent.sh, .github/workflows/, and plans/owner_repo_42.stack.md
 ```
 
 The daily workflow runs:
@@ -683,7 +689,9 @@ per run. Scheduled runs read `DN_DAILY_KICKSTART_MILESTONE`; manual
 Installs canonical dn GitHub Actions workflows plus repo agent configuration:
 
 - `.github/workflows/dn-*.yml` — dispatch and scheduled workflows
-- `.github/dn/config.json` — preferred agent for all dn workflows in this repo
+- `.github/dn/install-agent.sh` — installs the agent harness declared in
+  `dn.json`
+- Root `dn.json` — team harness suggestions under `harness.defaults`
 
 The installed templates include the on-demand dispatch workflows plus scheduled
 `dn.daily_kickstart`. Install/update removes the retired
@@ -694,7 +702,7 @@ Choose your agent once (same value for every dispatch):
 ```bash
 dn init workflows --agent claude
 gh secret set ANTHROPIC_API_KEY
-# Commit .github/dn/config.json and the installed workflows
+# Commit dn.json, .github/dn/install-agent.sh, and the installed workflows
 ```
 
 Supported agents: `opencode` (default), `cursor`, `claude`, `codex`.
@@ -711,7 +719,7 @@ dn workflows validate --json
 
 `dn workflows install` only writes missing workflow files. Use
 `dn workflows update` to refresh outdated templates and the install script.
-Passing `--agent` creates or updates `.github/dn/config.json`.
+Passing `--agent` sets `harness.defaults.agent` in root `dn.json`.
 
 ### `dn init agents` — Update AGENTS.md or install agent skill
 
@@ -1408,19 +1416,19 @@ re-running `dn loop` by hand.
 ## `dn land` — Review (optional) and close-out into VCS commits
 
 Use `dn land` after a plan-backed task is complete and the workspace contains
-the changes you want to commit. When `kickstart.review` is configured,
-**`dn
-land` first runs the same review implement pass** as kickstart (skippable
-with `--skip-review` or `DN_SKIP_REVIEW`; skipped for `dn land --single` and
-when the diff is at or below `auto_skip_max_lines`). **`dn land` then closes out
-local agentic work into durable VCS state** — it is not trunk publish
-(`dn sync`) and not PR creation. It is the close-out for attended CLI, CI, and
-denoise. Cursor (and other IDE) chats that already implemented with
-`dn kickstart` / `dn
-loop` should ask the user, then commit with the repo VCS
-instead of nesting another land agent. After land, `dn sync` is the trunk gate
-(lint + tests, then rebase/push). These verbs match the denoise task dialog; see
-denoise-docs **Kickstart, land, sync, and done**.
+the changes you want to commit. When `harness.defaults.kickstart.review` is
+configured, **`dn
+land` first runs the same review implement pass** as kickstart
+(skippable with `--skip-review` or `DN_SKIP_REVIEW`; skipped for
+`dn land --single` and when the diff is at or below `auto_skip_max_lines`).
+**`dn land` then closes out local agentic work into durable VCS state** — it is
+not trunk publish (`dn sync`) and not PR creation. It is the close-out for
+attended CLI, CI, and denoise. Cursor (and other IDE) chats that already
+implemented with `dn kickstart` / `dn
+loop` should ask the user, then commit
+with the repo VCS instead of nesting another land agent. After land, `dn sync`
+is the trunk gate (lint + tests, then rebase/push). These verbs match the
+denoise task dialog; see denoise-docs **Kickstart, land, sync, and done**.
 
 **Execution plans** (`plans/*.plan.md`) and **RFCs** (`rfcs/*.md`) use different
 land modes. Plan land uses an agent (or `--single`) to commit workspace changes

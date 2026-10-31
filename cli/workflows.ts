@@ -41,7 +41,7 @@ function showHelp(): void {
   console.log("  validate   Validate installed workflow templates\n");
   console.log("Options:");
   console.log(
-    "  --agent <name>  Set preferred agent in .github/dn/config.json",
+    "  --agent <name>  Set harness.defaults.agent in dn.json",
   );
   console.log(
     "                  (opencode, cursor, claude, codex). Use with install.",
@@ -144,7 +144,7 @@ function printAgentSetupHint(
     `Set repository secret (${secret}): ${secretSetupHint(agent)}`,
   );
   console.log(
-    "Commit .github/dn/config.json and the installed workflows, then re-run workflows.",
+    "Commit dn.json, .github/dn/install-agent.sh, and the installed workflows, then re-run workflows.",
   );
 }
 

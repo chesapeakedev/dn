@@ -70,7 +70,10 @@ config or `DN_AGENT` pick the nested plan/implement harness.
 `dn loop`, then **`dn land`** (or ask before committing in IDE chat), then
 **`dn sync --pr`** or **`dn sync`** when the user wants remote publish.
 
-Read repository `dn.json` `harness_hints` at session start.
+Read repository `dn.json` `harness_hints` at session start. Keys are
+operator-authored strings (not harness defaults); future Denoise request hints
+may merge additively with repo hints, with repo keys winning on collision.
+Team harness choices live under `harness.defaults`, not in `harness_hints`.
 
 ## Support
 

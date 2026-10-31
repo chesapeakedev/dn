@@ -95,11 +95,11 @@ Deno.test("dn tidy agent resolves an OpenCode agent from user config", async () 
   }
 });
 
-Deno.test("dn tidy config validates repository and legacy configuration", async () => {
+Deno.test("dn tidy config validates repository dn.json", async () => {
   const testRepo = await createTestRepo({
     initialFiles: {
-      ".github/dn/config.json":
-        '{"schema_version":"2.0","sandbox":{"provider":"none"}}\n',
+      "dn.json":
+        '{"schema_version":"2.0","harness":{"defaults":{"sandbox":{"provider":"none"}}}}\n',
     },
   });
   try {

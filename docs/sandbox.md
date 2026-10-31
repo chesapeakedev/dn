@@ -12,13 +12,11 @@ how denoise runs exe.dev jobs.
 
 ## Config (schema 1.1)
 
-Prefer root `dn.json` for team sandbox policy. Legacy `.github/dn/config.json`
-remains supported when `dn.json` is absent; local CLI also merges personal
-defaults from `~/.dn/config.json` (Actions never does).
+Prefer root `dn.json` `harness.defaults.sandbox` for team sandbox policy. Local
+CLI also merges personal defaults from `~/.dn/config.json` (Actions never does).
 
-Bump schema to `1.1` (legacy bridge) or use `dn.json` `schema_version: "2.0"`
-and add an optional `sandbox` block. Schema `1.0` configs without `sandbox`
-behave as today (host execution).
+Use `dn.json` `schema_version: "2.0"` and nest sandbox under `harness.defaults`.
+Top-level `sandbox` remains a parse-time alias when migrating.
 
 See `templates/workflows/dn-config.sandbox.example.json` for a full example.
 
@@ -57,7 +55,8 @@ dn --sandbox exe.dev kickstart 42
 
 The host `dn` process:
 
-1. Parses the sandbox config from `.github/dn/config.json`
+1. Parses sandbox settings from repository `dn.json`
+   (`harness.defaults.sandbox`)
 2. Provisions infrastructure (Docker container or exe.dev VM)
 3. Syncs the workspace into the sandbox (`syncIn` — no-op for Docker bind
    mounts; topic-branch checkpoints for exe.dev)

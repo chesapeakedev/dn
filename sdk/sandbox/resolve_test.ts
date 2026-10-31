@@ -67,13 +67,16 @@ Deno.test("resolveSandboxConfig merges repo config with CLI override", async () 
   const { resolveSandboxConfig } = await import("./resolve.ts");
   const repoRoot = await Deno.makeTempDir({ prefix: "dn-sandbox-resolve-" });
   try {
-    await Deno.mkdir(join(repoRoot, ".github/dn"), { recursive: true });
     await Deno.writeTextFile(
-      join(repoRoot, ".github/dn/config.json"),
+      join(repoRoot, "dn.json"),
       JSON.stringify({
-        schema_version: "1.1",
-        agent: "opencode",
-        sandbox: { provider: "docker" },
+        schema_version: "2.0",
+        harness: {
+          defaults: {
+            agent: "opencode",
+            sandbox: { provider: "docker" },
+          },
+        },
       }),
     );
     const resolved = await resolveSandboxConfig(repoRoot, "none");

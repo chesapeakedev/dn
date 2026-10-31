@@ -77,8 +77,10 @@ export async function resolveLocalAgentOverride(
 /**
  * Resolves the local CLI agent with tiered config fallback.
  *
- * Precedence: CLI `--agent` → `DN_AGENT` → `*_ENABLED` env → project `dn.json` /
- * user config (via {@link resolveDnConfig}) → built-in `opencode`.
+ * Precedence (high → low): CLI `--agent` → `DN_AGENT` / `*_ENABLED` env →
+ * user `defaults` + `repos[slug]` → repository `harness.defaults.agent` (legacy
+ * top-level `agent` alias) → built-in `opencode`. Runner jobs: local env/files
+ * beat stamped `operation.agent`.
  *
  * File config supplies a harness name only. Model and thinking come from CLI
  * or `DN_AGENT`.

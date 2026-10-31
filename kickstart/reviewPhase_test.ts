@@ -7,6 +7,7 @@ import {
   countDiffLines,
   decideReviewSkip,
   DEFAULT_REVIEW_AUTO_SKIP_MAX_LINES,
+  defaultReviewPromptPath,
   resolveReviewPrompt,
 } from "./reviewPhase.ts";
 
@@ -74,15 +75,39 @@ Deno.test("decideReviewSkip respects flag, env, and small diff", () => {
   assertEquals(run.reason, null);
 });
 
+Deno.test("defaultReviewPromptPath defaults to REVIEW.md and prefers existing file", async () => {
+  const dir = await Deno.makeTempDir({ prefix: "dn-review-default-" });
+  try {
+    assertEquals(await defaultReviewPromptPath(dir), "REVIEW.md");
+    await Deno.writeTextFile(join(dir, "REVIEW.md"), "# R\n");
+    assertEquals(await defaultReviewPromptPath(dir), "REVIEW.md");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("resolveReviewPrompt uses default file when prompt omitted", async () => {
+  const dir = await Deno.makeTempDir({ prefix: "dn-review-omit-" });
+  try {
+    await Deno.writeTextFile(join(dir, "REVIEW.md"), "# Default review\n");
+    const resolved = await resolveReviewPrompt(dir, undefined);
+    assertEquals(resolved.source, "file");
+    assertEquals(resolved.content.includes("Default review"), true);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
 Deno.test("resolveReviewPrompt reads file when path exists", async () => {
   const dir = await Deno.makeTempDir({ prefix: "dn-review-" });
-  const path = join(dir, ".dn", "review.md");
-  await Deno.mkdir(join(dir, ".dn"), { recursive: true });
+  const path = join(dir, "notes", "review.md");
+  await Deno.mkdir(join(dir, "notes"), { recursive: true });
   await Deno.writeTextFile(path, "# Review\n\nCheck edge cases.\n");
-  const resolved = await resolveReviewPrompt(dir, ".dn/review.md");
+  const resolved = await resolveReviewPrompt(dir, "notes/review.md");
   assertEquals(resolved.source, "file");
   assertEquals(resolved.content.includes("edge cases"), true);
   assertEquals(resolved.warnShortPrompt, false);
+  await Deno.remove(dir, { recursive: true });
 });
 
 Deno.test("resolveReviewPrompt treats missing path as inline", async () => {

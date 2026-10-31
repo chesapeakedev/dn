@@ -45,10 +45,27 @@ repository (`dn.json`) so personal defaults and team policy stay aligned.
 1. Built-in defaults (`opencode`, sandbox `none`)
 2. User `~/.dn/config.json` — personal `defaults.agent` / `defaults.sandbox` and
    optional `repos[owner/name]` overrides (never read by GitHub Actions)
-3. Repository `dn.json` (preferred) or legacy `.github/dn/config.json`
+3. Repository `dn.json` — team suggestions under `harness.defaults` (legacy
+   top-level `agent`, `sandbox`, and `kickstart` still parse but prefer nesting)
 4. Environment: `DN_AGENT`, `DN_SANDBOX_PROVIDER` (and legacy `*_ENABLED` agent
    toggles)
 5. Explicit CLI flags (`--agent`, `--sandbox`, …)
+
+### Precedence matrix (effective value)
+
+| Setting                                               | Wins (high → low)                                                                                                                                                                       | Repo file?                                                                                          |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Agent harness (+ model/thinking via CLI / `DN_AGENT`) | `--agent` → `DN_AGENT` / `*_ENABLED` → user `defaults` + `repos[slug]` → `harness.defaults.agent` (alias top-level `agent`) → runner `job.operation.agent` when local null → `opencode` | Yes                                                                                                 |
+| Sandbox                                               | CLI `--sandbox` → `DN_SANDBOX_PROVIDER` → user sandbox → `harness.defaults.sandbox`                                                                                                     | Yes                                                                                                 |
+| Review pass                                           | `--skip-review` / `DN_SKIP_REVIEW=1` → `auto_skip_max_lines` → else run                                                                                                                 | Config from repo only (`harness.defaults.kickstart.review` or aliased top-level `kickstart.review`) |
+| `harness_hints`                                       | Future: request ∪ repo (additive); key collision repo wins                                                                                                                              | Not overridden by `--agent`                                                                         |
+| `sync` / `ensure` / `strict` / `rfc`                  | Repo policy; flags/env where defined                                                                                                                                                    | N/A                                                                                                 |
+| Publish after land                                    | `dn sync` (trunk) vs `dn sync --pr` (topic PR) — CLI flags, not `harness.defaults`                                                                                                      | Document in `harness_hints.trunk` only                                                              |
+
+**Migration:** `.github/dn/config.json` is no longer read as repository config.
+Move agent and sandbox into `harness.defaults` in root `dn.json`. Workflows read
+`dn.json` via `readDnWorkflowAgentConfig` and the refreshed
+`.github/dn/install-agent.sh` helper.
 
 Objects merge by field; arrays replace the lower layer. Project `dn.json` may
 also declare optional `rfc`, `strict`, `sync`, `ensure`, and `harness_hints`
@@ -62,25 +79,26 @@ repository-owned like `sync`, and unused by GitHub Actions templates.
 `harness_hints` is a string-to-string map of operator notes for IDE/CLI
 harnesses; also unused by GitHub Actions templates. Do not store secrets there.
 
-| Location                 | Belongs here                                                                  | Does not belong         |
-| ------------------------ | ----------------------------------------------------------------------------- | ----------------------- |
-| `dn.json` (repo root)    | Team agent/sandbox policy, `rfc`, `strict`, `sync`, `ensure`, `harness_hints` | Secrets, personal prefs |
-| `~/.dn/config.json`      | `defaults` and per-repo agent/sandbox                                         | Secrets, CI policy      |
-| `.github/dn/config.json` | Actions bridge projection (`agent` + optional `sandbox`)                      | User home config        |
-| Env / GH secrets         | API keys, tokens, one-off overrides                                           | Committed JSON          |
+| Location              | Belongs here                                                                                              | Does not belong         |
+| --------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------- |
+| `dn.json` (repo root) | `harness.defaults` (agent, sandbox, kickstart review), `rfc`, `strict`, `sync`, `ensure`, `harness_hints` | Secrets, personal prefs |
+| `~/.dn/config.json`   | `defaults` and per-repo agent/sandbox                                                                     | Secrets, CI policy      |
+| Env / GH secrets      | API keys, tokens, one-off overrides                                                                       | Committed JSON          |
 
 GitHub Actions resolves only repository configuration (`includeUser: false`). It
-never reads a developer's home directory. `dn init workflows` projects `dn.json`
-into `.github/dn/config.json` when present so existing action readers keep
-working. API keys and GitHub tokens remain in repository secrets and environment
-variables and are never written to `dn.json`.
+never reads a developer's home directory. Commit root `dn.json` and run
+`dn workflows install` to refresh `.github/dn/install-agent.sh`. The legacy
+`.github/dn/config.json` bridge is deprecated and no longer written by
+`dn init workflows`. API keys and GitHub tokens remain in repository secrets and
+environment variables and are never written to `dn.json`.
 
 The templates define stable `repository_dispatch` event contracts for
 `dn.init_stack`, `dn.meld_issue_plan`, and `dn.kickstart_issue`, plus the
 scheduled/manual `dn.daily_kickstart` workflow. Each job uses one action step
-that reads `.github/dn/config.json`, validates the event, installs the
-configured agent harness, runs `dn --agent <configured>`, and writes a workflow
-summary. You do not pass `agent` on each dispatch.
+that reads repository `dn.json` (via `readDnWorkflowAgentConfig`), validates the
+event, installs the configured agent harness through
+`.github/dn/install-agent.sh`, runs `dn --agent <configured>`, and writes a
+workflow summary. You do not pass `agent` on each dispatch.
 
 For daily kickstart automation, initialize a milestone stack PR, merge it, then
 set the repository variable used by scheduled runs:
@@ -89,7 +107,7 @@ set the repository variable used by scheduled runs:
 dn init build --agent claude
 dn init stack 42 --publish pr
 gh variable set DN_DAILY_KICKSTART_MILESTONE --body 42
-# Commit .github/dn/ and .github/workflows/, then merge the stack PR
+# Commit dn.json, .github/dn/install-agent.sh, and .github/workflows/, then merge the stack PR
 ```
 
 `.github/workflows/dn-daily-kickstart.yml` runs once per day and also supports

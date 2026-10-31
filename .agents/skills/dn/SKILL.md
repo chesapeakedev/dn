@@ -108,7 +108,7 @@ dn kickstart --publish direct https://github.com/owner/repo/issues/123
 ### meld → loop → land
 
 Manual phases: **plan** (`dn meld`) → **implement** (`dn loop`) → **review +
-close-out** (`dn land`, optional review when `kickstart.review` is in
+close-out** (`dn land`, optional review when `harness.defaults.kickstart.review` is in
 `dn.json`). `dn kickstart` runs the same phases with auto-skip heuristics.
 
 ```bash
@@ -155,7 +155,7 @@ dn sync --pr --issue <number>              # Topic branch + GitHub PR (after lan
 1. Explicit `--agent <harness>:<model>` (global or on the subcommand)
 2. `DN_AGENT` using the same value form
 3. Environment toggle: `CURSOR_ENABLED=1`, `CLAUDE_ENABLED=1`, `CODEX_ENABLED=1`, or `COPILOT_ENABLED=1`
-4. Project `dn.json` / `.github/dn/config.json` harness name
+4. Project `dn.json` `harness.defaults.agent` (legacy top-level `agent`)
 5. Default: OpenCode
 
 ## Token resolution order

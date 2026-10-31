@@ -37,7 +37,7 @@ Deno.test("resolveDnConfig applies repository, environment, and CLI precedence",
   }
 });
 
-Deno.test("resolveDnConfig prefers dn.json over legacy Actions config", async () => {
+Deno.test("resolveDnConfig does not read legacy .github/dn/config.json", async () => {
   const root = await Deno.makeTempDir({ prefix: "dn-config-legacy-" });
   try {
     await Deno.mkdir(join(root, ".github/dn"), { recursive: true });
@@ -45,29 +45,39 @@ Deno.test("resolveDnConfig prefers dn.json over legacy Actions config", async ()
       join(root, ".github/dn/config.json"),
       JSON.stringify({ schema_version: "1.0", agent: "claude" }),
     );
-    await Deno.writeTextFile(
-      join(root, "dn.json"),
-      JSON.stringify({ schema_version: "2.0", agent: "cursor" }),
-    );
     const config = await resolveDnConfig({
       repoRoot: root,
       includeUser: false,
       env: {},
     });
-    assertEquals(config.agent, "cursor");
-    assertEquals(config.sources.agent, "repository");
+    assertEquals(config.agent, undefined);
   } finally {
     await Deno.remove(root, { recursive: true });
   }
 });
 
-Deno.test("resolveDnConfig falls back to legacy Actions config", async () => {
-  const root = await Deno.makeTempDir({ prefix: "dn-config-fallback-" });
+Deno.test("parseDnConfig normalizes harness.defaults over legacy top-level fields", () => {
+  const parsed = parseDnConfig(
+    JSON.stringify({
+      schema_version: "2.0",
+      agent: "cursor",
+      harness: { defaults: { agent: "claude" } },
+    }),
+    "test",
+  );
+  assertEquals(parsed.agent, "claude");
+  assertEquals(parsed.harness?.defaults?.agent, "claude");
+});
+
+Deno.test("resolveDnConfig reads harness.defaults.agent from dn.json", async () => {
+  const root = await Deno.makeTempDir({ prefix: "dn-config-harness-" });
   try {
-    await Deno.mkdir(join(root, ".github/dn"), { recursive: true });
     await Deno.writeTextFile(
-      join(root, ".github/dn/config.json"),
-      JSON.stringify({ schema_version: "1.0", agent: "codex" }),
+      join(root, "dn.json"),
+      JSON.stringify({
+        schema_version: "2.0",
+        harness: { defaults: { agent: "codex" } },
+      }),
     );
     const config = await resolveDnConfig({
       repoRoot: root,
@@ -76,6 +86,7 @@ Deno.test("resolveDnConfig falls back to legacy Actions config", async () => {
     });
     assertEquals(config.agent, "codex");
     assertEquals(config.sources.agent, "repository");
+    assertEquals(config.sources.harness, "repository");
   } finally {
     await Deno.remove(root, { recursive: true });
   }
@@ -251,26 +262,27 @@ Deno.test("resolveDnConfig merges repository sync over user sync", async () => {
   }
 });
 
-Deno.test("writeActionsConfigProjection emits bridge from dn.json", async () => {
+Deno.test("writeActionsConfigProjection is deprecated (no bridge write)", async () => {
   const root = await Deno.makeTempDir({ prefix: "dn-projection-" });
   try {
     await Deno.writeTextFile(
       join(root, "dn.json"),
       JSON.stringify({
         schema_version: "2.0",
-        agent: "claude",
-        sandbox: { provider: "docker" },
+        harness: { defaults: { agent: "claude" } },
       }),
     );
     const result = await writeActionsConfigProjection(root);
-    assertEquals(result.written, true);
-    assertEquals(result.skipped, false);
-    const written = JSON.parse(
-      await Deno.readTextFile(join(root, ".github/dn/config.json")),
-    );
-    assertEquals(written.schema_version, "1.1");
-    assertEquals(written.agent, "claude");
-    assertEquals(written.sandbox.provider, "docker");
+    assertEquals(result.skipped, true);
+    assertEquals(result.written, false);
+    let bridgeMissing = false;
+    try {
+      await Deno.stat(join(root, ".github/dn/config.json"));
+    } catch (error) {
+      if (error instanceof Deno.errors.NotFound) bridgeMissing = true;
+      else throw error;
+    }
+    assertEquals(bridgeMissing, true);
   } finally {
     await Deno.remove(root, { recursive: true });
   }
@@ -295,24 +307,22 @@ Deno.test("toActionsProjectionDocument requires an agent", () => {
   );
 });
 
-Deno.test("parseDnConfig accepts kickstart.review", () => {
+Deno.test("parseDnConfig accepts kickstart.review without prompt", () => {
   const parsed = parseDnConfig(
     JSON.stringify({
       schema_version: "2.0",
-      kickstart: {
-        review: {
-          prompt: ".dn/review.md",
-          auto_skip_max_lines: 50,
+      harness: {
+        defaults: {
+          kickstart: {
+            review: { auto_skip_max_lines: 50 },
+          },
         },
       },
     }),
     "test",
   );
   assertEquals(parsed.kickstart, {
-    review: {
-      prompt: ".dn/review.md",
-      auto_skip_max_lines: 50,
-    },
+    review: { auto_skip_max_lines: 50 },
   });
 });
 

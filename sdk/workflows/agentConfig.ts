@@ -13,10 +13,10 @@ import { $ } from "$dax";
 import { computeSha256 } from "./mod.ts";
 import { resolveDnConfig } from "../config/resolve.ts";
 
-/** Relative path to the repo agent config consumed by workflows. */
+/** Relative path to the legacy Actions bridge (deprecated; use root `dn.json`). */
 export const DN_CONFIG_REL_PATH = ".github/dn/config.json";
 
-/** Relative path to the retired generated agent install script. */
+/** Relative path to the generated agent install script. */
 export const DN_INSTALL_SCRIPT_REL_PATH = ".github/dn/install-agent.sh";
 
 const INSTALL_SCRIPT_TEMPLATE_URL = new URL(
@@ -153,10 +153,11 @@ async function readSupportTemplate(url: URL): Promise<string> {
 }
 
 /**
- * Installs `.github/dn/config.json`.
+ * Installs workflow support files for agent harness installation in CI.
  *
- * - When `agent` is set, writes or updates the config with that agent.
- * - When `agent` is omitted and config is missing, writes default `opencode`.
+ * Updates repository `dn.json` when `--agent` is passed. Refreshes
+ * `.github/dn/install-agent.sh` from the shipped template when an agent is
+ * configured in `dn.json`.
  */
 export async function installWorkflowSupport(
   repoRoot: string,
@@ -166,65 +167,48 @@ export async function installWorkflowSupport(
   } = {},
 ): Promise<WorkflowSupportWriteResult[]> {
   const results: WorkflowSupportWriteResult[] = [];
-  const configPath = join(repoRoot, DN_CONFIG_REL_PATH);
   const dryRun = options.dryRun === true;
 
-  // Prefer projecting root dn.json into the Actions bridge when no explicit
-  // --agent override was passed.
-  if (options.agent === undefined) {
-    const { writeActionsConfigProjection } = await import(
+  if (options.agent !== undefined) {
+    const { upsertRepositoryHarnessAgent } = await import(
       "../config/actions.ts"
     );
-    const projection = await writeActionsConfigProjection(repoRoot, { dryRun });
-    if (!projection.skipped) {
-      results.push({
-        path: projection.path,
-        written: projection.written,
-        dry_run: dryRun,
-      });
-      return results;
-    }
-  }
-
-  let shouldWriteConfig = options.agent !== undefined;
-  if (!shouldWriteConfig) {
-    try {
-      await Deno.stat(configPath);
-    } catch (error) {
-      if (error instanceof Deno.errors.NotFound) {
-        shouldWriteConfig = true;
-      } else {
-        throw error;
-      }
-    }
-  }
-
-  if (shouldWriteConfig) {
-    const agent = options.agent ?? "opencode";
-    let config: DnWorkflowAgentConfig = {
-      schema_version: "1.0",
-      agent,
-    };
-    try {
-      const existing = await Deno.readTextFile(configPath);
-      const parsed = parseDnWorkflowAgentConfig(existing);
-      config = { ...parsed, agent };
-    } catch (error) {
-      if (!(error instanceof Deno.errors.NotFound)) throw error;
-    }
-    const content = JSON.stringify(config, null, 2) + "\n";
-    if (!dryRun) {
-      await Deno.mkdir(dirname(configPath), { recursive: true });
-      await Deno.writeTextFile(configPath, content);
-    }
+    const upsert = await upsertRepositoryHarnessAgent(
+      repoRoot,
+      options.agent,
+      { dryRun },
+    );
     results.push({
-      path: configPath,
-      written: !dryRun,
+      path: upsert.path,
+      written: upsert.written,
       dry_run: dryRun,
     });
   }
 
+  const config = await readDnWorkflowAgentConfig(repoRoot);
+  if (config !== null || options.agent !== undefined) {
+    results.push(await refreshInstallAgentScript(repoRoot, { dryRun }));
+  }
+
   return results;
+}
+
+async function refreshInstallAgentScript(
+  repoRoot: string,
+  options: { dryRun?: boolean },
+): Promise<WorkflowSupportWriteResult> {
+  const scriptPath = join(repoRoot, DN_INSTALL_SCRIPT_REL_PATH);
+  const content = await readSupportTemplate(INSTALL_SCRIPT_TEMPLATE_URL);
+  const dryRun = options.dryRun === true;
+  if (!dryRun) {
+    await Deno.mkdir(dirname(scriptPath), { recursive: true });
+    await Deno.writeTextFile(scriptPath, content);
+  }
+  return {
+    path: scriptPath,
+    written: !dryRun,
+    dry_run: dryRun,
+  };
 }
 
 /**
@@ -395,17 +379,23 @@ export async function validateWorkflowAgentSetup(
     warnings.push({
       code: "dn_config_missing",
       message:
-        `${DN_CONFIG_REL_PATH} is not installed. Run: dn init workflows --agent <opencode|cursor|claude|codex|copilot>`,
+        `Repository dn.json is missing harness.defaults.agent (or legacy top-level agent). Run: dn init workflows --agent <opencode|cursor|claude|codex|copilot>`,
     });
     return warnings;
   }
 
   const scriptStatus = await getInstallScriptStatus(repoRoot);
-  if (scriptStatus !== "missing") {
+  if (scriptStatus === "outdated") {
     warnings.push({
-      code: "dn_install_script_deprecated",
+      code: "dn_install_script_outdated",
       message:
-        `${DN_INSTALL_SCRIPT_REL_PATH} is no longer used. Remove it after preserving any customizations`,
+        `${DN_INSTALL_SCRIPT_REL_PATH} is outdated. Run: dn workflows update`,
+    });
+  } else if (scriptStatus === "missing") {
+    warnings.push({
+      code: "dn_install_script_missing",
+      message:
+        `${DN_INSTALL_SCRIPT_REL_PATH} is missing. Run: dn workflows install`,
     });
   }
 

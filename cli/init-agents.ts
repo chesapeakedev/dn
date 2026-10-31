@@ -156,7 +156,7 @@ dn kickstart --publish direct https://github.com/owner/repo/issues/123
 ### meld → loop → land
 
 Manual phases: **plan** (\`dn meld\`) → **implement** (\`dn loop\`) → **review +
-close-out** (\`dn land\`, optional review when \`kickstart.review\` is in
+close-out** (\`dn land\`, optional review when \`harness.defaults.kickstart.review\` is in
 \`dn.json\`). \`dn kickstart\` runs the same phases with auto-skip heuristics.
 
 \`\`\`bash
@@ -203,7 +203,7 @@ dn sync --pr --issue <number>              # Topic branch + GitHub PR (after lan
 1. Explicit \`--agent <harness>:<model>\` (global or on the subcommand)
 2. \`DN_AGENT\` using the same value form
 3. Environment toggle: \`CURSOR_ENABLED=1\`, \`CLAUDE_ENABLED=1\`, \`CODEX_ENABLED=1\`, or \`COPILOT_ENABLED=1\`
-4. Project \`dn.json\` / \`.github/dn/config.json\` harness name
+4. Project \`dn.json\` \`harness.defaults.agent\` (legacy top-level \`agent\`)
 5. Default: OpenCode
 
 ## Token resolution order
@@ -281,7 +281,7 @@ function withOuterHarnessSection(
 
 const BASE_IMAGE_SKILL_CONTENT = `---
 name: base-image
-description: Use when configuring dn Docker sandbox golden images, choosing or customizing a project base image / Dockerfile, or setting sandbox.docker.image and sandbox.docker.dockerfile in .github/dn/config.json.
+description: Use when configuring dn Docker sandbox golden images, choosing or customizing a project base image / Dockerfile, or setting sandbox.docker.image and sandbox.docker.dockerfile in dn.json harness.defaults.sandbox.
 ---
 
 ${MARKDOWN_MANAGED_MARKER}
@@ -294,7 +294,7 @@ from config; fork a Dockerfile when the project needs extra toolchains.
 
 ## Config
 
-In \`.github/dn/config.json\` (schema \`1.1\`), under \`sandbox.docker\`:
+In \`dn.json\` \`harness.defaults.sandbox\`, under \`sandbox.docker\`:
 
 | Field        | Purpose                                                              |
 | ------------ | -------------------------------------------------------------------- |
@@ -803,7 +803,7 @@ Use \`dn kickstart\` when the user wants the whole issue implemented. A pasted
 GitHub issue URL: pass the full URL; add \`--allow-cross-repo\` when
 \`owner/repo\` is not this workspace; put extra chat guidance in \`--steer\`.
 Use \`dn meld\` → \`dn loop\` → \`dn land\` when each phase should be attended
-separately. Configure \`kickstart.review\` in \`dn.json\` for a project review
+separately. Configure \`harness.defaults.kickstart.review\` in \`dn.json\` for a project review
 prompt; kickstart and land inject it on a second implement pass when the diff is
 large enough. Use \`dn fixup\` when the task is to address existing PR comments
 rather than re-implement from scratch.
