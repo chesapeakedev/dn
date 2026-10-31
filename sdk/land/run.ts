@@ -14,6 +14,10 @@ import {
   parseCommitPlan,
 } from "./parse.ts";
 import type { LandCommitPlan } from "./types.ts";
+import {
+  executeReviewPhaseIfNeeded,
+  logReviewSkipDecision,
+} from "../../kickstart/reviewPhase.ts";
 
 async function readLandSystemPrompt(workspaceRoot: string): Promise<string> {
   const filename = "system.prompt.land.md";
@@ -79,6 +83,8 @@ export interface RunLandPhaseOptions {
   /** Optional `--agent` thinking/effort override. */
   agentThinking?: string;
   dryRun: boolean;
+  /** Skip review even when `kickstart.review` is configured. */
+  skipReview?: boolean;
 }
 
 /**
@@ -98,6 +104,7 @@ export async function runLandPhase(
     agentModel,
     agentThinking,
     dryRun,
+    skipReview,
   } = options;
 
   const ctx = await detectVcs();
@@ -112,17 +119,49 @@ export async function runLandPhase(
     ? await Deno.readTextFile(testPlanPath)
     : undefined;
 
-  const { stat, diff } = await showChanges(ctx.vcs);
-  const allChanged = await getChangedFiles(ctx.vcs);
+  let { stat, diff } = await showChanges(ctx.vcs);
+  let allChanged = await getChangedFiles(ctx.vcs);
   const planPaths = [planFilePath, testPlanPath].filter(
     (path): path is string => path !== undefined,
   );
-  const landableFiles = excludePlanPaths(allChanged, planPaths);
+  let landableFiles = excludePlanPaths(allChanged, planPaths);
 
   if (landableFiles.length === 0) {
     throw new Error(
       "No landable workspace changes found (plan files are excluded).",
     );
+  }
+
+  if (!dryRun) {
+    const reviewTmpDir = await Deno.makeTempDir({ prefix: "dn-land-review-" });
+    try {
+      const reviewOutcome = await executeReviewPhaseIfNeeded({
+        workspaceRoot,
+        planFilePath,
+        planOutputPath: planFilePath,
+        issueContextPath: undefined,
+        tmpDir: reviewTmpDir,
+        agentHarness,
+        agentModel,
+        agentThinking,
+        skipReview,
+        loadConfig: true,
+      });
+      if (!reviewOutcome.ran) {
+        logReviewSkipDecision(reviewOutcome.skipDecision, 1);
+      }
+    } finally {
+      await Deno.remove(reviewTmpDir, { recursive: true }).catch(() => {});
+    }
+
+    ({ stat, diff } = await showChanges(ctx.vcs));
+    allChanged = await getChangedFiles(ctx.vcs);
+    landableFiles = excludePlanPaths(allChanged, planPaths);
+    if (landableFiles.length === 0) {
+      throw new Error(
+        "No landable workspace changes found after review (plan files are excluded).",
+      );
+    }
   }
 
   const messageSeed = deriveCommitMessage(planContent, planFilePath);

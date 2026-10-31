@@ -302,10 +302,10 @@ function showUsage(): void {
     "  workflows    Run, install, and manage GitHub Actions workflows",
   );
   console.error(
-    "  kickstart    Run full kickstart workflow (plan + implement)",
+    "  kickstart    Run full kickstart (plan + implement + optional review)",
   );
   console.error(
-    "  loop         Run loop phase only (requires plan file from meld)",
+    "  loop         Run implement phase only (requires plan from meld)",
   );
   console.error(
     "  until        Run bounded generator/verifier gambits until done",
@@ -323,10 +323,10 @@ function showUsage(): void {
     "  peek         Suggest next open issues to prioritize (heuristic)",
   );
   console.error(
-    "  meld         Plan from one or more sources and route the output",
+    "  meld         Plan phase from one or more sources",
   );
   console.error(
-    "  land         Close out work into VCS commits; --issue-testplan updates GH issue",
+    "  land         Optional review + close-out into VCS commits",
   );
   console.error(
     "  task         Manage task list (~/.dn/todo.md): native tasks, queue, done",

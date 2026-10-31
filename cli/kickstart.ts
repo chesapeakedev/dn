@@ -154,6 +154,7 @@ export async function parseKickstartArgs(
   let verbosity: "low" | "medium" | "high" = "medium";
   let skipPlan = false;
   let planOnly = false;
+  let skipReview = false;
 
   const { contextFiles, rest: argsAfterContext } = resolveContextFileArgs(
     args,
@@ -204,6 +205,8 @@ export async function parseKickstartArgs(
       skipPlan = true;
     } else if (arg === "--plan-only") {
       planOnly = true;
+    } else if (arg === "--skip-review") {
+      skipReview = true;
     } else if (arg === "--help" || arg === "-h") {
       showHelp();
       Deno.exit(0);
@@ -328,6 +331,7 @@ export async function parseKickstartArgs(
     verbosity,
     skipPlan,
     planOnly,
+    skipReview,
   };
 }
 
@@ -367,6 +371,9 @@ function showHelp(): void {
   );
   console.log(
     "  --skip-plan              Skip plan generation and run the implementation phase",
+  );
+  console.log(
+    "  --skip-review            Skip the post-implement review pass",
   );
   console.log(
     "  --plan-only              Stop after the plan phase for remote review",

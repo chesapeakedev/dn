@@ -742,7 +742,7 @@ export interface RunnerProgressEvent {
     | "invocation.succeeded"
     | "invocation.failed";
   /** Kickstart phase, when the event belongs to one. */
-  phase?: "plan" | "implement" | "lint" | "publish";
+  phase?: "plan" | "implement" | "review" | "lint" | "publish";
   /** One-based kickstart step, when applicable. */
   step?: number;
   /** Redacted human-readable progress summary. */

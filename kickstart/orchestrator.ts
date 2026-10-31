@@ -67,6 +67,10 @@ import {
   printImplementResult,
 } from "./implementResult.ts";
 import { resolveImplementBlockingError } from "./detectBlockingError.ts";
+import {
+  executeReviewPhaseIfNeeded,
+  logReviewSkipDecision,
+} from "./reviewPhase.ts";
 
 function agentPhaseExitFailureMessage(
   phase: "plan" | "implement",
@@ -177,6 +181,8 @@ export interface OrchestratorConfig {
   skipPlan: boolean;
   /** Stop after the plan phase so a reviewer can approve implementation. */
   planOnly: boolean;
+  /** Skip the post-implement review pass even when configured. */
+  skipReview?: boolean;
   /** Workspace root for workflow filesystem operations. */
   workspaceRoot?: string;
 }
@@ -1163,6 +1169,27 @@ export async function runOrchestrator(
       );
     }
     await report("step.completed", "Implement step completed", { step: 4 });
+
+    // Step 4.3: Optional review implement pass
+    await report("step.started", "Starting review step", { step: 4.3 });
+    const reviewOutcome = await executeReviewPhaseIfNeeded({
+      workspaceRoot: WORKSPACE_ROOT,
+      planFilePath,
+      planOutputPath,
+      issueContextPath: issueContextPathFinal,
+      tmpDir,
+      agentHarness: config.agentHarness,
+      agentModel: config.agentModel,
+      agentThinking: config.agentThinking,
+      steeringPrompt: config.steeringPrompt,
+      contextFiles: config.contextFiles,
+      skipReview: config.skipReview,
+      reporter,
+    });
+    if (!reviewOutcome.ran) {
+      logReviewSkipDecision(reviewOutcome.skipDecision);
+    }
+    await report("step.completed", "Review step completed", { step: 4.3 });
 
     // Note: The agent is responsible for updating the Acceptance Criteria checklist
     // in the plan file. We do not automatically update it here.

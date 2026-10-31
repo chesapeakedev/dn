@@ -226,11 +226,18 @@ $ dn kickstart --publish pr https://github.com/owner/repo/issues/123
 # Kickstart and push to the default branch
 $ dn kickstart --publish direct https://github.com/owner/repo/issues/123
 
-# Reviewable plan, then implement
+# Reviewable plan, then implement, then optional review on land
 $ dn meld 123
 $ dn loop plans/issue-123.plan.md
-# then ask: commit now?
+$ dn land plans/issue-123.plan.md
+```
 
+Optional `kickstart.review` in `dn.json` adds a second implement pass (review
+prompt from a repo markdown file or inline string). Kickstart auto-skips plan
+and review when heuristics match; use `--skip-review` or `DN_SKIP_REVIEW=1` to
+force skip. See `docs/subcommands.md`.
+
+```
 # CLI/CI close-out (not the IDE default)
 $ dn land plans/issue-123.plan.md
 ```

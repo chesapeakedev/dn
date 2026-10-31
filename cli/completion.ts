@@ -446,6 +446,7 @@ export const DN_COMPLETION_ROOT: CompletionNode = {
         "--denoise-task",
         "--verbosity",
         "--skip-plan",
+        "--skip-review",
         "--plan-only",
         ...agentWorkflowFlags(),
         ...HELP_FLAGS,

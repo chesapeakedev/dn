@@ -344,6 +344,8 @@ export interface KickstartConfig {
   skipPlan: boolean;
   /** Stop after the plan phase so a reviewer can approve implementation. */
   planOnly: boolean;
+  /** Skip the post-implement review pass even when configured. */
+  skipReview?: boolean;
   /** Optional flags when invoked from {@link dn meld} only */
   meldPhase?: MeldPhaseCliOptions;
 }
@@ -1926,6 +1928,7 @@ export async function runFullKickstart(
     verbosity: config.verbosity,
     skipPlan: config.skipPlan,
     planOnly: config.planOnly,
+    skipReview: config.skipReview,
     workspaceRoot,
   };
 

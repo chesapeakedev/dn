@@ -13,6 +13,7 @@ import type {
   DnConfigSource,
   DnEnsureConfig,
   DnHarnessHints,
+  DnKickstartConfig,
   DnRfcConfig,
   DnStrictConfig,
   DnSyncConfig,
@@ -80,6 +81,7 @@ function mergeRfcStrictSyncEnsure(
     sync?: DnSyncConfig;
     ensure?: DnEnsureConfig;
     harness_hints?: DnHarnessHints;
+    kickstart?: DnKickstartConfig;
   },
   source: DnConfigSource,
 ): void {
@@ -105,6 +107,21 @@ function mergeRfcStrictSyncEnsure(
       ...layer.harness_hints,
     };
     result.sources.harness_hints = source;
+  }
+  if (layer.kickstart !== undefined) {
+    result.kickstart = {
+      ...(result.kickstart ?? {}),
+      ...layer.kickstart,
+      ...(layer.kickstart.review !== undefined
+        ? {
+          review: {
+            ...(result.kickstart?.review ?? {}),
+            ...layer.kickstart.review,
+          },
+        }
+        : {}),
+    };
+    result.sources.kickstart = source;
   }
 }
 

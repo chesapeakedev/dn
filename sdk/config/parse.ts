@@ -11,6 +11,8 @@ import type {
   DnEnsureConfig,
   DnEnsureRecipe,
   DnHarnessHints,
+  DnKickstartConfig,
+  DnKickstartReviewConfig,
   DnRfcConfig,
   DnStrictConfig,
   DnSyncConfig,
@@ -249,6 +251,58 @@ function parseHarnessHints(value: unknown, source: string): DnHarnessHints {
   return hints;
 }
 
+function parseKickstartReviewConfig(
+  value: unknown,
+  source: string,
+): DnKickstartReviewConfig {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(
+      `Invalid dn config at ${source}: kickstart.review must be an object`,
+    );
+  }
+  const record = value as Record<string, unknown>;
+  if (typeof record.prompt !== "string" || record.prompt.trim().length === 0) {
+    throw new Error(
+      `Invalid dn config at ${source}: kickstart.review.prompt must be a non-empty string`,
+    );
+  }
+  if (record.auto_skip_max_lines !== undefined) {
+    if (
+      typeof record.auto_skip_max_lines !== "number" ||
+      !Number.isInteger(record.auto_skip_max_lines) ||
+      record.auto_skip_max_lines < 0
+    ) {
+      throw new Error(
+        `Invalid dn config at ${source}: kickstart.review.auto_skip_max_lines must be a non-negative integer`,
+      );
+    }
+  }
+  return {
+    prompt: record.prompt,
+    ...(typeof record.auto_skip_max_lines === "number"
+      ? { auto_skip_max_lines: record.auto_skip_max_lines }
+      : {}),
+  };
+}
+
+function parseKickstartConfig(
+  value: unknown,
+  source: string,
+): DnKickstartConfig {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(
+      `Invalid dn config at ${source}: kickstart must be an object`,
+    );
+  }
+  const record = value as Record<string, unknown>;
+  if (record.review !== undefined) {
+    return {
+      review: parseKickstartReviewConfig(record.review, source),
+    };
+  }
+  return {};
+}
+
 function parseSyncConfig(value: unknown, source: string): DnSyncConfig {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new Error(`Invalid dn config at ${source}: sync must be an object`);
@@ -334,6 +388,9 @@ export function parseDnConfig(content: string, source: string): DnConfigLayer {
       : {}),
     ...(value.harness_hints !== undefined
       ? { harness_hints: parseHarnessHints(value.harness_hints, source) }
+      : {}),
+    ...(value.kickstart !== undefined
+      ? { kickstart: parseKickstartConfig(value.kickstart, source) }
       : {}),
   };
 }

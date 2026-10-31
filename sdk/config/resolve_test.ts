@@ -295,6 +295,53 @@ Deno.test("toActionsProjectionDocument requires an agent", () => {
   );
 });
 
+Deno.test("parseDnConfig accepts kickstart.review", () => {
+  const parsed = parseDnConfig(
+    JSON.stringify({
+      schema_version: "2.0",
+      kickstart: {
+        review: {
+          prompt: ".dn/review.md",
+          auto_skip_max_lines: 50,
+        },
+      },
+    }),
+    "test",
+  );
+  assertEquals(parsed.kickstart, {
+    review: {
+      prompt: ".dn/review.md",
+      auto_skip_max_lines: 50,
+    },
+  });
+});
+
+Deno.test("parseDnConfig rejects malformed kickstart.review", () => {
+  assertThrows(
+    () => parseDnConfig('{"kickstart":[]}', "test"),
+    Error,
+    "kickstart must be an object",
+  );
+  assertThrows(
+    () =>
+      parseDnConfig(
+        '{"kickstart":{"review":{"prompt":""}}}',
+        "test",
+      ),
+    Error,
+    "kickstart.review.prompt must be a non-empty string",
+  );
+  assertThrows(
+    () =>
+      parseDnConfig(
+        '{"kickstart":{"review":{"prompt":"x","auto_skip_max_lines":-1}}}',
+        "test",
+      ),
+    Error,
+    "auto_skip_max_lines must be a non-negative integer",
+  );
+});
+
 Deno.test("parseDnConfig accepts ensure recipes", () => {
   const parsed = parseDnConfig(
     JSON.stringify({

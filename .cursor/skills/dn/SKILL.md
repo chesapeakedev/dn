@@ -105,12 +105,17 @@ dn kickstart --publish pr https://github.com/owner/repo/issues/123
 dn kickstart --publish direct https://github.com/owner/repo/issues/123
 ```
 
-### meld → loop
+### meld → loop → land
+
+Manual phases: **plan** (`dn meld`) → **implement** (`dn loop`) → **review +
+close-out** (`dn land`, optional review when `kickstart.review` is in
+`dn.json`). `dn kickstart` runs the same phases with auto-skip heuristics.
 
 ```bash
 dn meld <issue-url-or-number>
 dn loop plans/task.plan.md
-# then ask: commit now?
+dn land plans/task.plan.md
+# or after kickstart with publish none: ask before commit, or dn land for CLI close-out
 ```
 
 After `dn fixup`, ask before committing (same as kickstart).
@@ -118,10 +123,11 @@ After `dn fixup`, ask before committing (same as kickstart).
 ## Common commands
 
 ```bash
-dn kickstart <issue-url-or-number>         # Full plan + implement workflow
+dn kickstart <issue-url-or-number>         # Full plan + implement (+ optional review)
 dn meld <issue-url-or-number>              # Plan phase
 dn loop plans/task.plan.md                 # Implement from an existing plan
-dn land [plans/task.plan.md]               # Close out into VCS commits
+dn land [plans/task.plan.md]               # Optional review + close-out into VCS
+dn land --skip-review plans/task.plan.md   # Close-out without review pass
 dn land --single plans/task.plan.md        # One deterministic commit, no agent
 dn fixup <pull-request-url>                # Address PR review feedback
 dn meld a.md b.md --plan-name merged       # Plan from combined sources

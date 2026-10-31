@@ -93,6 +93,32 @@ export type DnEnsureConfig = Record<string, DnEnsureRecipe>;
  */
 export type DnHarnessHints = Record<string, string>;
 
+/**
+ * Optional post-implement review settings (project `dn.json` only).
+ *
+ * When present, `dn kickstart` and `dn land` may run a second implement pass
+ * with {@link prompt} injected as review instructions.
+ */
+export interface DnKickstartReviewConfig {
+  /**
+   * Repo-relative path to a markdown file or a literal prompt string. When the
+   * value resolves to an existing file under the repo root, the file contents
+   * are used; otherwise the string is treated as inline markdown.
+   */
+  prompt: string;
+  /**
+   * Skip the review pass when the workspace diff has at most this many added or
+   * removed lines (excluding diff headers). Defaults to 100 when `review` is set.
+   */
+  auto_skip_max_lines?: number;
+}
+
+/** Kickstart workflow settings (project `dn.json` only). */
+export interface DnKickstartConfig {
+  /** Optional review implement pass configuration. */
+  review?: DnKickstartReviewConfig;
+}
+
 /** Configuration values supported by repository and user configuration files. */
 export interface DnConfigLayer {
   /** Version of the configuration document. */
@@ -120,6 +146,8 @@ export interface DnConfigLayer {
   ensure?: DnEnsureConfig;
   /** Operator notes for a harness session (project config). */
   harness_hints?: DnHarnessHints;
+  /** Kickstart phase settings (project config). */
+  kickstart?: DnKickstartConfig;
 }
 
 /** Runtime values which take precedence over file-based configuration. */
@@ -149,7 +177,8 @@ export interface ResolvedDnConfig extends DnConfigLayer {
       | "strict"
       | "sync"
       | "ensure"
-      | "harness_hints",
+      | "harness_hints"
+      | "kickstart",
       DnConfigSource
     >
   >;

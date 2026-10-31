@@ -39,6 +39,7 @@ interface LandArgs {
   agentModel?: string;
   agentThinking?: string;
   contextFiles: string[];
+  skipReview: boolean;
 }
 
 async function parseArgs(
@@ -51,6 +52,7 @@ async function parseArgs(
   let issueTestPlan = false;
   let single = false;
   let dryRun = false;
+  let skipReview = false;
   let workspaceRoot: string | undefined;
 
   const { contextFiles, rest: argsAfterContext } = resolveContextFileArgs(
@@ -66,6 +68,8 @@ async function parseArgs(
       single = true;
     } else if (arg === "--dry-run") {
       dryRun = true;
+    } else if (arg === "--skip-review") {
+      skipReview = true;
     } else if (arg === "--issue-testplan") {
       issueTestPlan = true;
     } else if (arg === "--test-plan") {
@@ -100,6 +104,7 @@ async function parseArgs(
       ? { agentThinking: agentSelection.thinking }
       : {}),
     contextFiles,
+    skipReview,
   };
 }
 
@@ -121,6 +126,9 @@ function showHelp(): void {
   );
   console.log(
     "  --dry-run    Preview without committing, deleting plans, or updating issues",
+  );
+  console.log(
+    "  --skip-review  Skip the review implement pass before close-out",
   );
   console.log(
     "               RFC land: preview status/state/commit without writing",
@@ -286,6 +294,7 @@ export async function handleLand(
       agentModel: config.agentModel,
       agentThinking: config.agentThinking,
       dryRun: config.dryRun,
+      skipReview: config.skipReview,
     });
     Deno.exit(0);
   } catch (e) {

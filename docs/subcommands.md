@@ -304,14 +304,14 @@ behavior, and troubleshooting.
 
 ## `dn kickstart` — Full workflow
 
-Runs complete kickstart workflow (plan + implement phases), then
-**`dn ensure
-lint`** so a fixer agent can clear fmt/lint. Kickstart does not run
-tests and does not push to trunk. After a leave-local run, **Land** commits and
-**Sync** is the trunk gate. These verbs match the denoise task dialog; see
-denoise-docs **Kickstart, land, sync, and done**. Repositories with
-`strict.enabled` and `strict.require_rfcs` in `dn.json` must have a promoted RFC
-corpus before kickstart runs; see [Strict mode](strict-mode.md).
+Runs complete kickstart workflow (plan + implement phases, optional review when
+configured), then **`dn ensure lint`** so a fixer agent can clear fmt/lint.
+Kickstart does not run tests and does not push to trunk. After a leave-local
+run, **Land** runs optional review again (when configured) and commits; **Sync**
+is the trunk gate. These verbs match the denoise task dialog; see denoise-docs
+**Kickstart, land, sync, and done**. Repositories with `strict.enabled` and
+`strict.require_rfcs` in `dn.json` must have a promoted RFC corpus before
+kickstart runs; see [Strict mode](strict-mode.md).
 
 ```bash
 # Default mode: Apply changes locally
@@ -357,6 +357,9 @@ dn kickstart --verbosity high 123
 
 # Skip plan generation and run implementation directly
 dn kickstart --skip-plan 123
+
+# Skip the post-implement review pass (when kickstart.review is configured)
+dn kickstart --skip-review 123
 ```
 
 `--steer <prompt>` appends supplemental operator guidance as a final, clearly
@@ -375,6 +378,34 @@ requested level of explanation detail. The default is `medium`.
 through the same implementation, completion, sandbox, publishing, and queue
 paths as the normal kickstart workflow. For a local non-publishing run, it is
 the kickstart equivalent of `dn loop <target>`.
+
+#### Review phase (`kickstart.review`)
+
+When project `dn.json` defines `kickstart.review`, kickstart may run a **second
+implement pass** after the first, with review instructions injected from
+`kickstart.review.prompt` (repo-relative markdown file or inline string). The
+same pass runs at the start of `dn land` before the commit agent (not with
+`dn land --single`). Tune the prompt file between runs to steer review behavior.
+
+Skip review with `--skip-review` or `DN_SKIP_REVIEW=1`. When the workspace diff
+has at most `auto_skip_max_lines` added/removed lines (default **100** when
+review is configured), kickstart and land skip the review pass automatically.
+Repos without `kickstart.review` never run review.
+
+Example configuration:
+
+```json
+{
+  "kickstart": {
+    "review": {
+      "prompt": ".dn/review.md",
+      "auto_skip_max_lines": 100
+    }
+  }
+}
+```
+
+See `.dn/review.example.md` in the dn repository for a starter prompt template.
 
 ### Cross-Repository Operations
 
@@ -1192,9 +1223,10 @@ Not included in this implementation:
 
 ## `dn meld` — Plan from one or more sources
 
-`dn meld` is the plan phase of the `meld → loop → land` lifecycle. Give it one
-GitHub issue, issue number, or local Markdown file for the common case. Add
-sources when a useful plan needs product notes, research, or several issues.
+`dn meld` is the **plan** phase of the `meld → loop → land` lifecycle (plan →
+implement → review and close-out). Give it one GitHub issue, issue number, or
+local Markdown file for the common case. Add sources when a useful plan needs
+product notes, research, or several issues.
 
 When `strict.require_rfcs` is enabled with `strict.enabled`, meld exits before
 agents run if the RFC corpus is missing or draft-only. See
@@ -1366,17 +1398,22 @@ optional interval constraints), use
 [`dn until`](#dn-until--iteration-bounded-generatorverifier-gambits) instead of
 re-running `dn loop` by hand.
 
-## `dn land` — Close out completed work into VCS commits
+## `dn land` — Review (optional) and close-out into VCS commits
 
 Use `dn land` after a plan-backed task is complete and the workspace contains
-the changes you want to commit. **`dn land` closes out local agentic work into
-durable VCS state** — it is not trunk publish (`dn sync`) and not PR creation.
-It is the close-out for attended CLI, CI, and denoise. Cursor (and other IDE)
-chats that already implemented with `dn kickstart` / `dn loop` should ask the
-user, then commit with the repo VCS instead of nesting another land agent. After
-land, `dn sync` is the trunk gate (lint + tests, then rebase/push). These verbs
-match the denoise task dialog; see denoise-docs **Kickstart, land, sync, and
-done**.
+the changes you want to commit. When `kickstart.review` is configured,
+**`dn
+land` first runs the same review implement pass** as kickstart (skippable
+with `--skip-review` or `DN_SKIP_REVIEW`; skipped for `dn land --single` and
+when the diff is at or below `auto_skip_max_lines`). **`dn land` then closes out
+local agentic work into durable VCS state** — it is not trunk publish
+(`dn sync`) and not PR creation. It is the close-out for attended CLI, CI, and
+denoise. Cursor (and other IDE) chats that already implemented with
+`dn kickstart` / `dn
+loop` should ask the user, then commit with the repo VCS
+instead of nesting another land agent. After land, `dn sync` is the trunk gate
+(lint + tests, then rebase/push). These verbs match the denoise task dialog; see
+denoise-docs **Kickstart, land, sync, and done**.
 
 **Execution plans** (`plans/*.plan.md`) and **RFCs** (`rfcs/*.md`) use different
 land modes. Plan land uses an agent (or `--single`) to commit workspace changes
@@ -1396,6 +1433,7 @@ one dirty workspace.
 ```bash
 dn land
 dn land plans/issue-123.plan.md
+dn land --skip-review plans/issue-123.plan.md
 dn land rfcs/012-session-persistence.md
 dn land 12                    # RFC by id when registered in rfcs/.state.json
 ```
