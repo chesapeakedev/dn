@@ -383,7 +383,6 @@ function loopJob(planFile?: string): RunnerJob {
       type: "loop",
       issue_url: "https://github.com/chesapeakedev/dn/issues/12",
       agent: "codex",
-      publish: "pr",
       ...(planFile != null ? { plan_file: planFile } : {}),
     },
     created_at: "2026-07-23T12:00:00.000Z",
@@ -402,6 +401,37 @@ Deno.test("validateRunnerJob accepts a loop job", () => {
 
 Deno.test("validateRunnerJob accepts a loop job with a repo-relative plan file", () => {
   const job = loopJob("plans/foo.plan.md");
+  assertEquals(validateRunnerJob(job, "runner-1"), job);
+});
+
+Deno.test("validateRunnerJob rejects loop jobs with legacy publish modes", () => {
+  const base = loopJob();
+  const job: RunnerJob = {
+    ...base,
+    operation: {
+      type: "loop",
+      issue_url: "https://github.com/chesapeakedev/dn/issues/12",
+      agent: "codex",
+      publish: "pr",
+    },
+  };
+  assertThrows(
+    () => validateRunnerJob(job, "runner-1"),
+    Error,
+    "Loop jobs no longer support publish",
+  );
+});
+
+Deno.test("validateRunnerJob accepts sync jobs with open_pr", () => {
+  const base = syncJob();
+  const job: RunnerJob = {
+    ...base,
+    operation: {
+      type: "sync",
+      issue_url: "https://github.com/chesapeakedev/dn/issues/12",
+      open_pr: true,
+    },
+  };
   assertEquals(validateRunnerJob(job, "runner-1"), job);
 });
 

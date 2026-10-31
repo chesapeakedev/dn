@@ -93,22 +93,12 @@ Deno.test("kickstart rejects an invalid workspace root", async () => {
   );
 });
 
-Deno.test("loop parses --publish pr", async () => {
-  const config = await parseLoopArgs([
-    "--publish",
-    "pr",
-    "plans/work.plan.md",
-  ]);
-  assertEquals(config.publish, "pr");
-});
-
-Deno.test("loop parses --publish direct", async () => {
-  const config = await parseLoopArgs([
-    "--publish",
-    "direct",
-    "plans/work.plan.md",
-  ]);
-  assertEquals(config.publish, "direct");
+Deno.test("loop rejects --publish", async () => {
+  await assertRejects(
+    () => parseLoopArgs(["--publish", "pr", "plans/work.plan.md"]),
+    Error,
+    "does not accept --publish",
+  );
 });
 
 Deno.test("loop parses an explicit Cursor cloud starting ref", async () => {
@@ -121,6 +111,7 @@ Deno.test("loop parses an explicit Cursor cloud starting ref", async () => {
 
   assertEquals(config.cursorCloud, true);
   assertEquals(config.cursorCloudRef, "release/1.x");
+  assertEquals(config.publish, "none");
   assertEquals(config.target, {
     kind: "plan-file",
     path: "plans/release.plan.md",
@@ -181,6 +172,10 @@ Deno.test("Cursor cloud CLI defaults the starting ref to main", async () => {
   assertEquals(
     (await parseLoopArgs(["--cursor-cloud", "plan.md"])).cursorCloudRef,
     "main",
+  );
+  assertEquals(
+    (await parseLoopArgs(["--cursor-cloud", "plan.md"])).publish,
+    "none",
   );
 });
 

@@ -131,6 +131,13 @@ land. Required fields:
 - `dispatch_id`
 - exactly one of `issue_url` or `issue_number`
 
+Optional fields:
+
+- `open_pr` — when `true`, the runner executes `dn sync --pr --issue …` (topic
+  branch + GitHub PR) instead of trunk landing. Default is trunk publish
+  (`dn
+  sync` without `--pr`).
+
 Sync runs `dn.json` `sync.preflight` fail-fast (this repo: `make lint` then
 `make tests`), rebases onto trunk, and pushes. It does not run a fixer agent and
 must not pass `--skip-preflight`. This Sync is not Void **task-sync**.

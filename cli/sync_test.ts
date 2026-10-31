@@ -1,13 +1,18 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
-import { assertEquals, assertStringIncludes } from "@std/assert";
+import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
 import {
   cleanupTestRepo,
   createTestRepo,
   runCommand,
   runDnCommand,
 } from "./test_utils.ts";
+import { parseSyncArgs } from "./sync.ts";
+import {
+  parseIssueNumberFromCommitSubject,
+  promoteStackToTopicBranchForPr,
+} from "../sdk/github/vcs.ts";
 
 async function git(args: string[], cwd: string): Promise<string> {
   const result = await runCommand(["git", ...args], { cwd });
@@ -217,6 +222,67 @@ Deno.test("dn sync publishes to a non-main default branch", async () => {
     assertEquals(
       await git(["show", "trunk:feature.txt"], fixture.remote),
       "feature",
+    );
+  } finally {
+    await Deno.remove(fixture.root, { recursive: true });
+  }
+});
+
+Deno.test("parseSyncArgs accepts --pr and --issue", () => {
+  const parsed = parseSyncArgs([
+    "--pr",
+    "--issue",
+    "123",
+    "--skip-preflight",
+  ]);
+  assertEquals(parsed.openPr, true);
+  assertEquals(parsed.issueInput, "123");
+  assertEquals(parsed.skipPreflight, true);
+});
+
+Deno.test("parseIssueNumberFromCommitSubject reads land-style prefixes", () => {
+  assertEquals(parseIssueNumberFromCommitSubject("#42: Fix parser"), 42);
+  assertEquals(parseIssueNumberFromCommitSubject("Fix parser"), null);
+});
+
+Deno.test("promoteStackToTopicBranchForPr pushes git topic without landing on main", async () => {
+  const fixture = await createRemoteFixture();
+  try {
+    await git(["checkout", "main"], fixture.working);
+    await Deno.writeTextFile(`${fixture.working}/feature.txt`, "feature\n");
+    await git(["add", "feature.txt"], fixture.working);
+    await git(["commit", "-m", "#42: Feature commit"], fixture.working);
+
+    await Deno.writeTextFile(`${fixture.seed}/upstream.txt`, "upstream\n");
+    await git(["add", "upstream.txt"], fixture.seed);
+    await git(["commit", "-m", "Upstream commit"], fixture.seed);
+    await git(["push", "origin", "main"], fixture.seed);
+
+    await git(["fetch", "origin", "main"], fixture.working);
+    await git(["rebase", "FETCH_HEAD"], fixture.working);
+
+    await promoteStackToTopicBranchForPr({
+      repoRoot: fixture.working,
+      vcs: "git",
+      trunk: "main",
+      branchName: "kickstart/issue_42_feature-commit",
+      gitRemote: "origin",
+    });
+
+    await assertRejects(
+      () => git(["show", "main:feature.txt"], fixture.remote),
+      Error,
+    );
+    assertEquals(
+      await git(
+        ["show", "kickstart/issue_42_feature-commit:feature.txt"],
+        fixture.remote,
+      ),
+      "feature",
+    );
+    assertEquals(
+      await git(["rev-parse", "main"], fixture.working),
+      await git(["rev-parse", "refs/heads/main"], fixture.remote),
     );
   } finally {
     await Deno.remove(fixture.root, { recursive: true });

@@ -271,7 +271,8 @@ The runner applies these boundaries:
   runner constructs the exact local command
   (`dn kickstart --sandbox none --publish …`,
   `dn --unattended --agent <harness> land [plan_file]`, or
-  `dn --unattended sync`) and rejects argv, shell, environment, and workflow
+  `dn --unattended sync` / `dn --unattended sync --pr --issue …` when the sync
+  job sets `open_pr`) and rejects argv, shell, environment, and workflow
   definitions. For agent-bearing jobs, `<harness>` resolution order is:
   1. Local selection (`DN_AGENT` / `*_ENABLED`, then `~/.dn/config.json`
      defaults and `repos[owner/repo]`, then repo `dn.json`)

@@ -618,6 +618,28 @@ Deno.test("buildRunnerKickstartCommand constructs sync argv without skip-preflig
   assertEquals(argv.includes("--skip-preflight"), false);
 });
 
+Deno.test("buildRunnerKickstartCommand constructs sync --pr argv", async () => {
+  const sync = job();
+  sync.operation = {
+    type: "sync",
+    issue_url: "https://github.com/chesapeakedev/dn/issues/213",
+    open_pr: true,
+  };
+  const { argv } = await buildRunnerKickstartCommand(
+    sync,
+    ["/usr/local/bin/dn"],
+    "/tmp",
+  );
+  assertEquals(argv, [
+    "/usr/local/bin/dn",
+    "--unattended",
+    "sync",
+    "--pr",
+    "--issue",
+    "https://github.com/chesapeakedev/dn/issues/213",
+  ]);
+});
+
 Deno.test("buildRunnerKickstartCommand constructs init_stack argv", async () => {
   await withClearedAgentEnv(async () => {
     const repoRoot = await checkoutWithAgent("cursor");
@@ -1647,7 +1669,6 @@ Deno.test("buildRunnerKickstartCommand constructs loop argv", async () => {
           type: "loop",
           issue_url: "https://github.com/chesapeakedev/dn/issues/213",
           agent: "cursor",
-          publish: "pr",
           plan_file: "plans/issue-213.plan.md",
         },
       };
@@ -1662,8 +1683,6 @@ Deno.test("buildRunnerKickstartCommand constructs loop argv", async () => {
         "--agent",
         "codex",
         "loop",
-        "--publish",
-        "pr",
         "--plan-file",
         "plans/issue-213.plan.md",
         "https://github.com/chesapeakedev/dn/issues/213",

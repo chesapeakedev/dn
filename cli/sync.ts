@@ -3,11 +3,11 @@
 
 /**
  * **`dn sync`** — Git and Sapling workflow to rebase onto remote trunk and
- * publish commits on the trunk-line stack.
+ * publish local commits.
  *
- * This is a trunk-landing command, not a pull-request workflow. It rebases the
- * current stack onto remote trunk and publishes that HEAD to trunk. Other
- * local branches and bookmarks are left alone.
+ * Default mode lands on remote **trunk**. With **`--pr`**, lifts local commits
+ * onto a topic branch/bookmark, pushes to origin, and opens a GitHub pull
+ * request (without pushing trunk).
  *
  * Optional quality gates come from `dn.json` `sync.preflight`. Repositories
  * without that block run no lint or test command.
@@ -19,6 +19,20 @@
 import * as path from "@std/path";
 import { resolveDnConfig } from "../sdk/config/resolve.ts";
 import type { DnSyncConfig } from "../sdk/config/types.ts";
+import { createPR } from "../sdk/github/github.ts";
+import {
+  fetchIssueFromUrl,
+  resolveIssueUrlInput,
+} from "../sdk/github/issue.ts";
+import type { IssueData } from "../sdk/github/issue.ts";
+import { assertPublishAllowedInCi } from "../sdk/github/publish.ts";
+import {
+  generateBranchName,
+  parseIssueNumberFromCommitSubject,
+  promoteStackToTopicBranchForPr,
+  promptForBranchName,
+} from "../sdk/github/vcs.ts";
+import { isUnattended } from "../sdk/github/output.ts";
 
 const RESTACK_REVSET = "children(obsolete()) - obsolete()";
 const DEFAULT_TRUNK_CANDIDATE = "main";
@@ -340,11 +354,16 @@ async function gitHasCommitsToPublish(repoRoot: string): Promise<boolean> {
 interface SyncParsedArgs {
   workspaceRootCandidate: string;
   skipPreflight: boolean;
+  openPr: boolean;
+  issueInput?: string;
 }
 
-function parseSyncArgs(raw: string[]): SyncParsedArgs {
+/** Parses `dn sync` CLI flags (exported for tests). */
+export function parseSyncArgs(raw: string[]): SyncParsedArgs {
   let workspaceRootCandidate = Deno.cwd();
   let skipPreflight = false;
+  let openPr = false;
+  let issueInput: string | undefined;
 
   for (let i = 0; i < raw.length; i++) {
     const arg = raw[i];
@@ -359,6 +378,13 @@ function parseSyncArgs(raw: string[]): SyncParsedArgs {
       workspaceRootCandidate = path.resolve(raw[++i]);
     } else if (arg === "--skip-preflight") {
       skipPreflight = true;
+    } else if (arg === "--pr") {
+      openPr = true;
+    } else if (arg === "--issue") {
+      if (i + 1 >= raw.length) {
+        throw new Error("--issue requires an issue number or URL");
+      }
+      issueInput = raw[++i];
     } else if (arg.startsWith("-")) {
       throw new Error(`Unknown flag: ${arg}`);
     } else {
@@ -368,7 +394,7 @@ function parseSyncArgs(raw: string[]): SyncParsedArgs {
     }
   }
 
-  return { workspaceRootCandidate, skipPreflight };
+  return { workspaceRootCandidate, skipPreflight, openPr, issueInput };
 }
 
 function printSyncHelp(): void {
@@ -376,12 +402,11 @@ function printSyncHelp(): void {
     "dn sync — Rebase onto remote trunk and publish local commits\n",
   );
   console.log(
-    "Trunk-landing workflow: rebase the current stack onto remote trunk and",
+    "Default: trunk landing — rebase onto remote trunk and push to trunk.",
   );
   console.log(
-    "publish that HEAD to trunk. Not a pull-request workflow. Other local",
+    "With --pr: push a topic branch and open a pull request (does not push trunk).\n",
   );
-  console.log("branches and bookmarks are left alone.\n");
   console.log(
     "Runs optional `sync.preflight` argv lists from dn.json, then auto-detects",
   );
@@ -393,8 +418,14 @@ function printSyncHelp(): void {
     "Pushes only when local commits remain after the rebase.\n",
   );
   console.log("Usage:");
-  console.log("  dn sync [--workspace-root <path>]\n");
+  console.log("  dn sync [options]\n");
   console.log("Options:");
+  console.log(
+    "  --pr                     Publish via topic branch + GitHub PR (not trunk)",
+  );
+  console.log(
+    "  --issue <number|url>     Issue for branch name and PR (auto from #N: commit when omitted)",
+  );
   console.log(
     "  --workspace-root <path>  Directory inside the repository (default: cwd)",
   );
@@ -419,7 +450,10 @@ async function runPreflight(
   }
 }
 
-async function syncSapling(repoRoot: string, trunk: string): Promise<void> {
+async function rebaseSaplingOntoTrunk(
+  repoRoot: string,
+  trunk: string,
+): Promise<void> {
   console.log(`[dn sync] sl pull --rebase -d ${trunk}`);
   await runInherited("sl", ["pull", "--rebase", "-d", trunk], repoRoot);
 
@@ -429,6 +463,10 @@ async function syncSapling(repoRoot: string, trunk: string): Promise<void> {
   } else {
     console.log("[dn sync] skipping restack (no obsolete children matched).");
   }
+}
+
+async function syncSapling(repoRoot: string, trunk: string): Promise<void> {
+  await rebaseSaplingOntoTrunk(repoRoot, trunk);
 
   const publishRevset = pushRevset(trunk);
   if (await revsetProducesCommits(repoRoot, publishRevset)) {
@@ -461,6 +499,148 @@ async function syncGit(repoRoot: string, trunk: string): Promise<void> {
   }
 }
 
+async function latestGitCommitSubject(repoRoot: string): Promise<string> {
+  const { code, stdout, stderr } = await commandOutput(
+    "git",
+    ["log", "-1", "--format=%s"],
+    repoRoot,
+  );
+  if (code !== 0) {
+    throw new Error(
+      `'git log' failed reading latest commit:${
+        stderr.trim() ? `\n${stderr.trim()}` : ` (exit ${code})`
+      }`,
+    );
+  }
+  return stdout.trim();
+}
+
+async function latestSaplingCommitSubject(repoRoot: string): Promise<string> {
+  const { code, stdout, stderr } = await commandOutput("sl", [
+    "log",
+    "-r",
+    ".",
+    "-T",
+    "{desc|firstline}",
+  ], repoRoot);
+  if (code !== 0) {
+    throw new Error(
+      `'sl log' failed reading latest commit:${
+        stderr.trim() ? `\n${stderr.trim()}` : ` (exit ${code})`
+      }`,
+    );
+  }
+  return stdout.trim();
+}
+
+async function resolveSyncPrIssue(
+  repo: SyncRepo,
+  issueInput: string | undefined,
+): Promise<IssueData> {
+  if (issueInput) {
+    const url = await resolveIssueUrlInput(issueInput);
+    return await fetchIssueFromUrl(url);
+  }
+  const subject = repo.vcs === "sapling"
+    ? await latestSaplingCommitSubject(repo.root)
+    : await latestGitCommitSubject(repo.root);
+  const issueNumber = parseIssueNumberFromCommitSubject(subject);
+  if (issueNumber === null) {
+    throw new Error(
+      "Could not resolve a GitHub issue for --pr. Pass --issue <number|url> or land with a #N: commit subject prefix.",
+    );
+  }
+  const url = await resolveIssueUrlInput(String(issueNumber));
+  return await fetchIssueFromUrl(url);
+}
+
+function resolveTopicBranchName(
+  issueData: IssueData,
+  vcs: SyncVcs,
+): string {
+  const suggested = generateBranchName(issueData);
+  if (isUnattended()) {
+    return suggested;
+  }
+  return promptForBranchName(suggested, vcs);
+}
+
+async function syncSaplingPr(
+  repoRoot: string,
+  trunk: string,
+  issueData: IssueData,
+): Promise<void> {
+  await rebaseSaplingOntoTrunk(repoRoot, trunk);
+
+  const publishRevset = pushRevset(trunk);
+  if (!(await revsetProducesCommits(repoRoot, publishRevset))) {
+    console.log(
+      `[dn sync] skipping PR — no draft commits on this stack branch from ${trunk}.`,
+    );
+    return;
+  }
+
+  const branchName = resolveTopicBranchName(issueData, "sapling");
+  console.log(`[dn sync] promoting stack to bookmark ${branchName}...`);
+  const gitContext = await promoteStackToTopicBranchForPr({
+    repoRoot: repoRoot,
+    vcs: "sapling",
+    trunk,
+    branchName,
+    gitRemote: "origin",
+  });
+
+  const prUrl = await createPR(issueData, gitContext.branchName, "sapling") ??
+    undefined;
+  if (prUrl) {
+    console.log(`[dn sync] pull request: ${prUrl}`);
+  } else {
+    console.log(
+      "[dn sync] PR creation skipped; push output above may include a manual link.",
+    );
+  }
+}
+
+async function syncGitPr(
+  repoRoot: string,
+  trunk: string,
+  issueData: IssueData,
+): Promise<void> {
+  const remote = await resolveGitRemote(repoRoot, trunk);
+  console.log(`[dn sync] using Git remote: ${remote}`);
+  console.log(`[dn sync] git fetch ${remote} ${trunk}`);
+  await runInherited("git", ["fetch", remote, trunk], repoRoot);
+  console.log("[dn sync] git rebase FETCH_HEAD");
+  await runInherited("git", ["rebase", "FETCH_HEAD"], repoRoot);
+
+  if (!(await gitHasCommitsToPublish(repoRoot))) {
+    console.log(
+      `[dn sync] skipping PR — no local commits ahead of remote ${trunk}.`,
+    );
+    return;
+  }
+
+  const branchName = resolveTopicBranchName(issueData, "git");
+  console.log(`[dn sync] promoting stack to branch ${branchName}...`);
+  const gitContext = await promoteStackToTopicBranchForPr({
+    repoRoot: repoRoot,
+    vcs: "git",
+    trunk,
+    branchName,
+    gitRemote: remote,
+  });
+
+  const prUrl = await createPR(issueData, gitContext.branchName, "git") ??
+    undefined;
+  if (prUrl) {
+    console.log(`[dn sync] pull request: ${prUrl}`);
+  } else {
+    console.log(
+      "[dn sync] PR creation skipped; push output above may include a manual link.",
+    );
+  }
+}
+
 /** Executes the VCS-aligned sync workflow. */
 export async function handleSync(args: string[]): Promise<void> {
   const parsed = parseSyncArgs(args);
@@ -479,7 +659,15 @@ export async function handleSync(args: string[]): Promise<void> {
     await runPreflight(repo.root, config.sync?.preflight);
   }
 
-  if (repo.vcs === "sapling") {
+  if (parsed.openPr) {
+    assertPublishAllowedInCi("pr");
+    const issueData = await resolveSyncPrIssue(repo, parsed.issueInput);
+    if (repo.vcs === "sapling") {
+      await syncSaplingPr(repo.root, trunk, issueData);
+    } else {
+      await syncGitPr(repo.root, trunk, issueData);
+    }
+  } else if (repo.vcs === "sapling") {
     await syncSapling(repo.root, trunk);
   } else {
     await syncGit(repo.root, trunk);

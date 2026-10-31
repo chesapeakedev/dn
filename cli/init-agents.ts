@@ -98,8 +98,8 @@ After \`--publish pr\` or \`--publish direct\`, kickstart already published —
 report the PR URL or branch instead of committing here.
 
 \`dn land\` is for attended CLI, CI, denoise/device-runners, \`--issue-testplan\`,
-RFC land, or when the user names \`dn land\`. \`dn sync\` publishes to trunk; it
-is not a commit step.
+RFC land, or when the user names \`dn land\`. Default \`dn sync\` publishes to trunk;
+\`dn sync --pr\` opens a pull request from local commits. Neither is a commit step.
 
 ### kickstart
 
@@ -163,6 +163,7 @@ close-out** (\`dn land\`, optional review when \`kickstart.review\` is in
 dn meld <issue-url-or-number>
 dn loop plans/task.plan.md
 dn land plans/task.plan.md
+dn sync --pr --issue <number>               # PR after land (or dn sync for trunk)
 # or after kickstart with publish none: ask before commit, or dn land for CLI close-out
 \`\`\`
 
@@ -181,6 +182,7 @@ dn fixup <pull-request-url>                # Address PR review feedback
 dn meld a.md b.md --plan-name merged       # Plan from combined sources
 dn init stack 42                           # Create a milestone task stack
 dn sync                                    # Rebase onto trunk and publish
+dn sync --pr --issue <number>              # Topic branch + GitHub PR (after land)
 \`\`\`
 
 ## Global Flags
@@ -783,7 +785,7 @@ push to trunk as part of kickstart), pass \`--publish direct\` and report the
 branch. Do not also commit in the IDE after those modes. If they say "publish"
 with no PR vs direct, ask which.
 
-\`dn land\` is for attended CLI, CI, and denoise. \`dn sync\` publishes to trunk.
+\`dn land\` is for attended CLI, CI, and denoise. Default \`dn sync\` publishes to trunk; \`dn sync --pr\` opens a PR from local commits.
 
 \`\`\`bash
 dn kickstart <issue-url-or-number>         # Full plan + implement

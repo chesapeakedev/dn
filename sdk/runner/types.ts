@@ -362,8 +362,11 @@ export interface RunnerLoopOperation {
   issue_url: string;
   /** Installed local agent harness selected for the job. */
   agent: AgentHarness;
-  /** Local publish behavior requested for implement. */
-  publish: PublishMode;
+  /**
+   * Legacy field; loop no longer publishes from the CLI. Must be `"none"` when
+   * set. Remote publish belongs in `land` then `sync` / `sync.open_pr`.
+   */
+  publish?: PublishMode;
   /** Optional repo-relative plan path (`plans/*.plan.md`). Never a local filesystem path. */
   plan_file?: string;
 }
@@ -398,6 +401,11 @@ export interface RunnerSyncOperation {
   type: "sync";
   /** Canonical GitHub issue URL used to correlate the landed work. */
   issue_url: string;
+  /**
+   * When true, run `dn sync --pr` (topic branch + GitHub PR) instead of trunk
+   * landing. Issue correlation uses `issue_url` as `--issue`.
+   */
+  open_pr?: boolean;
 }
 
 /** Rank a GitHub milestone with `dn init stack` and optionally open a stack PR. */
@@ -977,12 +985,11 @@ export function validateRunnerJob(
     repositoryFromIssueUrl(job.operation.issue_url);
   } else if (job.operation.type === "loop") {
     if (
-      job.operation.publish !== "none" &&
-      job.operation.publish !== "pr" &&
-      job.operation.publish !== "direct"
+      job.operation.publish != null &&
+      job.operation.publish !== "none"
     ) {
       throw new Error(
-        'Loop jobs require publish "none", "pr", or "direct".',
+        'Loop jobs no longer support publish "pr" or "direct". Use land, then sync with open_pr, or kickstart --publish.',
       );
     }
     if (
@@ -1022,6 +1029,12 @@ export function validateRunnerJob(
   } else if (job.operation.type === "sync") {
     repositoryFromIssueUrl(job.operation.issue_url);
     assertIssueUrlMatchesRepository(job.operation.issue_url, repository);
+    if (
+      job.operation.open_pr != null &&
+      typeof job.operation.open_pr !== "boolean"
+    ) {
+      throw new Error("Sync jobs require open_pr to be a boolean when set.");
+    }
   } else if (job.operation.type === "init_stack") {
     if (
       !Number.isInteger(job.operation.milestone) ||

@@ -456,11 +456,12 @@ After a successful plan + implement cycle with `publish: none`, kickstart exits
 silently (no “mark done?” / “continue?” prompts). The orchestrator already hints
 to run `dn land`. If the run came from the todo list or milestone stack, the
 queue item is left unchecked until you finish review — then run `dn task done`
-(todo list) or update the stack / use `--once`/`--complete` with `--publish`
-(milestone).
+(todo list) or update the stack / use `--once`/`--complete` with
+**`dn kickstart --publish`** (milestone).
 
 `dn land` targets **one plan at a time**. For per-issue commit/PR without a
-separate land step, use `--publish pr` or `--publish direct`.
+separate land step, use **`dn kickstart --publish pr`** or
+**`dn kickstart --publish direct`**.
 
 #### Flag-controlled batch modes
 
@@ -496,7 +497,7 @@ When publish mode is `none` (default, local-only) the CLI suggests `dn land`
 after the run. IDE outer harnesses should ask whether to commit, then write the
 commit themselves rather than running `dn land`. Do not run another kickstart on
 top of uncommitted kickstart work — commit or land one plan first, or use
-`--publish`.
+**`dn kickstart --publish`** for one-shot remote publish.
 
 #### Exit conditions
 
@@ -1045,9 +1046,11 @@ boost breakdown. Respect global color/unattended flags the same way as
 
 ## `dn sync` — Git/Sapling: rebase onto trunk and publish
 
-Trunk-landing workflow: rebase the current stack onto remote trunk and publish
-that HEAD to trunk. It is **not** a pull-request workflow. Other local branches
-and bookmarks are left alone. In this repository `make sync` is a thin alias
+Rebase local work onto remote **trunk**, then publish. Default mode pushes to
+**trunk** (trunk landing). **`--pr`** lifts local commits onto a topic
+branch/bookmark, pushes to origin, and opens a GitHub pull request without
+pushing trunk — use after **`dn land`** in PR-based workflows (`meld` → `loop` →
+`land` → **`dn sync --pr`**). In this repository `make sync` is a thin alias
 that runs the local TypeScript entrypoint.
 
 It prefers Sapling when both VCS tools recognize the checkout (a `.sl` directory
@@ -1067,26 +1070,31 @@ when `sync.preflight` in `dn.json` invokes it.
 2. Rebase the current work onto remote **trunk**. Trunk is `sync.trunk` when
    set; otherwise the Git remote `HEAD`; otherwise a local `main` ref. If none
    of those resolve, `dn sync` exits and asks you to set `sync.trunk`.
-3. Publish the rebased local commits directly to remote trunk, or skip the push
-   when no local commits remain.
+3. **Default:** publish rebased local commits to remote trunk, or skip when none
+   remain. **`--pr`:** bookmark/branch at the rebased tip, push the topic ref,
+   open a PR (`--issue` or `#N:` land commit subject), and realign local trunk
+   with remote (Git resets trunk to `FETCH_HEAD`; Sapling goto trunk and pull).
 
 Sapling uses **`sl pull --rebase -d <trunk>`**, conditionally runs
 **`sl restack`** for `children(obsolete()) - obsolete()`, and publishes with
 **`sl push --to <trunk>`** when `draft() & ancestors(.) & descendants(<trunk>)`
-matches. Git resolves the remote tracked by local trunk (falling back to
-**`origin`**), fetches trunk, rebases onto **`FETCH_HEAD`**, and publishes with
-**`git push <remote> HEAD:<trunk>`**. Git does not need an equivalent restack
-step. Git publishes the current HEAD to trunk even from a feature branch.
+matches (default mode only). Git resolves the remote tracked by local trunk
+(falling back to **`origin`**), fetches trunk, rebases onto **`FETCH_HEAD`**,
+and publishes with **`git push <remote> HEAD:<trunk>`** (default). **`--pr`**
+uses **`git branch`**, resets local trunk to the remote tip, pushes the topic
+branch with **`--force-with-lease`**, and calls the GitHub API to create the PR.
 
-**Credentials:** `dn auth` configures the GitHub API token (`dn issue`, etc.).
-Git and Sapling pushes use repository credentials (**HTTPS credential helper**,
-**`gh auth`** HTTPS, or SSH) — failures usually point at remote auth, not the
-OAuth cache.
-
-From a subdirectory of the checkout:
+**Credentials:** `dn auth` configures the GitHub API token (`dn issue`, PR
+creation, etc.). Git and Sapling pushes use repository credentials (**HTTPS
+credential helper**, **`gh auth`** HTTPS, or SSH) — failures usually point at
+remote auth, not the OAuth cache.
 
 ```bash
 dn sync --workspace-root /path/to/checkout
+dn sync --pr --issue 123
+dn sync --pr --issue https://github.com/owner/repo/issues/123
+# After dn land with a #123: commit subject, issue may be inferred:
+dn sync --pr --skip-preflight
 ```
 
 Project configuration example:
@@ -1107,8 +1115,8 @@ Troubleshooting:
 - **merge/rebase aborted** — fix conflicts reported by the VCS, then re-run
   **`dn sync`**.
 - **push auth errors** — configure remote credentials (**`gh auth login`**, SSH
-  remote, or a helper). Protected trunk may reject direct pushes; that is
-  expected in PR-based repositories.
+  remote, or a helper). Protected trunk may reject direct **`dn sync`** pushes;
+  use **`dn sync --pr`** in PR-based repositories.
 - **Could not determine trunk** — set `sync.trunk` in `dn.json`.
 - **`make`** missing — only required when preflight argv starts with `make`. On
   this repo **`make configure`** installs `dn`; **`make sync`** runs the local
@@ -1319,13 +1327,12 @@ and plan naming are available on `meld`.
 ## `dn loop` — Loop phase only
 
 Runs the loop phase (steps 4–7: implement, completion, lint, artifacts,
-validate). With `--publish pr` or `--publish direct`, also commits, pushes, and
-(for `pr`) opens a pull request after implement — same publish helpers as
-kickstart:
+validate). It does not commit, push, or open pull requests — use **`dn land`**
+then **`dn sync`** or **`dn sync --pr`**, or **`dn kickstart --publish`** for a
+one-shot workflow:
 
 ```bash
 dn loop plans/issue-123.plan.md
-dn loop --publish pr plans/issue-123.plan.md
 dn loop https://github.com/owner/repo/issues/123
 dn loop 123
 
@@ -1427,8 +1434,9 @@ file on success. Prefer `dn land --single` when you want a deterministic message
 with no agent. Users who want finer history can split afterward with their VCS.
 **Plan land targets one plan at a time** (explicit path, `PLAN` env, or newest
 `plans/*.plan.md`). For per-issue publish without a separate land step, use
-`dn kickstart --publish pr|direct` instead of stacking multiple kickstarts into
-one dirty workspace.
+**`dn kickstart --publish pr|direct`** instead of stacking multiple kickstarts
+into one dirty workspace. After **`dn meld`** / **`dn loop`** / **`dn land`**,
+use **`dn sync --pr`** (pull request) or default **`dn sync`** (trunk).
 
 ```bash
 dn land

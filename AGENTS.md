@@ -230,6 +230,7 @@ $ dn kickstart --publish direct https://github.com/owner/repo/issues/123
 $ dn meld 123
 $ dn loop plans/issue-123.plan.md
 $ dn land plans/issue-123.plan.md
+$ dn sync --pr --issue 123   # or dn sync for trunk publish
 ```
 
 Optional `kickstart.review` in `dn.json` adds a second implement pass (review

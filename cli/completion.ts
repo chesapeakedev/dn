@@ -464,7 +464,6 @@ export const DN_COMPLETION_ROOT: CompletionNode = {
     loop: {
       flags: [
         "--plan-file",
-        "--publish",
         "--cursor-cloud",
         "--ref",
         ...agentWorkflowFlags(),
@@ -472,7 +471,6 @@ export const DN_COMPLETION_ROOT: CompletionNode = {
       ],
       flagValues: {
         "--plan-file": FILE_VALUE,
-        "--publish": PUBLISH_MODES,
         "--ref": FILE_VALUE,
         ...agentWorkflowFlagValues(),
       },
@@ -639,8 +637,17 @@ export const DN_COMPLETION_ROOT: CompletionNode = {
       },
     },
     sync: {
-      flags: ["--workspace-root", "--skip-preflight", ...HELP_FLAGS],
-      flagValues: { "--workspace-root": FILE_VALUE },
+      flags: [
+        "--workspace-root",
+        "--skip-preflight",
+        "--pr",
+        "--issue",
+        ...HELP_FLAGS,
+      ],
+      flagValues: {
+        "--workspace-root": FILE_VALUE,
+        "--issue": FILE_VALUE,
+      },
     },
     runner: {
       flags: HELP_FLAGS,

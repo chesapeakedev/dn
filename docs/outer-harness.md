@@ -60,14 +60,15 @@ writes the commit with the repo VCS and omits `*.plan.md`. Do not auto-run
 instead.
 
 **`dn land`.** Use for attended CLI, CI, denoise, `--issue-testplan`, RFC land,
-or when the user names `dn land`. `dn sync` publishes to trunk after a local
-commit.
+or when the user names `dn land`. Default **`dn sync`** publishes to trunk after
+a local commit; **`dn sync --pr`** opens a pull request from local commits.
 
 **Nested agent.** Do not pass `--agent <this-harness>` unless asked. Let project
 config or `DN_AGENT` pick the nested plan/implement harness.
 
 **Plan mode.** Maps to `dn meld` (do not implement). After the plan is accepted,
-`dn loop`, then follow the after-a-local-run rule.
+`dn loop`, then **`dn land`** (or ask before committing in IDE chat), then
+**`dn sync --pr`** or **`dn sync`** when the user wants remote publish.
 
 Read repository `dn.json` `harness_hints` at session start.
 

@@ -301,13 +301,15 @@ export async function buildRunnerKickstartCommand(
     return buildRunnerDenoiseTaskCommand(job, commandPrefix, repoRoot);
   }
   if (job.operation.type === "sync") {
-    return {
-      argv: [
-        ...commandPrefix,
-        "--unattended",
-        "sync",
-      ],
-    };
+    const argv = [
+      ...commandPrefix,
+      "--unattended",
+      "sync",
+    ];
+    if (job.operation.open_pr === true) {
+      argv.push("--pr", "--issue", job.operation.issue_url);
+    }
+    return { argv };
   }
   if (job.operation.type === "init_stack") {
     const agent = await resolveRunnerJobAgent(
@@ -360,8 +362,6 @@ export async function buildRunnerKickstartCommand(
         "--agent",
         agent,
         "loop",
-        "--publish",
-        job.operation.publish,
         ...(job.operation.plan_file != null
           ? ["--plan-file", job.operation.plan_file]
           : []),

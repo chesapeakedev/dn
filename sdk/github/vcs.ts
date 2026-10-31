@@ -912,3 +912,97 @@ export async function publishStackProgressUpdate(
     message,
   );
 }
+
+/**
+ * Parses a GitHub issue number from a land-style commit subject (`#123: summary`).
+ */
+export function parseIssueNumberFromCommitSubject(
+  subject: string,
+): number | null {
+  const match = subject.trim().match(/^#(\d+):/);
+  if (!match) {
+    return null;
+  }
+  const parsed = Number.parseInt(match[1], 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/**
+ * Pushes an existing topic branch/bookmark to the remote without creating commits.
+ */
+export async function pushExistingTopicBranchForPr(
+  gitContext: GitContext,
+  gitRemote = "origin",
+): Promise<void> {
+  await ensureGitIdentity();
+  if (gitContext.vcs === "sapling") {
+    console.log(`Pushing bookmark ${gitContext.branchName}...`);
+    await $`sl push --force --to ${gitContext.branchName}`;
+    return;
+  }
+  console.log(`Pushing branch ${gitContext.branchName}...`);
+  await $`git push -u --force-with-lease ${gitRemote} HEAD:${gitContext.branchName}`;
+}
+
+export interface PromoteStackToTopicBranchOptions {
+  /** Repository root where git/sl commands run. */
+  repoRoot: string;
+  vcs: "git" | "sapling";
+  trunk: string;
+  branchName: string;
+  gitRemote: string;
+}
+
+/**
+ * Labels local commits on the trunk stack with a topic branch/bookmark, pushes it
+ * for a pull request, and realigns local trunk with the remote tip (Git: reset to
+ * `FETCH_HEAD`; Sapling: goto trunk and pull).
+ */
+export async function promoteStackToTopicBranchForPr(
+  options: PromoteStackToTopicBranchOptions,
+): Promise<GitContext> {
+  const { repoRoot, vcs, trunk, branchName, gitRemote } = options;
+  const previousCwd = Deno.cwd();
+  await Deno.chdir(repoRoot);
+  try {
+    await ensureGitIdentity();
+    const previousBranch = await getCurrentBranch(vcs);
+
+    if (vcs === "sapling") {
+      if (await branchExists(vcs, branchName)) {
+        if (!branchName.startsWith(KICKSTART_BRANCH_PREFIX)) {
+          throw new Error(
+            `Bookmark ${branchName} already exists. Please delete it or use a different name.`,
+          );
+        }
+        await $`sl bookmark -f ${branchName}`;
+      } else {
+        await $`sl bookmark ${branchName}`;
+      }
+      const gitContext: GitContext = { vcs, branchName, previousBranch };
+      await pushExistingTopicBranchForPr(gitContext, gitRemote);
+      console.log(`[dn sync] realigning local ${trunk} with remote...`);
+      await $`sl goto ${trunk}`.quiet().noThrow();
+      await $`sl pull --rebase -d ${trunk}`.quiet().noThrow();
+      return gitContext;
+    }
+
+    if (await branchExists(vcs, branchName)) {
+      if (!branchName.startsWith(KICKSTART_BRANCH_PREFIX)) {
+        throw new Error(
+          `Branch ${branchName} already exists. Please delete it or use a different name.`,
+        );
+      }
+      await $`git branch -f ${branchName} HEAD`;
+    } else {
+      await $`git branch ${branchName}`;
+    }
+    await $`git reset --hard FETCH_HEAD`;
+    await $`git checkout ${branchName}`;
+    const gitContext: GitContext = { vcs, branchName, previousBranch };
+    await pushExistingTopicBranchForPr(gitContext, gitRemote);
+    return gitContext;
+  } finally {
+    await Deno.chdir(previousCwd);
+  }
+}
