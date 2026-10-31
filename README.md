@@ -19,9 +19,9 @@ See the
 ## Features
 
 - **Kickstart tasks locally** — Generate a plan from a GitHub issue and
-  implement it with `dn kickstart`
-- **Durable, reviewable plans** — Create human-reviewable handoffs at each step
-  in the SDLC with `dn meld`, `dn loop`, and `dn land`
+  implement it with `dn kickstart` in an attendance-optional workflow
+- **Land your work** — Create human-reviewable plans and commits, then ship with
+  `dn meld`, `dn loop`, and `dn land`
 - **Streamline PR maintenance** — Fetch review comments and implement a focused
   fix plan with `dn fixup`
 - **Build your software factory** — Use `dn runner` to connect warm checkouts
