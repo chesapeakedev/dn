@@ -13,9 +13,6 @@ Use `dn` with OpenCode, Cursor, Claude Code, or Codex CLI. Plans live in your
 repository, so work can move between agents and resume across sessions without
 depending on a chat window.
 
-`dn` is one half of [Denoise](https://denoise.cloud). For in-depth
-documentation, see [our docs site](https://docs.denoise.cloud/introduction/).
-
 ## Install
 
 See the
