@@ -4,14 +4,11 @@
 
 # dn
 
-`dn` is a CLI for working systematically alongside agents. It turns issues and
-local specifications into durable Markdown plans, routes those plans to your
-preferred agent, and carries work from implementation through review. We built
-Denoise because coding got faster, but building software did not.
-
-Use `dn` with OpenCode, Cursor, Claude Code, or Codex CLI. Plans live in your
-repository, so work can move between agents and resume across sessions without
-depending on a chat window.
+`dn` is a tool for integrating agents into your software development lifecycle.
+It turns GitHub issues and local specifications into durable Markdown plans,
+routes those plans to your preferred agent, and carries work from implementation
+through creating a pull request. We built Denoise because coding got faster, but
+building software did not.
 
 See the
 [installation instructions](https://docs.denoise.cloud/dn-cli/installation/).
