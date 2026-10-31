@@ -7,7 +7,13 @@ import { runDnCommand } from "./test_utils.ts";
 Deno.test("workflows CLI installs and validates templates with JSON output", async () => {
   const repoRoot = await Deno.makeTempDir({ prefix: "dn-workflows-cli-" });
   try {
-    const install = await runDnCommand(["workflows", "install", "--json"], {
+    const install = await runDnCommand([
+      "workflows",
+      "install",
+      "--agent",
+      "opencode",
+      "--json",
+    ], {
       cwd: repoRoot,
     });
     const installJson = JSON.parse(install.stdout) as {
@@ -42,7 +48,13 @@ Deno.test("workflows CLI installs and validates templates with JSON output", asy
 Deno.test("init workflows installs canonical templates", async () => {
   const repoRoot = await Deno.makeTempDir({ prefix: "dn-init-workflows-cli-" });
   try {
-    const result = await runDnCommand(["init", "workflows", "--json"], {
+    const result = await runDnCommand([
+      "init",
+      "workflows",
+      "--agent",
+      "opencode",
+      "--json",
+    ], {
       cwd: repoRoot,
     });
     const resultJson = JSON.parse(result.stdout) as {
@@ -51,9 +63,9 @@ Deno.test("init workflows installs canonical templates", async () => {
     assertEquals(resultJson.results.length, 4);
 
     const config = JSON.parse(
-      await Deno.readTextFile(`${repoRoot}/.github/dn/config.json`),
-    ) as { agent: string };
-    assertEquals(config.agent, "opencode");
+      await Deno.readTextFile(`${repoRoot}/dn.json`),
+    ) as { harness: { defaults: { agent: string } } };
+    assertEquals(config.harness.defaults.agent, "opencode");
   } finally {
     await Deno.remove(repoRoot, { recursive: true });
   }
@@ -88,9 +100,9 @@ Deno.test("init workflows --agent writes configured agent", async () => {
       cwd: repoRoot,
     });
     const config = JSON.parse(
-      await Deno.readTextFile(`${repoRoot}/.github/dn/config.json`),
-    ) as { agent: string };
-    assertEquals(config.agent, "claude");
+      await Deno.readTextFile(`${repoRoot}/dn.json`),
+    ) as { harness: { defaults: { agent: string } } };
+    assertEquals(config.harness.defaults.agent, "claude");
   } finally {
     await Deno.remove(repoRoot, { recursive: true });
   }
@@ -108,8 +120,8 @@ Deno.test("workflows exec --validate-only writes summary and outputs", async () 
   try {
     await Deno.mkdir(`${repoRoot}/.github/dn`, { recursive: true });
     await Deno.writeTextFile(
-      `${repoRoot}/.github/dn/config.json`,
-      '{"schema_version":"1.0","agent":"opencode"}\n',
+      `${repoRoot}/dn.json`,
+      '{"schema_version":"2.0","harness":{"defaults":{"agent":"opencode"}}}\n',
     );
     await Deno.writeTextFile(
       `${repoRoot}/event.json`,

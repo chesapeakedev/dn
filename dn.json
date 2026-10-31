@@ -57,6 +57,10 @@
     "tests": {
       "argv": ["make", "tests"],
       "intent": "Fix failing tests until make tests exits 0. Prefer production-code fixes when tests are correct."
+    },
+    "precommit": {
+      "argv": ["make", "precommit"],
+      "intent": "Fix fmt, lint, typecheck, and workflow checksum drift until make precommit exits 0. Update templates/workflows/manifest.json when workflow templates change."
     }
   }
 }

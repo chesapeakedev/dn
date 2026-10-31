@@ -198,7 +198,7 @@ Deno.test("init wizard --project fails outside repo", async () => {
   }
 });
 
-Deno.test("init wizard projects .github/dn/config.json after write", async () => {
+Deno.test("init wizard writes harness defaults to dn.json", async () => {
   let repo: TestRepo | undefined;
   try {
     repo = await createTestRepo();
@@ -208,11 +208,11 @@ Deno.test("init wizard projects .github/dn/config.json after write", async () =>
     );
     assert(result.success, result.stderr);
 
-    const bridge = parseDnConfig(
-      await Deno.readTextFile(join(repo.path, ".github/dn/config.json")),
-      ".github/dn/config.json",
+    const config = parseDnConfig(
+      await Deno.readTextFile(join(repo.path, "dn.json")),
+      "dn.json",
     );
-    assertEquals(bridge.agent, "opencode");
+    assertEquals(config.agent, "opencode");
   } finally {
     if (repo) await cleanupTestRepo(repo);
   }
