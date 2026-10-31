@@ -25,7 +25,11 @@
       "templates/**/*.json",
       "templates/**/*.sh",
       "templates/**/*.yml",
+      "cli/output.ts",
       "kickstart/includedPrompt.ts",
+      "kickstart/implementResult.ts",
+      "kickstart/output.ts",
+      "kickstart/reviewPhase.ts",
       "kickstart/system.prompt.land.md",
       "kickstart/system.prompt.testplan.md"
     ],

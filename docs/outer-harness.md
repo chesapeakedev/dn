@@ -72,8 +72,8 @@ config or `DN_AGENT` pick the nested plan/implement harness.
 
 Read repository `dn.json` `harness_hints` at session start. Keys are
 operator-authored strings (not harness defaults); future Denoise request hints
-may merge additively with repo hints, with repo keys winning on collision.
-Team harness choices live under `harness.defaults`, not in `harness_hints`.
+may merge additively with repo hints, with repo keys winning on collision. Team
+harness choices live under `harness.defaults`, not in `harness_hints`.
 
 ## Support
 
