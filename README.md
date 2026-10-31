@@ -11,7 +11,7 @@ through creating a pull request. We built Denoise because coding got faster, but
 building software did not.
 
 See the
-[installation instructions](https://docs.denoise.cloud/dn-cli/installation/).
+[installation instructions](https://docs.denoise.cloud/dn/installation/).
 
 ## Features
 
@@ -72,16 +72,11 @@ gate reviews agent-generated GitHub bodies from `dn meld` (`github:issue:`,
 `github:comment:`, `--update-issue`) and `dn land --issue-testplan` before they
 are posted.
 
-See the
-[`dn kickstart` command reference](docs/subcommands.md#dn-kickstart--full-workflow)
-for publishing modes, cross-repository work, milestone queues, and agent
-selection.
-
 ## Explore dn
 
 The [dn command reference](https://docs.denoise.cloud/dn/command-reference/)
-covers every command and its options. For setup and in-depth guides, see the
-[documentation site](https://docs.denoise.cloud/introduction/), including
-[GitHub authentication](docs/authentication.md),
-[GitHub Actions](docs/github-actions.md), and the
-[contributor guide](CONTRIBUTING.md).
+covers command options. Read the
+[GitHub context guide](https://docs.denoise.cloud/dn/github-context/) for issue,
+milestone, and pull request workflows, or the
+[Kickstart guide](https://docs.denoise.cloud/kickstart/) to understand the core
+workflow better.
