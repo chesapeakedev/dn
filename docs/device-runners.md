@@ -8,26 +8,26 @@ agent credentials stay on the device.
 Device runners are owner-only in protocol v1. They accept kickstart jobs,
 **land** jobs (`dn land` on the paired checkout), **sync** jobs (`dn sync` on
 the paired checkout; trunk quality gate), denoise-task jobs, and **task-sync**
-(Denoise Personal ↔ `~/.dn/todo.md` native task relay), not arbitrary commands or
-GitHub Actions workflows.
+(Denoise Personal ↔ `~/.dn/todo.md` native task relay), not arbitrary commands
+or GitHub Actions workflows.
 
 The close-out verbs match the denoise task dialog: Kickstart → Land → Sync →
-Done. See denoise-docs **Kickstart, land, sync, and done** (`/close-out/`). Denoise
-Personal **task-sync** is unrelated to trunk `dn sync`.
+Done. See denoise-docs **Kickstart, land, sync, and done** (`/close-out/`).
+Denoise Personal **task-sync** is unrelated to trunk `dn sync`.
 
 ## Local task sync (Denoise Personal free plan)
 
-Denoise does not store free-plan task bodies long-term. When Denoise Personal creates or
-edits a ticketless task, denoise relays a short-lived envelope to the paired
-runner. `dn runner serve` merges `DenoiseTaskDocument` payloads into
+Denoise does not store free-plan task bodies long-term. When Denoise Personal
+creates or edits a ticketless task, denoise relays a short-lived envelope to the
+paired runner. `dn runner serve` merges `DenoiseTaskDocument` payloads into
 `~/.dn/todo.md` on the laptop (native `task:<id>` entries). Listing tasks from
 the browser long-polls until the runner attaches a snapshot on the next
 heartbeat.
 
 The same file also holds the kickstart queue (GitHub issues and plan paths).
 Task-sync relays **native tasks only**; queue lines are not uploaded to Denoise
-Personal. Manage the list with `dn task`, refresh issues with `dn tidy`, and mark
-queue items done with `dn task done`.
+Personal. Manage the list with `dn task`, refresh issues with `dn tidy`, and
+mark queue items done with `dn task done`.
 
 ```bash
 # Inspect the unified list (no network)
