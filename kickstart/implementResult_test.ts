@@ -17,15 +17,15 @@ Deno.test("parseImplementPhaseResult accepts a complete document", () => {
     status: "needs_human",
     summary: "Feature work done; tests need a human runner.",
     unfinished_tasks: [{
-      description: "Wire or run Void unit tests",
+      description: "Wire or run Personal unit tests",
       criterion: "Pairing and reconnect handling have deterministic coverage",
-      reason: "void-ui has no single npm test script",
+      reason: "personal-ui has no single npm test script",
       suggested_action: "human_action",
     }],
     human_actions: [{
-      description: "Run the Deno unit tests for void-ui runner modules",
+      description: "Run the Deno unit tests for personal-ui runner modules",
       reason: "No Makefile/npm test target exists yet",
-      command: "deno test -A void-ui/src/lib/runner*.test.ts",
+      command: "deno test -A personal-ui/src/lib/runner*.test.ts",
     }],
     recommendation: "human_action",
   });
