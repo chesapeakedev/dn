@@ -19,10 +19,7 @@
 import * as path from "@std/path";
 import { execRecipeArgv } from "./ensure.ts";
 import { resolveDnConfig } from "../sdk/config/resolve.ts";
-import type {
-  DnEnsureConfig,
-  DnSyncConfig,
-} from "../sdk/config/types.ts";
+import type { DnEnsureConfig, DnSyncConfig } from "../sdk/config/types.ts";
 import { createPR } from "../sdk/github/github.ts";
 import {
   fetchIssueFromUrl,
@@ -457,7 +454,9 @@ async function runSyncEnsurePreflight(
   }
   if (!ensure || Object.keys(ensure).length === 0) {
     throw new Error(
-      `sync.preflight lists ${recipeNames.map((n) => JSON.stringify(n)).join(", ")} but dn.json has no ensure recipes`,
+      `sync.preflight lists ${
+        recipeNames.map((n) => JSON.stringify(n)).join(", ")
+      } but dn.json has no ensure recipes`,
     );
   }
   for (const name of recipeNames) {
@@ -468,7 +467,9 @@ async function runSyncEnsurePreflight(
         ? "none"
         : known.map((value) => JSON.stringify(value)).join(", ");
       throw new Error(
-        `Unknown ensure recipe ${JSON.stringify(name)} in sync.preflight. Known recipes: ${knownLabel}`,
+        `Unknown ensure recipe ${
+          JSON.stringify(name)
+        } in sync.preflight. Known recipes: ${knownLabel}`,
       );
     }
     console.log(
@@ -477,7 +478,9 @@ async function runSyncEnsurePreflight(
     const capture = await execRecipeArgv(recipe.argv, repoRoot);
     if (capture.code !== 0) {
       throw new Error(
-        `sync preflight ensure ${JSON.stringify(name)} exited with code ${capture.code}`,
+        `sync preflight ensure ${
+          JSON.stringify(name)
+        } exited with code ${capture.code}`,
       );
     }
   }

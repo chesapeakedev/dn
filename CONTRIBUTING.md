@@ -40,10 +40,10 @@ instructed to do. Many times the advice generalizes. Quality contributions to
 `AGENTS.md` is highly valuable.
 
 This project uses `make` as a task runner, both locally and in CI. Read through
-the [Makefile](./Makefile) to understand useful commands in the project.
-**`make sync`** is a thin alias for **`dn sync`** (rebase onto remote trunk,
-optional restack, conditional push). Quality gates live in `dn.json`
-`sync.preflight`; see **`AGENTS.md`** and **`docs/subcommands.md`**.
+the [Makefile](./Makefile) to understand useful commands in the project. Run
+**`dn sync`** to rebase onto remote trunk, optionally restack, and push. Quality
+gates live in `dn.json` `sync.preflight`; see **`AGENTS.md`** and
+**`docs/subcommands.md`**.
 
 ## Documentation
 
@@ -104,7 +104,7 @@ This will:
 6. Bump the patch version in `deno.json`
 7. Run `make precommit`
 8. Commit the version bump with `sl commit`
-9. Run `make sync` (same as **`dn sync`**)
+9. Run `dn sync`
 10. Create the GitHub release with `dn release create`
 
 Release-note selection excludes commits marked with the `Release-Notes: skip`

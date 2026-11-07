@@ -311,7 +311,7 @@ export function formatJsrPublishDryRunError(output: string): string {
 
 /**
  * Formats a dirty tree after `make skill_goldens` so the operator commits the
- * regenerated files before `make sync` can publish trunk.
+ * regenerated files before `dn sync` can publish trunk.
  */
 export function formatSkillGoldensDriftError(status: string): string {
   const details = status.trim() || "(no status output)";

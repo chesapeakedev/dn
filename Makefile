@@ -65,11 +65,6 @@ runner_coverage:
 configure: install
 publish: ; deno task publish
 
-# Rebase remote trunk under the current stack and publish it.
-# Quality gates live in dn.json (sync.preflight). Other branches are left alone.
-sync:
-	deno run --allow-all $(CURDIR)/cli/main.ts sync
-
 # compile & install dn locally for the current user
 TARGET_DIR := $(HOME)/.local/bin
 compile: ; @bash ./compile_dn.sh

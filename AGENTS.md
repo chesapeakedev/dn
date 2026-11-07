@@ -477,14 +477,11 @@ Run `sl help COMMAND` for any command's full usage. For deeper topics:
 | `sl help patterns`   | File name pattern syntax (glob, re:, path:)      |
 | `sl help glossary`   | Definitions of common Sapling terms              |
 
-### Workflow: `make sync` / `dn sync`
+### Workflow: `dn sync`
 
-The primary push/pull workflow is **`make sync`** from the repo root — a thin
-alias for **`dn sync`** (implemented in `cli/sync.ts`). Equivalent for humans
-who prefer the runner:
+The primary push/pull workflow is **`dn sync`** (implemented in `cli/sync.ts`).
 
 ```bash
-make sync      # Makefile → deno run … cli/main.ts sync
 dn sync        # after `make configure`, if `dn` is on PATH
 ```
 
@@ -514,9 +511,9 @@ The Git path selects the remote tracked by local trunk, falling back to
 commits. Git has no restack step because rebase performs the applicable history
 rewrite.
 
-Use **`make sync`** when you sit down (to pull latest) and before you get up (to
-push your work). This repository still uses `deno run` on the local TypeScript
-entrypoint so contributors do not need a freshly compiled `dn`.
+Use **`dn sync`** when you sit down (to pull latest) and before you get up (to
+push your work). This repository configures `sync.preflight` to run `make lint`
+and `make tests` before syncing.
 
 For anonymous Sapling feature branches:
 

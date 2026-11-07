@@ -80,15 +80,15 @@ branch):
 
 1. **Trusted automation push** — Allow GitHub Actions (and optionally bot
    accounts) to push to `main` for landed agent work, while most contributors
-   use PRs. This matches `dn sync` / `make sync` trunk workflows and daily
-   kickstart publishing.
+   use PRs. This matches `dn sync` trunk workflows and daily kickstart
+   publishing.
 2. **Optional path gates** — For contributors who should only touch docs or
    RFCs, add ruleset path filters aligned with `path_gates`, for example
    `rfcs/**` and `**/*.md`. Keep code paths (`**/*.ts`, `src/**`) behind full
    review requirements.
 3. **Linear history (optional)** — When `linear_history: true` is set in
    `dn.json`, treat it as a team convention: prefer rebase-and-land (Sapling:
-   `sl rebase -d main`, `make sync`; Git: rebase onto `main`) over merge commits
+   `sl rebase -d main`, `dn sync`; Git: rebase onto `main`) over merge commits
    on trunk. `dn` does not rewrite VCS history in this release; enforce linear
    history via rulesets (“Require linear history”) and local habit.
 

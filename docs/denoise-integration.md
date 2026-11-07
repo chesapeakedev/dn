@@ -138,10 +138,10 @@ Optional fields:
   (`dn
   sync` without `--pr`).
 
-Sync runs `dn.json` `sync.preflight` ensure recipes fail-fast (denoise:
-`lint` then `tests` via `ensure`), rebases onto trunk, and pushes. It does not run
-a fixer agent and
-must not pass `--skip-preflight`. This Sync is not Void **task-sync**.
+Sync runs `dn.json` `sync.preflight` ensure recipes fail-fast (denoise: `lint`
+then `tests` via `ensure`), rebases onto trunk, and pushes. It does not run a
+fixer agent and must not pass `--skip-preflight`. This Sync is not Void
+**task-sync**.
 
 ### `dn.init_stack`
 

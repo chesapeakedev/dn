@@ -1058,8 +1058,7 @@ Rebase local work onto remote **trunk**, then publish. Default mode pushes to
 **trunk** (trunk landing). **`--pr`** lifts local commits onto a topic
 branch/bookmark, pushes to origin, and opens a GitHub pull request without
 pushing trunk — use after **`dn land`** in PR-based workflows (`meld` → `loop` →
-`land` → **`dn sync --pr`**). In this repository `make sync` is a thin alias
-that runs the local TypeScript entrypoint.
+`land` → **`dn sync --pr`**).
 
 It prefers Sapling when both VCS tools recognize the checkout (a `.sl` directory
 is required so an installed `sl` does not capture plain Git repos), then falls
@@ -1070,10 +1069,10 @@ back to Git. **Prerequisites:** Git or Sapling (`sl`). Recipe `argv` under
 
 1. Optional **`sync.preflight`** ensure recipe names from `dn.json`, unless
    **`--skip-preflight`** is passed. Absent or empty `preflight` means no
-   quality gate (the generic default). This repository sets `lint` then
-   `tests` (keys under `ensure`). Each recipe runs once with frozen `argv` and
-   **no fixer agent** (like `dn ensure <name> --no-fix`). Kickstart may already
-   have run `dn ensure lint` with a fixer; sync catches drift before publish.
+   quality gate (the generic default). This repository sets `lint` then `tests`
+   (keys under `ensure`). Each recipe runs once with frozen `argv` and **no
+   fixer agent** (like `dn ensure <name> --no-fix`). Kickstart may already have
+   run `dn ensure lint` with a fixer; sync catches drift before publish.
    `--skip-preflight` is a CLI escape hatch only — denoise never sends it.
 2. Rebase the current work onto remote **trunk**. Trunk is `sync.trunk` when
    set; otherwise the Git remote `HEAD`; otherwise a local `main` ref. If none
@@ -1137,10 +1136,10 @@ Troubleshooting:
   use **`dn sync --pr`** in PR-based repositories.
 - **Could not determine trunk** — set `sync.trunk` in `dn.json`.
 - **`make`** missing — only when an ensure recipe `argv` starts with `make`. On
-  this repo **`make configure`** installs `dn`; **`make sync`** runs the local
-  TypeScript entrypoint via **`deno run`**.
+  this repo **`make configure`** installs `dn`, and sync preflight invokes
+  **`make lint`** and **`make tests`**.
 
-See also [`AGENTS.md`](../AGENTS.md) (Workflow: `make sync`) and `cli/sync.ts`.
+See also [`AGENTS.md`](../AGENTS.md) (Workflow: `dn sync`) and `cli/sync.ts`.
 
 ## `dn rfc` — Manage RFCs (Request for Comments) for design documents
 
