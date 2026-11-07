@@ -2,23 +2,36 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Parse Denoise milestone task page URLs for `dn kickstart` and meld.
+ * Parse Denoise task page URLs for `dn kickstart` and meld.
  *
- * Accepted shape: `https://{host}/milestone/{milestoneId}/task/{taskId}`
- * Host allowlist: denoise.cloud, localhost, 127.0.0.1, denoise-qa*.exe.xyz.
+ * Accepted SPA paths (on allowed hosts):
+ * - `https://{host}/t/{shortCode}` (preferred)
+ * - `https://{host}/task/{taskId}`
+ * - `https://{host}/milestone/{milestoneId}/task/{taskId}` (legacy)
  */
 
-/** Parsed canonical Denoise milestone task URL. */
+/** How to call the Denoise task ref API for this URL. */
+export type DenoiseTaskUrlKind = "short_code" | "task_id" | "milestone";
+
+/** Parsed Denoise task page URL. */
 export interface ParsedDenoiseTaskUrl {
   /** API/browser origin without path (e.g. `https://denoise.cloud`). */
   origin: string;
-  /** Collaborative list id (milestone UUID). */
-  milestoneId: string;
-  /** Todo UUID (`todo.id`). */
-  taskId: string;
+  kind: DenoiseTaskUrlKind;
+  /** Collaborative list id when `kind` is `milestone`. */
+  milestoneId?: string;
+  /** Todo UUID when `kind` is `milestone` or `task_id`. */
+  taskId?: string;
+  /** Share code when `kind` is `short_code`. */
+  shortCode?: string;
 }
 
-const DENOISE_TASK_PATH = /^\/milestone\/([^/]+)\/task\/([^/]+)\/?$/;
+const LEGACY_TASK_PATH = /^\/milestone\/([^/]+)\/task\/([^/]+)\/?$/;
+const TASK_ID_PATH = /^\/task\/([^/]+)\/?$/;
+const SHORT_TASK_PATH = /^\/t\/([^/]+)\/?$/;
+
+const SHORT_CODE_RE =
+  /^[23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz]{8}$/;
 
 const ALLOWED_HOST_PATTERNS: readonly RegExp[] = [
   /^denoise\.cloud$/i,
@@ -33,14 +46,14 @@ function isAllowedDenoiseHost(hostname: string): boolean {
 }
 
 /**
- * Returns true when `input` is a Denoise milestone task page URL.
+ * Returns true when `input` is a Denoise task page URL.
  */
 export function isDenoiseTaskUrl(input: string): boolean {
   return parseDenoiseTaskUrl(input) != null;
 }
 
 /**
- * Parse `https://{host}/milestone/{milestoneId}/task/{taskId}`.
+ * Parse Denoise task URLs on allowed hosts.
  */
 export function parseDenoiseTaskUrl(
   input: string,
@@ -58,14 +71,41 @@ export function parseDenoiseTaskUrl(
   if (!isAllowedDenoiseHost(url.hostname)) {
     return null;
   }
-  const match = DENOISE_TASK_PATH.exec(url.pathname);
-  if (!match) return null;
-  const milestoneId = decodeURIComponent(match[1]);
-  const taskId = decodeURIComponent(match[2]);
-  if (milestoneId === "" || taskId === "") return null;
-  return {
-    origin: url.origin,
-    milestoneId,
-    taskId,
-  };
+
+  const legacy = LEGACY_TASK_PATH.exec(url.pathname);
+  if (legacy) {
+    const milestoneId = decodeURIComponent(legacy[1]);
+    const taskId = decodeURIComponent(legacy[2]);
+    if (milestoneId === "" || taskId === "") return null;
+    return {
+      origin: url.origin,
+      kind: "milestone",
+      milestoneId,
+      taskId,
+    };
+  }
+
+  const shortMatch = SHORT_TASK_PATH.exec(url.pathname);
+  if (shortMatch) {
+    const shortCode = decodeURIComponent(shortMatch[1]);
+    if (!SHORT_CODE_RE.test(shortCode)) return null;
+    return {
+      origin: url.origin,
+      kind: "short_code",
+      shortCode,
+    };
+  }
+
+  const taskMatch = TASK_ID_PATH.exec(url.pathname);
+  if (taskMatch) {
+    const taskId = decodeURIComponent(taskMatch[1]);
+    if (taskId === "") return null;
+    return {
+      origin: url.origin,
+      kind: "task_id",
+      taskId,
+    };
+  }
+
+  return null;
 }

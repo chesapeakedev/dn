@@ -2,13 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Denoise HTTP client for milestone task refs (`GET .../tasks/{taskId}`).
+ * Denoise HTTP client for milestone task refs.
  *
  * Used by `dn kickstart <denoise-task-url>` after {@link parseDenoiseTaskUrl}.
  * Requires a GitHub token (`resolveGitHubToken`) mapped to a Denoise account.
  */
 
 import { DEFAULT_DENOISE_API_URL } from "../runner/client.ts";
+import type { ParsedDenoiseTaskUrl } from "./taskUrl.ts";
 
 /** GitHub issue linked to the task; kickstart should use this URL when present. */
 export interface DenoiseTaskRefGitHubIssue {
@@ -18,11 +19,14 @@ export interface DenoiseTaskRefGitHubIssue {
   url: string;
 }
 
-/** JSON body from Denoise `GET /api/milestones/{id}/tasks/{taskId}`. */
+/** JSON body from Denoise task ref GET routes. */
 export interface DenoiseTaskRefResponse {
   milestone_id: string;
   task_id: string;
   canonical_url: string;
+  short_code?: string;
+  task_path?: string;
+  legacy_path?: string;
   task_document: {
     schema_version: "1.0";
     id: string;
@@ -53,23 +57,25 @@ export interface FetchDenoiseTaskRefOptions {
   cachedRef?: DenoiseTaskRefResponse;
 }
 
-/**
- * Load a milestone task ref from the Denoise API.
- *
- * @param origin - API origin (e.g. `https://denoise.cloud`); defaults via caller.
- * @throws When HTTP status is not OK or the body is not a task ref.
- */
-export async function fetchDenoiseTaskRef(
+function taskRefApiPath(parsed: ParsedDenoiseTaskUrl): string {
+  if (parsed.kind === "milestone") {
+    return `/api/milestones/${encodeURIComponent(parsed.milestoneId!)}/tasks/${
+      encodeURIComponent(parsed.taskId!)
+    }`;
+  }
+  if (parsed.kind === "task_id") {
+    return `/api/tasks/${encodeURIComponent(parsed.taskId!)}`;
+  }
+  return `/api/t/${encodeURIComponent(parsed.shortCode!)}`;
+}
+
+async function fetchTaskRefAtPath(
   origin: string,
-  milestoneId: string,
-  taskId: string,
+  apiPath: string,
   options: FetchDenoiseTaskRefOptions,
 ): Promise<DenoiseTaskRefResponse> {
   const base = origin.trim() || DEFAULT_DENOISE_API_URL;
-  const path = `/api/milestones/${encodeURIComponent(milestoneId)}/tasks/${
-    encodeURIComponent(taskId)
-  }`;
-  const url = new URL(path, base.endsWith("/") ? base : `${base}/`);
+  const url = new URL(apiPath, base.endsWith("/") ? base : `${base}/`);
   const fetchImpl = options.fetch ?? fetch;
   const headers: Record<string, string> = {
     Accept: "application/json",
@@ -90,4 +96,36 @@ export async function fetchDenoiseTaskRef(
     );
   }
   return body as DenoiseTaskRefResponse;
+}
+
+/**
+ * Load a task ref using a parsed Denoise task page URL.
+ */
+export async function fetchDenoiseTaskRefFromParsed(
+  parsed: ParsedDenoiseTaskUrl,
+  options: FetchDenoiseTaskRefOptions,
+): Promise<DenoiseTaskRefResponse> {
+  return await fetchTaskRefAtPath(
+    parsed.origin,
+    taskRefApiPath(parsed),
+    options,
+  );
+}
+
+/**
+ * Load a milestone task ref from the Denoise API (nested milestone path).
+ *
+ * @param origin - API origin (e.g. `https://denoise.cloud`); defaults via caller.
+ * @throws When HTTP status is not OK or the body is not a task ref.
+ */
+export async function fetchDenoiseTaskRef(
+  origin: string,
+  milestoneId: string,
+  taskId: string,
+  options: FetchDenoiseTaskRefOptions,
+): Promise<DenoiseTaskRefResponse> {
+  return await fetchDenoiseTaskRefFromParsed(
+    { origin, kind: "milestone", milestoneId, taskId },
+    options,
+  );
 }

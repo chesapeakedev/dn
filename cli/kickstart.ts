@@ -12,7 +12,7 @@ import { runFullKickstart } from "../kickstart/lib.ts";
 import { resolve } from "@std/path";
 import { runScoring } from "../kickstart/score.ts";
 import { isGitHubIssueUrl } from "../sdk/meld/mod.ts";
-import { fetchDenoiseTaskRef } from "../sdk/denoise/fetchTaskRef.ts";
+import { fetchDenoiseTaskRefFromParsed } from "../sdk/denoise/fetchTaskRef.ts";
 import {
   isDenoiseTaskUrl,
   parseDenoiseTaskUrl,
@@ -783,12 +783,9 @@ async function resolveDenoiseTaskUrlOnConfig(
     throw new Error(`Invalid Denoise task URL: ${config.denoiseTaskUrl}`);
   }
   const token = await resolveGitHubToken();
-  const ref = await fetchDenoiseTaskRef(
-    parsed.origin,
-    parsed.milestoneId,
-    parsed.taskId,
-    { githubToken: token },
-  );
+  const ref = await fetchDenoiseTaskRefFromParsed(parsed, {
+    githubToken: token,
+  });
   if (ref.github_issue) {
     return {
       ...config,
