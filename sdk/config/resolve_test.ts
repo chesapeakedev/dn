@@ -193,14 +193,18 @@ Deno.test("parseDnConfig accepts sync project blocks", () => {
     JSON.stringify({
       schema_version: "2.0",
       sync: {
-        preflight: [["make", "lint"], ["make", "tests"]],
+        preflight: ["lint", "tests"],
         trunk: "main",
+      },
+      ensure: {
+        lint: { argv: ["make", "lint"], intent: "lint" },
+        tests: { argv: ["make", "tests"], intent: "tests" },
       },
     }),
     "test",
   );
   assertEquals(parsed.sync, {
-    preflight: [["make", "lint"], ["make", "tests"]],
+    preflight: ["lint", "tests"],
     trunk: "main",
   });
 });
@@ -219,7 +223,7 @@ Deno.test("parseDnConfig rejects malformed sync blocks", () => {
   assertThrows(
     () => parseDnConfig('{"sync":{"preflight":[[]]}}', "test"),
     Error,
-    "must be a non-empty argv array",
+    "must be an ensure recipe name",
   );
   assertThrows(
     () => parseDnConfig('{"sync":{"trunk":"feat branch"}}', "test"),
@@ -236,14 +240,16 @@ Deno.test("resolveDnConfig merges repository sync over user sync", async () => {
       user,
       JSON.stringify({
         schema_version: "2.0",
-        sync: { trunk: "develop", preflight: [["true"]] },
+        sync: { trunk: "develop", preflight: ["noop"] },
+        ensure: { noop: { argv: ["true"], intent: "noop" } },
       }),
     );
     await Deno.writeTextFile(
       `${root}/dn.json`,
       JSON.stringify({
         schema_version: "2.0",
-        sync: { trunk: "main", preflight: [["make", "lint"]] },
+        sync: { trunk: "main", preflight: ["lint"] },
+        ensure: { lint: { argv: ["make", "lint"], intent: "lint" } },
       }),
     );
     const config = await resolveDnConfig({
@@ -254,7 +260,7 @@ Deno.test("resolveDnConfig merges repository sync over user sync", async () => {
     });
     assertEquals(config.sync, {
       trunk: "main",
-      preflight: [["make", "lint"]],
+      preflight: ["lint"],
     });
     assertEquals(config.sources.sync, "repository");
   } finally {

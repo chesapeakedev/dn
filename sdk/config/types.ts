@@ -40,17 +40,16 @@ export interface DnStrictConfig {
 /**
  * Optional `dn sync` settings (project `dn.json`).
  *
- * Absent or empty `preflight` means `dn sync` runs no quality gate. That is
- * the generic default so repositories without Make are not forced through
- * `make lint`. This repository sets argv lists such as `make lint` and
- * `make tests`.
+ * Absent or empty `preflight` means `dn sync` runs no quality gate. Names must
+ * match keys under {@link DnEnsureConfig}; each recipe's `argv` runs once with
+ * no fixer agent (same as `dn ensure <name> --no-fix`).
  */
 export interface DnSyncConfig {
   /**
-   * Commands to run at the repository root before rebasing, each as an argv
-   * array with no shell. Fail-fast. Empty or omitted skips the gate.
+   * `ensure` recipe names to run at the repository root before rebasing.
+   * Fail-fast. Empty or omitted skips the gate.
    */
-  preflight?: string[][];
+  preflight?: string[];
   /**
    * Trunk bookmark or branch name. When omitted, `dn sync` resolves trunk
    * from the Git remote HEAD, then a local `main` ref.

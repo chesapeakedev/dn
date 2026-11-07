@@ -46,7 +46,7 @@
     }
   },
   "sync": {
-    "preflight": [["make", "lint"], ["make", "tests"]],
+    "preflight": ["lint", "tests"],
     "trunk": "main"
   },
   "ensure": {

@@ -159,21 +159,27 @@ Deno.test("dn sync skips preflight when none is configured and Makefile is absen
   }
 });
 
-Deno.test("dn sync runs configured preflight argv", async () => {
+Deno.test("dn sync runs configured ensure preflight recipes", async () => {
   const fixture = await createRemoteFixture();
   try {
     await Deno.writeTextFile(
       `${fixture.working}/dn.json`,
       JSON.stringify({
         schema_version: "2.0",
-        sync: { preflight: [["touch", "preflight.ok"]] },
+        ensure: {
+          touch_gate: {
+            argv: ["touch", "preflight.ok"],
+            intent: "create marker",
+          },
+        },
+        sync: { preflight: ["touch_gate"] },
       }),
     );
     const result = await runDnCommand(["sync"], {
       cwd: fixture.working,
       env: isolatedHome(fixture.root),
     });
-    assertStringIncludes(result.stdout, "preflight: touch preflight.ok");
+    assertStringIncludes(result.stdout, "preflight ensure touch_gate: touch");
     await Deno.stat(`${fixture.working}/preflight.ok`);
   } finally {
     await Deno.remove(fixture.root, { recursive: true });
@@ -187,7 +193,10 @@ Deno.test("dn sync --skip-preflight suppresses configured preflight", async () =
       `${fixture.working}/dn.json`,
       JSON.stringify({
         schema_version: "2.0",
-        sync: { preflight: [["false"]] },
+        ensure: {
+          fail: { argv: ["false"], intent: "always fail" },
+        },
+        sync: { preflight: ["fail"] },
       }),
     );
     const result = await runDnCommand(["sync", "--skip-preflight"], {

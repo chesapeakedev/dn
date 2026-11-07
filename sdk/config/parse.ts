@@ -163,12 +163,28 @@ function parseArgv(
   });
 }
 
-function parsePreflightArgv(
+function parseSyncPreflightRecipeName(
   entry: unknown,
   source: string,
   index: number,
-): string[] {
-  return parseArgv(entry, source, `sync.preflight[${index}]`);
+): string {
+  const field = `sync.preflight[${index}]`;
+  if (Array.isArray(entry)) {
+    throw new Error(
+      `Invalid dn config at ${source}: ${field} must be an ensure recipe name, not an argv array (use ensure.<name>.argv instead)`,
+    );
+  }
+  if (typeof entry !== "string" || entry.trim().length === 0) {
+    throw new Error(
+      `Invalid dn config at ${source}: ${field} must be a non-empty string`,
+    );
+  }
+  if (!ENSURE_RECIPE_NAME_PATTERN.test(entry)) {
+    throw new Error(
+      `Invalid dn config at ${source}: ${field} must match ${ENSURE_RECIPE_NAME_PATTERN}`,
+    );
+  }
+  return entry;
 }
 
 function parseEnsureRecipe(
@@ -444,7 +460,7 @@ function parseSyncConfig(value: unknown, source: string): DnSyncConfig {
     ...(record.preflight !== undefined
       ? {
         preflight: record.preflight.map((entry, index) =>
-          parsePreflightArgv(entry, source, index)
+          parseSyncPreflightRecipeName(entry, source, index)
         ),
       }
       : {}),

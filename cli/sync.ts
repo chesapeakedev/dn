@@ -9,16 +9,20 @@
  * onto a topic branch/bookmark, pushes to origin, and opens a GitHub pull
  * request (without pushing trunk).
  *
- * Optional quality gates come from `dn.json` `sync.preflight`. Repositories
- * without that block run no lint or test command.
+ * Optional quality gates come from `dn.json` `sync.preflight` ensure recipe
+ * names. Repositories without that block run no gate before rebase.
  *
  * Sapling and Git use the credentials configured for their repository
  * remotes. **`dn auth`** applies to GitHub API callers, not VCS pushes.
  */
 
 import * as path from "@std/path";
+import { execRecipeArgv } from "./ensure.ts";
 import { resolveDnConfig } from "../sdk/config/resolve.ts";
-import type { DnSyncConfig } from "../sdk/config/types.ts";
+import type {
+  DnEnsureConfig,
+  DnSyncConfig,
+} from "../sdk/config/types.ts";
 import { createPR } from "../sdk/github/github.ts";
 import {
   fetchIssueFromUrl,
@@ -408,7 +412,7 @@ function printSyncHelp(): void {
     "With --pr: push a topic branch and open a pull request (does not push trunk).\n",
   );
   console.log(
-    "Runs optional `sync.preflight` argv lists from dn.json, then auto-detects",
+    "Runs optional `sync.preflight` ensure recipes from dn.json, then detects",
   );
   console.log(
     "Sapling or Git and rebases onto remote trunk. Sapling also restacks",
@@ -430,23 +434,52 @@ function printSyncHelp(): void {
     "  --workspace-root <path>  Directory inside the repository (default: cwd)",
   );
   console.log(
-    "  --skip-preflight         Skip dn.json sync.preflight commands",
+    "  --skip-preflight         Skip dn.json sync.preflight ensure recipes",
   );
   console.log("  --help, -h               Show this help\n");
 }
 
-async function runPreflight(
+function formatArgvForLog(argv: string[]): string {
+  return argv.map((arg) => {
+    if (/^[\w./:=+-]+$/.test(arg)) return arg;
+    return JSON.stringify(arg);
+  }).join(" ");
+}
+
+async function runSyncEnsurePreflight(
   repoRoot: string,
-  commands: string[][] | undefined,
+  recipeNames: string[] | undefined,
+  ensure: DnEnsureConfig | undefined,
 ): Promise<void> {
-  if (!commands || commands.length === 0) {
+  if (!recipeNames || recipeNames.length === 0) {
     console.log("[dn sync] no preflight configured.");
     return;
   }
-  for (const argv of commands) {
-    const [command, ...args] = argv;
-    console.log(`[dn sync] preflight: ${argv.join(" ")}`);
-    await runInherited(command, args, repoRoot);
+  if (!ensure || Object.keys(ensure).length === 0) {
+    throw new Error(
+      `sync.preflight lists ${recipeNames.map((n) => JSON.stringify(n)).join(", ")} but dn.json has no ensure recipes`,
+    );
+  }
+  for (const name of recipeNames) {
+    const recipe = ensure[name];
+    if (recipe === undefined) {
+      const known = Object.keys(ensure).sort();
+      const knownLabel = known.length === 0
+        ? "none"
+        : known.map((value) => JSON.stringify(value)).join(", ");
+      throw new Error(
+        `Unknown ensure recipe ${JSON.stringify(name)} in sync.preflight. Known recipes: ${knownLabel}`,
+      );
+    }
+    console.log(
+      `[dn sync] preflight ensure ${name}: ${formatArgvForLog(recipe.argv)}`,
+    );
+    const capture = await execRecipeArgv(recipe.argv, repoRoot);
+    if (capture.code !== 0) {
+      throw new Error(
+        `sync preflight ensure ${JSON.stringify(name)} exited with code ${capture.code}`,
+      );
+    }
   }
 }
 
@@ -656,7 +689,11 @@ export async function handleSync(args: string[]): Promise<void> {
   if (parsed.skipPreflight) {
     console.log("[dn sync] skipping preflight (--skip-preflight).");
   } else {
-    await runPreflight(repo.root, config.sync?.preflight);
+    await runSyncEnsurePreflight(
+      repo.root,
+      config.sync?.preflight,
+      config.ensure,
+    );
   }
 
   if (parsed.openPr) {

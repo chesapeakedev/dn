@@ -1063,18 +1063,18 @@ that runs the local TypeScript entrypoint.
 
 It prefers Sapling when both VCS tools recognize the checkout (a `.sl` directory
 is required so an installed `sl` does not capture plain Git repos), then falls
-back to Git. **Prerequisites:** Git or Sapling (`sl`). `make` is needed only
-when `sync.preflight` in `dn.json` invokes it.
+back to Git. **Prerequisites:** Git or Sapling (`sl`). Recipe `argv` under
+`ensure` may invoke `make` or other tools.
 
 **Steps (in order, fail-fast):**
 
-1. Optional **`sync.preflight`** argv lists from `dn.json`, unless
+1. Optional **`sync.preflight`** ensure recipe names from `dn.json`, unless
    **`--skip-preflight`** is passed. Absent or empty `preflight` means no
-   quality gate (the generic default). This repository sets `make lint` then
-   `make tests`. Preflight is fail-fast and does **not** run a fixer agent.
-   Kickstart already ran `dn ensure lint` (fixer) so this lint pass catches
-   drift after review; tests are the additional trunk gate. `--skip-preflight`
-   is a CLI escape hatch only — denoise never sends it.
+   quality gate (the generic default). This repository sets `lint` then
+   `tests` (keys under `ensure`). Each recipe runs once with frozen `argv` and
+   **no fixer agent** (like `dn ensure <name> --no-fix`). Kickstart may already
+   have run `dn ensure lint` with a fixer; sync catches drift before publish.
+   `--skip-preflight` is a CLI escape hatch only — denoise never sends it.
 2. Rebase the current work onto remote **trunk**. Trunk is `sync.trunk` when
    set; otherwise the Git remote `HEAD`; otherwise a local `main` ref. If none
    of those resolve, `dn sync` exits and asks you to set `sync.trunk`.
@@ -1111,8 +1111,18 @@ Project configuration example:
 {
   "schema_version": "2.0",
   "sync": {
-    "preflight": [["make", "lint"], ["make", "tests"]],
+    "preflight": ["lint", "tests"],
     "trunk": "main"
+  },
+  "ensure": {
+    "lint": {
+      "argv": ["make", "lint"],
+      "intent": "Fix format, typecheck, and lint failures until make lint exits 0."
+    },
+    "tests": {
+      "argv": ["make", "tests"],
+      "intent": "Fix failing tests until make tests exits 0."
+    }
   }
 }
 ```
@@ -1126,7 +1136,7 @@ Troubleshooting:
   remote, or a helper). Protected trunk may reject direct **`dn sync`** pushes;
   use **`dn sync --pr`** in PR-based repositories.
 - **Could not determine trunk** — set `sync.trunk` in `dn.json`.
-- **`make`** missing — only required when preflight argv starts with `make`. On
+- **`make`** missing — only when an ensure recipe `argv` starts with `make`. On
   this repo **`make configure`** installs `dn`; **`make sync`** runs the local
   TypeScript entrypoint via **`deno run`**.
 
