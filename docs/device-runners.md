@@ -5,11 +5,11 @@ checkout. The runner uses the machine's installed agent, existing logins, Docker
 daemon, and compute. Source code, local checkout paths, GitHub credentials, and
 agent credentials stay on the device.
 
-Device runners are owner-only in protocol v1. They accept kickstart jobs,
-**land** jobs (`dn land` on the paired checkout), **sync** jobs (`dn sync` on
-the paired checkout; trunk quality gate), denoise-task jobs, and **task-sync**
-(Denoise Personal ↔ `~/.dn/todo.md` native task relay), not arbitrary commands
-or GitHub Actions workflows.
+Device runners are owner-only in protocol v1. They accept typed **kickstart**,
+**loop**, **land**, **sync**, **init-stack**, and denoise-task jobs, plus
+**task-sync** (Denoise Personal ↔ `~/.dn/todo.md` native task relay). They do
+not accept arbitrary commands or GitHub Actions workflows. Land and Sync run on
+the registered checkout; Sync runs its configured trunk quality gate.
 
 The close-out verbs match the denoise task dialog: Kickstart → Land → Sync →
 Done. See denoise-docs **Kickstart, land, sync, and done** (`/close-out/`).
@@ -209,6 +209,12 @@ expose a user-facing issue dispatch command; this keeps repository selection and
 job authorization in the Denoise control plane. Progress and recent outcomes are
 available through Denoise or `dn runner jobs`.
 
+For issue-driven kickstart and loop jobs, the issue repository may differ from
+the registered execution checkout. The issue stays in its source repository; the
+agent works in the selected checkout. Land and Sync are close-out actions for
+that checkout and require the issue to match it. Denoise shows the selected
+execution checkout when you queue work.
+
 An offline runner can retain a job in the denoise queue for up to 24 hours.
 Denoise does not move that job to paid hosted infrastructure. The outbound
 long-poll loop claims one job when the runner reconnects.
@@ -221,6 +227,7 @@ The command surface is stable for people and automation:
 dn runner status [--json]
 dn runner jobs [--json]
 dn runner doctor [--json]
+dn runner logs [--follow]
 dn runner install
 dn runner start
 dn runner stop
@@ -229,6 +236,7 @@ dn runner resume [--json]
 dn runner rotate [--json]
 dn runner unregister owner/repo [--json]
 dn runner disconnect [--json]
+dn runner serve [--once]
 ```
 
 `install` is the user command that replaces a running LaunchAgent with this
@@ -268,13 +276,15 @@ The runner applies these boundaries:
 - It makes outbound authenticated HTTPS requests. No inbound port is opened.
 - Pairing requires signed-in browser approval. The server stores only a hash of
   the expiring runner credential and supports rotation and immediate revocation.
-- Jobs contain a typed kickstart, land, sync, or denoise-task operation. The
-  runner constructs the exact local command
-  (`dn kickstart --sandbox none --publish …`,
+- Jobs contain a typed kickstart, loop, land, sync, init-stack, or denoise-task
+  operation. The runner constructs the local command
+  (`dn kickstart --sandbox none --publish …`, `dn loop`, `dn init stack`,
   `dn --unattended --agent <harness> land [plan_file]`, or
   `dn --unattended sync` / `dn --unattended sync --pr --issue …` when the sync
   job sets `open_pr`) and rejects argv, shell, environment, and workflow
-  definitions. For agent-bearing jobs, `<harness>` resolution order is:
+  definitions. Kickstart and Loop can use an issue from a different repository
+  than the registered execution checkout. Land and Sync require the issue to
+  match that checkout. For agent-bearing jobs, `<harness>` resolution order is:
   1. Local selection (`DN_AGENT` / `*_ENABLED`, then `~/.dn/config.json`
      defaults and `repos[owner/repo]`, then repo `dn.json`)
   2. Denoise's stamped `operation.agent` (owner preference, otherwise the first
@@ -291,8 +301,9 @@ The runner applies these boundaries:
   install/auth booleans) so the UI can explain when local config overrides the
   picker and when CLI login is still required. Capabilities and readiness are
   re-probed about once a minute and reused on intervening heartbeats.
-- The issue URL must belong to the registered repository. Local paths never
-  enter heartbeat, job, or progress payloads.
+- Local paths never enter heartbeat, job, or progress payloads. Kickstart and
+  Loop may execute an issue from another repository; Land and Sync require the
+  issue to match the registered checkout.
 - GitHub and agent authentication come from the local machine. Denoise does not
   send those credentials to the runner.
 - Existing progress redaction removes recognizable credentials before events
