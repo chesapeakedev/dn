@@ -192,7 +192,12 @@ const issueNode: CompletionNode = {
   },
 };
 
-const readNode: CompletionNode = { flags: ["--json", ...HELP_FLAGS] };
+const reviewNode: CompletionNode = {
+  flags: ["--json", "--no-agent", "--signals-only", "--agent", ...HELP_FLAGS],
+  flagValues: { "--agent": [...AGENT_HARNESSES] },
+};
+
+const readNode: CompletionNode = reviewNode;
 
 const releaseCreateNode: CompletionNode = {
   flags: [
@@ -387,6 +392,7 @@ export const DN_COMPLETION_ROOT: CompletionNode = {
         },
       },
     },
+    review: reviewNode,
     read: readNode,
     issue: issueNode,
     issues: issueNode,

@@ -813,7 +813,9 @@ export async function runMeldPhase(
       issueContextPathFinal = config.contextMarkdownPath;
       issueData = null;
     } else if (config.issueUrl) {
-      const issueUrl = await resolveIssueUrlInput(config.issueUrl);
+      const issueUrl = await resolveIssueUrlInput(config.issueUrl, {
+        allowBareNumber: true,
+      });
       issueData = await fetchIssueFromUrl(issueUrl);
       const currentRepo = await getCurrentRepoFromRemote();
       if (
@@ -875,7 +877,9 @@ export async function runMeldPhase(
       if (!ghSpec) {
         throw new Error("GitHub meld target parsing failed unexpectedly.");
       }
-      const ghResolvedUrl = await resolveIssueUrlInput(ghSpec.issueSpecifier);
+      const ghResolvedUrl = await resolveIssueUrlInput(ghSpec.issueSpecifier, {
+        allowBareNumber: true,
+      });
       ghIssuePayload = await fetchIssueFromUrl(ghResolvedUrl);
       const ghRepoHint = await getCurrentRepoFromRemote();
       if (
@@ -2012,7 +2016,9 @@ export async function fillEmptyIssueSections(
   try {
     // Step 1: Resolve and fetch issue
     console.log(formatStep(1, "Fetching issue from GitHub..."));
-    const resolvedUrl = await resolveIssueUrlInput(issueUrl);
+    const resolvedUrl = await resolveIssueUrlInput(issueUrl, {
+      allowBareNumber: true,
+    });
     const issueData = await fetchIssueFromUrl(resolvedUrl);
 
     console.log(

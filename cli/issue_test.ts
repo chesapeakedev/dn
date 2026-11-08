@@ -1,8 +1,17 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertRejects, assertThrows } from "@std/assert";
+import { resolveIssueUrlInput } from "../sdk/github/issue.ts";
 import { parseRepoRef, resolveIssueRef } from "./issue.ts";
+
+Deno.test("resolveIssueUrlInput rejects bare numbers by default", async () => {
+  await assertRejects(
+    () => resolveIssueUrlInput("99"),
+    Error,
+    "dn kickstart",
+  );
+});
 
 Deno.test("parseRepoRef accepts owner/repo", () => {
   assertEquals(parseRepoRef("acme/platform"), {
@@ -18,17 +27,16 @@ Deno.test("parseRepoRef rejects malformed repositories", () => {
   assertEquals(parseRepoRef("acme/"), null);
 });
 
-Deno.test("resolveIssueRef uses repo override for number refs", async () => {
-  const resolved = await resolveIssueRef("123", {
-    owner: "public-owner",
-    repo: "public-repo",
-  });
-
-  assertEquals(resolved, {
-    owner: "public-owner",
-    repo: "public-repo",
-    number: 123,
-  });
+Deno.test("resolveIssueRef rejects bare number refs", async () => {
+  await assertRejects(
+    () =>
+      resolveIssueRef("123", {
+        owner: "public-owner",
+        repo: "public-repo",
+      }),
+    Error,
+    "dn kickstart",
+  );
 });
 
 Deno.test("resolveIssueRef lets full URLs choose their repository", async () => {

@@ -8,7 +8,7 @@ import {
   resolveLoopTarget,
 } from "./loop.ts";
 
-Deno.test("classifyLoopTarget accepts plan files, issue URLs, and issue numbers", () => {
+Deno.test("classifyLoopTarget accepts plan files and full issue URLs", () => {
   assertEquals(classifyLoopTarget(null), { kind: "auto" });
   assertEquals(classifyLoopTarget("plans/task.plan.md"), {
     kind: "plan-file",
@@ -19,8 +19,8 @@ Deno.test("classifyLoopTarget accepts plan files, issue URLs, and issue numbers"
     input: "https://github.com/o/r/issues/123",
   });
   assertEquals(classifyLoopTarget("#123"), {
-    kind: "github-issue",
-    input: "#123",
+    kind: "plan-file",
+    path: "#123",
   });
 });
 

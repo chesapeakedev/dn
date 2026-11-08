@@ -25,6 +25,55 @@ for (const versionFlag of ["--version", "-V"]) {
   });
 }
 
+Deno.test("dn review --help exits zero", async () => {
+  const command = new Deno.Command(Deno.execPath(), {
+    args: [
+      "run",
+      "--allow-env",
+      "--allow-read",
+      "--quiet",
+      "cli/main.ts",
+      "review",
+      "--help",
+    ],
+    stdout: "piped",
+    stderr: "piped",
+  });
+
+  const { code, stdout } = await command.output();
+  const helpText = new TextDecoder().decode(stdout);
+
+  assert(code === 0);
+  assert(helpText.includes("dn review"));
+  assert(helpText.includes("--no-agent"));
+  assert(helpText.includes("pull-request-url"));
+});
+
+Deno.test("dn review --json rejects bare PR numbers with structured error", async () => {
+  const command = new Deno.Command(Deno.execPath(), {
+    args: [
+      "run",
+      "--allow-env",
+      "--allow-read",
+      "--quiet",
+      "cli/main.ts",
+      "review",
+      "123",
+      "--json",
+    ],
+    stdout: "piped",
+    stderr: "piped",
+  });
+
+  const { code, stdout } = await command.output();
+  const body = JSON.parse(new TextDecoder().decode(stdout));
+
+  assert(code === 1);
+  assertEquals(body.ok, false);
+  assertEquals(body.schemaVersion, "1.0");
+  assertEquals(body.error.code, "invalid-reference");
+});
+
 Deno.test("dn sync --help exits zero", async () => {
   const command = new Deno.Command(Deno.execPath(), {
     args: [

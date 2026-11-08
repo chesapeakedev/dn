@@ -1,11 +1,24 @@
 // Copyright 2026 Chesapeake Computing
 // SPDX-License-Identifier: Apache-2.0
 
+import type { AgentSelection } from "./agentHarness.ts";
 import {
   fetchPullRequestReviewData,
   parsePullRequestUrl,
   type PullRequestReviewData,
 } from "./github-gql.ts";
+import { normalizePullRequestUrl } from "./pullRequestReference.ts";
+import {
+  canonicalizeReviewData,
+  computeReviewDigest,
+} from "./reviewBriefCanonical.ts";
+import { runReviewAgentConclusions } from "./reviewAgent.ts";
+import { scrubSecrets } from "./secretScrub.ts";
+
+export {
+  canonicalizeReviewData,
+  computeReviewDigest,
+} from "./reviewBriefCanonical.ts";
 
 /** A normalized pull request identity used for cache invalidation. */
 export interface ReviewPullRequestIdentity {
@@ -27,7 +40,12 @@ export interface ReviewFact {
 
 /** Structured limitations encountered while collecting review evidence. */
 export interface ReviewWarning {
-  code: "incomplete-data" | "unavailable-data" | "truncated-data";
+  code:
+    | "incomplete-data"
+    | "unavailable-data"
+    | "truncated-data"
+    | "secrets-scrubbed"
+    | "agent-unavailable";
   message: string;
 }
 
@@ -37,7 +55,13 @@ export interface ReviewConclusions {
   mergeOutlook: string;
 }
 
-/** Machine-readable, versioned output of `dn read`. */
+/** How each conclusion was produced (facts vs judgment). */
+export interface ReviewConclusionsSource {
+  change: "agent" | "heuristic";
+  mergeOutlook: "agent" | "heuristic";
+}
+
+/** Machine-readable, versioned output of `dn review`. */
 export interface ReviewBrief {
   schemaVersion: "1.0";
   identity: ReviewPullRequestIdentity;
@@ -45,57 +69,63 @@ export interface ReviewBrief {
   digest: string;
   facts: ReviewFact[];
   conclusions: ReviewConclusions;
+  conclusionsSource: ReviewConclusionsSource;
   warnings: ReviewWarning[];
 }
 
-/** Returns the stable serialized evidence used as the cache input. */
-export function canonicalizeReviewData(data: PullRequestReviewData): string {
-  return JSON.stringify({
-    identity: {
-      owner: data.owner,
-      repo: data.repo,
-      number: data.number,
-      url: `https://github.com/${data.owner}/${data.repo}/pull/${data.number}`,
-      headSha: data.headRefOid,
-      baseRef: data.baseRefName,
-      headRef: data.headRefName,
+export interface CreateReviewBriefOptions {
+  workspaceRoot?: string;
+  agent?: AgentSelection | null;
+  /** Skip the configured agent; use signal heuristics only. */
+  noAgent?: boolean;
+}
+
+function scrubReviewDataForPersistence(
+  data: PullRequestReviewData,
+): { data: PullRequestReviewData; scrubbed: SecretScrubResultSummary } {
+  let redactionCount = 0;
+  const categories = new Set<string>();
+
+  const absorb = (text: string): string => {
+    const result = scrubSecrets(text);
+    redactionCount += result.redactionCount;
+    for (const c of result.categories) categories.add(c);
+    return result.text;
+  };
+
+  return {
+    data: {
+      ...data,
+      body: absorb(data.body ?? ""),
+      comments: data.comments.map((c) => ({
+        ...c,
+        body: absorb(c.body),
+      })),
+      reviews: data.reviews.map((r) => ({
+        ...r,
+        body: absorb(r.body ?? ""),
+      })),
+      commits: data.commits.map((c) => ({
+        ...c,
+        message: absorb(c.message),
+      })),
     },
-    title: data.title,
-    body: data.body,
-    state: data.state,
-    isDraft: data.isDraft,
-    mergeable: data.mergeable,
-    mergeStateStatus: data.mergeStateStatus,
-    reviewDecision: data.reviewDecision,
-    commits: [...data.commits].sort((a, b) => a.oid.localeCompare(b.oid)),
-    files: [...data.files].sort((a, b) => a.path.localeCompare(b.path)),
-    comments: [...data.comments].sort((a, b) =>
-      `${a.createdAt}:${a.author}`.localeCompare(`${b.createdAt}:${b.author}`)
-    ),
-    reviews: [...data.reviews].sort((a, b) =>
-      `${a.submittedAt}:${a.author}`.localeCompare(
-        `${b.submittedAt}:${b.author}`,
-      )
-    ),
-    reviewThreads: [...data.reviewThreads].sort((a, b) =>
-      Number(a.isResolved) - Number(b.isResolved)
-    ),
-    checks: [...data.checks].sort((a, b) => a.name.localeCompare(b.name)),
-  });
+    scrubbed: {
+      redactionCount,
+      categories: [...categories].sort(),
+    },
+  };
 }
 
-/** Computes the SHA-256 cache identity for canonical review input. */
-export async function computeReviewDigest(value: string): Promise<string> {
-  const bytes = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(value),
-  );
-  return [...new Uint8Array(bytes)].map((byte) =>
-    byte.toString(16).padStart(2, "0")
-  ).join("");
+interface SecretScrubResultSummary {
+  redactionCount: number;
+  categories: string[];
 }
 
-function makeConclusions(data: PullRequestReviewData): ReviewConclusions {
+/** Signal-only fallback conclusions when the agent is skipped or fails. */
+export function heuristicConclusions(
+  data: PullRequestReviewData,
+): ReviewConclusions {
   const fileCount = data.files.length;
   const additions = data.files.reduce((sum, file) => sum + file.additions, 0);
   const deletions = data.files.reduce((sum, file) => sum + file.deletions, 0);
@@ -110,6 +140,9 @@ function makeConclusions(data: PullRequestReviewData): ReviewConclusions {
       )
     ).length;
   const mergeReasons: string[] = [];
+  if (data.state === "CLOSED" && data.mergeable !== "MERGEABLE") {
+    mergeReasons.push("the pull request is already closed");
+  }
   if (data.isDraft) mergeReasons.push("the pull request is a draft");
   if (data.mergeable === "CONFLICTING") {
     mergeReasons.push("GitHub reports merge conflicts");
@@ -128,30 +161,13 @@ function makeConclusions(data: PullRequestReviewData): ReviewConclusions {
     : `Unlikely to merge yet because ${mergeReasons.join(", ")}.`;
   return {
     change:
-      `${data.title} changes ${fileCount} file(s), with ${additions} addition(s) and ${deletions} deletion(s).`,
+      `${data.title} changes ${fileCount} file(s), with ${additions} addition(s) and ${deletions} deletion(s). (Heuristic summary; use the configured agent without --no-agent for a behavioral description.)`,
     mergeOutlook,
   };
 }
 
-/** Builds a deterministic read-only review brief from GitHub PR evidence. */
-export async function createReviewBrief(prUrl: string): Promise<ReviewBrief> {
-  const parsed = parsePullRequestUrl(prUrl);
-  if (!parsed) throw new Error(`Invalid PR URL: ${prUrl}`);
-  const data = await fetchPullRequestReviewData(prUrl);
-  const canonicalInput = canonicalizeReviewData(data);
-  const warnings: ReviewWarning[] = data.warnings.map((message) => ({
-    code: message.includes("unavailable")
-      ? "unavailable-data"
-      : "truncated-data",
-    message,
-  }));
-  if (!data.headRefOid) {
-    warnings.push({
-      code: "incomplete-data",
-      message: "The pull request head SHA is unavailable.",
-    });
-  }
-  const facts: ReviewFact[] = [
+function buildFacts(data: PullRequestReviewData): ReviewFact[] {
+  return [
     { source: "github.state", value: data.state, complete: true },
     { source: "github.draft", value: data.isDraft, complete: true },
     { source: "github.mergeable", value: data.mergeable, complete: true },
@@ -176,6 +192,82 @@ export async function createReviewBrief(prUrl: string): Promise<ReviewBrief> {
       complete: true,
     },
   ];
+}
+
+/** Builds a deterministic read-only review brief from GitHub PR evidence. */
+export async function createReviewBrief(
+  prReference: string,
+  options: CreateReviewBriefOptions = {},
+): Promise<ReviewBrief> {
+  const prUrl = normalizePullRequestUrl(prReference);
+  const parsed = parsePullRequestUrl(prUrl);
+  if (!parsed) throw new Error(`Invalid PR URL: ${prUrl}`);
+
+  const raw = await fetchPullRequestReviewData(prUrl);
+  const { data, scrubbed } = scrubReviewDataForPersistence(raw);
+
+  const warnings: ReviewWarning[] = raw.warnings.map((message) => ({
+    code: message.includes("unavailable")
+      ? "unavailable-data"
+      : "truncated-data",
+    message,
+  }));
+  if (!data.headRefOid) {
+    warnings.push({
+      code: "incomplete-data",
+      message: "The pull request head SHA is unavailable.",
+    });
+  }
+  if (scrubbed.redactionCount > 0) {
+    warnings.push({
+      code: "secrets-scrubbed",
+      message:
+        `Scrubbed ${scrubbed.redactionCount} likely secret segment(s) before analysis and caching (${
+          scrubbed.categories.join(", ")
+        }).`,
+    });
+  }
+
+  const workspaceRoot = options.workspaceRoot ?? Deno.cwd();
+  let conclusions: ReviewConclusions;
+  let conclusionsSource: ReviewConclusionsSource = {
+    change: "heuristic",
+    mergeOutlook: "heuristic",
+  };
+
+  if (options.noAgent) {
+    conclusions = heuristicConclusions(data);
+  } else {
+    try {
+      const agentOut = await runReviewAgentConclusions(
+        data,
+        workspaceRoot,
+        options.agent,
+      );
+      conclusions = {
+        change: agentOut.change,
+        mergeOutlook: agentOut.mergeOutlook,
+      };
+      conclusionsSource = { change: "agent", mergeOutlook: "agent" };
+      for (const limitation of agentOut.limitations) {
+        warnings.push({
+          code: "incomplete-data",
+          message: limitation,
+        });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      warnings.push({
+        code: "agent-unavailable",
+        message: `Review agent did not produce conclusions: ${message}`,
+      });
+      conclusions = heuristicConclusions(data);
+    }
+  }
+
+  const canonicalInput = canonicalizeReviewData(data);
+  const facts = buildFacts(data);
+
   return {
     schemaVersion: "1.0",
     identity: {
@@ -189,7 +281,8 @@ export async function createReviewBrief(prUrl: string): Promise<ReviewBrief> {
     canonicalInput,
     digest: await computeReviewDigest(canonicalInput),
     facts,
-    conclusions: makeConclusions(data),
+    conclusions,
+    conclusionsSource,
     warnings,
   };
 }

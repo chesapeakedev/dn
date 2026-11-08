@@ -106,7 +106,7 @@ import { handleSync } from "./sync.ts";
 import { handleUntil } from "./until.ts";
 import { handleEnsure } from "./ensure.ts";
 import { handleRunner } from "./runner.ts";
-import { handleRead } from "./read.ts";
+import { handleRead, handleReview } from "./review.ts";
 
 /**
  * Parses global flags from args and returns bootstrap options plus remaining args.
@@ -293,7 +293,7 @@ function showUsage(): void {
     "  issue        Manage GitHub issues and relationships",
   );
   console.error(
-    "  read         Produce a read-only pull request review brief",
+    "  review       Read-only pull request review brief",
   );
   console.error(
     "  milestone    Manage GitHub milestones (create, list)",
@@ -443,8 +443,11 @@ async function main(): Promise<void> {
     case "issues":
       await handleIssue(subcommandArgs);
       break;
+    case "review":
+      await handleReview(subcommandArgs, globalAgent);
+      break;
     case "read":
-      await handleRead(subcommandArgs);
+      await handleRead(subcommandArgs, globalAgent);
       break;
     case "milestone":
     case "milestones":

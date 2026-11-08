@@ -6,8 +6,16 @@ import {
   getCurrentRepoFromRemote,
 } from "./github-gql.ts";
 import { githubServerUrl, parseConfiguredIssueUrl } from "./endpoints.ts";
+import { bareGitHubNumberPolicyMessage } from "./githubReferencePolicy.ts";
 
-const ISSUE_NUMBER_PATTERN = /^#?(\d+)$/;
+export interface ResolveIssueUrlInputOptions {
+  /**
+   * When true, `#123` / `123` resolve via the checkout remote. Only kickstart and
+   * repo-scoped automation (for example sync from a `#N:` commit subject) should
+   * set this.
+   */
+  allowBareNumber?: boolean;
+}
 
 /**
  * Canonical issue state values returned by GitHub issue APIs.
@@ -150,22 +158,29 @@ export function isIssueHiddenInLogs(
  * Resolves user input to a full GitHub issue URL.
  * Accepts either a full GitHub issue URL or an issue number for the current repository.
  *
- * @param input - Full URL (e.g. https://github.com/owner/repo/issues/123) or issue number (e.g. 123 or #123)
+ * @param input - Full URL (e.g. https://github.com/owner/repo/issues/123) or, when
+ *   `allowBareNumber` is set, issue number (e.g. 123 or #123) for the checkout remote
  * @returns Promise resolving to the full GitHub issue URL
  * @throws Error if input is invalid or not in a git/sapling repo (when input is a number)
  */
-export async function resolveIssueUrlInput(input: string): Promise<string> {
+export async function resolveIssueUrlInput(
+  input: string,
+  options: ResolveIssueUrlInputOptions = {},
+): Promise<string> {
   const trimmed = input.trim();
   if (parseConfiguredIssueUrl(trimmed)) {
     return trimmed;
   }
-  const numMatch = trimmed.match(ISSUE_NUMBER_PATTERN);
+  const numMatch = trimmed.match(/^#?(\d+)$/);
   if (numMatch) {
+    if (!options.allowBareNumber) {
+      throw new Error(bareGitHubNumberPolicyMessage());
+    }
     const { owner, repo } = await getCurrentRepoFromRemote();
     return githubServerUrl(`/${owner}/${repo}/issues/${numMatch[1]}`);
   }
   throw new Error(
-    `Invalid issue URL or number: ${input}. Provide a full URL (e.g. https://github.com/owner/repo/issues/123) or an issue number for the current repository.`,
+    `Invalid issue URL: ${input}. Provide a full URL (e.g. https://github.com/owner/repo/issues/123).`,
   );
 }
 

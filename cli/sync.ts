@@ -586,7 +586,9 @@ async function resolveSyncPrIssue(
       "Could not resolve a GitHub issue for --pr. Pass --issue <number|url> or land with a #N: commit subject prefix.",
     );
   }
-  const url = await resolveIssueUrlInput(String(issueNumber));
+  const url = await resolveIssueUrlInput(String(issueNumber), {
+    allowBareNumber: true,
+  });
   return await fetchIssueFromUrl(url);
 }
 

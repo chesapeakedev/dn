@@ -1,5 +1,8 @@
 import { assert, assertEquals, assertNotEquals } from "@std/assert";
-import { canonicalizeReviewData, computeReviewDigest } from "./reviewBrief.ts";
+import {
+  canonicalizeReviewData,
+  computeReviewDigest,
+} from "./reviewBriefCanonical.ts";
 import type { PullRequestReviewData } from "./github-gql.ts";
 
 function sampleData(): PullRequestReviewData {

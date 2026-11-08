@@ -745,7 +745,9 @@ export async function runOrchestrator(
       issueContextPathFinal = config.contextMarkdownPath;
       issueData = null;
     } else if (issueUrl) {
-      const resolvedIssueUrl = await resolveIssueUrlInput(issueUrl);
+      const resolvedIssueUrl = await resolveIssueUrlInput(issueUrl, {
+        allowBareNumber: true,
+      });
       issueData = await fetchIssueFromUrl(resolvedIssueUrl);
       issueContextPathFinal = `${tmpDir}/issue-context.md`;
       await writeIssueContext(issueData, issueContextPathFinal);

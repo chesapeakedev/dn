@@ -345,14 +345,19 @@ export {
   getDefaultBranch,
   getIssueIdentifiers,
 } from "./github/github-gql.ts";
+export { normalizePullRequestUrl } from "./github/pullRequestReference.ts";
+export { scrubSecrets } from "./github/secretScrub.ts";
 export {
   canonicalizeReviewData,
   computeReviewDigest,
   createReviewBrief,
+  heuristicConclusions,
 } from "./github/reviewBrief.ts";
 export type {
+  CreateReviewBriefOptions,
   ReviewBrief,
   ReviewConclusions,
+  ReviewConclusionsSource,
   ReviewFact,
   ReviewPullRequestIdentity,
   ReviewWarning,

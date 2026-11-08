@@ -14,6 +14,7 @@
  *   dn issue comment  - Add comment to issue
  */
 
+import { bareGitHubNumberPolicyMessage } from "../sdk/github/githubReferencePolicy.ts";
 import {
   addIssueBlockedBy,
   addIssueComment,
@@ -119,12 +120,7 @@ export async function resolveIssueRef(
 ): Promise<ResolvedIssueRef | null> {
   const numMatch = ref.match(/^#?(\d+)$/);
   if (numMatch) {
-    const remote = await resolveRepo(repoOverride);
-    return {
-      owner: remote.owner,
-      repo: remote.repo,
-      number: parseInt(numMatch[1], 10),
-    };
+    throw new Error(bareGitHubNumberPolicyMessage());
   }
 
   const urlMatch = ref.match(

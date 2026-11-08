@@ -47,7 +47,6 @@ import {
 import { readContextFileSections } from "../sdk/github/prompt.ts";
 import { isAbsolute, join } from "@std/path";
 
-const ISSUE_NUMBER_PATTERN = /^#?\d+$/;
 const GITHUB_ISSUE_URL_PATTERN =
   /^https?:\/\/github\.com\/([^\/]+)\/([^\/]+)\/issues\/(\d+)(?:[?#].*)?$/i;
 
@@ -147,9 +146,7 @@ export function classifyLoopTarget(input: string | null): LoopTarget {
     return { kind: "auto" };
   }
   const trimmed = input.trim();
-  if (
-    GITHUB_ISSUE_URL_PATTERN.test(trimmed) || ISSUE_NUMBER_PATTERN.test(trimmed)
-  ) {
+  if (GITHUB_ISSUE_URL_PATTERN.test(trimmed)) {
     return { kind: "github-issue", input: trimmed };
   }
   if (
@@ -287,7 +284,7 @@ export async function resolveLoopTarget(
     const discovered = await discoverLatestPlanFile(workspaceRoot);
     if (!discovered) {
       throw new Error(
-        "No plan files found in plans/. Run 'dn meld <issue>' first or pass a plan file, issue URL, or issue number.",
+        "No plan files found in plans/. Run 'dn meld <issue-url>' first or pass a plan file or full issue URL.",
       );
     }
     return { planFilePath: discovered, issueUrl: null, planSource: "file" };
@@ -316,11 +313,10 @@ export async function resolveLoopTarget(
   if (!issue) {
     throw new Error(`Invalid issue URL or number: ${target.input}`);
   }
-  const allowShortIssueNumber = ISSUE_NUMBER_PATTERN.test(target.input);
   const planFilePath = await findPlanFileForIssue(
     workspaceRoot,
     issue,
-    allowShortIssueNumber,
+    false,
   );
   if (!planFilePath) {
     return { planFilePath: null, issueUrl, planSource: "github-issue" };

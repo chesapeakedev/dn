@@ -248,7 +248,8 @@ Several subcommands (`kickstart`, `meld`) accept a flexible issue or source
 argument. The following formats are recognized:
 
 - **Full GitHub issue URL**: `https://github.com/owner/repo/issues/123`
-- **Issue number** (current repo): `123`
+- **Issue number** (current repo checkout only): `123` or `#123` —
+  **`dn kickstart` only**
 - **Local markdown file path**: `docs/spec.md` or `plans/feature.md`
 - **Denoise task JSON file** (with `--denoise-task` flag or auto-detected as a
   meld/loop source): `task.json`
@@ -1249,7 +1250,7 @@ Not included in this implementation:
 ## `dn meld` — Plan from one or more sources
 
 `dn meld` is the **plan** phase of the `meld → loop → land` lifecycle (plan →
-implement → review and close-out). Give it one GitHub issue, issue number, or
+implement → review and close-out). Give it one full GitHub issue URL or
 local Markdown file for the common case. Add sources when a useful plan needs
 product notes, research, or several issues.
 
@@ -1258,8 +1259,7 @@ agents run if the RFC corpus is missing or draft-only. See
 [Strict mode](strict-mode.md).
 
 ```bash
-# Create a plan from one issue or local specification
-dn meld 123
+# Create a plan from one issue URL or local specification
 dn meld https://github.com/owner/repo/issues/123
 dn meld docs/spec.md
 
@@ -1269,15 +1269,15 @@ dn meld issue-a.md https://github.com/owner/repo/issues/123
 dn meld --list sources.txt
 
 # Name the plan or preserve the merged input
-dn meld 123 --plan-name my-feature
+dn meld https://github.com/owner/repo/issues/123 --plan-name my-feature
 dn meld product.md architecture.md --output plans/merged-context.md
 
 # From a denoise task JSON file (auto-detected)
 dn meld task.json
 
 # Select an agent or plan across repositories
-dn --agent claude meld 123
-dn --agent codex meld 123
+dn --agent claude meld https://github.com/owner/repo/issues/123
+dn --agent codex meld https://github.com/owner/repo/issues/123
 dn meld --allow-cross-repo https://github.com/private-org/backend-api/issues/123
 ```
 
@@ -1526,6 +1526,30 @@ restore the plan file before exiting with an error.
 
 See `dn land --help` for all options.
 
+## `dn review` — Read-only pull request brief
+
+Fetches GitHub pull request metadata (description, reviews, checks, commits) and
+produces a versioned brief for humans and Denoise automation. Read-only: no
+checkout mutations, no PR comments, and no CI changes. Secrets in fetched text
+are scrubbed before persistence and before any agent prompt.
+
+```bash
+dn review https://github.com/owner/repo/pull/123
+dn review https://github.com/owner/repo/pull/123 --json
+dn review https://github.com/owner/repo/pull/123 --no-agent
+dn review https://github.com/owner/repo/pull/123 --agent cursor
+```
+
+Pass a **full pull request URL**. Bare `#123` / `123` refs are rejected (same
+policy as `dn fixup` and `dn issue`); only `dn kickstart` accepts bare issue
+numbers against the checkout remote.
+
+`dn read` is a deprecated alias that prints a warning and runs `dn review`.
+Machine-readable output uses `schemaVersion: "1.0"`, a content `digest`,
+`facts`, agent or heuristic `conclusions`, and `warnings` (for example
+`secrets-scrubbed` or `agent-unavailable`). See
+[Denoise integration](denoise-integration.md).
+
 ## `dn fixup` — Address PR feedback
 
 Fetches a pull request's description and review comments, creates a plan to
@@ -1561,38 +1585,32 @@ dn issue list                              # List open issues
 dn issue list --repo owner/repo            # List issues in another repo
 dn issue list --state closed --limit 10    # Closed issues, max 10
 dn issue list --label bug                  # Filter by label
-dn issue show 123                          # Show details and comments
-dn issue show 123 --repo owner/repo        # Resolve number in another repo
-dn issue show 123 --no-comments            # Details only
+dn issue show https://github.com/owner/repo/issues/123
+dn issue show https://github.com/owner/repo/issues/123 --repo owner/other   # URL wins; --repo ignored
+dn issue show https://github.com/owner/repo/issues/123 --no-comments
 dn issue create --title "Bug" --body-file report.md
 dn issue create --repo owner/repo --title "Bug" --body-file report.md
 dn issue create --title "Bug" --milestone 42
-dn issue edit 123 --title "New title"
-dn issue edit 123 --add-label bug
-dn issue edit 123 --milestone https://github.com/owner/repo/milestone/42
-dn issue edit 123 --clear-milestone
-dn issue close 123                         # Close as completed
-dn issue close 123 --reason not_planned    # Close as not planned
-dn issue close 123 --comment "Fixed in #456"
-dn issue reopen 123
-dn issue comment 123 --body-file update.md
-dn issue comment 123 --body-stdin          # Pipe body from stdin
-dn issue relationship list 123
-dn issue relationship add blocked-by 123 456
-dn issue relationship add sub-issue 123 789
-dn issue relationship reprioritize sub-issue 123 789 --after 456
-dn issue relationship mark-duplicate 123 456
+dn issue edit https://github.com/owner/repo/issues/123 --title "New title"
+dn issue edit https://github.com/owner/repo/issues/123 --add-label bug
+dn issue edit https://github.com/owner/repo/issues/123 --milestone https://github.com/owner/repo/milestone/42
+dn issue close https://github.com/owner/repo/issues/123
+dn issue comment https://github.com/owner/repo/issues/123 --body-file update.md
+dn issue relationship list https://github.com/owner/repo/issues/123
+dn issue relationship add blocked-by https://github.com/owner/repo/issues/123 https://github.com/owner/repo/issues/456
 ```
 
 All subcommands support `--json` for machine-readable output and `--help` for
-per-subcommand options. Issue references accept a number (`123`), `#123`, or a
-full URL. `--repo owner/repo` sets the repository used for numeric refs and for
-commands without an issue ref, such as `list` and `create`; full URLs keep using
-the repository from the URL. `dn issue show` includes relationship metadata such
-as parent issue, sub-issues, blockers, blocked issues, and duplicate-of when
-GitHub exposes it for the issue. Those reads follow GitHub’s GraphQL paging: at
-most ten related-issue references appear per blocking/sub-issue edge unless the
-totals-only summary shows a larger total count (“more not shown”).
+per-subcommand options. Issue references must be full URLs (bare `123` / `#123`
+are rejected so shared runners do not depend on checkout remotes). Use
+`--repo owner/repo` when a URL path does not match the intended repository and
+for commands without an issue ref, such as `list` and `create`; full URLs keep
+using the repository from the URL. `dn issue show` includes relationship
+metadata such as parent issue, sub-issues, blockers, blocked issues, and
+duplicate-of when GitHub exposes it for the issue. Those reads follow GitHub’s
+GraphQL paging: at most ten related-issue references appear per
+blocking/sub-issue edge unless the totals-only summary shows a larger total
+count (“more not shown”).
 
 ## `dn milestone` — Manage GitHub milestones
 

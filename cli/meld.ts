@@ -45,11 +45,8 @@ import { runWithSandboxLifecycle } from "../sdk/sandbox/lifecycle.ts";
 import { promptAndAddToTodoList } from "../sdk/tasks/tasks.ts";
 import { resolveContextFileArgs } from "./contextFiles.ts";
 
-const ISSUE_NUMBER_PATTERN = /^#?\d+$/;
-
 function isIssueReference(source: string): boolean {
-  const trimmed = source.trim();
-  return isGitHubIssueUrl(trimmed) || ISSUE_NUMBER_PATTERN.test(trimmed);
+  return isGitHubIssueUrl(source.trim());
 }
 
 function agentHarnessToMeldMode(harness: AgentHarness): MeldMode {
@@ -422,7 +419,7 @@ export async function handleMeld(
     if (directIssueSource === null) {
       for (const src of sources) {
         try {
-          const resolvedSource = ISSUE_NUMBER_PATTERN.test(src.trim())
+          const resolvedSource = isGitHubIssueUrl(src.trim())
             ? await resolveIssueUrlInput(src)
             : src;
           const content = await resolveSource(resolvedSource);
