@@ -4,12 +4,25 @@
 import type { AgentHarness } from "../github/agentHarness.ts";
 import type { DnSandboxConfig } from "../sandbox/types.ts";
 
+/** Task/milestone backend for `dn task` / `dn milestone`. */
+export type DnWorkspaceBackend = "todo" | "github" | "denoise";
+
+/** Workspace CLI defaults (user or project `dn.json`). */
+export interface DnWorkspaceConfig {
+  /** Default backend when flags are omitted. */
+  default_backend?: DnWorkspaceBackend;
+  /** Denoise API origin override for cloud operations. */
+  api_url?: string;
+}
+
 /** Personal defaults stored under `defaults` in `~/.dn/config.json`. */
 export interface DnUserDefaults {
   /** Default agent preference. */
   agent?: AgentHarness;
   /** Default sandbox configuration. */
   sandbox?: DnSandboxConfig;
+  /** Workspace/task backend defaults. */
+  workspace?: DnWorkspaceConfig;
 }
 
 /** Per-repository override in `~/.dn/config.json` `repos`. */
@@ -171,6 +184,10 @@ export interface DnConfigLayer {
   kickstart?: DnKickstartConfig;
   /** Harness suggestions (project config); normalized into agent/sandbox/kickstart. */
   harness?: DnHarnessConfig;
+  /** Workspace/task CLI defaults (project or user config). */
+  workspace?: DnWorkspaceConfig;
+  /** @deprecated Use `workspace.default_backend`. */
+  tasks?: { default_backend?: DnWorkspaceBackend };
 }
 
 /** Runtime values which take precedence over file-based configuration. */

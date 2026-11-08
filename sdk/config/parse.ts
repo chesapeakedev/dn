@@ -20,6 +20,8 @@ import type {
   DnSyncConfig,
   DnUserDefaults,
   DnUserRepoOverride,
+  DnWorkspaceBackend,
+  DnWorkspaceConfig,
 } from "./types.ts";
 
 /** Recipe names accepted in `dn.json` `ensure`. */
@@ -39,6 +41,52 @@ function parseOptionalAgent(
   return parseAgentHarness(value);
 }
 
+function parseWorkspaceBackend(
+  value: unknown,
+  source: string,
+  field: string,
+): DnWorkspaceBackend {
+  if (typeof value !== "string") {
+    throw new Error(
+      `Invalid dn config at ${source}: ${field} must be a string`,
+    );
+  }
+  const v = value.trim().toLowerCase();
+  if (v === "todo" || v === "local") return "todo";
+  if (v === "github" || v === "gh") return "github";
+  if (v === "denoise" || v === "cloud" || v === "workspace") return "denoise";
+  throw new Error(
+    `Invalid dn config at ${source}: ${field} must be todo, github, or denoise`,
+  );
+}
+
+function parseWorkspaceConfig(
+  value: unknown,
+  source: string,
+  field: string,
+): DnWorkspaceConfig {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(
+      `Invalid dn config at ${source}: ${field} must be an object`,
+    );
+  }
+  const record = value as Record<string, unknown>;
+  return {
+    ...(record.default_backend !== undefined
+      ? {
+        default_backend: parseWorkspaceBackend(
+          record.default_backend,
+          source,
+          `${field}.default_backend`,
+        ),
+      }
+      : {}),
+    ...(typeof record.api_url === "string" && record.api_url.trim()
+      ? { api_url: record.api_url.trim() }
+      : {}),
+  };
+}
+
 function parseUserDefaults(
   value: unknown,
   source: string,
@@ -55,6 +103,15 @@ function parseUserDefaults(
       : {}),
     ...(record.sandbox !== undefined
       ? { sandbox: parseDnSandboxConfig(record.sandbox) }
+      : {}),
+    ...(record.workspace !== undefined
+      ? {
+        workspace: parseWorkspaceConfig(
+          record.workspace,
+          source,
+          "defaults.workspace",
+        ),
+      }
       : {}),
   };
 }
@@ -528,6 +585,34 @@ export function parseDnConfig(content: string, source: string): DnConfigLayer {
       : {}),
     ...(value.harness !== undefined
       ? { harness: parseHarnessConfig(value.harness, source) }
+      : {}),
+    ...(value.workspace !== undefined
+      ? {
+        workspace: parseWorkspaceConfig(value.workspace, source, "workspace"),
+      }
+      : {}),
+    ...(value.tasks !== undefined
+      ? {
+        tasks: typeof value.tasks === "object" && value.tasks !== null &&
+            !Array.isArray(value.tasks)
+          ? {
+            ...(typeof (value.tasks as Record<string, unknown>)
+                .default_backend === "string"
+              ? {
+                default_backend: parseWorkspaceBackend(
+                  (value.tasks as Record<string, unknown>).default_backend,
+                  source,
+                  "tasks.default_backend",
+                ),
+              }
+              : {}),
+          }
+          : (() => {
+            throw new Error(
+              `Invalid dn config at ${source}: tasks must be an object`,
+            );
+          })(),
+      }
       : {}),
   };
   return normalizeHarnessDefaults(layer, source);

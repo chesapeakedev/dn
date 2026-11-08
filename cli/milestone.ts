@@ -7,6 +7,7 @@ import {
   listOpenMilestones,
   publishMilestonePlan,
 } from "../sdk/mod.ts";
+import { handleMilestoneWithBackend } from "./milestoneWorkspace.ts";
 
 interface RepoRef {
   owner: string;
@@ -178,11 +179,21 @@ function showPublishHelp(): void {
 export async function handleMilestone(args: string[]): Promise<void> {
   const subcommand = args[0];
   if (!subcommand || subcommand === "--help" || subcommand === "-h") {
-    console.log("dn milestone - Manage GitHub milestones\n");
+    console.log("dn milestone - GitHub or Denoise milestones\n");
     console.log("  create    Create a milestone");
     console.log("  list      List open milestones");
-    console.log("  publish   Publish a milestone plan");
+    console.log("  show      Show one milestone (--denoise)");
+    console.log("  edit      Edit / archive (--denoise)");
+    console.log("  publish   Publish a milestone plan (GitHub)");
+    console.log(
+      "\nUse --github (default) or --denoise / workspace.default_backend.\n",
+    );
     return;
+  }
+  try {
+    if (await handleMilestoneWithBackend(args)) return;
+  } catch (error) {
+    throw error;
   }
   if (subcommand === "create") await handleCreate(args.slice(1));
   else if (subcommand === "list" || subcommand === "ls") {

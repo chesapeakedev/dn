@@ -764,3 +764,36 @@ export type {
 } from "./denoise/fetchTaskRef.ts";
 export { isDenoiseTaskUrl, parseDenoiseTaskUrl } from "./denoise/taskUrl.ts";
 export type { ParsedDenoiseTaskUrl } from "./denoise/taskUrl.ts";
+export {
+  createDenoiseMilestone,
+  getDenoiseMilestone,
+  listDenoiseMilestones,
+  updateDenoiseMilestone,
+} from "./denoise/milestones.ts";
+export type {
+  CreateDenoiseMilestoneInput,
+  DenoiseMilestone,
+  UpdateDenoiseMilestoneInput,
+} from "./denoise/milestones.ts";
+export {
+  closeDenoiseTask,
+  createDenoiseTasks,
+  listDenoiseTasks,
+  reopenDenoiseTask,
+  updateDenoiseTask,
+} from "./denoise/tasks.ts";
+export type {
+  CreateDenoiseTaskInput,
+  CreateDenoiseTaskResult,
+  DenoiseWorkspaceTask,
+  UpdateDenoiseTaskInput,
+} from "./denoise/tasks.ts";
+export { DenoiseApiError, denoiseApiRequest } from "./denoise/client.ts";
+export type { DenoiseApiClientOptions } from "./denoise/client.ts";
+export {
+  inferWorkspaceBackendFromRef,
+  parseWorkspaceBackendFlag,
+  parseWorkspaceFlags,
+  resolveWorkspaceBackend,
+} from "./denoise/workspaceBackend.ts";
+export type { WorkspaceBackend } from "./denoise/workspaceBackend.ts";

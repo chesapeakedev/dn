@@ -23,25 +23,35 @@ import {
   type DenoiseTaskDocument,
   validateDenoiseTaskDocument,
 } from "../sdk/runner/types.ts";
+import { handleTaskWithBackend } from "./taskWorkspace.ts";
 
 function showHelp(): void {
-  console.log("dn task - Manage task list (~/.dn/todo.md)\n");
+  console.log(
+    "dn task - Tasks: local queue, GitHub issues, or Denoise cloud\n",
+  );
   console.log("Usage:");
-  console.log("  dn task list [--json]");
+  console.log("  dn task list [--json] [--todo | --github | --denoise]");
   console.log("  dn task show <id|ref> [--json]");
-  console.log("  dn task upsert --file <path.json> | --stdin");
+  console.log(
+    "  dn task create --title <t> --milestone <id>  (with --denoise)",
+  );
+  console.log(
+    "  dn task edit|close|reopen|comment  (GitHub or Denoise via flags)",
+  );
+  console.log("  dn task upsert --file <path.json> | --stdin   (--todo)");
   console.log("  dn task delete <id>");
   console.log(
     "  dn task done [ref] [--comment <text>]   Mark item done; close GitHub issue when applicable\n",
   );
   console.log("  dn task sync status [--json]\n");
   console.log(
-    "Native Void tasks and the kickstart queue (issues, plans) share one file.",
+    "Default backend: workspace.default_backend in dn.json (~/.dn/config.json).",
   );
   console.log(
-    "Void task-sync and `dn kickstart --denoise-task` use native tasks.",
+    "  todo    → ~/.dn/todo.md queue (also: upsert, delete, done, sync)",
   );
-  console.log("`dn tidy` refreshes the GitHub/plan queue in the same file.\n");
+  console.log("  github  → same as dn issue");
+  console.log("  denoise → Denoise milestone tasks (GitHub bearer auth)\n");
 }
 
 /**
@@ -51,6 +61,15 @@ export async function handleTask(args: string[]): Promise<void> {
   if (args.length === 0 || args[0] === "--help" || args[0] === "-h") {
     showHelp();
     return;
+  }
+
+  try {
+    if (await handleTaskWithBackend(args)) return;
+  } catch (error) {
+    console.error(
+      `Error: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    Deno.exit(1);
   }
 
   const subcommand = args[0];
