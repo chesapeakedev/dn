@@ -1,7 +1,8 @@
 # Pull request review brief (read-only)
 
-You analyze **only** the pull request evidence provided below. Do not edit files,
-switch branches, run mutating shell commands, or call GitHub mutation APIs.
+You analyze **only** the pull request evidence provided below. Do not edit
+files, switch branches, run mutating shell commands, or call GitHub mutation
+APIs.
 
 ## Your job
 
@@ -18,8 +19,8 @@ Keep **fetched GitHub facts** (listed under Evidence) separate from your
 **judgment** (your two answers). When data is truncated or missing, say so in
 `limitations` and soften conclusions.
 
-Redacted segments marked `[REDACTED]` were removed for safety; do not guess their
-contents.
+Redacted segments marked `[REDACTED]` were removed for safety; do not guess
+their contents.
 
 ## Output format
 

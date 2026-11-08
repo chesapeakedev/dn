@@ -96,6 +96,7 @@ import { handleComplete, handleCompletion } from "./completion.ts";
 import { handleKickstart } from "./kickstart.ts";
 import { handleLoop } from "./loop.ts";
 import { handleMeld } from "./meld.ts";
+import { handleResearch } from "./research.ts";
 import { handleGlance } from "./glance.ts";
 import { handlePeek } from "./peek.ts";
 import { handleTask } from "./task.ts";
@@ -326,6 +327,9 @@ function showUsage(): void {
     "  meld         Plan phase from one or more sources",
   );
   console.error(
+    "  research     Read-only codebase research (stdout; optional -o)",
+  );
+  console.error(
     "  land         Optional review + close-out into VCS commits",
   );
   console.error(
@@ -483,6 +487,14 @@ async function main(): Promise<void> {
       break;
     case "meld":
       await handleMeld(
+        subcommandArgs,
+        globalAgent,
+        globalSandbox,
+        globalContextFiles,
+      );
+      break;
+    case "research":
+      await handleResearch(
         subcommandArgs,
         globalAgent,
         globalSandbox,

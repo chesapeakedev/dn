@@ -16,7 +16,7 @@ You can pass **output flags** after any subcommand to control output style:
 - **`--color`** – Enable colors even when stdout is not a TTY.
 
 Use **`--context-file <path>`** (repeatable) to append extra files to agent
-prompt context for `kickstart`, `loop`, `meld`, `fixup`, and
+prompt context for `kickstart`, `loop`, `meld`, `research`, `fixup`, and
 `land --issue-testplan`. The flag can appear before or after the subcommand:
 
 ```bash
@@ -25,9 +25,9 @@ dn kickstart --context-file notes.md 123
 ```
 
 Use **`--sandbox <none|docker|exe.dev>`** to select a sandbox provider for agent
-workflows (`kickstart`, `loop`, `meld`, `until`, `ensure`). Omit the value to
-read `sandbox.provider` from repository `dn.json` (`harness.defaults.sandbox`).
-See [Sandbox providers](sandbox.md).
+workflows (`kickstart`, `loop`, `meld`, `research`, `until`, `ensure`). Omit the
+value to read `sandbox.provider` from repository `dn.json`
+(`harness.defaults.sandbox`). See [Sandbox providers](sandbox.md).
 
 In CI, `dn` automatically sets `NO_COLOR` and runs in unattended mode. See
 [Output and environment](output-and-environment.md) for NO_COLOR, FORCE_COLOR,
@@ -1247,12 +1247,34 @@ Not included in this implementation:
 - Strict-mode enforcement
 - Authoring skill (follow-up)
 
+## `dn research` — Codebase research for outer harnesses
+
+Read-only investigation phase: nested agent searches the repo and returns a
+research report. **Default output is stdout** (progress on stderr). The outer
+IDE agent owns planning; this command skips `dn meld` acceptance-criteria plans.
+
+Remote targets require **full URLs** (not bare issue numbers): GitHub issue URL,
+Denoise task URL, local `.md`, or `--denoise-task` JSON.
+
+```bash
+dn research https://github.com/owner/repo/issues/123
+dn research https://denoise.cloud/task/<uuid>
+dn research --allow-cross-repo https://github.com/other/repo/issues/456
+dn research -o plans/issue-123.research.md https://github.com/owner/repo/issues/123
+dn research https://github.com/owner/repo/issues/123 > /tmp/recon.md
+dn research docs/spec.md
+dn research --json https://github.com/owner/repo/issues/123
+```
+
+Does not publish, implement, or commit. For dn-native plans use `dn meld`; for
+full workflow use `dn kickstart`.
+
 ## `dn meld` — Plan from one or more sources
 
 `dn meld` is the **plan** phase of the `meld → loop → land` lifecycle (plan →
-implement → review and close-out). Give it one full GitHub issue URL or
-local Markdown file for the common case. Add sources when a useful plan needs
-product notes, research, or several issues.
+implement → review and close-out). Give it one full GitHub issue URL or local
+Markdown file for the common case. Add sources when a useful plan needs product
+notes, research, or several issues.
 
 When `strict.require_rfcs` is enabled with `strict.enabled`, meld exits before
 agents run if the RFC corpus is missing or draft-only. See

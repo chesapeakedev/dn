@@ -496,11 +496,11 @@ the workflow that received it.
 
 # Read-only pull request briefs
 
-`dn review <pull-request-url> --json` is safe to run as an on-demand Denoise job.
-Pass a **full GitHub PR URL** (bare numbers are rejected so shared runners are
-not tied to `origin`). The command only reads GitHub GraphQL data and does not
-write the checkout, change branches, or mutate pull request, review, comment,
-commit, or CI state.
+`dn review <pull-request-url> --json` is safe to run as an on-demand Denoise
+job. Pass a **full GitHub PR URL** (bare numbers are rejected so shared runners
+are not tied to `origin`). The command only reads GitHub GraphQL data and does
+not write the checkout, change branches, or mutate pull request, review,
+comment, commit, or CI state.
 
 Use `--no-agent` / `--signals-only` for a fast, heuristic-only brief without
 invoking the configured agent. By default, judgment fields use the repo agent
@@ -508,8 +508,8 @@ invoking the configured agent. By default, judgment fields use the repo agent
 
 Likely secrets in PR text are scrubbed to `[REDACTED]` before agent prompts and
 before `canonicalInput` is digested for cache. Cache by `identity.headSha` and
-`digest`; warnings cover truncation, scrubbing, and agent fallback. Merge outlook
-is qualified judgment, not a guarantee. `dn read` is a deprecated alias.
+`digest`; warnings cover truncation, scrubbing, and agent fallback. Merge
+outlook is qualified judgment, not a guarantee. `dn read` is a deprecated alias.
 
 On failure with `--json`, stdout is a versioned envelope
 `{ "schemaVersion": "1.0", "ok": false, "error": { "code", "message" } }` (for

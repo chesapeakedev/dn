@@ -114,10 +114,10 @@ async function resolveRepo(
 /**
  * Resolve a user-facing issue reference into owner/repo/number coordinates.
  */
-export async function resolveIssueRef(
+export function resolveIssueRef(
   ref: string,
-  repoOverride?: RepoRef,
-): Promise<ResolvedIssueRef | null> {
+  _repoOverride?: RepoRef,
+): ResolvedIssueRef | null {
   const numMatch = ref.match(/^#?(\d+)$/);
   if (numMatch) {
     throw new Error(bareGitHubNumberPolicyMessage());

@@ -227,6 +227,7 @@ $ dn kickstart --publish pr https://github.com/owner/repo/issues/123
 $ dn kickstart --publish direct https://github.com/owner/repo/issues/123
 
 # Reviewable plan, then implement, then optional review on land
+$ dn research https://github.com/owner/repo/issues/123   # stdout recon for IDE harness
 $ dn meld 123
 $ dn loop plans/issue-123.plan.md
 $ dn land plans/issue-123.plan.md

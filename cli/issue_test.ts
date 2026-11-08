@@ -27,8 +27,8 @@ Deno.test("parseRepoRef rejects malformed repositories", () => {
   assertEquals(parseRepoRef("acme/"), null);
 });
 
-Deno.test("resolveIssueRef rejects bare number refs", async () => {
-  await assertRejects(
+Deno.test("resolveIssueRef rejects bare number refs", () => {
+  assertThrows(
     () =>
       resolveIssueRef("123", {
         owner: "public-owner",
@@ -39,8 +39,8 @@ Deno.test("resolveIssueRef rejects bare number refs", async () => {
   );
 });
 
-Deno.test("resolveIssueRef lets full URLs choose their repository", async () => {
-  const resolved = await resolveIssueRef(
+Deno.test("resolveIssueRef lets full URLs choose their repository", () => {
+  const resolved = resolveIssueRef(
     "https://github.com/url-owner/url-repo/issues/456",
     {
       owner: "override-owner",

@@ -522,6 +522,30 @@ export const DN_COMPLETION_ROOT: CompletionNode = {
         "--context-file": FILE_VALUE,
       },
     },
+    research: {
+      flags: [
+        "--steer",
+        "--verbosity",
+        "--output",
+        "-o",
+        "--plan-name",
+        "--saved-plan",
+        "--denoise-task",
+        "--workspace-root",
+        ...agentWorkflowFlags(),
+        ...HELP_FLAGS,
+      ],
+      flagValues: {
+        "--verbosity": VERBOSITY,
+        "--output": FILE_VALUE,
+        "-o": FILE_VALUE,
+        "--plan-name": FILE_VALUE,
+        "--saved-plan": FILE_VALUE,
+        "--denoise-task": FILE_VALUE,
+        "--workspace-root": FILE_VALUE,
+        ...agentWorkflowFlagValues(),
+      },
+    },
     meld: {
       flags: [
         "--list",

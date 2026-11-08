@@ -28,7 +28,7 @@ export interface KickstartProgressEvent {
   seq: number;
   ts: string;
   type: KickstartProgressEventType;
-  phase?: "plan" | "implement" | "review" | "lint" | "publish";
+  phase?: "plan" | "implement" | "review" | "research" | "lint" | "publish";
   step?: number;
   message: string;
   data?: Record<string, unknown>;

@@ -24,8 +24,8 @@ Add `--scope user` to write under the home directory instead of the repo.
 These rules apply to every supported outer harness.
 
 **Hybrid.** If the user names an issue, a plan file, or `kickstart` / `meld` /
-`loop` / `land`, orchestrate the CLI. Do not reimplement the ticket in-chat. If
-they iterate on code in this session, implement here.
+`research` / `loop` / `land`, orchestrate the CLI. Do not reimplement the ticket
+in-chat. If they iterate on code in this session, implement here.
 
 **Kickstart from an issue URL.** A pasted GitHub issue URL plus "kickstart this"
 should resolve argv without a flag quiz:
@@ -65,6 +65,11 @@ a local commit; **`dn sync --pr`** opens a pull request from local commits.
 
 **Nested agent.** Do not pass `--agent <this-harness>` unless asked. Let project
 config or `DN_AGENT` pick the nested plan/implement harness.
+
+**Research.** Maps to `dn research`: full GitHub issue URL or Denoise task URL;
+ingest markdown from **stdout** (not bare issue numbers). Use when the outer
+harness owns planning and only needs codebase recon. Optional `-o` for a file to
+pass later as `--context-file` on kickstart/meld.
 
 **Plan mode.** Maps to `dn meld` (do not implement). After the plan is accepted,
 `dn loop`, then **`dn land`** (or ask before committing in IDE chat), then
