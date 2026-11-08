@@ -75,7 +75,10 @@ export async function resolveTaskBackend(
   return { backend, args: rest, apiUrl };
 }
 
-async function handleDenoiseList(args: string[]): Promise<void> {
+async function handleDenoiseList(
+  args: string[],
+  resolvedApiUrl: string | null = null,
+): Promise<void> {
   let milestoneId: string | undefined;
   let json = false;
   for (let i = 0; i < args.length; i++) {
@@ -90,7 +93,7 @@ async function handleDenoiseList(args: string[]): Promise<void> {
   if (!milestoneId) {
     throw new Error("--milestone is required for Denoise task list");
   }
-  const { githubToken, apiUrl } = await resolveClientOptions(null);
+  const { githubToken, apiUrl } = await resolveClientOptions(resolvedApiUrl);
   const tasks = await listDenoiseTasks(milestoneId, { githubToken, apiUrl });
   if (json) {
     console.log(JSON.stringify({ tasks }, null, 2));
@@ -106,14 +109,17 @@ async function handleDenoiseList(args: string[]): Promise<void> {
   }
 }
 
-async function handleDenoiseShow(args: string[]): Promise<void> {
+async function handleDenoiseShow(
+  args: string[],
+  resolvedApiUrl: string | null = null,
+): Promise<void> {
   let json = false;
   const ref = args.find((a) => !a.startsWith("--") && a !== "--json");
   if (args.includes("--json")) json = true;
   if (!ref) {
     throw new Error("Usage: dn task show --denoise <task-url-or-id>");
   }
-  const { githubToken, apiUrl } = await resolveClientOptions(null);
+  const { githubToken, apiUrl } = await resolveClientOptions(resolvedApiUrl);
   const parsed = parseDenoiseTaskUrl(ref) ??
     parseDenoiseTaskUrl(
       new URL(`/task/${ref}`, apiUrl).href,
@@ -140,14 +146,16 @@ async function handleDenoiseShow(args: string[]): Promise<void> {
   }
 }
 
-async function handleDenoiseCreate(args: string[]): Promise<void> {
+async function handleDenoiseCreate(
+  args: string[],
+  resolvedApiUrl: string | null = null,
+): Promise<void> {
   let title: string | undefined;
   let milestoneId: string | undefined;
   let bodyFile: string | undefined;
   let count: number | undefined;
   let json = false;
   const { apiUrl: flagApiUrl, args: flagArgs } = parseWorkspaceFlags(args);
-  void flagApiUrl;
   for (let i = 0; i < flagArgs.length; i++) {
     switch (flagArgs[i]) {
       case "--title":
@@ -182,7 +190,9 @@ async function handleDenoiseCreate(args: string[]): Promise<void> {
   const description = bodyFile
     ? await Deno.readTextFile(resolve(Deno.cwd(), bodyFile))
     : undefined;
-  const { githubToken, apiUrl } = await resolveClientOptions(null);
+  const { githubToken, apiUrl } = await resolveClientOptions(
+    resolvedApiUrl ?? flagApiUrl,
+  );
   const result = await createDenoiseTasks(
     {
       milestoneId,
@@ -205,7 +215,10 @@ async function handleDenoiseCreate(args: string[]): Promise<void> {
   }
 }
 
-async function handleDenoiseEdit(args: string[]): Promise<void> {
+async function handleDenoiseEdit(
+  args: string[],
+  resolvedApiUrl: string | null = null,
+): Promise<void> {
   let milestoneId: string | undefined;
   let taskId: string | undefined;
   let title: string | undefined;
@@ -245,7 +258,7 @@ async function handleDenoiseEdit(args: string[]): Promise<void> {
   const description = bodyFile
     ? await Deno.readTextFile(resolve(Deno.cwd(), bodyFile))
     : undefined;
-  const { githubToken, apiUrl } = await resolveClientOptions(null);
+  const { githubToken, apiUrl } = await resolveClientOptions(resolvedApiUrl);
   const task = await updateDenoiseTask(
     milestoneId,
     taskId,
@@ -262,19 +275,25 @@ async function handleDenoiseEdit(args: string[]): Promise<void> {
   console.log(`Updated task ${task.id}: ${task.text}`);
 }
 
-async function handleDenoiseClose(args: string[]): Promise<void> {
+async function handleDenoiseClose(
+  args: string[],
+  resolvedApiUrl: string | null = null,
+): Promise<void> {
   const taskId = args.find((a) => !a.startsWith("--"));
   if (!taskId) throw new Error("Usage: dn task close --denoise <task-id>");
-  const { githubToken, apiUrl } = await resolveClientOptions(null);
+  const { githubToken, apiUrl } = await resolveClientOptions(resolvedApiUrl);
   const id = parseDenoiseTaskUrl(taskId)?.taskId ?? taskId;
   const task = await closeDenoiseTask(id, { githubToken, apiUrl });
   console.log(`Closed task ${task.id}`);
 }
 
-async function handleDenoiseReopen(args: string[]): Promise<void> {
+async function handleDenoiseReopen(
+  args: string[],
+  resolvedApiUrl: string | null = null,
+): Promise<void> {
   const taskId = args.find((a) => !a.startsWith("--"));
   if (!taskId) throw new Error("Usage: dn task reopen --denoise <task-id>");
-  const { githubToken, apiUrl } = await resolveClientOptions(null);
+  const { githubToken, apiUrl } = await resolveClientOptions(resolvedApiUrl);
   const id = parseDenoiseTaskUrl(taskId)?.taskId ?? taskId;
   const task = await reopenDenoiseTask(id, { githubToken, apiUrl });
   console.log(`Reopened task ${task.id}`);
@@ -332,29 +351,28 @@ export async function handleTaskWithBackend(
         `dn task ${subcommand} is only supported with --todo (local ~/.dn/todo.md)`,
       );
     }
-    void apiUrl;
     switch (subcommand) {
       case "list":
       case "ls":
-        await handleDenoiseList(args);
+        await handleDenoiseList(args, apiUrl);
         return true;
       case "show":
       case "view":
-        await handleDenoiseShow(args);
+        await handleDenoiseShow(args, apiUrl);
         return true;
       case "create":
       case "new":
-        await handleDenoiseCreate(["create", ...rest]);
+        await handleDenoiseCreate(["create", ...rest], apiUrl);
         return true;
       case "edit":
       case "update":
-        await handleDenoiseEdit(args);
+        await handleDenoiseEdit(args, apiUrl);
         return true;
       case "close":
-        await handleDenoiseClose(args);
+        await handleDenoiseClose(args, apiUrl);
         return true;
       case "reopen":
-        await handleDenoiseReopen(args);
+        await handleDenoiseReopen(args, apiUrl);
         return true;
       case "comment":
         await handleDenoiseComment();
