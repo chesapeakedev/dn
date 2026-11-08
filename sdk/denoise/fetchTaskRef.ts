@@ -58,13 +58,12 @@ export interface FetchDenoiseTaskRefOptions {
 }
 
 function taskRefApiPath(parsed: ParsedDenoiseTaskUrl): string {
-  if (parsed.kind === "milestone") {
-    return `/api/milestones/${encodeURIComponent(parsed.milestoneId!)}/tasks/${
-      encodeURIComponent(parsed.taskId!)
-    }`;
-  }
-  if (parsed.kind === "task_id") {
-    return `/api/tasks/${encodeURIComponent(parsed.taskId!)}`;
+  if (parsed.kind === "milestone" || parsed.kind === "task_id") {
+    const taskId = parsed.taskId;
+    if (!taskId) {
+      throw new Error("Denoise task URL is missing task id");
+    }
+    return `/api/tasks/${encodeURIComponent(taskId)}`;
   }
   return `/api/t/${encodeURIComponent(parsed.shortCode!)}`;
 }
@@ -75,7 +74,10 @@ async function fetchTaskRefAtPath(
   options: FetchDenoiseTaskRefOptions,
 ): Promise<DenoiseTaskRefResponse> {
   const base = origin.trim() || DEFAULT_DENOISE_API_URL;
-  const url = new URL(apiPath, base.endsWith("/") ? base : `${base}/`);
+  const pathWithView = apiPath.includes("?")
+    ? `${apiPath}&view=slim`
+    : `${apiPath}?view=slim`;
+  const url = new URL(pathWithView, base.endsWith("/") ? base : `${base}/`);
   const fetchImpl = options.fetch ?? fetch;
   const headers: Record<string, string> = {
     Accept: "application/json",
@@ -113,7 +115,7 @@ export async function fetchDenoiseTaskRefFromParsed(
 }
 
 /**
- * Load a milestone task ref from the Denoise API (nested milestone path).
+ * Load a task ref from the Denoise API by milestone and task id (`GET /api/tasks/{id}`).
  *
  * @param origin - API origin (e.g. `https://denoise.cloud`); defaults via caller.
  * @throws When HTTP status is not OK or the body is not a task ref.

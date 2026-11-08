@@ -9,7 +9,7 @@ Deno.test("denoiseApiRequest surfaces API errors", async () => {
     () =>
       denoiseApiRequest("POST", "/api/milestones", {
         githubToken: "x",
-        apiUrl: "https://denoise.test",
+        apiUrl: "https://localhost",
         fetch: () =>
           Promise.resolve(
             new Response(JSON.stringify({ error: "nope" }), { status: 401 }),
@@ -18,16 +18,29 @@ Deno.test("denoiseApiRequest surfaces API errors", async () => {
     DenoiseApiError,
     "nope",
   );
-  try {
-    await denoiseApiRequest("GET", "/api/milestones", {
+  const ok = await denoiseApiRequest<{ milestones: unknown[] }>(
+    "GET",
+    "/api/milestones",
+    {
       githubToken: "x",
-      apiUrl: "https://denoise.test",
+      apiUrl: "https://localhost",
       fetch: () =>
         Promise.resolve(
           new Response(JSON.stringify({ milestones: [] }), { status: 200 }),
         ),
-    });
-  } catch (e) {
-    assertEquals(e, null);
-  }
+    },
+  );
+  assertEquals(ok.milestones, []);
+});
+
+Deno.test("denoiseApiRequest rejects untrusted api hosts", async () => {
+  await assertRejects(
+    () =>
+      denoiseApiRequest("GET", "/api/milestones", {
+        githubToken: "x",
+        apiUrl: "https://evil.example",
+      }),
+    Error,
+    "Untrusted Denoise API host",
+  );
 });

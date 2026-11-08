@@ -86,16 +86,14 @@ export async function createDenoiseTasks(
 }
 
 export async function updateDenoiseTask(
-  milestoneId: string,
+  _milestoneId: string,
   taskId: string,
   input: UpdateDenoiseTaskInput,
   options: DenoiseApiClientOptions,
 ): Promise<DenoiseWorkspaceTask> {
   const body = await denoiseApiRequest<{ task: DenoiseWorkspaceTask }>(
     "PATCH",
-    `/api/milestones/${encodeURIComponent(milestoneId)}/tasks/${
-      encodeURIComponent(taskId)
-    }`,
+    `/api/tasks/${encodeURIComponent(taskId)}`,
     options,
     {
       ...(input.title !== undefined ? { title: input.title } : {}),

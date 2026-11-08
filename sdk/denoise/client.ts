@@ -18,9 +18,40 @@ export class DenoiseApiError extends Error {
   }
 }
 
+const TRUSTED_API_HOST_RE = [
+  /^denoise\.cloud$/i,
+  /^localhost$/i,
+  /^127\.0\.0\.1$/i,
+  /^denoise-qa(?:-[0-9]+)?\.exe\.xyz$/i,
+] as const;
+
 function resolveApiBase(apiUrl?: string): string {
   const raw = apiUrl?.trim() || DEFAULT_DENOISE_API_URL;
   return raw.endsWith("/") ? raw.slice(0, -1) : raw;
+}
+
+export function assertTrustedDenoiseApiUrl(apiUrl: string): void {
+  const base = resolveApiBase(apiUrl);
+  let host: string;
+  try {
+    host = new URL(base.includes("://") ? base : `https://${base}`).hostname
+      .split(":")[0];
+  } catch {
+    throw new Error(`Invalid Denoise API URL: ${apiUrl}`);
+  }
+  if (!TRUSTED_API_HOST_RE.some((re) => re.test(host))) {
+    throw new Error(
+      `Untrusted Denoise API host "${host}". Set DN_DENOISE_API_INSECURE=1 to override.`,
+    );
+  }
+}
+
+export function isInsecureDenoiseApiAllowed(): boolean {
+  try {
+    return Deno.env.get("DN_DENOISE_API_INSECURE") === "1";
+  } catch {
+    return false;
+  }
 }
 
 export async function denoiseApiRequest<T = unknown>(
@@ -30,6 +61,9 @@ export async function denoiseApiRequest<T = unknown>(
   body?: unknown,
 ): Promise<T> {
   const base = resolveApiBase(options.apiUrl);
+  if (!isInsecureDenoiseApiAllowed()) {
+    assertTrustedDenoiseApiUrl(base);
+  }
   const url = new URL(path, `${base}/`);
   const fetchImpl = options.fetch ?? fetch;
   const headers: Record<string, string> = {
