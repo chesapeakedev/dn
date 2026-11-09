@@ -41,7 +41,7 @@ function showHelp(): void {
   console.log("  dn task upsert --file <path.json> | --stdin   (--todo)");
   console.log("  dn task delete <id>");
   console.log(
-    "  dn task done [ref] [--comment <text>]   Mark item done; close GitHub issue when applicable\n",
+    "  dn task done [ref] [--comment <text>]   SDLC Done (--todo | --github | --denoise)\n",
   );
   console.log("  dn task sync status [--json]\n");
   console.log(

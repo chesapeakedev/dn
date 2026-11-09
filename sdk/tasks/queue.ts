@@ -199,6 +199,46 @@ function findUncheckedItem(
   });
 }
 
+/**
+ * Checks off a matching unchecked queue line when present. Does not close GitHub.
+ */
+export async function markQueueItemDoneIfPresent(
+  ref: string,
+  options?: { updated?: string },
+): Promise<boolean> {
+  const list = await readTaskList();
+  const gh = await resolveGitHubRef(ref);
+  const matchIndex = findUncheckedItem(list, ref, gh);
+  if (matchIndex < 0) {
+    return false;
+  }
+  await withTaskListLock(async () => {
+    const file = await readTaskListFileFromDisk();
+    const idx = findUncheckedItem(
+      { meta: file.meta, items: file.items },
+      ref,
+      gh,
+    );
+    if (idx >= 0) {
+      file.items[idx].checked = true;
+      const nativeId = nativeTaskIdFromRef(file.items[idx].ref);
+      if (nativeId && file.nativeTasks[nativeId]) {
+        file.nativeTasks[nativeId] = syncNativeStatusWithChecklist(
+          file.nativeTasks[nativeId],
+          true,
+        );
+      }
+    }
+    if (options?.updated) file.meta.updated = options.updated;
+    await Deno.writeTextFile(
+      getTaskListPath(),
+      serializeTaskListFile(file),
+      { create: true },
+    );
+  });
+  return true;
+}
+
 export async function markDone(
   ref: string,
   options?: { closeComment?: string; updated?: string },

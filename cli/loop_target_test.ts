@@ -18,6 +18,13 @@ Deno.test("classifyLoopTarget accepts plan files and full issue URLs", () => {
     kind: "github-issue",
     input: "https://github.com/o/r/issues/123",
   });
+  assertEquals(
+    classifyLoopTarget("https://denoise.cloud/t/AbCdEfGh"),
+    {
+      kind: "denoise-task-url",
+      input: "https://denoise.cloud/t/AbCdEfGh",
+    },
+  );
   assertEquals(classifyLoopTarget("#123"), {
     kind: "plan-file",
     path: "#123",

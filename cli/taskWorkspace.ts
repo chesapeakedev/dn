@@ -19,6 +19,7 @@ import {
 } from "../sdk/denoise/workspaceBackend.ts";
 import { DEFAULT_DENOISE_API_URL } from "../sdk/runner/client.ts";
 import { handleIssue } from "./issue.ts";
+import { closeoutDenoise, closeoutGitHub } from "../sdk/tasks/closeout.ts";
 
 const ISSUE_ALIASES = new Set([
   "list",
@@ -37,7 +38,7 @@ const ISSUE_ALIASES = new Set([
   "relationships",
 ]);
 
-const TODO_ONLY = new Set(["upsert", "delete", "done", "sync"]);
+const TODO_ONLY = new Set(["upsert", "delete", "sync"]);
 
 function optionValue(args: string[], index: number, option: string): string {
   const value = args[index + 1];
@@ -305,6 +306,60 @@ function handleDenoiseComment(): void {
   );
 }
 
+function parseDoneArgs(args: string[]): {
+  ref: string | null;
+  closeComment?: string;
+} {
+  let ref: string | null = null;
+  let closeComment: string | undefined;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--comment" && i + 1 < args.length) {
+      closeComment = args[++i];
+    } else if (!arg.startsWith("--") && ref === null) {
+      ref = arg;
+    }
+  }
+  return { ref, closeComment };
+}
+
+async function handleDenoiseDone(
+  args: string[],
+  resolvedApiUrl: string | null = null,
+): Promise<void> {
+  const { ref, closeComment } = parseDoneArgs(args);
+  if (!ref) {
+    throw new Error(
+      "Usage: dn task done --denoise <task-url-or-id> [--comment <text>]",
+    );
+  }
+  const { githubToken, apiUrl } = await resolveClientOptions(resolvedApiUrl);
+  const result = await closeoutDenoise(ref, { githubToken, apiUrl }, {
+    closeComment,
+  });
+  console.log(`Closed Denoise task ${result.taskId}`);
+  if (result.closedGitHubIssue) {
+    console.log("Closed the linked GitHub issue.");
+  }
+}
+
+async function handleGitHubDone(
+  args: string[],
+  _resolvedApiUrl: string | null = null,
+): Promise<void> {
+  const { ref, closeComment } = parseDoneArgs(args);
+  if (!ref) {
+    throw new Error(
+      "Usage: dn task done --github <issue-ref-or-url> [--comment <text>]",
+    );
+  }
+  const result = await closeoutGitHub(ref, { closeComment });
+  console.log("Closed the GitHub issue.");
+  if (result.markedQueue) {
+    console.log("Checked off matching item in ~/.dn/todo.md.");
+  }
+}
+
 const TODO_SUBCOMMANDS = new Set([
   "list",
   "ls",
@@ -325,10 +380,19 @@ export async function handleTaskWithBackend(
   }
   const rest = rawArgs.slice(1);
   const ref =
-    ["show", "close", "reopen", "edit", "comment"].includes(subcommand)
-      ? rest.find((a) => !a.startsWith("--"))
+    ["show", "close", "reopen", "edit", "comment", "done"].includes(subcommand)
+      ? rest.find((a) => !a.startsWith("--") && a !== "--comment")
       : undefined;
   const { backend, args, apiUrl } = await resolveTaskBackend(rest, ref);
+
+  if (subcommand === "done" && backend === "denoise") {
+    await handleDenoiseDone(args, apiUrl);
+    return true;
+  }
+  if (subcommand === "done" && backend === "github") {
+    await handleGitHubDone(args, apiUrl);
+    return true;
+  }
 
   if (backend === "todo") {
     if (TODO_SUBCOMMANDS.has(subcommand)) return false;

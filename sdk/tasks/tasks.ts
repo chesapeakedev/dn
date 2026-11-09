@@ -19,6 +19,14 @@ export {
   upsertTask,
 } from "./native.ts";
 
+export { closeoutDenoise, closeoutGitHub, closeoutTodo } from "./closeout.ts";
+
+export type {
+  CloseoutDenoiseResult,
+  CloseoutGitHubResult,
+  CloseoutOptions,
+} from "./closeout.ts";
+
 export {
   addToTaskList,
   addToTodoList,
@@ -28,6 +36,7 @@ export {
   formatTodoQueuePrompt,
   itemRefMatchesTarget,
   markDone,
+  markQueueItemDoneIfPresent,
   promptAndAddToTaskList,
   promptAndAddToTodoList,
   readFullTaskListFile,

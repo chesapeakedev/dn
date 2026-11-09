@@ -23,6 +23,12 @@ import {
   extractAgentSelectionFromArgs,
   mergeAgentSelections,
 } from "../sdk/github/agentHarness.ts";
+import { fetchDenoiseTaskRefFromParsed } from "../sdk/denoise/fetchTaskRef.ts";
+import {
+  isDenoiseTaskUrl,
+  parseDenoiseTaskUrl,
+} from "../sdk/denoise/taskUrl.ts";
+import { resolveGitHubToken } from "../sdk/github/token.ts";
 import {
   denoiseTaskToMarkdown,
   validateDenoiseTaskDocument,
@@ -61,7 +67,8 @@ export type LoopTarget =
   | { kind: "auto" }
   | { kind: "plan-file"; path: string }
   | { kind: "github-issue"; input: string }
-  | { kind: "denoise-task"; path: string };
+  | { kind: "denoise-task"; path: string }
+  | { kind: "denoise-task-url"; input: string };
 
 interface LoopCliConfig extends KickstartConfig {
   /** Dispatch implementation to a durable Cursor Cloud Agent. */
@@ -148,6 +155,9 @@ export function classifyLoopTarget(input: string | null): LoopTarget {
   const trimmed = input.trim();
   if (GITHUB_ISSUE_URL_PATTERN.test(trimmed)) {
     return { kind: "github-issue", input: trimmed };
+  }
+  if (isDenoiseTaskUrl(trimmed)) {
+    return { kind: "denoise-task-url", input: trimmed };
   }
   if (
     (trimmed.endsWith(".json") || trimmed.endsWith(".jsonc")) &&
@@ -306,6 +316,36 @@ export async function resolveLoopTarget(
     const planFilePath = `${tmpDir}/task.md`;
     await Deno.writeTextFile(planFilePath, markdown);
     return { planFilePath, issueUrl: null, planSource: "denoise-task" };
+  }
+
+  if (target.kind === "denoise-task-url") {
+    const parsed = parseDenoiseTaskUrl(target.input);
+    if (!parsed) {
+      throw new Error(`Invalid Denoise task URL: ${target.input}`);
+    }
+    const token = await resolveGitHubToken();
+    const ref = await fetchDenoiseTaskRefFromParsed(parsed, {
+      githubToken: token,
+    });
+    let markdown: string;
+    let issueUrl: string | null = null;
+    if (ref.github_issue) {
+      issueUrl = ref.github_issue.url;
+      const issue = await fetchIssueFromUrl(issueUrl);
+      markdown = `# ${issue.title}\n\n${issue.body ?? ""}`.trim();
+    } else {
+      markdown = denoiseTaskToMarkdown(
+        validateDenoiseTaskDocument(ref.task_document),
+      );
+    }
+    const parentLine = `Parent: ${ref.canonical_url}`;
+    if (!markdown.includes(ref.canonical_url)) {
+      markdown = `${markdown}\n\n${parentLine}`.trim();
+    }
+    const tmpDir = await Deno.makeTempDir({ prefix: "dn-loop-denoise-" });
+    const planFilePath = `${tmpDir}/task.md`;
+    await Deno.writeTextFile(planFilePath, markdown);
+    return { planFilePath, issueUrl, planSource: "denoise-task" };
   }
 
   const issueUrl = await resolveIssueUrlInput(target.input);
