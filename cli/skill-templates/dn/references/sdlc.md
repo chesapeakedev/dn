@@ -15,6 +15,10 @@ table and shared vocabulary.
 
 **IDE rule:** never `dn meld` when the IDE is outer.
 
+**Nested agent:** spawn with `dn loop <url>` for implement; finish with
+`dn task done --denoise|--github <url>`. The outer harness passes the URL; the
+subagent runs the CLI instead of reimplementing in chat.
+
 **Done verb:** `dn task done`, not `dn land`.
 
 ```bash

@@ -4,11 +4,11 @@
 
 Prefer `dn task` / `dn milestone` over ad-hoc HTTP or UI-only flows.
 
-| Backend | Flag | Target |
-| --- | --- | --- |
-| Local queue | `--todo` | `~/.dn/todo.md` kickstart queue |
-| GitHub | `--github` / `--gh` | Repo issues (`dn issue` equivalent) |
-| Denoise Pro | `--denoise` | Cloud milestones/tasks on `denoise.cloud` |
+| Backend     | Flag                | Target                                    |
+| ----------- | ------------------- | ----------------------------------------- |
+| Local queue | `--todo`            | `~/.dn/todo.md` kickstart queue           |
+| GitHub      | `--github` / `--gh` | Repo issues (`dn issue` equivalent)       |
+| Denoise Pro | `--denoise`         | Cloud milestones/tasks on `denoise.cloud` |
 
 `workspace.default_backend` in `dn.json` or `~/.dn/config.json`; explicit flags
 win. `DN_WORKSPACE_BACKEND` in CI. `--api-url` / `workspace.api_url` for QA.
@@ -51,15 +51,19 @@ Optional link-back: `dn issue comment <parent-ref> --body-file note.md` or
 
 ```md
 ## Summary
+
 - ...
 
 ## Updated understanding
+
 - ...
 
 ## Proposed next steps
+
 - ...
 
 ## Open questions / risks
+
 - ...
 ```
 

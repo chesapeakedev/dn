@@ -7,13 +7,17 @@ table and shared vocabulary.
 
 ## Tiers
 
-| Tier | When | Flow |
-| --- | --- | --- |
-| **A (default)** | IDE implements | Optional `dn research` → implement in IDE → ask before commit → optional `dn sync` → `dn task done` |
-| **B** | Delegate implement to `dn` | `dn research` → plan in IDE (never `dn meld`) → `dn loop` → review → ask commit → `dn task done` |
-| **C** | No IDE / runners | Prefer `dn kickstart <url>`. Stepwise: `dn meld` → `dn loop` → `dn land` / `dn sync` at phase breaks |
+| Tier            | When                       | Flow                                                                                                 |
+| --------------- | -------------------------- | ---------------------------------------------------------------------------------------------------- |
+| **A (default)** | IDE implements             | Optional `dn research` → implement in IDE → ask before commit → optional `dn sync` → `dn task done`  |
+| **B**           | Delegate implement to `dn` | `dn research` → plan in IDE (never `dn meld`) → `dn loop` → review → ask commit → `dn task done`     |
+| **C**           | No IDE / runners           | Prefer `dn kickstart <url>`. Stepwise: `dn meld` → `dn loop` → `dn land` / `dn sync` at phase breaks |
 
 **IDE rule:** never `dn meld` when the IDE is outer.
+
+**Nested agent:** spawn with `dn loop <url>` for implement; finish with
+`dn task done --denoise|--github <url>`. The outer harness passes the URL; the
+subagent runs the CLI instead of reimplementing in chat.
 
 **Done verb:** `dn task done`, not `dn land`.
 
@@ -25,10 +29,10 @@ dn task done 42   # --todo queue id
 
 ## `dn land` vs IDE commit
 
-| Situation | `dn land`? |
-| --- | --- |
-| IDE after `dn loop` | No — commit here with user approval |
-| Already committed in IDE | No — `dn sync` / `dn task done` only |
-| Device runner **Land** | Yes |
+| Situation                                | `dn land`?                            |
+| ---------------------------------------- | ------------------------------------- |
+| IDE after `dn loop`                      | No — commit here with user approval   |
+| Already committed in IDE                 | No — `dn sync` / `dn task done` only  |
+| Device runner **Land**                   | Yes                                   |
 | Terminal kickstart/loop `--publish none` | Yes if user wants dn review + commits |
-| CI, `--single`, user names `dn land` | Yes |
+| CI, `--single`, user names `dn land`     | Yes                                   |

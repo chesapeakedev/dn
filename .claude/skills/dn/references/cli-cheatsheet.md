@@ -20,20 +20,21 @@ dn sync --pr --issue <n>
 
 ## Global flags
 
-| Flag | Effect |
-| --- | --- |
-| `--agent <harness>:<model>` | Nested harness selection |
-| `--context-file <path>` | Prompt context (repeatable) |
-| `--unattended` / `--ci` | Non-interactive |
-| `--trace` / `--no-trace` | Agent stream |
-| `--no-color` / `--color` | ANSI |
-| `--json` | JSON output where supported |
+| Flag                        | Effect                      |
+| --------------------------- | --------------------------- |
+| `--agent <harness>:<model>` | Nested harness selection    |
+| `--context-file <path>`     | Prompt context (repeatable) |
+| `--unattended` / `--ci`     | Non-interactive             |
+| `--trace` / `--no-trace`    | Agent stream                |
+| `--no-color` / `--color`    | ANSI                        |
+| `--json`                    | JSON output where supported |
 
 ### Agent selection priority
 
 1. `--agent <harness>:<model>`
 2. `DN_AGENT`
-3. `CURSOR_ENABLED=1`, `CLAUDE_ENABLED=1`, `CODEX_ENABLED=1`, `COPILOT_ENABLED=1`
+3. `CURSOR_ENABLED=1`, `CLAUDE_ENABLED=1`, `CODEX_ENABLED=1`,
+   `COPILOT_ENABLED=1`
 4. `dn.json` `harness.defaults.agent` (legacy `agent`)
 5. OpenCode default
 

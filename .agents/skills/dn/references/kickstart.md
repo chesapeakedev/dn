@@ -14,8 +14,8 @@ for CLI defaults.
 1. **Full issue URL** as positional (not a bare number).
 2. Compare URL `owner/repo` to workspace
    (`gh repo view --json nameWithOwner -q .nameWithOwner`). If different, pass
-   `--allow-cross-repo` (`-A`). Do not ask; mention in summary. If workspace repo
-   unknown, pass `-A` for full URLs anyway.
+   `--allow-cross-repo` (`-A`). Do not ask; mention in summary. If workspace
+   repo unknown, pass `-A` for full URLs anyway.
 3. Extra guidance besides URL → `--steer "…"`.
 4. Named/attached files → `--context-file` (repeatable).
 5. Defaults unless user asked otherwise:
@@ -38,11 +38,11 @@ After local (`none`) success → ask before commit.
 
 ## Publish intent
 
-| User says | Argv | After success |
-| --- | --- | --- |
-| open/create PR, `--awp`, `--publish pr` | `--publish pr` | Report PR URL; do not commit in chat |
+| User says                               | Argv               | After success                              |
+| --------------------------------------- | ------------------ | ------------------------------------------ |
+| open/create PR, `--awp`, `--publish pr` | `--publish pr`     | Report PR URL; do not commit in chat       |
 | publish direct, push trunk in kickstart | `--publish direct` | Report branch; no commit here unless asked |
-| "publish" without PR vs direct | Ask which | — |
+| "publish" without PR vs direct          | Ask which          | —                                          |
 
 `--awp` = `--publish pr`. Direct mode commits/pushes default branch inside
 kickstart (lint only); it is not `dn sync`.
