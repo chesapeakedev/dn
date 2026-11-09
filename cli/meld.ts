@@ -275,7 +275,7 @@ function showHelp(): void {
   );
   console.log("Examples:");
   console.log("  dn meld 123");
-  console.log("  dn meld docs/spec.md");
+  console.log("  dn meld spec.md");
   console.log(
     "  dn meld findings.md ticket.md --target README.md --workspace-root .",
   );

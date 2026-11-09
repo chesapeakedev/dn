@@ -82,7 +82,9 @@ export function showAuthHelp(): void {
       DEVICE_CLIENT_ID_ENV_VARS[1]
     }).`,
   );
-  console.error("\nCI/scripts: set GITHUB_TOKEN. See docs/authentication.md.");
+  console.error(
+    "\nCI/scripts: set GITHUB_TOKEN. See https://docs.denoise.cloud/dn/installation/#github-authentication.",
+  );
 }
 
 async function handleLogin(): Promise<void> {

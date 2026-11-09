@@ -430,7 +430,7 @@ function showHelp(): void {
   console.log("Examples:");
   console.log("  dn kickstart https://github.com/owner/repo/issues/123");
   console.log("  dn kickstart 123");
-  console.log("  dn kickstart docs/spec.md");
+  console.log("  dn kickstart spec.md");
   console.log("  dn kickstart --milestone 42");
   console.log(
     "  dn kickstart --publish pr --milestone 42 --complete  # chain every unchecked stack item",

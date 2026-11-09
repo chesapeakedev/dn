@@ -181,7 +181,7 @@ dn task --github show 123
 dn task --todo list
 ```
 
-See `docs/workspace.md` in the dn repository.
+See https://docs.denoise.cloud/dn/workspace/.
 
 ## Common commands
 
@@ -275,5 +275,4 @@ Task/subagent of this chat.
 - Plan mode maps to `dn meld` (do not implement). After the plan is accepted,
   `dn loop`, then ask before committing.
 
-See `docs/outer-harness.md` for the shared contract and per-harness install
-paths.
+See `CONTRIBUTING.md` for the shared contract and per-harness install paths.

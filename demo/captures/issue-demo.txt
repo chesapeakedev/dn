@@ -1,0 +1,20 @@
+# Add first-class rho agent support
+
+○ Open · #3 · https://github.com/chesapeakedev/dn/issues/3
+Opened by @bpmooch on May 4, 2026
+
+Relationships:
+  Parent: none
+  Sub-issues: none
+  Blocked by: none
+  Blocking: none
+  Duplicate of: none
+
+---
+
+## Summary
+
+Add **first-class `rho` support** to dn so users can run `dn --agent rho` (and related env toggles) alongside OpenCode, Cursor, Claude Code, and Codex.
+
+This depends on the harness CLI already implemented in rho (`rho dn` subcommand).
+

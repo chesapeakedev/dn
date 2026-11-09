@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/img/denoise-logo.png" alt="Denoise logo" width="280">
+  <img src="assets/denoise-logo.png" alt="Denoise logo" width="280">
 </p>
 
 # dn
@@ -32,7 +32,7 @@ changes, and publishes the work.
 dn kickstart 123
 
 # Implement a local specification without fetching GitHub context
-dn kickstart docs/spec.md
+dn kickstart spec.md
 
 # Create a branch or bookmark, commit, push, and open a pull request
 dn kickstart --publish=pr https://github.com/owner/repo/issues/123
@@ -82,7 +82,7 @@ to denoise.cloud; source code and credentials stay on the device.
 
 Choose the paired device as the destination when you start a kickstart in
 denoise. For prerequisites, troubleshooting, and runner management, see the
-[developer device runner guide](docs/device-runners.md).
+[developer device runner guide](https://docs.denoise.cloud/runners/device-runners/).
 
 ## Explore dn
 

@@ -10,7 +10,8 @@ notes, repo routing, testing commands—**never verbatim issue bodies**.
 
 - You may edit **only** the AGENTS.md path injected below.
 - Prefer bullets, headings, canonical commands (`make precommit`, `dn meld`, …),
-  and links to richer docs/README rather than relocating entire conversations.
+  and links to the [denoise docs site](https://docs.denoise.cloud/) rather than
+  relocating entire conversations.
 - If **Previous Target Content** is present (merge mode), surgically splice
   updates and drop obsolete bullets instead of rewriting from scratch unless
   `--overwrite` intent is conveyed via instructions.

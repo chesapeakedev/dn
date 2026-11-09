@@ -1,0 +1,50 @@
+dn kickstart - Run full kickstart workflow
+
+Usage:
+  dn kickstart [options] <issue_url_or_number_or_markdown_file>
+
+Argument: GitHub issue URL, issue number for current repo, or path to a .md file.
+A path to a markdown file uses that file as context (no GitHub fetch). AWP is not used when context is from a file.
+
+Options:
+  --publish <none|pr|direct> How to publish changes (default: none)
+  --awp                    Alias for --publish pr (branches, commits, PRs)
+  --allow-cross-repo       Allow implementing issues from different repositories
+  --cursor, -c              Use Cursor headless agent
+  --cursor-cloud            Queue a durable Cursor Cloud Agent run (requires CURSOR_API_KEY)
+  --ref <git-ref>           Cloud repository starting ref (default: main; requires --cursor-cloud)
+  --claude                  Use Claude Code CLI (`claude -p`)
+  --codex                   Use Codex CLI (`codex exec`)
+  --copilot                 Use GitHub Copilot CLI (`copilot -p`)
+  --opencode                Use OpenCode CLI (default)
+  --sandbox <none|docker|exe.dev>  Sandbox provider (global --sandbox also supported)
+  --milestone <url-or-num>  Use milestone-linked stack file (plans/{owner}_{repo}_{milestone}.stack.md)
+  --complete               With --milestone only: run all unchecked stack tasks without y/n prompts between them
+  --once                   With --milestone only: run one unchecked stack task without y/n prompts
+  --saved-plan <name>      Use a specific plan name
+  --workspace-root <path>  Workspace root directory
+  --help, -h               Show this help message
+
+Environment variables:
+  WORKSPACE_ROOT           Workspace root directory
+  ISSUE                    Issue URL, issue number, or path to markdown file (alternative to positional)
+  SAVE_CTX                 Set to '1' to preserve debug files
+  CURSOR_ENABLED           Set to '1' to use Cursor agent
+  CLAUDE_ENABLED           Set to '1' to use Claude Code (not with CURSOR_ENABLED)
+
+  CODEX_ENABLED            Set to '1' to use Codex CLI
+
+  COPILOT_ENABLED          Set to '1' to use GitHub Copilot CLI
+
+Examples:
+  dn kickstart https://github.com/owner/repo/issues/123
+  dn kickstart 123
+  dn kickstart spec.md
+  dn kickstart --milestone 42
+  dn kickstart --milestone 42 --complete   # chain every unchecked stack item
+  dn kickstart --awp --milestone 42 --once # one queued issue for CI
+  dn kickstart --awp --cursor <issue_url_or_number>
+  dn kickstart --cursor-cloud --publish pr <issue_url_or_number>
+  dn kickstart --awp --claude <issue_url_or_number>
+  dn --agent codex kickstart --awp <issue_url_or_number>
+  ISSUE=<issue_url_or_number> dn kickstart

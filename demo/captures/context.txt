@@ -1,0 +1,12 @@
+dn context check
+
+Target: /Users/mooch/p/dn/cli/main.ts
+Directory: /Users/mooch/p/dn/cli
+Project root: /Users/mooch/p/dn
+Max size: 32 KB (32,768 bytes)
+Full context: 17.4 KB (17,775 bytes)
+Included: 17.4 KB (17,775 bytes)
+Truncated: no
+
+Sources:
+  - [project] /Users/mooch/p/dn/AGENTS.md (17.4 KB (17,775 bytes), included)

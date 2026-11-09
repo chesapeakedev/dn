@@ -1,0 +1,87 @@
+# Add first-class rho agent support
+
+○ Open · #3 · https://github.com/chesapeakedev/dn/issues/3
+Opened by @bpmooch on May 4, 2026
+
+Relationships:
+  Parent: none
+  Sub-issues: none
+  Blocked by: none
+  Blocking: none
+  Duplicate of: none
+
+---
+
+## Summary
+
+Add **first-class `rho` support** to dn so users can run `dn --agent rho` (and related env toggles) alongside OpenCode, Cursor, Claude Code, and Codex.
+
+This depends on the harness CLI already implemented in rho (`rho dn` subcommand).
+
+## Goal
+
+- `dn prep`, `dn loop`, `dn kickstart`, `dn meld`, `dn fixup`, and scoring paths that invoke an agent harness can select **`rho`** the same way they select other backends.
+- Generated GitHub Actions workflows from `dn init build` can record **`rho`** as the agent choice where applicable.
+
+## Key changes
+
+### Type and registry
+
+In `sdk/github/agentHarness.ts`:
+- Extend `AgentHarness` with `"rho"`.
+- Append `"rho"` to `AGENT_HARNESSES`.
+- In `getRunAgent`, return a new **`runRhoAgent`** when harness is `"rho"`.
+- In `resolveAgentHarnessFromFlagsAndEnv`:
+  - Accept explicit `--agent rho`.
+  - Support **`RHO_ENABLED=1`** as an env toggle (mutually exclusive with `CURSOR_ENABLED`, `CLAUDE_ENABLED`, `CODEX_ENABLED`, `OPENCODE_ENABLED`).
+
+### Runner implementation
+
+Add **`sdk/github/rhoAgent.ts`** (aligned with `cursorAgent.ts`, `claudeAgent.ts`):
+
+- **Signature:** match `RunAgentFn`: `(phase: "plan" | "implement", combinedPromptPath: string, workspaceRoot: string, _useReadonlyConfig?: boolean) => Promise<{ code: number; stdout: string; stderr: string }>`
+
+- **Pre-flight:** verify `rho` is on `PATH`; throw clear install message if missing.
+
+- **Path handling:** `stat` `combinedPromptPath`, require a file, `realPath` to absolute.
+
+- **Spawn:** `Deno.Command` with:
+  - cwd: `workspaceRoot`
+  - argv: invoke `rho dn --combined-prompt <absolutePath> --phase <phase>`
+  - stdin: `"null"`
+  - stdout/stderr: `"piped"`, collect into strings
+
+- **Timeout:** read `RHO_TIMEOUT_MS`, then `OPENCODE_TIMEOUT_MS`, then default `600000`; race subprocess with timer.
+
+- **Logging:** emit `[dn] Running rho …` prefix before spawn.
+
+### CLI wiring
+
+- Global `--agent rho` must parse and flow into orchestrator config the same as `--agent cursor`.
+
+### `dn init build`
+
+- Extend agent enum so interactive and non-interactive flows can choose **`rho`**.
+- Generated workflow YAML: include instructions for required secrets.
+
+### Documentation
+
+- **README:** agent table row for rho (install rho, put on `PATH`, set provider API keys).
+- **dn command reference:** https://docs.denoise.cloud/dn/command-reference/
+- **Global options and environment:** https://docs.denoise.cloud/dn/command-reference/#global-options-and-environment
+
+## Acceptance criteria
+
+- With `rho` on PATH and required credentials: `dn --agent rho prep <issue>` completes plan phase with exit `0`.
+- `dn --agent rho loop --plan-file plans/…plan.md` completes implement phase with exit `0`.
+- `dn init build --agent rho` generates a workflow documenting rho and required secrets.
+- Docs list `rho` next to other agents.
+
+## Boundaries
+
+- dn does not bundle the rho binary; users install rho separately.
+- Document a **minimum rho version** once the harness subcommand is stable.
+
+## Dependencies
+
+- [008-rho-dn-harness-cli.md](008-rho-dn-harness-cli.md) - harness CLI already implemented in rho binary as `rho dn` subcommand

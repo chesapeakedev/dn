@@ -64,7 +64,8 @@ Guidelines aligned with https://jsr.io/docs/publishing-packages:
   - Public symbols without behavior-focused TSDoc should be treated as
     incomplete
 - README and docs stay in sync
-  - Public behavior changes require updating `docs/README.md`
+  - Public behavior changes require updating the relevant page in the
+    [denoise docs site](https://docs.denoise.cloud/)
   - New public APIs should be mentioned with a minimal example
 - Stable module structure
   - Avoid breaking changes to exports without strong justification
@@ -125,10 +126,9 @@ _maintain parity with README.md_
   - `kickstart.ts` - Entry point for kickstart CLI workflows
   - `meld.ts` - Single-source and multi-source planning workflows
   - `loop.ts` - Iterative execution and refinement workflows
-- **`docs/`** - Supplemental documentation for `dn` users & contributors & LLM's
-  - `README.md` - User-facing overview and CLI usage
-  - `CONTRIBUTING.md` - Contribution and workflow guidelines
-  - `AGENTS.md` - Agent behavior and coding conventions
+- **`CONTRIBUTING.md` / `AGENTS.md`** - Contributor and agent guidance
+- **denoise docs site** - User-facing CLI documentation at
+  <https://docs.denoise.cloud/> (source lives in the `denoise-docs` repository)
 - **`glance/`** - Project velocity and reporting tools
   - `main.ts` - Glance CLI entry point
   - `collect.ts` - Data collection and aggregation
@@ -183,8 +183,9 @@ direct API calls when preparing workspaces, iterating on plans, or coordinating
 changes.
 
 Run `dn` with no arguments to discover available subcommands. For detailed
-behavior and flags, see `docs/subcommands.md`. Follow the generated `dn` skill
-for this harness:
+behavior and flags, see the
+[dn command reference](https://docs.denoise.cloud/dn/command-reference/). Follow
+the generated `dn` skill for this harness:
 
 - Cursor: `.cursor/skills/dn/SKILL.md`
 - Codex: `.agents/skills/dn/SKILL.md`
@@ -192,8 +193,8 @@ for this harness:
 - OpenCode: `.opencode/skills/dn/SKILL.md`
 
 Those files are produced by `dn init agents --skill` and checked in. The shared
-outer-harness contract is `docs/outer-harness.md`. Read repository `dn.json`
-`harness_hints` at the start of a session and honor those notes.
+outer-harness contract is in [CONTRIBUTING.md](CONTRIBUTING.md). Read repository
+`dn.json` `harness_hints` at the start of a session and honor those notes.
 
 ### Repeatable flows
 
@@ -237,7 +238,8 @@ $ dn sync --pr --issue 123   # or dn sync for trunk publish
 Optional `harness.defaults.kickstart.review` in `dn.json` adds a second
 implement pass (prompt from repo-root `REVIEW.md`, another path, or inline
 string). Kickstart auto-skips plan and review when heuristics match; use
-`--skip-review` or `DN_SKIP_REVIEW=1` to force skip. See `docs/subcommands.md`.
+`--skip-review` or `DN_SKIP_REVIEW=1` to force skip. See the
+[dn command reference](https://docs.denoise.cloud/dn/command-reference/).
 
 ```
 # CLI/CI close-out (not the IDE default)
@@ -538,7 +540,7 @@ For anonymous Sapling feature branches:
   asciinema, use the **local-dn** skill (`.cursor/skills/local-dn/`). Smoke
   recordings and GitHub-issue CLI proof:
   [visual.md](.cursor/skills/local-dn/visual.md). Do not use the browser, frozen
-  `docs/demo` casts, or `make test` as a stand-in. Example Cursor prompts:
-  [docs/cursor.md](docs/cursor.md#local-dn-skill).
+  `demo/` casts, or `make test` as a stand-in. Example Cursor prompts:
+  [local-dn skill](.cursor/skills/local-dn/SKILL.md).
 
 ---

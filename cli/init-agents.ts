@@ -229,7 +229,7 @@ dn task --github show 123
 dn task --todo list
 \`\`\`
 
-See \`docs/workspace.md\` in the dn repository.
+See https://docs.denoise.cloud/dn/workspace/.
 
 ## Common commands
 
@@ -331,8 +331,7 @@ Task/subagent of this chat.
 - Plan mode maps to \`dn meld\` (do not implement). After the plan is accepted,
   \`dn loop\`, then ask before committing.
 
-See \`docs/outer-harness.md\` for the shared contract and per-harness install
-paths.
+See \`CONTRIBUTING.md\` for the shared contract and per-harness install paths.
 `;
 }
 
@@ -780,8 +779,8 @@ issues, updating GitHub state, preparing plans, or processing review feedback.
 Read repository \`dn.json\` at the start of a session. If \`harness_hints\` is
 present, honor those string notes for this checkout. Follow
 \`.cursor/skills/dn/SKILL.md\` in Cursor or \`.agents/skills/dn/SKILL.md\` in
-Codex when that skill is installed. The shared outer-harness contract is
-\`docs/outer-harness.md\`.
+Codex when that skill is installed. The shared outer-harness contract is in
+\`CONTRIBUTING.md\`.
 
 ### GitHub access
 

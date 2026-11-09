@@ -350,7 +350,7 @@ This plan implements a complex feature with multiple components and dependencies
 - src/cache/cache.ts
 - tests/unit/
 - tests/integration/
-- docs/api.md
+- dn SDK reference
 
 ## Files to Modify
 - main.ts

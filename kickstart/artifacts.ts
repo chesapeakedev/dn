@@ -372,7 +372,7 @@ interface to this repository's workflows. Prefer it over ad-hoc scripts when
 preparing workspaces, iterating on plans, or coordinating changes.
 
 Run \`dn\` with no arguments to discover available subcommands. For detailed
-behavior and flags, see \`docs/subcommands.md\`.
+behavior and flags, see https://docs.denoise.cloud/dn/command-reference/.
 
 ### Usage
 

@@ -42,8 +42,8 @@ instructed to do. Many times the advice generalizes. Quality contributions to
 This project uses `make` as a task runner, both locally and in CI. Read through
 the [Makefile](./Makefile) to understand useful commands in the project. Run
 **`dn sync`** to rebase onto remote trunk, optionally restack, and push. Quality
-gates live in `dn.json` `sync.preflight`; see **`AGENTS.md`** and
-**`docs/subcommands.md`**.
+gates live in `dn.json` `sync.preflight`; see **`AGENTS.md`** and the
+[dn command reference](https://docs.denoise.cloud/dn/command-reference/).
 
 ## Documentation
 
@@ -55,6 +55,40 @@ improvements are always welcome and an important part of quality control:
 - Add examples or context on use cases
 - Improve TSDoc comments
 - Update README or AGENTS.md
+
+The user-facing CLI guides live in the
+[denoise documentation site](https://docs.denoise.cloud/). Update the relevant
+page when a command, workflow, or public API changes. Contributor and harness
+instructions for this checkout belong in this file and `AGENTS.md`.
+
+## Agent harness contract
+
+The IDE or TUI in a contributor chat is the outer harness. `dn` is the CLI it
+uses to inspect issues, create plans, and run workflows; a nested agent is a
+separate execution target. Keep the shared contract in sync with the generated
+skills in `.agents/skills/dn/`, `.claude/skills/dn/`, `.cursor/skills/dn/`, and
+`.opencode/skills/dn/` when kickstart behavior changes. Edit the generator in
+`cli/init-agents.ts`, then run `make skill_goldens` to refresh the checked-in
+files.
+
+The Cursor-only `local-dn` skill installs this checkout's binary and records
+live terminal proof. Follow [its instructions](.cursor/skills/local-dn/SKILL.md)
+and [recording guide](.cursor/skills/local-dn/visual.md); do not use the frozen
+demo cast as issue proof or commit capture files.
+
+## Terminal demo
+
+The frozen asciinema demo is maintained under `demo/`. Play it with
+`asciinema play demo/dn-demo.cast`; regenerate it from the captures with
+`python3 demo/build-cast.py`. To record a live terminal, run:
+
+```bash
+asciinema rec --overwrite --title "dn — agentic workflow CLI" \
+  --idle-time-limit 1.5 --window-size 100x32 \
+  --command demo/record-dn-demo.sh demo/dn-demo.cast
+```
+
+Uploading with `asciinema upload demo/dn-demo.cast` is optional.
 
 ## Kickstart internals
 

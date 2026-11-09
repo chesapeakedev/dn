@@ -1,4 +1,4 @@
-{"version": 2, "width": 100, "height": 32, "timestamp": 1785218212, "title": "dn — agentic workflow CLI", "env": {"SHELL": "/bin/zsh", "TERM": "xterm-256color"}, "idle_time_limit": 1.5}
+{"version": 2, "width": 100, "height": 32, "timestamp": 1794166344, "title": "dn — agentic workflow CLI", "env": {"SHELL": "/bin/zsh", "TERM": "xterm-256color"}, "idle_time_limit": 1.5}
 [0.05, "o", "\u001b[2J\u001b[H"]
 [0.55, "o", "\u001b[1m dn — CLI for agentic workflows\u001b[0m\r\n"]
 [1.25, "o", ""]
@@ -61,8 +61,8 @@
 [6.688, "o", "  peek         Suggest next open issues to prioritize (heuristic)\r\n"]
 [6.733, "o", "  meld         Plan from one or more sources and route the output\r\n"]
 [6.778, "o", "  land         Close out work into VCS commits; --issue-testplan updates GH issue\r\n"]
-[6.823, "o", "  todo         Manage prioritized task list (~/.dn/todo.md); 'done' marks item and closes issue\r\n"]
-[6.868, "o", "  tidy         Groom todo list: re-fetch issues, re-score, update ~/.dn/todo.md\r\n"]
+[6.823, "o", "  task         Manage task list (~/.dn/todo.md): native tasks, queue, done\r\n"]
+[6.868, "o", "  tidy         Groom task list: re-fetch issues, re-score, update ~/.dn/todo.md\r\n"]
 [6.913, "o", "  sync         Git/Sapling: lint, rebase onto main, publish local commits\r\n"]
 [6.958, "o", "  runner       Pair and operate this machine as Denoise infrastructure\r\n"]
 [7.003, "o", "  release      Manage GitHub releases (create, list, view, delete)\r\n"]

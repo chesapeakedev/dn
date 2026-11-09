@@ -56,11 +56,11 @@ Deno.test("parseResearchArgs rejects --publish", async () => {
 
 Deno.test("parseResearchArgs accepts local markdown path", async () => {
   const { config } = await parseResearchArgs(
-    ["docs/spec.md"],
+    ["spec.md"],
     null,
     null,
     [],
   );
   assertEquals(config.issueUrl, null);
-  assertEquals(config.contextMarkdownPath, "docs/spec.md");
+  assertEquals(config.contextMarkdownPath, "spec.md");
 });

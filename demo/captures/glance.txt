@@ -1,0 +1,30 @@
++-------------------------------------------------------+
+|  Project Velocity: last 7 days                        |
+|  Jul 21, 2026 - Jul 28, 2026                          |
++-------------------------------------------------------+
+|  Opens: 0 (0/day) [FLAT]  vs prior 0 (0/day)          |
+|  Closes: 1 (0.1/day) [FLAT]  vs prior 0 (0/day)       |
+|  Commits: 25 (3.6/day) [UP]  vs prior 18 (2.6/day)    |
+|  Net issue flow: -1 opened - closed (burned down 1)   |
++-------------------------------------------------------+
+Issues opened
+   (none)
+Issues closed
+  (no label):
+   - #4: Add rho sandbox workflow commands for Dockerized runs (3 days ago)
+Commits
+   - 47aa0dc: Embed meld system prompts in compiled dn binaries. (2 days ago)
+   - 35e3c68: Auto-approve unattended issue plan melds (2 days ago)
+   - fbb2d22: Format denoise runtime documentation (2 days ago)
+   - 49a8c35: Drop host-local denoise kickstart from the runtime contract. (2 days ago)
+   - bfec7d5: Wire GHA/todo-loop progress bootstrap for denoise parity. (2 days ago)
+   - f4c8f39: Make remote runners persist work through PRs (3 days ago)
+   - 293a44e: Make canonical workflows publish through PRs (3 days ago)
+   - 0e6ea19: fix(meld): commit generated plan files back to the repo (3 days ago)
+   - 56e9fb6: Make external service endpoints injectable for holdout tests (3 days ago)
+   - d429dbe: Validate workflow release integrity (4 days ago)
+   ... and 15 more
+Activity by user (share of opens+closes+commits in window)
+   - Chris Mucciolo: 92.3% [============] 24 commits
+   - bpmooch: 3.8% [=...........] 1 closed
+   - Nick Newman: 3.8% [=...........] 1 commits

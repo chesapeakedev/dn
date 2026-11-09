@@ -13,7 +13,8 @@ import { $ } from "$dax";
 
 const ENV_TOKEN_KEY = "GITHUB_TOKEN";
 const LEGACY_ENV_TOKEN_KEY = "DANGEROUS_GITHUB_TOKEN";
-const AUTH_DOCS_PATH = "docs/authentication.md";
+const AUTH_DOCS_PATH =
+  "https://docs.denoise.cloud/dn/installation/#github-authentication";
 
 /** Where a resolved GitHub API token came from. */
 export type GitHubTokenSource = "env" | "gh" | "dn";

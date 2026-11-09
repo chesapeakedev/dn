@@ -1,0 +1,43 @@
+dn - A CLI for managing agentic workflows
+
+Usage:
+  dn [global options] <subcommand> [options]
+
+Global options:
+  --agent <agent>   Agent to use for agent-backed workflows (opencode, cursor, claude, codex, copilot)
+  --opencode        Alias for --agent opencode
+  --cursor          Alias for --agent cursor
+  --claude          Alias for --agent claude
+  --codex           Alias for --agent codex
+  --copilot         Alias for --agent copilot
+  --sandbox <none|docker|exe.dev>  Sandbox provider (omit value to read config)
+  --unattended      Disable interactive output affordances
+  --no-color        Disable color output
+  --color           Force color output
+  --version, -V     Print the version and exit
+
+Subcommands:
+  auth         Sign in to GitHub in the browser (caches token for dn)
+  context      Inspect inherited AGENTS.md context for a file or directory
+  init         Initialize repo context (stack, workflows, agents)
+    stack      Initialize stack context from GitHub milestone
+    build      Install GitHub Actions workflow automation
+    workflows  Install canonical GitHub Actions workflows
+    agents     Update AGENTS.md with dn instructions
+  issue        Manage GitHub issues and relationships
+  workflows    Run, install, and manage GitHub Actions workflows
+  kickstart    Run full kickstart workflow (plan + implement)
+  loop         Run loop phase only (requires plan file from meld)
+  until        Run bounded generator/verifier gambits until done
+  fixup        Address PR feedback locally (fetch comments, plan, implement)
+  glance       Project velocity overview
+  peek         Suggest next open issues to prioritize (heuristic)
+  meld         Plan from one or more sources and route the output
+  land         Close out work into VCS commits; --issue-testplan updates GH issue
+  task         Manage task list (~/.dn/todo.md): native tasks, queue, done
+  tidy         Groom task list: re-fetch issues, re-score, update ~/.dn/todo.md
+  sync         Git/Sapling: lint, rebase onto main, publish local commits
+  runner       Pair and operate this machine as Denoise infrastructure
+  release      Manage GitHub releases (create, list, view, delete)
+
+Use 'dn <subcommand> --help' for subcommand-specific options.

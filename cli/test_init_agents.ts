@@ -105,7 +105,7 @@ Deno.test("repo skill install writes only the selected codex files", async () =>
     assert(skillContent.includes("## Hybrid"));
     assert(skillContent.includes("## Outer harness"));
     assert(skillContent.includes("Do not pass `--agent codex`"));
-    assert(skillContent.includes("docs/outer-harness.md"));
+    assert(skillContent.includes("CONTRIBUTING.md"));
     assert(skillContent.includes("Do not auto-run `dn land`"));
     assert(await pathExists(openAiMetadataPath));
     assert(!await pathExists(`${testRepo.path}/AGENTS.md`));
@@ -132,7 +132,7 @@ Deno.test("repo cursor skill install writes Cursor skill only", async () => {
     assert(cursorSkill.includes("## Repeatable flows"));
     assert(cursorSkill.includes("## Hybrid"));
     assert(cursorSkill.includes("## Outer harness"));
-    assert(cursorSkill.includes("docs/outer-harness.md"));
+    assert(cursorSkill.includes("CONTRIBUTING.md"));
     assert(cursorSkill.includes("dn land"));
     assert(cursorSkill.includes("Do not auto-run `dn land`"));
     assert(cursorSkill.includes("--allow-cross-repo"));
@@ -168,7 +168,7 @@ Deno.test("repo opencode skill install writes OpenCode skill only", async () => 
     assert(skillContent.includes("## Hybrid"));
     assert(skillContent.includes("## Outer harness"));
     assert(skillContent.includes("Do not pass `--agent opencode`"));
-    assert(skillContent.includes("docs/outer-harness.md"));
+    assert(skillContent.includes("CONTRIBUTING.md"));
     assert(skillContent.includes("Do not auto-run `dn land`"));
     assert(await pathExists(openAiMetadataPath));
     assert(!await pathExists(`${testRepo.path}/AGENTS.md`));
