@@ -11,6 +11,7 @@ set -e
 DN_REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KICKSTART_DIR="${DN_REPO_ROOT}/kickstart"
 WORKFLOW_TEMPLATE_DIR="${DN_REPO_ROOT}/templates/workflows"
+SKILL_TEMPLATE_DIR="${DN_REPO_ROOT}/cli/skill-templates/dn"
 OUTPUT_NAME="bin/dn"
 TARGET=""
 
@@ -89,6 +90,8 @@ echo "    - ${WORKFLOW_TEMPLATE_DIR}/dn-meld-issue-plan.yml"
 echo "    - ${WORKFLOW_TEMPLATE_DIR}/dn-kickstart-issue.yml"
 echo "    - ${WORKFLOW_TEMPLATE_DIR}/dn-daily-kickstart.yml"
 echo "    - ${WORKFLOW_TEMPLATE_DIR}/install-agent.sh"
+echo "    - ${SKILL_TEMPLATE_DIR}/SKILL.md"
+echo "    - ${SKILL_TEMPLATE_DIR}/references/*.md"
 echo ""
 
 cd "${DN_REPO_ROOT}"
@@ -120,6 +123,11 @@ COMPILE_ARGS=(
   --include "${WORKFLOW_TEMPLATE_DIR}/dn-kickstart-issue.yml"
   --include "${WORKFLOW_TEMPLATE_DIR}/dn-daily-kickstart.yml"
   --include "${WORKFLOW_TEMPLATE_DIR}/install-agent.sh"
+  --include "${SKILL_TEMPLATE_DIR}/SKILL.md"
+  --include "${SKILL_TEMPLATE_DIR}/references/kickstart.md"
+  --include "${SKILL_TEMPLATE_DIR}/references/workspace.md"
+  --include "${SKILL_TEMPLATE_DIR}/references/sdlc.md"
+  --include "${SKILL_TEMPLATE_DIR}/references/cli-cheatsheet.md"
 )
 
 if [ -n "${TARGET}" ]; then
