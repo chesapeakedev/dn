@@ -44,7 +44,8 @@ list **follow-ups** → **ask before filing** → **ask before commit** → opti
 - Do not default to `meld`, `loop`, or `kickstart` unless the user delegates
   implement (tier B/C — [references/sdlc.md](references/sdlc.md)).
 - After `dn kickstart` / `dn loop` with `--publish none`: ask before committing.
-  If yes, write the commit with repo VCS; omit `*.plan.md`. Do not auto-run `dn land`.
+  If yes, write the commit with repo VCS; omit `*.plan.md`. Do not auto-run
+  `dn land`.
 - After `--publish pr` or `--publish direct`, kickstart already published —
   report the PR URL or branch; do not also commit here.
 - Close work with `dn task done` (not `dn land`).
@@ -57,9 +58,10 @@ commit steps.
 
 ## Subagent workflow (`dn loop` + `dn task done`)
 
-When the outer harness **spawns a nested agent** (Task subagent, cloud runner, or
-headless worker) instead of editing the repo in this chat, delegate implement and
-closeout through `dn` — do not reimplement the ticket inside the subagent prompt.
+When the outer harness **spawns a nested agent** (Task subagent, cloud runner,
+or headless worker) instead of editing the repo in this chat, delegate implement
+and closeout through `dn` — do not reimplement the ticket inside the subagent
+prompt.
 
 ```bash
 # Subagent: plan-on-the-fly implement from a Denoise task or GitHub issue URL
@@ -77,9 +79,9 @@ dn task done --denoise https://denoise.cloud/t/…
   `plans/*.plan.md` — it can build a plan from the ticket when none exists yet.
 - Prefer this pattern for **generic ticket work**; reserve in-chat implement for
   tier A iteration the user is driving in the outer session.
-- `dn` exposes a **fixed CLI surface** (research, loop, task, sync, …) instead of
-  unconstrained shell — useful when security policy limits agent tools to approved
-  commands.
+- `dn` exposes a **fixed CLI surface** (research, loop, task, sync, …) instead
+  of unconstrained shell — useful when security policy limits agent tools to
+  approved commands.
 
 ## Follow-up work
 
