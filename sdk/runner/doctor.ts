@@ -766,7 +766,7 @@ function checkinDoctorCheck(
       name: "checkin",
       ok: false,
       message:
-        "Denoise rejected this credential; pair again with dn runner connect <code> --install",
+        "Denoise rejected this credential. In Denoise → Runners → Devices, click Reconnect on this device (not Pair a device), then run: dn runner connect <code> -i",
     };
   }
   if (remote.kind === "unreachable") {
@@ -834,7 +834,7 @@ export async function doctorRunner(
   const pairingMessage = !safeCredential
     ? "Not paired; run dn runner connect <code>"
     : pairingRejected
-    ? "Denoise rejected this credential; pair again with dn runner connect <code> --install"
+    ? "Denoise rejected this credential. In Denoise → Runners → Devices, click Reconnect on this device (not Pair a device), then run: dn runner connect <code> -i"
     : credentialCurrent
     ? safeCredential.owner_id
       ? `Paired as ${safeCredential.display_name} (Denoise owner ${safeCredential.owner_id})`

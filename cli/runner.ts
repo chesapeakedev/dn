@@ -56,7 +56,7 @@ function showRunnerHelp(): void {
   );
   console.log("Usage:");
   console.log(
-    "  dn runner connect <code> [--install] [--repo] [--name <name>]",
+    "  dn runner connect <code> [-i|--install] [-r|--repo] [-u|--api-url <url>] [--name <name>]",
   );
   console.log("  dn runner register [path] [--yes] [--json]");
   console.log("  dn runner unregister <owner/repo> [--json]");
@@ -165,12 +165,12 @@ async function handleConnect(args: string[]): Promise<void> {
     if (argument === "--name") {
       name = args[++index] ?? "";
       if (!name) throw new Error("--name requires a value.");
-    } else if (argument === "--api-url") {
+    } else if (argument === "--api-url" || argument === "-u") {
       apiUrl = args[++index] ?? "";
       if (!apiUrl) throw new Error("--api-url requires a value.");
-    } else if (argument === "--install") {
+    } else if (argument === "--install" || argument === "-i") {
       install = true;
-    } else if (argument === "--repo") {
+    } else if (argument === "--repo" || argument === "-r") {
       registerCurrent = true;
     } else if (argument === "--no-open") {
       noOpen = true;
@@ -775,7 +775,7 @@ async function handleServe(args: string[]): Promise<void> {
     const message = error instanceof Error ? error.message : String(error);
     if (/invalid or expired runner credential/i.test(message)) {
       console.error(
-        "Runner credential was rejected. Re-pair with: dn runner connect <code> --install",
+        "Runner credential was rejected. In Denoise → Runners → Devices, use Reconnect, then: dn runner connect <code> -i",
       );
       // Exit 0 so launchd KeepAlive (SuccessfulExit=false) and systemd
       // Restart=on-failure do not tight-loop on a permanent auth failure.
